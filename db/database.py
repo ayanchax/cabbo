@@ -48,10 +48,13 @@ Base = declarative_base()
 
 def _import_all_models():
     models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
-    for filename in os.listdir(models_dir):
-        if filename.endswith('.py') and filename != '__init__.py':
-            module_name = f"models.{filename[:-3]}"
-            importlib.import_module(module_name)
+    for root, _, files in os.walk(models_dir):
+        for filename in files:
+            if filename.endswith('_orm.py') and filename != '__init__.py':
+                # Build the module path relative to the models directory
+                rel_path = os.path.relpath(os.path.join(root, filename), models_dir)
+                module_name = 'models.' + rel_path.replace(os.sep, '.')[:-3]
+                importlib.import_module(module_name)
 
 
 def _ensure_database_exists():

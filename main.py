@@ -4,7 +4,7 @@ logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, user
+from routes import auth, customer
 from db.database import init_db
 from contextlib import asynccontextmanager
 
@@ -39,7 +39,7 @@ def read_root():
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(user.router)
+app.include_router(customer.router)
 
 # Custom OpenAPI schema (optional, for branding or extensions)
 def custom_openapi():
