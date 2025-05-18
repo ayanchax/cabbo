@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = f"mysql+mysqlconnector://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 ASYNC_DATABASE_URL = DATABASE_URL.replace("mysql+mysqlconnector://", "mysql+aiomysql://")
 ENGINE_OPTIONS = dict(
-    echo=True,
+    echo=True if settings.ENV=='dev' else False,
     future=True,
     pool_pre_ping=True,
     pool_recycle=1800,  # Recycle connections every 30 minutes
