@@ -6,6 +6,8 @@ import os
 import importlib
 import mysql.connector
 import contextlib
+import logging
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = f"mysql+mysqlconnector://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 ASYNC_DATABASE_URL = DATABASE_URL.replace("mysql+mysqlconnector://", "mysql+aiomysql://")
@@ -17,6 +19,8 @@ ENGINE_OPTIONS = dict(
     pool_size=10,       # Number of connections to keep in the pool
     max_overflow=20     # Number of connections allowed above pool_size
 )
+
+
 
 # Pooling and connection settings (adjust as needed)
 engine = create_engine(
@@ -63,15 +67,18 @@ def _ensure_database_exists():
         cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
         cursor.close()
         conn.close()
+        logger.info(f"Ensured database '{db_name}' exists.")
     except Exception as e:
-        print(f"Error ensuring database exists: {e}")
+        logger.error(f"Error ensuring database exists: {e}")
         raise
 
 
 def init_db():
+    logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
     Base.metadata.create_all(bind=engine)
+    logger.info("Database initialization complete.")
 
 
 def get_mysql_session():

@@ -1,9 +1,13 @@
+from core.cabbo_logging import *
+from core.constants import APP_NAME
+logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 from routes import auth, user
 from db.database import init_db
 from contextlib import asynccontextmanager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -2,6 +2,7 @@
 import argparse
 import subprocess
 import sys
+from core.constants import APP_NAME
 
 parser = argparse.ArgumentParser(description="Build and optionally run Cabbo Docker images.")
 parser.add_argument("--env", choices=["dev", "prod"], default="dev", help="Environment to build for (dev or prod)")
@@ -11,11 +12,11 @@ args = parser.parse_args()
 
 if args.env == "dev":
     dockerfile = "Dockerfile.dev"
-    tag = "cabbo-dev"
+    tag = f"{APP_NAME}-dev"
     env_file = ".env.dev"
 else:
     dockerfile = "Dockerfile" # Default to Dockerfile for production
-    tag = "cabbo-prod"
+    tag = f"{APP_NAME}-prod"
     env_file = ".env.prod"
 
 build_cmd = [

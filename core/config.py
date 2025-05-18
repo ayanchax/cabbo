@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from core.constants import APP_NAME
 
 ENV = os.getenv("ENV", "dev")
 if ENV == "dev":

@@ -11,6 +11,7 @@ python-dotenv = "*"
 sqlalchemy = "*"
 mysql-connector-python = "*"
 aiomysql = "*"
+email-validator = "*"
 
 [tool.uv]
 # uv-specific settings can be added here
