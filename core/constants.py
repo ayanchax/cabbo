@@ -12,7 +12,6 @@ APP_DATE_FORMAT = "%Y-%m-%d"
 APP_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 APP_REGION = (settings.REGION).lower()
 
-
 # Dynamically import country-specific settings
 try:
     _region_settings = importlib.import_module(f"core.region_settings.{APP_REGION}")
