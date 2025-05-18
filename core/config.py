@@ -1,6 +1,5 @@
 import os
 from dotenv import load_dotenv
-from core.constants import APP_NAME
 
 ENV = os.getenv("ENV", "dev")
 if ENV == "dev":
@@ -9,6 +8,7 @@ if ENV == "dev":
 
 
 class Settings:
+    REGION = os.getenv("REGION")
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = os.getenv("DB_PORT")
     DB_USER = os.getenv("DB_USER")
