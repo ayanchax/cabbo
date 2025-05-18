@@ -1,0 +1,15 @@
+[project]
+name = "cabbo"
+description = "Backend for Cabbo cab booking platform"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[project.dependencies]
+fastapi = "*"
+uvicorn = "*"
+python-dotenv = "*"
+sqlalchemy = "*"
+mysql-connector-python = "*"
+
+[tool.uv]
+# uv-specific settings can be added here

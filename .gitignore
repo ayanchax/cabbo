@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# VSCode
+.vscode/
+
+# Environment files
+.env*
+
+# Docker
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pytest
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# MySQL dumps
+*.sql
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Ignore local dev files
+*.local
