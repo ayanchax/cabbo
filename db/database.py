@@ -9,10 +9,7 @@ import contextlib
 
 DATABASE_URL = f"mysql+mysqlconnector://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 ASYNC_DATABASE_URL = DATABASE_URL.replace("mysql+mysqlconnector://", "mysql+aiomysql://")
-
-# Pooling and connection settings (adjust as needed)
-engine = create_engine(
-    DATABASE_URL,
+ENGINE_OPTIONS = dict(
     echo=True,
     future=True,
     pool_pre_ping=True,
@@ -20,17 +17,20 @@ engine = create_engine(
     pool_size=10,       # Number of connections to keep in the pool
     max_overflow=20     # Number of connections allowed above pool_size
 )
+
+# Pooling and connection settings (adjust as needed)
+engine = create_engine(
+    DATABASE_URL,
+    **ENGINE_OPTIONS
+)
+# Create a synchronous session factory 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
-    echo=True,
-    future=True,
-    pool_pre_ping=True,
-    pool_recycle=1800,
-    pool_size=10,
-    max_overflow=20
+    **ENGINE_OPTIONS
 )
+# Create an asynchronous session factory
 AsyncSessionLocal = sessionmaker(
     bind=async_engine,
     class_=AsyncSession,
@@ -42,7 +42,7 @@ AsyncSessionLocal = sessionmaker(
 Base = declarative_base()
 
 
-def import_all_models():
+def _import_all_models():
     models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
     for filename in os.listdir(models_dir):
         if filename.endswith('.py') and filename != '__init__.py':
@@ -50,7 +50,7 @@ def import_all_models():
             importlib.import_module(module_name)
 
 
-def ensure_database_exists():
+def _ensure_database_exists():
     db_name = settings.DB_NAME
     try:
         conn = mysql.connector.connect(
@@ -69,8 +69,8 @@ def ensure_database_exists():
 
 
 def init_db():
-    ensure_database_exists()
-    import_all_models()
+    _ensure_database_exists()
+    _import_all_models()
     Base.metadata.create_all(bind=engine)
 
 
