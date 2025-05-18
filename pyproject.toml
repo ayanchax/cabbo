@@ -10,6 +10,7 @@ uvicorn = "*"
 python-dotenv = "*"
 sqlalchemy = "*"
 mysql-connector-python = "*"
+aiomysql = "*"
 
 [tool.uv]
 # uv-specific settings can be added here

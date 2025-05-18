@@ -1,9 +1,90 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from core.config import settings
+import os
+import importlib
+import mysql.connector
+import contextlib
 
 DATABASE_URL = f"mysql+mysqlconnector://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+ASYNC_DATABASE_URL = DATABASE_URL.replace("mysql+mysqlconnector://", "mysql+aiomysql://")
 
-engine = create_engine(DATABASE_URL, echo=True, future=True)
+# Pooling and connection settings (adjust as needed)
+engine = create_engine(
+    DATABASE_URL,
+    echo=True,
+    future=True,
+    pool_pre_ping=True,
+    pool_recycle=1800,  # Recycle connections every 30 minutes
+    pool_size=10,       # Number of connections to keep in the pool
+    max_overflow=20     # Number of connections allowed above pool_size
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+async_engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    echo=True,
+    future=True,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+    pool_size=10,
+    max_overflow=20
+)
+AsyncSessionLocal = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False
+)
+
 Base = declarative_base()
+
+
+def import_all_models():
+    models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
+    for filename in os.listdir(models_dir):
+        if filename.endswith('.py') and filename != '__init__.py':
+            module_name = f"models.{filename[:-3]}"
+            importlib.import_module(module_name)
+
+
+def ensure_database_exists():
+    db_name = settings.DB_NAME
+    try:
+        conn = mysql.connector.connect(
+            host=settings.DB_HOST,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD,
+            port=int(settings.DB_PORT)
+        )
+        cursor = conn.cursor()
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error ensuring database exists: {e}")
+        raise
+
+
+def init_db():
+    ensure_database_exists()
+    import_all_models()
+    Base.metadata.create_all(bind=engine)
+
+
+def get_mysql_session():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_mysql_async_session():
+    async def _get_session():
+        async with AsyncSessionLocal() as session:
+            yield session
+    return contextlib.asynccontextmanager(_get_session)()
+
