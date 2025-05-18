@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, func
+from sqlalchemy import Column, String, DateTime, func
 from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
 import uuid
@@ -10,4 +10,4 @@ class Customer(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=True)
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, server_default=func.utc_timestamp())
