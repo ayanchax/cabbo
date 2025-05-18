@@ -1,9 +1,10 @@
 from core.cabbo_logging import *
-from core.constants import APP_NAME
+from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION
 logger = logging.getLogger(APP_NAME)
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from routes import auth, customer
 from db.database import init_db
 from contextlib import asynccontextmanager
@@ -15,9 +16,9 @@ async def lifespan(app: FastAPI):
     yield
  
 app = FastAPI(
-    title="Cabbo API",
-    description="Backend API for Cabbo cab booking platform.",
-    version="1.0.0",
+    title=f"{APP_NAME.capitalize()} API",
+    description=APP_DESCRIPTION,
+    version=APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -35,7 +36,7 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Cabbo API!"}
+    return {"message": f"Welcome to {APP_NAME.capitalize()} API!"}
 
 # Include routers
 app.include_router(auth.router)
@@ -55,3 +56,14 @@ def custom_openapi():
     return app.openapi_schema
 
 app.openapi = custom_openapi
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "An unexpected error occurred. Please try again later.",
+            "error": str(exc)
+        },
+    )
