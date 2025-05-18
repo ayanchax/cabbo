@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
+from routes import auth, user
 
 app = FastAPI(
     title="Cabbo API",
@@ -23,6 +24,10 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Cabbo API!"}
+
+# Include routers
+app.include_router(auth.router)
+app.include_router(user.router)
 
 # Custom OpenAPI schema (optional, for branding or extensions)
 def custom_openapi():
