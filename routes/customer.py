@@ -10,10 +10,4 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 def get_customers():
     return {"message": "List customers endpoint"}
 
-@router.post("/register", response_model=CustomerRead)
-async def register_customer(
-    data: CustomerCreate = Body(...),
-    db: Session = Depends(get_mysql_session),
-):
-    customer =   create_customer(data, db)
-    return customer
+ 

@@ -24,11 +24,7 @@ def generate_otp(phone_number: str, db: Session) -> str:
     if existing:
         raise Exception(f"OTP already sent and not expired, or max attempts not reached. Please wait for {OTP_EXPIRY_MINUTES} minutes before requesting a new otp or use the existing OTP.")
     # Remove any expired OTPs for this phone number
-    db.query(PreOnboardingCustomer).filter(
-        PreOnboardingCustomer.phone_number == phone_number,
-        PreOnboardingCustomer.expires_at < now
-    ).delete()
-    db.commit()
+    delete_expired_otp(phone_number, db)
     # Generate a unique, cryptographically secure 4-digit OTP not in use
     for _ in range(10):  # Try up to 10 times to avoid rare infinite loop
         otp_int = secrets.randbelow(10000)
@@ -38,42 +34,55 @@ def generate_otp(phone_number: str, db: Session) -> str:
             break
     else:
         raise Exception("Unable to generate unique OTP after several attempts")
-    # Store OTP (hashed) in DB
-    expires_at = now + timedelta(minutes=OTP_EXPIRY_MINUTES)
-    last_sent_at = now
-    otp_hash_val = hash_otp(otp)
-    pre = PreOnboardingCustomer(
-        phone_number=phone_number,
-        otp_hash=otp_hash_val,
-        created_at=now,
-        expires_at=expires_at,
-        attempts=0,
-        last_sent_at=last_sent_at
-    )
-    db.add(pre)
-    db.commit()
+    store_otp(phone_number, otp, db)
     return otp
+
+def store_otp(phone_number: str, otp: str, db: Session):
+    try:
+        # Store OTP (hashed) in DB
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        last_sent_at = now
+        otp_hash_val = hash_otp(otp)
+        pre = PreOnboardingCustomer(
+            phone_number=phone_number,
+            otp_hash=otp_hash_val,
+            created_at=now,
+            expires_at=expires_at,
+            attempts=0,
+            last_sent_at=last_sent_at
+        )
+        db.add(pre)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+
 
 def hash_otp(otp: str) -> str:
     return hashlib.sha256(otp.encode()).hexdigest()
 
-def verify_otp(phone_number: str, otp: str, db: Session) -> bool:
+def verify_otp(phone_number: str, otp: str, db: Session) -> tuple[bool, str]:
     now = datetime.now(timezone.utc)
     otp_hash_val = hash_otp(otp)
     record = db.query(PreOnboardingCustomer).filter(
         PreOnboardingCustomer.phone_number == phone_number,
     ).first()
     if not record:
-        return False
-    if record.expires_at < now:
+        return False, "No OTP found for this phone number. Please request a new OTP."
+    # Ensure both datetimes are timezone-aware for comparison
+    record_expiry = record.expires_at
+    if record_expiry.tzinfo is None:
+        record_expiry = record_expiry.replace(tzinfo=timezone.utc)
+    if record_expiry < now:
         delete_otp(phone_number, db)
-        return False
+        return False, "OTP has expired. Please request a new OTP."
     if record.otp_hash != otp_hash_val:
         increment_attempt(phone_number, db)
-        return False
+        return False, "Invalid OTP. Please try again."
     # Success: delete OTP row
     delete_otp(phone_number, db)
-    return True
+    return True, "OTP verified successfully."
 
 def can_resend_otp(phone_number: str, db: Session) -> bool:
     now = datetime.now(timezone.utc)
@@ -85,17 +94,37 @@ def can_resend_otp(phone_number: str, db: Session) -> bool:
     return (now - record.last_sent_at).total_seconds() > OTP_RESEND_INTERVAL_SECONDS
 
 def increment_attempt(phone_number: str, db: Session):
-    record = db.query(PreOnboardingCustomer).filter(
+    try:
+        record = db.query(PreOnboardingCustomer).filter(
         PreOnboardingCustomer.phone_number == phone_number
-    ).first()
-    if record:
-        record.attempts = record.attempts + 1
-        db.commit()
-        if record.attempts >= MAX_ATTEMPTS:
-            delete_otp(phone_number, db)
+        ).first()
+        if record:
+            record.attempts = record.attempts + 1
+            db.commit()
+            if record.attempts >= MAX_ATTEMPTS:
+                delete_otp(phone_number, db)
+    except Exception as e:
+        db.rollback()
+        raise e
 
 def delete_otp(phone_number: str, db: Session):
-    db.query(PreOnboardingCustomer).filter(
+    try:
+        db.query(PreOnboardingCustomer).filter(
         PreOnboardingCustomer.phone_number == phone_number
     ).delete()
-    db.commit()
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    
+def delete_expired_otp(phone_number: str, db: Session):
+    try:
+        now = datetime.now(timezone.utc)
+        db.query(PreOnboardingCustomer).filter(
+            PreOnboardingCustomer.phone_number == phone_number,
+            PreOnboardingCustomer.expires_at < now
+        ).delete()
+        db.commit() 
+    except Exception as e:
+        db.rollback()
+        raise e
