@@ -1,0 +1,407 @@
+2025-05-19 03:10:53,425 [ERROR] cabbo :: cabbo: Unhandled error: '_AsyncGeneratorContextManager' object has no attribute 'query'
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer = await create_customer(data, db)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\services\customer.py", line 8, in create_customer
+    existing = db.query(Customer).filter(Customer.phone_number == data.phone_number).first()
+AttributeError: '_AsyncGeneratorContextManager' object has no attribute 'query'
+2025-05-19 03:11:24,463 [ERROR] cabbo :: cabbo: Unhandled error: object Customer can't be used in 'await' expression
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer = await create_customer(data, db)
+TypeError: object Customer can't be used in 'await' expression
+2025-05-19 03:13:39,970 [ERROR] cabbo :: cabbo: Unhandled error: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9088@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': '82029006-a097-4cfd-9980-379adfc8c0cd', 'name': 'Ayan', 'email': 'ayanchax9088@gmail.com', 'phone_number': '+919831305668'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+_mysql_connector.MySQLInterfaceError: Duplicate entry 'ayanchax9088@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+mysql.connector.errors.IntegrityError: 1062 (23000): Duplicate entry 'ayanchax9088@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer =   create_customer(data, db)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\services\customer.py", line 19, in create_customer
+    db.commit()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4345, in flush
+    self._flush(objects)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4480, in _flush
+    with util.safe_reraise():
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4441, in _flush
+    flush_context.execute()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+sqlalchemy.exc.IntegrityError: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9088@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': '82029006-a097-4cfd-9980-379adfc8c0cd', 'name': 'Ayan', 'email': 'ayanchax9088@gmail.com', 'phone_number': '+919831305668'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-05-19 03:17:37,514 [ERROR] cabbo :: cabbo: Unhandled error: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9086@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': '411018e9-d722-4fbb-aa9e-ed10cd85be48', 'name': 'Ayan', 'email': 'ayanchax9086@gmail.com', 'phone_number': '+919831305667'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+_mysql_connector.MySQLInterfaceError: Duplicate entry 'ayanchax9086@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+mysql.connector.errors.IntegrityError: 1062 (23000): Duplicate entry 'ayanchax9086@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer =   create_customer(data, db)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\services\customer.py", line 19, in create_customer
+    db.commit()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4345, in flush
+    self._flush(objects)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4480, in _flush
+    with util.safe_reraise():
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4441, in _flush
+    flush_context.execute()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+sqlalchemy.exc.IntegrityError: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9086@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': '411018e9-d722-4fbb-aa9e-ed10cd85be48', 'name': 'Ayan', 'email': 'ayanchax9086@gmail.com', 'phone_number': '+919831305667'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-05-19 03:17:47,108 [ERROR] cabbo :: cabbo: Unhandled error: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry '+919831305667' for key 'customers.ix_customers_phone_number'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': 'fbc632bb-1bc0-420e-ae9b-d834a5cb2452', 'name': 'Ayan', 'email': 'ayanchax9084@gmail.com', 'phone_number': '+919831305667'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+_mysql_connector.MySQLInterfaceError: Duplicate entry '+919831305667' for key 'customers.ix_customers_phone_number'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+mysql.connector.errors.IntegrityError: 1062 (23000): Duplicate entry '+919831305667' for key 'customers.ix_customers_phone_number'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer =   create_customer(data, db)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\services\customer.py", line 19, in create_customer
+    db.commit()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4345, in flush
+    self._flush(objects)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4480, in _flush
+    with util.safe_reraise():
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4441, in _flush
+    flush_context.execute()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+sqlalchemy.exc.IntegrityError: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry '+919831305667' for key 'customers.ix_customers_phone_number'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': 'fbc632bb-1bc0-420e-ae9b-d834a5cb2452', 'name': 'Ayan', 'email': 'ayanchax9084@gmail.com', 'phone_number': '+919831305667'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)

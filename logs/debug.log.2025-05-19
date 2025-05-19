@@ -1,0 +1,372 @@
+2025-05-20 01:24:23,214 [DEBUG] cabbo :: asyncio: Using selector: SelectSelector
+2025-05-20 01:24:23,476 [INFO] cabbo :: db.database: Initializing database and creating tables if not present...
+2025-05-20 01:24:23,791 [INFO] cabbo :: db.database: Ensured database 'cabbo_dev' exists.
+2025-05-20 01:24:23,816 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT DATABASE()
+2025-05-20 01:24:23,816 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:24:23,821 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@sql_mode
+2025-05-20 01:24:23,822 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:24:23,825 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@lower_case_table_names
+2025-05-20 01:24:23,826 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:24:23,831 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:24:23,832 [INFO] cabbo :: sqlalchemy.engine.Engine: DESCRIBE `cabbo_dev`.`customers`
+2025-05-20 01:24:23,832 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:24:23,889 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:24:23,891 [INFO] cabbo :: db.database: Database initialization complete.
+2025-05-20 01:25:18,216 [DEBUG] cabbo :: asyncio: Using selector: SelectSelector
+2025-05-20 01:25:18,284 [INFO] cabbo :: db.database: Initializing database and creating tables if not present...
+2025-05-20 01:25:18,315 [INFO] cabbo :: db.database: Ensured database 'cabbo_dev' exists.
+2025-05-20 01:25:18,329 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT DATABASE()
+2025-05-20 01:25:18,330 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:25:18,332 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@sql_mode
+2025-05-20 01:25:18,332 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:25:18,334 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@lower_case_table_names
+2025-05-20 01:25:18,334 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:25:18,336 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:25:18,337 [INFO] cabbo :: sqlalchemy.engine.Engine: DESCRIBE `cabbo_dev`.`customers`
+2025-05-20 01:25:18,337 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:25:18,342 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:25:18,343 [INFO] cabbo :: db.database: Database initialization complete.
+2025-05-20 01:28:13,401 [DEBUG] cabbo :: asyncio: Using selector: SelectSelector
+2025-05-20 01:28:13,472 [INFO] cabbo :: db.database: Initializing database and creating tables if not present...
+2025-05-20 01:28:13,504 [INFO] cabbo :: db.database: Ensured database 'cabbo_dev' exists.
+2025-05-20 01:28:13,519 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT DATABASE()
+2025-05-20 01:28:13,519 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:28:13,521 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@sql_mode
+2025-05-20 01:28:13,522 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:28:13,523 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@lower_case_table_names
+2025-05-20 01:28:13,524 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:28:13,526 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:28:13,528 [INFO] cabbo :: sqlalchemy.engine.Engine: DESCRIBE `cabbo_dev`.`customers`
+2025-05-20 01:28:13,528 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:28:13,532 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:28:13,535 [INFO] cabbo :: db.database: Database initialization complete.
+2025-05-20 01:30:34,716 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:30:34,722 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id AS customers_id, customers.name AS customers_name, customers.email AS customers_email, customers.phone_number AS customers_phone_number, customers.created_at AS customers_created_at 
+FROM customers 
+WHERE customers.phone_number = %(phone_number_1)s 
+ LIMIT %(param_1)s
+2025-05-20 01:30:34,724 [INFO] cabbo :: sqlalchemy.engine.Engine: [generated in 0.00192s] {'phone_number_1': '+919831305667', 'param_1': 1}
+2025-05-20 01:30:34,733 [INFO] cabbo :: sqlalchemy.engine.Engine: ROLLBACK
+2025-05-20 01:32:08,093 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:32:08,094 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id AS customers_id, customers.name AS customers_name, customers.email AS customers_email, customers.phone_number AS customers_phone_number, customers.created_at AS customers_created_at 
+FROM customers 
+WHERE customers.phone_number = %(phone_number_1)s 
+ LIMIT %(param_1)s
+2025-05-20 01:32:08,095 [INFO] cabbo :: sqlalchemy.engine.Engine: [cached since 93.37s ago] {'phone_number_1': '+919831305668', 'param_1': 1}
+2025-05-20 01:32:08,102 [INFO] cabbo :: sqlalchemy.engine.Engine: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)
+2025-05-20 01:32:08,103 [INFO] cabbo :: sqlalchemy.engine.Engine: [generated in 0.00171s] {'id': 'b95f64e1-c65b-4497-95cd-3551aefa5385', 'name': ' ', 'email': 'ayanchax9084@gmail.com', 'phone_number': '+919831305668'}
+2025-05-20 01:32:08,127 [INFO] cabbo :: sqlalchemy.engine.Engine: ROLLBACK
+2025-05-20 01:32:08,131 [ERROR] cabbo :: cabbo: Unhandled error: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9084@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': 'b95f64e1-c65b-4497-95cd-3551aefa5385', 'name': ' ', 'email': 'ayanchax9084@gmail.com', 'phone_number': '+919831305668'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+_mysql_connector.MySQLInterfaceError: Duplicate entry 'ayanchax9084@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+mysql.connector.errors.IntegrityError: 1062 (23000): Duplicate entry 'ayanchax9084@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "c:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer =   create_customer(data, db)
+  File "c:\Users\ayanc\OneDrive\Desktop\cabbo\services\customer.py", line 19, in create_customer
+    db.commit()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4345, in flush
+    self._flush(objects)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4480, in _flush
+    with util.safe_reraise():
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4441, in _flush
+    flush_context.execute()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+sqlalchemy.exc.IntegrityError: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9084@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': 'b95f64e1-c65b-4497-95cd-3551aefa5385', 'name': ' ', 'email': 'ayanchax9084@gmail.com', 'phone_number': '+919831305668'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-05-20 01:32:22,825 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:32:22,827 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id AS customers_id, customers.name AS customers_name, customers.email AS customers_email, customers.phone_number AS customers_phone_number, customers.created_at AS customers_created_at 
+FROM customers 
+WHERE customers.phone_number = %(phone_number_1)s 
+ LIMIT %(param_1)s
+2025-05-20 01:32:22,827 [INFO] cabbo :: sqlalchemy.engine.Engine: [cached since 108.1s ago] {'phone_number_1': '+919831305668', 'param_1': 1}
+2025-05-20 01:32:22,829 [INFO] cabbo :: sqlalchemy.engine.Engine: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)
+2025-05-20 01:32:22,830 [INFO] cabbo :: sqlalchemy.engine.Engine: [cached since 14.73s ago] {'id': '8d3b2488-550d-49e8-909c-b4428b9fe261', 'name': ' ', 'email': 'ayanchax9085@gmail.com', 'phone_number': '+919831305668'}
+2025-05-20 01:32:22,848 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:32:22,856 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:32:22,859 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id, customers.name, customers.email, customers.phone_number, customers.created_at 
+FROM customers 
+WHERE customers.id = %(pk_1)s
+2025-05-20 01:32:22,859 [INFO] cabbo :: sqlalchemy.engine.Engine: [generated in 0.00109s] {'pk_1': '8d3b2488-550d-49e8-909c-b4428b9fe261'}
+2025-05-20 01:32:22,871 [INFO] cabbo :: sqlalchemy.engine.Engine: ROLLBACK
+2025-05-20 01:32:50,603 [DEBUG] cabbo :: asyncio: Using selector: SelectSelector
+2025-05-20 01:32:50,703 [INFO] cabbo :: db.database: Initializing database and creating tables if not present...
+2025-05-20 01:32:50,769 [INFO] cabbo :: db.database: Ensured database 'cabbo_dev' exists.
+2025-05-20 01:32:50,785 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT DATABASE()
+2025-05-20 01:32:50,785 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:32:50,788 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@sql_mode
+2025-05-20 01:32:50,788 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:32:50,790 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@lower_case_table_names
+2025-05-20 01:32:50,791 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:32:50,792 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:32:50,793 [INFO] cabbo :: sqlalchemy.engine.Engine: DESCRIBE `cabbo_dev`.`customers`
+2025-05-20 01:32:50,793 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:32:50,797 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:32:50,798 [INFO] cabbo :: db.database: Database initialization complete.
+2025-05-20 01:33:01,018 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:33:01,022 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id AS customers_id, customers.name AS customers_name, customers.email AS customers_email, customers.phone_number AS customers_phone_number, customers.created_at AS customers_created_at 
+FROM customers 
+WHERE customers.phone_number = %(phone_number_1)s 
+ LIMIT %(param_1)s
+2025-05-20 01:33:01,023 [INFO] cabbo :: sqlalchemy.engine.Engine: [generated in 0.00154s] {'phone_number_1': '+919831305668', 'param_1': 1}
+2025-05-20 01:33:01,026 [INFO] cabbo :: sqlalchemy.engine.Engine: ROLLBACK
+2025-05-20 01:33:17,459 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:33:17,461 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id AS customers_id, customers.name AS customers_name, customers.email AS customers_email, customers.phone_number AS customers_phone_number, customers.created_at AS customers_created_at 
+FROM customers 
+WHERE customers.phone_number = %(phone_number_1)s 
+ LIMIT %(param_1)s
+2025-05-20 01:33:17,461 [INFO] cabbo :: sqlalchemy.engine.Engine: [cached since 16.44s ago] {'phone_number_1': '+919831305678', 'param_1': 1}
+2025-05-20 01:33:17,465 [INFO] cabbo :: sqlalchemy.engine.Engine: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)
+2025-05-20 01:33:17,465 [INFO] cabbo :: sqlalchemy.engine.Engine: [generated in 0.00108s] {'id': '15fd0c2e-7628-4b3f-b0ce-691bde87b6b7', 'name': '', 'email': 'ayanchax9085@gmail.com', 'phone_number': '+919831305678'}
+2025-05-20 01:33:17,476 [INFO] cabbo :: sqlalchemy.engine.Engine: ROLLBACK
+2025-05-20 01:33:17,481 [ERROR] cabbo :: cabbo: Unhandled error: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9085@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': '15fd0c2e-7628-4b3f-b0ce-691bde87b6b7', 'name': '', 'email': 'ayanchax9085@gmail.com', 'phone_number': '+919831305678'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+_mysql_connector.MySQLInterfaceError: Duplicate entry 'ayanchax9085@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+mysql.connector.errors.IntegrityError: 1062 (23000): Duplicate entry 'ayanchax9085@gmail.com' for key 'customers.email'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "c:\Users\ayanc\OneDrive\Desktop\cabbo\routes\customer.py", line 18, in register_customer
+    customer =   create_customer(data, db)
+  File "c:\Users\ayanc\OneDrive\Desktop\cabbo\services\customer.py", line 19, in create_customer
+    db.commit()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4345, in flush
+    self._flush(objects)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4480, in _flush
+    with util.safe_reraise():
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\session.py", line 4441, in _flush
+    flush_context.execute()
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\cursor_cext.py", line 356, in execute
+    self._connection.cmd_query(
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\ayanc\OneDrive\Desktop\cabbo\.venv\lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+sqlalchemy.exc.IntegrityError: (mysql.connector.errors.IntegrityError) 1062 (23000): Duplicate entry 'ayanchax9085@gmail.com' for key 'customers.email'
+[SQL: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)]
+[parameters: {'id': '15fd0c2e-7628-4b3f-b0ce-691bde87b6b7', 'name': '', 'email': 'ayanchax9085@gmail.com', 'phone_number': '+919831305678'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-05-20 01:34:07,363 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:34:07,364 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id AS customers_id, customers.name AS customers_name, customers.email AS customers_email, customers.phone_number AS customers_phone_number, customers.created_at AS customers_created_at 
+FROM customers 
+WHERE customers.phone_number = %(phone_number_1)s 
+ LIMIT %(param_1)s
+2025-05-20 01:34:07,365 [INFO] cabbo :: sqlalchemy.engine.Engine: [cached since 66.34s ago] {'phone_number_1': '+919831305665', 'param_1': 1}
+2025-05-20 01:34:07,367 [INFO] cabbo :: sqlalchemy.engine.Engine: INSERT INTO customers (id, name, email, phone_number) VALUES (%(id)s, %(name)s, %(email)s, %(phone_number)s)
+2025-05-20 01:34:07,367 [INFO] cabbo :: sqlalchemy.engine.Engine: [cached since 49.9s ago] {'id': 'a43a4f76-ab75-4390-ba4d-60de8679e351', 'name': '', 'email': 'ayanchax9086@gmail.com', 'phone_number': '+919831305665'}
+2025-05-20 01:34:07,371 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:34:07,377 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:34:07,380 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT customers.id, customers.name, customers.email, customers.phone_number, customers.created_at 
+FROM customers 
+WHERE customers.id = %(pk_1)s
+2025-05-20 01:34:07,381 [INFO] cabbo :: sqlalchemy.engine.Engine: [generated in 0.00124s] {'pk_1': 'a43a4f76-ab75-4390-ba4d-60de8679e351'}
+2025-05-20 01:34:07,383 [INFO] cabbo :: sqlalchemy.engine.Engine: ROLLBACK
+2025-05-20 01:34:40,371 [DEBUG] cabbo :: asyncio: Using selector: SelectSelector
+2025-05-20 01:34:40,441 [INFO] cabbo :: db.database: Initializing database and creating tables if not present...
+2025-05-20 01:34:40,474 [INFO] cabbo :: db.database: Ensured database 'cabbo_dev' exists.
+2025-05-20 01:34:40,492 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT DATABASE()
+2025-05-20 01:34:40,493 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:34:40,494 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@sql_mode
+2025-05-20 01:34:40,495 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:34:40,495 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@lower_case_table_names
+2025-05-20 01:34:40,496 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:34:40,497 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:34:40,497 [INFO] cabbo :: sqlalchemy.engine.Engine: DESCRIBE `cabbo_dev`.`customers`
+2025-05-20 01:34:40,498 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:34:40,503 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:34:40,506 [INFO] cabbo :: db.database: Database initialization complete.
+2025-05-20 01:35:03,688 [DEBUG] cabbo :: asyncio: Using selector: SelectSelector
+2025-05-20 01:35:03,754 [INFO] cabbo :: db.database: Initializing database and creating tables if not present...
+2025-05-20 01:35:03,787 [INFO] cabbo :: db.database: Ensured database 'cabbo_dev' exists.
+2025-05-20 01:35:03,804 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT DATABASE()
+2025-05-20 01:35:03,805 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:35:03,807 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@sql_mode
+2025-05-20 01:35:03,807 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:35:03,808 [INFO] cabbo :: sqlalchemy.engine.Engine: SELECT @@lower_case_table_names
+2025-05-20 01:35:03,809 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:35:03,811 [INFO] cabbo :: sqlalchemy.engine.Engine: BEGIN (implicit)
+2025-05-20 01:35:03,811 [INFO] cabbo :: sqlalchemy.engine.Engine: DESCRIBE `cabbo_dev`.`customers`
+2025-05-20 01:35:03,811 [INFO] cabbo :: sqlalchemy.engine.Engine: [raw sql] {}
+2025-05-20 01:35:03,817 [INFO] cabbo :: sqlalchemy.engine.Engine: COMMIT
+2025-05-20 01:35:03,818 [INFO] cabbo :: db.database: Database initialization complete.

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 ENV = os.getenv("ENV", "dev")
 if ENV == "dev":
     load_dotenv(".env.dev") # Load development environment variables only when running in development/local mode
-    #When running from Docker environment, in production or development mode, the .env.prod or .env.dev file will be loaded by the Docker container itself
+    #When running from Docker environment, in production or development mode, the .env.prod or .env.dev file will be loaded by the Docker container itself from the build context.
 
 
 class Settings:
