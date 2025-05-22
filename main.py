@@ -127,6 +127,17 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.error(f"Validation error: {exc}", exc_info=True)
     diagnostics = get_diagnostics(request)
+    # If the error is due to missing Authorization header, return 401
+    for err in exc.errors():
+        if err.get('loc', [])[0] == 'header' and 'authorization' in str(err.get('loc', [])).lower():
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "detail": "Authorization header missing or invalid.",
+                    "error": str(exc),
+                    **diagnostics
+                },
+            )
     return JSONResponse(
         status_code=422,
         content={

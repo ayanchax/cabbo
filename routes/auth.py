@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Body, Depends, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, BackgroundTasks, Header
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from services.customer_service import create_customer
 from services.otp_service import generate_otp, verify_otp, delete_otp,OTP_EXPIRY_MINUTES
 from models.customer.customer_schema import CustomerCreate, CustomerRead, CustomerOnboardInitiationRequest, CustomerLoginRequest, CustomerLoginResponse
-from services.customer_service import is_existing_customer, get_customer_by_phone_number,generate_customer_jwt
+from services.customer_service import is_existing_customer, get_customer_by_phone_number,generate_customer_jwt,persist_bearer_token,is_customer_logged_in
 from services.message_service import send_otp, send_email
 from core.exceptions import CabboException
 from core.constants import APP_NAME
+from core.security import decode_jwt_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -88,13 +89,16 @@ def login(
     customer = get_customer_by_phone_number(phone_number, db)
     if not customer:
         raise CabboException("Login failed as phone number not registered.", status_code=404)
-      # Verify OTP
+    # Check if bearer token is still valid in DB
+    if is_customer_logged_in(customer=customer):
+        raise CabboException("You are already logged in.", status_code=400)
+    # Verify OTP
     valid, message = verify_otp(phone_number, otp, db)
     if not valid:
         raise CabboException(message, status_code=400)
-    # Generate JWT token
+    token=persist_bearer_token(customer=customer, token=generate_customer_jwt(customer=customer), db=db)
     return CustomerLoginResponse(
-        access_token=generate_customer_jwt(customer=customer),
+        access_token=token,
         token_type="bearer",
         expires_in=OTP_EXPIRY_MINUTES*24*60*60,
         customer_id=str(customer.id)

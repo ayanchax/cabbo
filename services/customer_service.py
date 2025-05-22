@@ -4,7 +4,7 @@ from models.customer.customer_orm import Customer
 from core.exceptions import CabboException
 from datetime import datetime, timedelta, timezone
 from core.constants import APP_NAME
-from core.security import generate_jwt_token
+from core.security import generate_jwt_token,decode_jwt_token
 from services.otp_service import OTP_EXPIRY_MINUTES
 
 def create_customer(data: CustomerCreate, db: Session,phone_verified=False, activate=False) -> Customer:
@@ -71,6 +71,15 @@ def update_customer_profile(customer_id: str, payload:CustomerUpdate, db: Sessio
         db.rollback()
         raise CabboException(f"Error updating customer profile: {str(e)}", status_code=500, include_traceback=True)
 
+def is_customer_logged_in(customer: Customer) -> bool:
+    if not customer.bearer_token:
+        return False
+    try:    
+            decode_jwt_token(customer.bearer_token) #Decode the JWT token and raise error if invalid or expired
+            return True
+    except Exception:
+            return False  
+
 def generate_customer_jwt(customer: Customer, expires_in=OTP_EXPIRY_MINUTES, expires_unit='days') -> str:
     # Generate JWT token with flexible expiry
     now = datetime.now(timezone.utc)
@@ -90,3 +99,14 @@ def generate_customer_jwt(customer: Customer, expires_in=OTP_EXPIRY_MINUTES, exp
         "phone_number": customer.phone_number
     }
     return generate_jwt_token(payload)
+
+def persist_bearer_token(customer: Customer, token: str, db: Session) -> str:
+    try:
+        customer.bearer_token = token
+        customer.last_seen = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(customer)
+        return token
+    except Exception as e:
+        db.rollback()
+        raise CabboException(f"Error persisting bearer token: {str(e)}", status_code=500, include_traceback=True)

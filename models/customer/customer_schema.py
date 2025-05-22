@@ -68,6 +68,11 @@ class CustomerOnboardInitiationRequest(BaseModel):
 class CustomerLoginRequest(BaseModel):
     phone_number: str
     otp: str
+    
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def phone_validator(cls, v):
+        return validate_and_sanitize_country_phone(v)
 
 class CustomerLoginResponse(BaseModel):
     access_token: str

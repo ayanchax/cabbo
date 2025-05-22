@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, func, Integer, Boolean
+from sqlalchemy import Column, String, DateTime, func, Integer, Boolean, Text
 from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
 import uuid
@@ -15,6 +15,8 @@ class Customer(Base):
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
     last_modified = Column(DateTime, default=func.utc_timestamp(), nullable=True)
+    bearer_token = Column(Text, nullable=True)
+    last_seen = Column(DateTime, nullable=True)
     
 class PreOnboardingCustomer(Base): 
     __tablename__ = "pre_onboarding_customers"
