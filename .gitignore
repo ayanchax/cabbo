@@ -46,3 +46,4 @@ dist/
 
 # Ignore local dev files
 *.local
+share/

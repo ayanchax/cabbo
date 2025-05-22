@@ -15,6 +15,7 @@ from fastapi.exception_handlers import RequestValidationError as FastAPIRequestV
 from fastapi import HTTPException as FastAPIHTTPException
 import os
 from datetime import datetime, timezone
+from fastapi.staticfiles import StaticFiles
 
 
 @asynccontextmanager
@@ -48,6 +49,13 @@ def read_root():
 # Include routers
 app.include_router(auth.router)
 app.include_router(customer.router)
+
+# Ensure share/images directory exists
+SHARE_IMAGES_DIR = os.path.join(os.path.dirname(__file__), 'share', 'images')
+os.makedirs(SHARE_IMAGES_DIR, exist_ok=True)
+
+# Mount the static images directory
+app.mount("/images", StaticFiles(directory=SHARE_IMAGES_DIR), name="images")
 
 # Custom OpenAPI schema (optional, for branding or extensions)
 def custom_openapi():
