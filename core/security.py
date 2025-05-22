@@ -40,3 +40,6 @@ def decode_jwt_token(token, secret=settings.JWT_SECRET, algorithms=["HS256"]):
     """
     
     return jwt.decode(token, secret, algorithms=algorithms)
+
+ 
+ 

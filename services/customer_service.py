@@ -110,3 +110,13 @@ def persist_bearer_token(customer: Customer, token: str, db: Session) -> str:
     except Exception as e:
         db.rollback()
         raise CabboException(f"Error persisting bearer token: {str(e)}", status_code=500, include_traceback=True)
+    
+def delete_bearer_token(customer: Customer, db: Session) -> bool:  
+     try:
+        customer.bearer_token = None
+        db.commit()
+        db.refresh(customer)
+        return True
+     except Exception as e:
+        db.rollback()
+        raise CabboException(f"Error deleting bearer token: {str(e)}", status_code=500, include_traceback=True)
