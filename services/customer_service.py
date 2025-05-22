@@ -2,8 +2,10 @@ from sqlalchemy.orm import Session
 from models.customer.customer_schema import CustomerCreate,CustomerUpdate
 from models.customer.customer_orm import Customer
 from core.exceptions import CabboException
-from datetime import datetime, timezone
-
+from datetime import datetime, timedelta, timezone
+from core.constants import APP_NAME
+from core.security import generate_jwt_token
+from services.otp_service import OTP_EXPIRY_MINUTES
 
 def create_customer(data: CustomerCreate, db: Session,phone_verified=False, activate=False) -> Customer:
     try:
@@ -32,6 +34,12 @@ def get_active_customer_by_id(customer_id: str, db: Session) -> Customer:
     if not customer:
         raise CabboException("Customer not found", status_code=404)
     return customer
+def get_customer_by_phone_number(phone_number: str, db: Session) -> Customer:
+    customer = db.query(Customer).filter(Customer.phone_number == phone_number).first()
+    if not customer:
+        raise CabboException("Customer not found", status_code=404)
+    return customer
+
 def get_customer_by_id(customer_id: str, db: Session) -> Customer:
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
@@ -62,3 +70,23 @@ def update_customer_profile(customer_id: str, payload:CustomerUpdate, db: Sessio
     except Exception as e:
         db.rollback()
         raise CabboException(f"Error updating customer profile: {str(e)}", status_code=500, include_traceback=True)
+
+def generate_customer_jwt(customer: Customer, expires_in=OTP_EXPIRY_MINUTES, expires_unit='days') -> str:
+    # Generate JWT token with flexible expiry
+    now = datetime.now(timezone.utc)
+    if expires_unit == 'days':
+        expire = now + timedelta(days=expires_in)
+    elif expires_unit == 'hours':
+        expire = now + timedelta(hours=expires_in)
+    elif expires_unit == 'minutes':
+        expire = now + timedelta(minutes=expires_in)
+    else:
+        expire = now + timedelta(days=OTP_EXPIRY_MINUTES)  # fallback
+    payload = {
+        "iss": APP_NAME,
+        "iat": int(now.timestamp()),
+        "sub": str(customer.id),
+        "exp": int(expire.timestamp()),
+        "phone_number": customer.phone_number
+    }
+    return generate_jwt_token(payload)

@@ -13,11 +13,11 @@ client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 # Twilio Text Messaging Service
 
-def send_otp(to_number: str, otp: str, expiry="5 minutes") -> bool:
+def send_otp(to_number: str, message ="Hello world") -> bool:
     """
     Send OTP using Twilio. Returns True if sent, False otherwise.
     """
-    message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {expiry}."
+    
     return send_sms(to_number, message)
 
 def send_sms(to_number: str, message: str) -> bool:

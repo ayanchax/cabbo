@@ -65,3 +65,13 @@ class CustomerOnboardInitiationRequest(BaseModel):
     def phone_validator(cls, v):
         return validate_and_sanitize_country_phone(v)
 
+class CustomerLoginRequest(BaseModel):
+    phone_number: str
+    otp: str
+
+class CustomerLoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int
+    customer_id: str
+

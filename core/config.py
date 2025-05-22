@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     TWILLIO_PHONE_NUMBER:str
     SENDGRID_API_KEY:str
     SENDGRID_FROM_EMAIL:str
+    JWT_SECRET:str
 
     
     
