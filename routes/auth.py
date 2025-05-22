@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from services.customer_service import create_customer
 from services.otp_service import generate_otp, verify_otp,delete_otp
 from models.customer.customer_schema import CustomerCreate, CustomerRead, CustomerOnboardInitiationRequest
 from services.customer_service import is_existing_customer
-from services.message_service import send_otp
+from services.message_service import send_otp, send_email
 from core.exceptions import CabboException
+from core.constants import APP_NAME
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,6 +37,7 @@ def initiate_onboarding(
 
 @router.post("/register", response_model=CustomerRead)
 def register(
+    background_tasks: BackgroundTasks,
     payload: CustomerCreate = Body(...),
     db: Session = Depends(get_mysql_session)
 ):
@@ -49,8 +51,11 @@ def register(
     if not valid:
         raise CabboException(message, status_code=400)
     
-    customer =create_customer(data=payload, db=db, phone_verified=True, activate=True)
-    #Onboarding done
-    # Here you can add any additional background steps needed after successful registration, e.g. sending a welcome email if email is available.
+    customer = create_customer(data=payload, db=db, phone_verified=True, activate=True)
+    # Send welcome email in background if email is provided
+    if customer.email and customer.name:
+        subject = f"Welcome to {APP_NAME}!"
+        html_content = f"<h1>Welcome to {APP_NAME}, {customer.name}!</h1><p>Thank you for registering with us.</p>"
+        background_tasks.add_task(send_email, customer.email, subject, html_content)
     
     return customer

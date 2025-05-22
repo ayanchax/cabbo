@@ -1,11 +1,22 @@
 [project]
-name = "cabbo"
 description = "Backend for Cabbo cab booking platform"
-version = "0.1.0"
+name = "cabbo"
 requires-python = ">=3.10"
+version = "0.1.0"
 
-dependencies = ["fastapi", "uvicorn", "python-dotenv", "sqlalchemy", "mysql-connector-python", "aiomysql", "email-validator", "twilio", "rich","pydantic-settings"]
-
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "python-dotenv",
+  "sqlalchemy",
+  "mysql-connector-python",
+  "aiomysql",
+  "email-validator",
+  "twilio",
+  "rich",
+  "pydantic-settings",
+  "sendgrid",
+]
 
 [tool.uv]
 # uv-specific settings can be added here
