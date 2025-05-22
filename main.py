@@ -1,5 +1,6 @@
 from core.cabbo_logging import *
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION
+from core.config import settings
 logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
@@ -8,6 +9,12 @@ from fastapi.responses import JSONResponse
 from routes import auth, customer
 from db.database import init_db
 from contextlib import asynccontextmanager
+from core.exceptions import CabboException
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import RequestValidationError as FastAPIRequestValidationError
+from fastapi import HTTPException as FastAPIHTTPException
+import os
+from datetime import datetime, timezone
 
 
 @asynccontextmanager
@@ -57,14 +64,67 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+ENV = settings.ENV
+
+def get_diagnostics(request:Request):
+    """Return diagnostics dict if in dev environment, else empty dict."""
+    if ENV == "dev":
+        return {
+            "path": str(request.url),
+            "method": request.method,
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+    return {}
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error: {exc}", exc_info=True)
+    diagnostics = get_diagnostics(request)
     return JSONResponse(
         status_code=500,
         content={
             "detail": "An unexpected error occurred. Please try again later.",
-            "error": str(exc)
+            "error": str(exc),
+            **diagnostics
+        },
+    )
+
+@app.exception_handler(CabboException)
+async def cabbo_exception_handler(request: Request, exc: CabboException):
+    logger.error(f"CabboException: {exc}", exc_info=True)
+    diagnostics = get_diagnostics(request)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.message,
+            "error": str(exc),
+            **diagnostics
+        },
+    )
+
+@app.exception_handler(FastAPIHTTPException)
+async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    logger.error(f"HTTPException: {exc.detail}", exc_info=True)
+    diagnostics = get_diagnostics(request)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "error": str(exc),
+            **diagnostics
+        },
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Validation error: {exc}", exc_info=True)
+    diagnostics = get_diagnostics(request)
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "error": str(exc),
+            **diagnostics
         },
     )
 

@@ -9,26 +9,26 @@ from core.constants import (
 )
 
 
+def validate_and_sanitize_country_phone(v):
+    v = v.replace(" ", "").replace("-", "")
+    if v.startswith(APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE):
+        num = v[3:]
+    else:
+        num = v
+    if not re.fullmatch(APP_COUNTRY_PHONE_NUMBER_REGEX, num):
+        raise ValueError(APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR)
+    return APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE + num
+
+
 class CustomerBase(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone_number: str  # Initially during onboarding we just need a phone number, hence no optional
 
-    @field_validator("phone_number")
+    @field_validator("phone_number", mode="before")
     @classmethod
-    def validate_and_sanitize_country_phone(cls, v):
-        # Remove spaces and dashes
-        v = v.replace(" ", "").replace("-", "")
-        # If starts with +91, strip it for validation, but keep for storage
-        if v.startswith(APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE):
-            num = v[3:]
-        else:
-            num = v
-        # Indian phone number: 10 digits, starts with 6-9
-        if not re.fullmatch(APP_COUNTRY_PHONE_NUMBER_REGEX, num):
-            raise ValueError(APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR)
-        # Always store as +91XXXXXXXXXX
-        return APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE + num
+    def phone_validator(cls, v):
+        return validate_and_sanitize_country_phone(v)
 
 
 class CustomerCreate(CustomerBase):
@@ -52,17 +52,8 @@ class CustomerUpdate(BaseModel):
 class CustomerOnboardInitiationRequest(BaseModel):
     phone_number: str
 
-    @field_validator("phone_number")
+    @field_validator("phone_number", mode="before")
     @classmethod
-    def validate_and_sanitize_country_phone(cls, v):
-        # Remove spaces and dashes
-        v = v.replace(" ", "").replace("-", "")
-        if v.startswith(APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE):
-            num = v[3:]
-        else:
-            num = v
-        if not re.fullmatch(APP_COUNTRY_PHONE_NUMBER_REGEX, num):
-            raise ValueError(APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR)
-        return APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE + num
+    def phone_validator(cls, v):
+        return validate_and_sanitize_country_phone(v)
 
- 

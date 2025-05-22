@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, func, Integer
+from sqlalchemy import Column, String, DateTime, func, Integer, Boolean
 from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
 import uuid
@@ -11,7 +11,10 @@ class Customer(Base):
     email = Column(String(255), unique=True, nullable=True)
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
     created_at = Column(DateTime, server_default=func.utc_timestamp())
-
+    is_phone_verified = Column(Boolean, default=False, nullable=False)
+    is_email_verified = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=False, nullable=False)
+    
 class PreOnboardingCustomer(Base):
     __tablename__ = "pre_onboarding_customers"
 
@@ -22,4 +25,4 @@ class PreOnboardingCustomer(Base):
     expires_at = Column(DateTime, nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
     last_sent_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
- 
+

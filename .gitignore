@@ -31,6 +31,10 @@ Thumbs.db
 
 # Logs
 *.log
+*.log.*
+logs/
+debug.log.*
+error.log.*
 
 # MySQL dumps
 *.sql

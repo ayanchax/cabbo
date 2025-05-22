@@ -1,10 +1,9 @@
-import random
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from models.customer.customer_orm import PreOnboardingCustomer
-
+from core.exceptions import CabboException
 OTP_LENGTH = 4
 OTP_EXPIRY_MINUTES = 5
 OTP_RESEND_INTERVAL_SECONDS = 60
@@ -22,7 +21,8 @@ def generate_otp(phone_number: str, db: Session) -> str:
         PreOnboardingCustomer.attempts < MAX_ATTEMPTS
     ).first()
     if existing:
-        raise Exception(f"OTP already sent and not expired, or max attempts not reached. Please wait for {OTP_EXPIRY_MINUTES} minutes before requesting a new otp or use the existing OTP.")
+        raise CabboException(f"OTP already sent and not expired, or max attempts not reached. Please wait for {OTP_EXPIRY_MINUTES} minutes before requesting a new otp or use the existing OTP.", status_code=400, include_traceback=True)
+
     # Remove any expired OTPs for this phone number
     delete_expired_otp(phone_number, db)
     # Generate a unique, cryptographically secure 4-digit OTP not in use
@@ -33,7 +33,8 @@ def generate_otp(phone_number: str, db: Session) -> str:
             #no collision found, break
             break
     else:
-        raise Exception("Unable to generate unique OTP after several attempts")
+         raise CabboException("Unable to generate unique OTP after several attempts", status_code=500, include_traceback=True)
+ 
     store_otp(phone_number, otp, db)
     return otp
 
