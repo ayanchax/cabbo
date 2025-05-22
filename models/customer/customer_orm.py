@@ -14,8 +14,9 @@ class Customer(Base):
     is_phone_verified = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
+    last_modified = Column(DateTime, default=func.utc_timestamp(), nullable=True)
     
-class PreOnboardingCustomer(Base):
+class PreOnboardingCustomer(Base): 
     __tablename__ = "pre_onboarding_customers"
 
     id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)

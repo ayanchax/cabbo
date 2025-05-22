@@ -47,3 +47,4 @@ dist/
 # Ignore local dev files
 *.local
 share/
+application-requirements.txt

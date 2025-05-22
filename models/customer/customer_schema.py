@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime
 import re
 from core.constants import (
@@ -42,13 +42,21 @@ class CustomerRead(CustomerBase):
     class Config:
         from_attributes = True # Read from ORM attributes of customer_orm
 
+class CustomerReadWithProfilePicture(CustomerRead):
+    image_url: str = Field(None, description="URL to the customer's profile picture")
+
+    class Config:
+        from_attributes = True # Read from ORM attributes of customer_orm
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+
     # phone_number intentionally omitted to prevent updates
-
-
+class CustomerReadAfterUpdate(CustomerReadWithProfilePicture):
+    last_modified: datetime
+    class Config:
+        from_attributes = True # Read from ORM attributes of customer_orm
 class CustomerOnboardInitiationRequest(BaseModel):
     phone_number: str
 
