@@ -51,7 +51,7 @@ app.include_router(auth.router)
 app.include_router(customer.router)
 
 # Ensure share/images directory exists
-SHARE_IMAGES_DIR = os.path.join(os.path.dirname(__file__), 'share', 'images')
+SHARE_IMAGES_DIR = os.path.join(os.path.dirname(__file__), settings.SHARE_PATH, 'images')
 os.makedirs(SHARE_IMAGES_DIR, exist_ok=True)
 
 # Mount the static images directory

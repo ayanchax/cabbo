@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY:str
     SENDGRID_FROM_EMAIL:str
     JWT_SECRET:str
+    SHARE_PATH:str
 
     
     
