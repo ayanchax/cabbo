@@ -1,5 +1,6 @@
 import os
 from core.exceptions import CabboException
+from core.config import settings
 
 ALLOWED_IMAGE_EXTENSIONS = ["image/png"]
 
@@ -22,7 +23,7 @@ def save_customer_profile_picture(customer_id: str, file, max_size_mb: int = 2) 
             f"File size exceeds {max_size_mb}MB limit.", status_code=400
         )
     # Save file
-    image_dir = os.path.join("share", "images", "customers")
+    image_dir = os.path.join(settings.SHARE_PATH, "images", "customers")
     os.makedirs(image_dir, exist_ok=True)
     image_path = os.path.join(image_dir, f"{customer_id}.png")
     with open(image_path, "wb") as f:
@@ -37,7 +38,9 @@ def remove_customer_profile_picture(customer_id: str) -> bool:
     Returns True if removed, False if file did not exist.
     Raises CabboException on error.
     """
-    image_path = os.path.join("share", "images", "customers", f"{customer_id}.png")
+    image_path = os.path.join(
+        settings.SHARE_PATH, "images", "customers", f"{customer_id}.png"
+    )
     if os.path.exists(image_path):
         try:
             os.remove(image_path)

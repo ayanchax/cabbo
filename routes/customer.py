@@ -94,7 +94,7 @@ def upload_profile_picture(
         raise CabboException("Customer not found", status_code=404)
     # Save file and get URL
     image_url = save_customer_profile_picture(customer_id, file)
-    updated_customer = update_customer_last_modified(customer_id, db)
+    updated_customer = update_customer_last_modified(customer, db)
     return CustomerReadProfilePictureAfterUpdate(
         image_url=image_url, last_modified=updated_customer.last_modified
     )
