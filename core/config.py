@@ -7,6 +7,7 @@ ENV = os.getenv("ENV", "dev")
 ENV_FILE = ".env.dev" if ENV == "dev" else ".env.prod"
 
 class Settings(BaseSettings):
+    API_URL:str
     ENV: str = ENV
     REGION: str
     DB_HOST: str
@@ -21,6 +22,7 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY:str
     SENDGRID_FROM_EMAIL:str
     JWT_SECRET:str
+    SHARE_PATH:str
 
     
     

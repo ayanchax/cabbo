@@ -1,8 +1,16 @@
 from twilio.rest import Client
 from core.config import settings
-from core.constants import APP_NAME
 import sendgrid
+import secrets
 from sendgrid.helpers.mail import Mail
+from datetime import datetime, timezone, timedelta
+
+EMAIL_VERIFY_EXPIRY_UNIT=2
+EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME={
+    "DAYS": "days",
+    "HOURS": "hours",
+    "MINUTES": "minutes",
+}
 
 # Twilio Configuration
 TWILIO_ACCOUNT_SID = settings.TWILLIO_ACCOUNT_SID
@@ -55,3 +63,19 @@ def send_email(to_email: str, subject: str, html_content: str, from_email: str =
     except Exception as e:
         print(f"SendGrid email send failed: {e}")
         return False
+    
+def create_email_verification_link(id: str,endpoint:str,expires_in=EMAIL_VERIFY_EXPIRY_UNIT, expires_unit=EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME.get('HOURS')) -> tuple:
+        """
+        Create a verification link for email verification.
+        """
+        now = datetime.now(timezone.utc)
+        if expires_unit == EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME.get('DAYS'):
+            expiry = now + timedelta(days=expires_in)
+        elif expires_unit == EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME.get('HOURS'):
+            expiry = now + timedelta(hours=expires_in)
+        elif expires_unit == EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME.get('MINUTES'):
+            expiry = now + timedelta(minutes=expires_in)
+        else:
+            expiry = now + timedelta(hours=EMAIL_VERIFY_EXPIRY_UNIT)  # fallback
+        verification_url = f"{settings.API_URL}{endpoint}?id={id}&token={secrets.token_urlsafe(16)}"
+        return verification_url, expiry

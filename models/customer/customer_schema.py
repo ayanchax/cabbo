@@ -40,23 +40,37 @@ class CustomerRead(CustomerBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True # Read from ORM attributes of customer_orm
+        from_attributes = True  # Read from ORM attributes of customer_orm
+
 
 class CustomerReadWithProfilePicture(CustomerRead):
     image_url: str = Field(None, description="URL to the customer's profile picture")
 
     class Config:
-        from_attributes = True # Read from ORM attributes of customer_orm
+        from_attributes = True  # Read from ORM attributes of customer_orm
+
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
 
     # phone_number intentionally omitted to prevent updates
-class CustomerReadAfterUpdate(CustomerReadWithProfilePicture):
+
+
+class CustomerReadProfilePictureAfterUpdate(BaseModel):
+    image_url: str = Field(None, description="URL to the customer's profile picture")
+    last_modified: datetime = Field(
+        None, description="Last modified date of the customer profile"
+    )
+
+
+class CustomerReadAfterUpdate(CustomerUpdate):
     last_modified: datetime
+
     class Config:
-        from_attributes = True # Read from ORM attributes of customer_orm
+        from_attributes = True  # Read from ORM attributes of customer_orm
+
+
 class CustomerOnboardInitiationRequest(BaseModel):
     phone_number: str
 
@@ -65,18 +79,19 @@ class CustomerOnboardInitiationRequest(BaseModel):
     def phone_validator(cls, v):
         return validate_and_sanitize_country_phone(v)
 
+
 class CustomerLoginRequest(BaseModel):
     phone_number: str
     otp: str
-    
+
     @field_validator("phone_number", mode="before")
     @classmethod
     def phone_validator(cls, v):
         return validate_and_sanitize_country_phone(v)
+
 
 class CustomerLoginResponse(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
     customer_id: str
-

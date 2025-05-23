@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, func, Integer, Boolean, Text
+from sqlalchemy import Column, String, DateTime, func, Integer, Boolean, Text, ForeignKey
 from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
 import uuid
@@ -28,4 +28,13 @@ class PreOnboardingCustomer(Base):
     expires_at = Column(DateTime, nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
     last_sent_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+
+class CustomerEmailVerification(Base):
+    __tablename__ = "customer_email_verification"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(CHAR(36), ForeignKey("customers.id", ondelete="CASCADE"), nullable=False, index=True)
+    verification_url = Column(String(512), nullable=False, unique=True)
+    expiry = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
 
