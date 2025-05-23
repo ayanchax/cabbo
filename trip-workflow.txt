@@ -1,0 +1,129 @@
+---
+
+### 🚧 **Phase: Trip Booking & Quote Workflow Breakdown**
+
+---
+
+#### ✅ 1. **Trip Schema & Status Model Setup (Foundation Layer)**
+
+**Models to define first:**
+
+* `Trip` model with fields:
+
+  * `id`, `user_id`, `trip_type`, `origin`, `destination`, `start_date`, `end_date`
+  * `num_passengers`, `luggage_info`, `preferred_car_type`
+  * `status` (Enum: created, quoted, accepted, confirmed, assigned, ongoing, completed, cancelled)
+  * `base_fare`, `driver_allowance`, `tolls_estimate`, `parking_estimate`, `platform_fee`
+  * `quoted_price` (customer's counter-quote, nullable)
+  * `final_price` (system-calculated: base_fare + driver_allowance + tolls_estimate + parking_estimate + platform_fee)
+  * `created_at`, `updated_at`
+
+  > **Note:** All price components are stored separately for transparency and record management. This allows for clear breakdowns and future audits.
+
+  > **Tolls & Parking:**
+  > - Tolls and parking can vary by route and city. For now, estimate these as a percentage of base fare or use a config-driven lookup table by city/route. In the future, integrate with external APIs or maintain a database of common tolls/parking for major routes.
+
+* `TripStatusAudit` model (table: trip_status_audits):
+
+  * `trip_id`, `status`, `changed_by`, `timestamp`
+
+✅ This sets the base for all trip workflows and status tracking, and ensures all price components are recorded for each trip. Table names: `trips`, `trip_status_audits`.
+
+---
+
+#### 🔁 2. **Create Trip Endpoint**
+
+**Endpoint:**
+`POST /trip/create`
+
+**Input:**
+
+* Trip type (local / outstation)
+* Origin, destination
+* Dates (start, end)
+* Passenger & luggage info
+* Car type (sedan/SUV)
+
+**Output:**
+
+* `trip_id`, initial calculated quote (optional at this stage), status = `created`
+
+---
+
+#### ⚙️ 3. **Transparent Pricing Logic (Config-Driven Service)**
+
+**Key configs (store in DB or settings):**
+
+* Base fare per km (per car type)
+* Driver allowance (daily fixed)
+* Tolls & parking estimate (approx %)
+* Platform fee (slab-based or % by distance)
+
+**Service method:**
+
+```python
+calculate_price(origin, destination, start_date, end_date, car_type)
+→ returns: base_fare, allowance, tolls_estimate, platform_fee, total_price
+```
+
+Use haversine distance for rough calculation.
+
+---
+
+#### 🔁 4. **Initial Quote Generation (System-Calculated)**
+
+**After trip creation:**
+
+* Automatically calculate and attach initial quote
+* Update trip: status = `quoted`, `quoted_price = total_price`
+
+---
+
+#### 🔄 5. **Customer Counter Quote Flow (One-Time Negotiation)**
+
+**Endpoint:**
+`POST /trip/{trip_id}/quote`
+
+**Logic:**
+
+* Allow customer to submit a single counter-quote (new price)
+* Update `customer_quoted_price`
+* Change status = `quoted` → pending admin review
+
+---
+
+#### 🧑‍💼 6. **Admin Quote Review**
+
+**Manual/Backend Logic:**
+
+* Admin accepts/rejects quote (compare quoted\_price vs customer\_quoted\_price)
+* On acceptance:
+
+  * status = `accepted`
+  * Send email to customer to confirm booking
+
+---
+
+#### 📩 7. **Trip Confirmation by Customer**
+
+**Endpoint:**
+`POST /trip/{trip_id}/confirm`
+
+* Only enabled if status = `accepted`
+* Updates status → `confirmed`
+
+---
+
+### 🧪 Suggested Build & Test Order:
+
+| Priority | Feature                       | Depends On          |
+| -------- | ----------------------------- | ------------------- |
+| 1️⃣      | Trip model & audit trail      | —                   |
+| 2️⃣      | Create trip endpoint          | Trip model          |
+| 3️⃣      | Pricing logic service         | Trip data           |
+| 4️⃣      | Auto-quote post-trip creation | Pricing logic       |
+| 5️⃣      | Quote-back endpoint           | Trip model, pricing |
+| 6️⃣      | Admin review logic            | Quote-back          |
+| 7️⃣      | Trip confirmation endpoint    | Admin review        |
+
+
