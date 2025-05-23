@@ -7,6 +7,7 @@ ENV = os.getenv("ENV", "dev")
 ENV_FILE = ".env.dev" if ENV == "dev" else ".env.prod"
 
 class Settings(BaseSettings):
+    API_URL:str
     ENV: str = ENV
     REGION: str
     DB_HOST: str

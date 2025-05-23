@@ -2,10 +2,8 @@ from sqlalchemy.orm import Session
 from models.customer.customer_schema import CustomerCreate,CustomerUpdate
 from models.customer.customer_orm import Customer
 from core.exceptions import CabboException
-from datetime import datetime, timedelta, timezone
-from core.constants import APP_NAME
-from core.security import generate_jwt_token,decode_jwt_token
-from services.otp_service import OTP_EXPIRY_MINUTES
+from datetime import datetime, timezone
+from core.security import generate_jwt_token,decode_jwt_token,generate_jwt_payload,JWT_EXPIRY_UNIT,JWT_EXPIRY_UNIT_TIME_FRAME
 
 def create_customer(data: CustomerCreate, db: Session,phone_verified=False, activate=False) -> Customer:
     try:
@@ -71,6 +69,12 @@ def update_customer_profile(customer_id: str, payload:CustomerUpdate, db: Sessio
         db.rollback()
         raise CabboException(f"Error updating customer profile: {str(e)}", status_code=500, include_traceback=True)
 
+def get_active_customer_by_id_and_bearer_token(customer_id: str, bearer_token: str, db: Session) -> Customer:  
+    try:
+        return db.query(Customer).filter(Customer.id == customer_id, Customer.bearer_token == bearer_token, Customer.is_active==True).first()
+    except Exception as e:
+        return None
+
 def is_customer_logged_in(customer: Customer) -> bool:
     if not customer.bearer_token:
         return False
@@ -78,26 +82,16 @@ def is_customer_logged_in(customer: Customer) -> bool:
             decode_jwt_token(customer.bearer_token) #Decode the JWT token and raise error if invalid or expired
             return True
     except Exception:
-            return False  
+            return False
+  
 
-def generate_customer_jwt(customer: Customer, expires_in=OTP_EXPIRY_MINUTES, expires_unit='days') -> str:
-    # Generate JWT token with flexible expiry
-    now = datetime.now(timezone.utc)
-    if expires_unit == 'days':
-        expire = now + timedelta(days=expires_in)
-    elif expires_unit == 'hours':
-        expire = now + timedelta(hours=expires_in)
-    elif expires_unit == 'minutes':
-        expire = now + timedelta(minutes=expires_in)
-    else:
-        expire = now + timedelta(days=OTP_EXPIRY_MINUTES)  # fallback
-    payload = {
-        "iss": APP_NAME,
-        "iat": int(now.timestamp()),
-        "sub": str(customer.id),
-        "exp": int(expire.timestamp()),
-        "phone_number": customer.phone_number
-    }
+def generate_customer_jwt(customer: Customer, expires_in=JWT_EXPIRY_UNIT, expires_unit=JWT_EXPIRY_UNIT_TIME_FRAME.get('DAYS')) -> str:
+    payload=generate_jwt_payload(
+        sub=str(customer.id),
+        identity=customer.phone_number,
+        expires_in=expires_in,
+        expires_unit=expires_unit
+    )
     return generate_jwt_token(payload)
 
 def persist_bearer_token(customer: Customer, token: str, db: Session) -> str:
@@ -120,3 +114,22 @@ def delete_bearer_token(customer: Customer, db: Session) -> bool:
      except Exception as e:
         db.rollback()
         raise CabboException(f"Error deleting bearer token: {str(e)}", status_code=500, include_traceback=True)
+
+def is_customer_email_verified(customer_id:str, db:Session) -> bool:
+    try:
+        customer = get_active_customer_by_id(customer_id, db)
+        return customer.is_email_verified
+    except Exception as e:
+        raise CabboException(f"Error checking email verification status: {str(e)}", status_code=500, include_traceback=True)
+
+def mark_customer_email_verified(customer_id: str, db: Session) -> bool:
+    try:
+        customer = get_active_customer_by_id(customer_id, db)
+        customer.is_email_verified = True
+        customer.last_modified = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(customer)
+        return True
+    except Exception as e:
+        db.rollback()
+        raise CabboException(f"Error marking email as verified: {str(e)}", status_code=500, include_traceback=True)

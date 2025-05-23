@@ -48,12 +48,20 @@ class CustomerReadWithProfilePicture(CustomerRead):
     class Config:
         from_attributes = True # Read from ORM attributes of customer_orm
 
+
+
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
 
     # phone_number intentionally omitted to prevent updates
-class CustomerReadAfterUpdate(CustomerReadWithProfilePicture):
+class CustomerReadProfilePictureAfterUpdate(BaseModel):
+    image_url: str = Field(None, description="URL to the customer's profile picture")
+    last_modified: datetime
+    class Config:
+        from_attributes = True # Read from ORM attributes of customer_orm
+
+class CustomerReadAfterUpdate(CustomerUpdate):
     last_modified: datetime
     class Config:
         from_attributes = True # Read from ORM attributes of customer_orm
