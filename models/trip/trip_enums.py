@@ -23,6 +23,7 @@ class TripTypeEnum(str, enum.Enum):
     outstation = "outstation"
     airport_pickup = "airport_pickup"
     airport_drop = "airport_drop"
+    airport_general = "airport"  # common airport trip type for both pickup and drop
 
 
 class FuelTypeEnum(str, enum.Enum):

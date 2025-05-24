@@ -6,6 +6,7 @@ class GeoStateModel(Base):
     __tablename__ = "states_master"
     id = Column(Integer, primary_key=True, index=True)
     state_name = Column(String(64), unique=True, nullable=False)
+    state_code = Column(String(8), unique=True, nullable=False)  # e.g. KA, TN
     permit_fee = Column(Float, nullable=False, default=0.0)
     is_home_state = Column(
         Integer, nullable=False, default=0
