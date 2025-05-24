@@ -17,21 +17,44 @@ router = APIRouter(prefix="/trip", tags=["Trip"])
 
 def get_state_from_location(location):
     # Dummy: returns 'Karnataka' for all locations
-    return "Karnataka"
+    # In production, use Google Maps Geocoding API to extract state
+    return location.get("state", "Karnataka")
 
 
 @router.post("/create", response_model=TripOut)
 def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
     # 1. Dynamic field handling (hops, airport info, etc.)
-    origin_state = get_state_from_location(trip_in.origin)
-    dest_state = get_state_from_location(trip_in.destination)
-    is_interstate = origin_state != dest_state
+    # Build the full route: origin -> hops (if any) -> destination
+    route_points = [trip_in.origin]
     if trip_in.hops:
-        for hop in trip_in.hops:
-            hop_state = get_state_from_location({"display_name": hop})
-            if hop_state != origin_state:
-                is_interstate = True
-                break
+        route_points.extend(trip_in.hops)
+    route_points.append(trip_in.destination)
+
+    # Extract state for each point (simulate with dummy for now)
+    states = []
+    for point in route_points:
+        # If point is a dict with display_name, lat, lng, etc.
+        # For hops, if only display_name is given, wrap as dict
+        if isinstance(point, str):
+            point = {"display_name": point}
+        state = get_state_from_location(point)
+        states.append(state)
+
+    # Determine interstate and multi-state hops
+    unique_states = set(states)
+    is_interstate = (
+        len(unique_states) > 1
+    )  # Indicates crossing state borders, if more than one state
+    multi_state_hops = 0
+    for i in range(1, len(states)):
+        if states[i] != states[i - 1]:
+            multi_state_hops += 1
+    # Permit fee logic: charge per state border crossed
+    permit_fee = 0
+    PER_STATE_PERMIT_FEE = 700  # Example, can be config-driven
+    if multi_state_hops > 0:
+        permit_fee = multi_state_hops * PER_STATE_PERMIT_FEE
+
     # 2. Pricing logic
     price_components = calculate_price(
         origin=trip_in.origin,
@@ -46,6 +69,7 @@ def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
         num_adults=trip_in.num_adults,
         num_children=trip_in.num_children,
         num_luggages=trip_in.num_luggages,
+        permit_fee=permit_fee,
     )
     # 3. Create Trip ORM object
     trip = Trip(
@@ -64,6 +88,7 @@ def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
         destination_address=trip_in.destination.address,
         hops=json.dumps(trip_in.hops) if trip_in.hops else None,
         is_interstate=is_interstate,
+        permit_fee=permit_fee,
         is_round_trip=trip_in.is_round_trip,
         start_date=trip_in.start_date,
         end_date=trip_in.end_date,
@@ -72,7 +97,6 @@ def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
         num_luggages=trip_in.num_luggages,
         preferred_car_type=trip_in.preferred_car_type,
         preferred_fuel_type=trip_in.preferred_fuel_type,
-        permit_fee=price_components.get("permit_fee"),
         driver_name=trip_in.driver_name,
         driver_phone=trip_in.driver_phone,
         car_model=trip_in.car_model,
