@@ -19,8 +19,13 @@
 * `TripStatusAudit` model (table: trip_status_audits):
   * Tracks all status changes with reason and actor
 * `OutstandingDue` model: tracks pending dues for cancellations/disputes
+* ✅ **Cab/Fuel/TripType Pricing Master Models** (new):
+  * `CabType`, `FuelType` (enforced by Enum, UUID PK, audit fields)
+  * `OutstationCabPricing`, `LocalCabPricing`, `AirportCabPricing` (trip-type-specific, with only relevant fields, UUID PK, audit fields, FKs to cab/fuel type)
+  * `TollParkingConfig` (global per trip type, uses TripTypeEnum, UUID PK, audit fields)
+  * All master/config tables have created_by (RoleEnum), created_at, last_modified (UTC, auto-updated)
 
-✅ This sets the base for all trip workflows and status tracking, and ensures all price components are recorded for each trip. Table names: `trips`, `trip_status_audits`, `outstanding_dues`.
+✅ This sets the base for all trip workflows, pricing, and status tracking, and ensures all price components are recorded for each trip. Table names: `trips`, `trip_status_audits`, `outstanding_dues`, `cab_types_master`, `fuel_types_master`, `outstation_cab_pricing`, `local_cab_pricing`, `airport_cab_pricing`, `toll_parking_config`.
 
 ---
 
@@ -38,15 +43,17 @@
 
 ---
 
-#### ⚙️ 3. **Transparent Pricing Logic (Config-Driven Service)**
+#### ⚙️ 3. **Transparent Pricing Logic (DB-Driven Service)**
 
-**Key configs (store in DB or settings):**
-* Base fare per km (per car type/fuel type)
-* Driver allowance (daily fixed)
-* Tolls & parking estimate (fixed or %)
+**Key configs (now in DB, editable by admin):**
+* Base fare per km (per cab type/fuel type, Outstation)
+* Driver allowance (per day, per cab type/fuel type, Outstation)
+* Hourly rate (per cab type/fuel type, Local)
+* Airport fare per km (per cab type/fuel type, Airport)
+* Tolls & parking estimate (per trip type, block logic for outstation, fixed for local/airport)
 * Platform fee (slab-based or % by distance)
-* Hourly rate for local trips
-* Permit fee for interstate outstation
+* Permit fee for interstate outstation (from OperationalInterState table)
+* All pricing master/config tables have audit fields and are enforced by Enum/UUID/FK
 
 **Service method:**
 ```python
@@ -119,7 +126,7 @@ Use haversine distance for outstation, duration for local.
 | -------- | ----------------------------- | ------------------- |
 | 1️⃣      | Trip model & audit trail      | —                   |
 | 2️⃣      | Create trip endpoint          | Trip model          |
-| 3️⃣      | Pricing logic service         | Trip data           |
+| 3️⃣      | Pricing logic service         | Trip data, pricing master |
 | 4️⃣      | Auto-quote post-trip creation | Pricing logic       |
 | 5️⃣      | Quote-back endpoint           | Trip model, pricing |
 | 6️⃣      | Admin review logic            | Quote-back          |
@@ -129,9 +136,10 @@ Use haversine distance for outstation, duration for local.
 
 **Current status:**
 - Foundation layer (models, enums, schema) is complete and supports all business logic and edge cases.
+- Pricing master/config models and DB structure are complete and auditable (UUID PK, enums, FKs, audit fields).
 - Quote Back workflow is finalized and robust (client/server validation, admin review, immutability, audit, notifications).
 - final_display_price abstracts pricing for driver admin.
-- Ready to proceed with trip creation endpoint, pricing logic, and quote-back implementation.
+- Ready to proceed with trip creation endpoint, DB-driven pricing logic, and quote-back implementation.
 
 ---
 
@@ -154,5 +162,20 @@ Use haversine distance for outstation, duration for local.
   * Destination is optional. If not provided, destination fields are auto-filled with a central Bangalore address (e.g., MG Road) and origin is the pickup location.
 * For airport trips:
   * Pickup/drop logic as per trip type (see above).
+
+---
+
+#### **Pricing Master/Config Enhancements (Today)**
+
+* All cab/fuel/trip type pricing master/config tables are now DB-driven, with:
+  * UUID primary keys
+  * Enum enforcement for cab type, fuel type, trip type
+  * Foreign keys for cab_type_id, fuel_type_id in pricing tables
+  * RoleEnum for created_by (system, system_admin, driver_admin, finance_admin)
+  * created_at (UTC, DB default), last_modified (auto-updated)
+* Toll/Parking config is global per trip type, not cab/fuel specific
+* All master/config tables are auditable and ready for admin panel integration
+* Seed data and schemas updated for new structure
+* All logic and config changes are reflected in the backend and ready for use in pricing service
 
 

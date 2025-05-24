@@ -1,18 +1,19 @@
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum as SAEnum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    ForeignKey,
+    DateTime,
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
 from db.database import Base
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
-from datetime import datetime
 from sqlalchemy.sql import func
-
-
-class RoleEnum(str, Enum):
-    system_admin = "system_admin"
-    driver_admin = "driver_admin"
-    finance_admin = "finance_admin"
-    system = "system"
+from core.security import RoleEnum
 
 
 class CabType(Base):
@@ -27,7 +28,12 @@ class CabType(Base):
     name = Column(SAEnum(CarTypeEnum), unique=True, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
 
 
 class FuelType(Base):
@@ -42,7 +48,12 @@ class FuelType(Base):
     name = Column(SAEnum(FuelTypeEnum), unique=True, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
 
 
 # Outstation pricing
@@ -55,13 +66,22 @@ class OutstationCabPricing(Base):
         unique=True,
         index=True,
     )
-    cab_type_id = Column(MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False)
-    fuel_type_id = Column(MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False)
+    cab_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
+    )
+    fuel_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
+    )
     base_fare_per_km = Column(Float, nullable=False)
     driver_allowance_per_day = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
 
 
 # Local pricing
@@ -74,12 +94,21 @@ class LocalCabPricing(Base):
         unique=True,
         index=True,
     )
-    cab_type_id = Column(MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False)
-    fuel_type_id = Column(MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False)
+    cab_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
+    )
+    fuel_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
+    )
     hourly_rate = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
 
 
 # Airport pricing
@@ -92,12 +121,21 @@ class AirportCabPricing(Base):
         unique=True,
         index=True,
     )
-    cab_type_id = Column(MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False)
-    fuel_type_id = Column(MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False)
+    cab_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
+    )
+    fuel_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
+    )
     airport_fare_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
 
 
 class TollParkingConfig(Base):
@@ -109,7 +147,9 @@ class TollParkingConfig(Base):
         unique=True,
         index=True,
     )
-    trip_type = Column(SAEnum(TripTypeEnum), nullable=False)  # local, airport, outstation
+    trip_type = Column(
+        SAEnum(TripTypeEnum), nullable=False
+    )  # local, airport, outstation
     toll = Column(Float, nullable=True)  # For local/airport
     parking = Column(Float, nullable=True)  # For local/airport
     toll_per_block = Column(Float, nullable=True)  # For outstation
@@ -117,6 +157,11 @@ class TollParkingConfig(Base):
     block_days = Column(Integer, nullable=True)  # For outstation
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
     # All fields except trip_type are nullable, so this table can flexibly store any trip-type-specific fixed rates
     # This table is independent of cab/fuel type, as these are global/fixed rates per trip type
