@@ -8,26 +8,19 @@
 
 **Models to define first:**
 
-* `Trip` model with fields:
-
-  * `id`, `user_id`, `trip_type`, `origin`, `destination`, `start_date`, `end_date`
-  * `num_passengers`, `luggage_info`, `preferred_car_type`
-  * `status` (Enum: created, quoted, accepted, confirmed, assigned, ongoing, completed, cancelled)
-  * `base_fare`, `driver_allowance`, `tolls_estimate`, `parking_estimate`, `platform_fee`
-  * `quoted_price` (customer's counter-quote, nullable)
-  * `final_price` (system-calculated: base_fare + driver_allowance + tolls_estimate + parking_estimate + platform_fee)
-  * `created_at`, `updated_at`
-
-  > **Note:** All price components are stored separately for transparency and record management. This allows for clear breakdowns and future audits.
-
-  > **Tolls & Parking:**
-  > - Tolls and parking can vary by route and city. For now, estimate these as a percentage of base fare or use a config-driven lookup table by city/route. In the future, integrate with external APIs or maintain a database of common tolls/parking for major routes.
-
+* `Trip` model with fields (see code for full details):
+  * All trip types supported: local, outstation, airport pickup/drop, multi-hop
+  * Pickup/drop logic via origin/destination fields
+  * Passenger breakdown: num_adults, num_children, num_luggages
+  * Car/fuel preferences: preferred_car_type (default: Sedan), preferred_fuel_type (default: Diesel)
+  * Hops, round trip, interstate, permit, driver assignment, payment, airport metadata, and financials
+  * final_display_price: always set to the price shown to driver admin (original price for direct booking, quoted price for quote-back)
+  * Defaults handled at API/schema layer
 * `TripStatusAudit` model (table: trip_status_audits):
+  * Tracks all status changes with reason and actor
+* `OutstandingDue` model: tracks pending dues for cancellations/disputes
 
-  * `trip_id`, `status`, `changed_by`, `timestamp`
-
-✅ This sets the base for all trip workflows and status tracking, and ensures all price components are recorded for each trip. Table names: `trips`, `trip_status_audits`.
+✅ This sets the base for all trip workflows and status tracking, and ensures all price components are recorded for each trip. Table names: `trips`, `trip_status_audits`, `outstanding_dues`.
 
 ---
 
@@ -37,70 +30,68 @@
 `POST /trip/create`
 
 **Input:**
-
-* Trip type (local / outstation)
-* Origin, destination
-* Dates (start, end)
-* Passenger & luggage info
-* Car type (sedan/SUV)
+* All trip types and fields supported (see model)
+* Handles dynamic fields (hops, airport info, etc.)
 
 **Output:**
-
-* `trip_id`, initial calculated quote (optional at this stage), status = `created`
+* `trip_id`, initial calculated quote, status = `created`, final_display_price
 
 ---
 
 #### ⚙️ 3. **Transparent Pricing Logic (Config-Driven Service)**
 
 **Key configs (store in DB or settings):**
-
-* Base fare per km (per car type)
+* Base fare per km (per car type/fuel type)
 * Driver allowance (daily fixed)
-* Tolls & parking estimate (approx %)
+* Tolls & parking estimate (fixed or %)
 * Platform fee (slab-based or % by distance)
+* Hourly rate for local trips
+* Permit fee for interstate outstation
 
 **Service method:**
-
 ```python
-calculate_price(origin, destination, start_date, end_date, car_type)
-→ returns: base_fare, allowance, tolls_estimate, platform_fee, total_price
+calculate_price(origin, destination, start_date, end_date, car_type, fuel_type, hops, is_interstate, is_round_trip, num_adults, num_children, num_luggages)
+→ returns: base_fare, allowance, tolls_estimate, parking_estimate, platform_fee, permit_fee, total_price
 ```
-
-Use haversine distance for rough calculation.
+Use haversine distance for outstation, duration for local.
 
 ---
 
 #### 🔁 4. **Initial Quote Generation (System-Calculated)**
 
-**After trip creation:**
-
-* Automatically calculate and attach initial quote
-* Update trip: status = `quoted`, `quoted_price = total_price`
+* After trip creation, calculate and attach initial quote
+* Update trip: status = `quoted`, `quoted_price = total_price`, `final_display_price = total_price`
 
 ---
 
-#### 🔄 5. **Customer Counter Quote Flow (One-Time Negotiation)**
+#### 🔄 5. **Customer Counter Quote Flow (Quote Back, One-Time Negotiation)**
 
 **Endpoint:**
 `POST /trip/{trip_id}/quote`
 
 **Logic:**
-
-* Allow customer to submit a single counter-quote (new price)
-* Update `customer_quoted_price`
-* Change status = `quoted` → pending admin review
+* Customer can submit a single counter-quote (must be less than system price; validated client and server side)
+* On submit, trip is created with status = `quoted`, quoted_price = customer input, final_display_price = quoted_price
+* Customer receives message: "Your quote is under review, we are curating the best deal for you."
+* System admin reviews:
+  * If rejected: status = `rejected`, reason required, customer notified (SMS/email/UI), trip is immutable
+  * If accepted: status = `pending_admin_review`, trip is now visible to driver admin
+* Only `created` and `pending_admin_review` trips are visible to driver admin
+* Driver admin sees only final_display_price (never sees quoted_price or original system price directly)
+* Assignment, confirmation, and all subsequent steps proceed as in standard booking
+* All actions and reasons logged in audit trail
 
 ---
 
 #### 🧑‍💼 6. **Admin Quote Review**
 
-**Manual/Backend Logic:**
-
-* Admin accepts/rejects quote (compare quoted\_price vs customer\_quoted\_price)
+* Admin accepts/rejects quote (compare quoted_price vs customer_quoted_price)
 * On acceptance:
-
   * status = `accepted`
-  * Send email to customer to confirm booking
+  * Send email/SMS to customer to confirm booking
+* On rejection:
+  * status = `rejected`
+  * Reason required, customer notified, trip immutable
 
 ---
 
@@ -111,6 +102,14 @@ Use haversine distance for rough calculation.
 
 * Only enabled if status = `accepted`
 * Updates status → `confirmed`
+
+---
+
+#### 🚦 8. **Edge Cases & Dues**
+* Cancellations, disputes, and dues handled as per business rules
+* Outstanding dues tracked in `outstanding_dues` table
+* Audit trail for all major events
+* Immutability enforced for closed, dispute, and rejected trips
 
 ---
 
@@ -125,5 +124,35 @@ Use haversine distance for rough calculation.
 | 5️⃣      | Quote-back endpoint           | Trip model, pricing |
 | 6️⃣      | Admin review logic            | Quote-back          |
 | 7️⃣      | Trip confirmation endpoint    | Admin review        |
+
+---
+
+**Current status:**
+- Foundation layer (models, enums, schema) is complete and supports all business logic and edge cases.
+- Quote Back workflow is finalized and robust (client/server validation, admin review, immutability, audit, notifications).
+- final_display_price abstracts pricing for driver admin.
+- Ready to proceed with trip creation endpoint, pricing logic, and quote-back implementation.
+
+---
+
+#### **Additional Notes: Trip Creation Logic Enhancements**
+
+* For outstation trips:
+  * At least one pickup location (origin) and one destination/hop are required.
+  * If hops are provided, the destination fields (display_name, lat, lng, place_id, address) are auto-updated to the last hop in the hops list when the trip is created.
+  * If no hops, destination is as selected by the customer.
+  * **Interstate logic:**
+    * `is_interstate = True` if at least one hop (including the final destination) is in a different state than the origin location.
+    * This is determined by comparing the state of the origin with the state of each hop/destination.
+    * **How state is determined:**
+      * For each location (origin, hops, destination), use Google Maps Geocoding API to fetch the `state` (administrative_area_level_1) from the address components.
+      * Compare the state of the origin with the state of each hop and the final destination.
+      * If any differ, set `is_interstate = True`.
+      * This logic is implemented in the backend and is robust to future changes in state boundaries or address formats.
+    * All state lookups and comparisons are logged for audit and debugging.
+* For local trips:
+  * Destination is optional. If not provided, destination fields are auto-filled with a central Bangalore address (e.g., MG Road) and origin is the pickup location.
+* For airport trips:
+  * Pickup/drop logic as per trip type (see above).
 
 

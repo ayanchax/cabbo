@@ -1,0 +1,106 @@
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from db.database import get_db
+from models.trip.trip_schema import TripCreate, TripOut
+from models.trip.trip_orm import Trip, TripStatusAudit, CreatorTypeEnum
+from services.pricing_service import calculate_price
+from core.constants import CENTRAL_BANGALORE_ADDRESS
+from models.trip.trip_enums import TripStatusEnum
+import datetime
+import json
+
+router = APIRouter(prefix="/trip", tags=["Trip"])
+
+# Placeholder for geocoding API to detect state
+# In production, replace with Google Maps API call
+
+
+def get_state_from_location(location):
+    # Dummy: returns 'Karnataka' for all locations
+    return "Karnataka"
+
+
+@router.post("/create", response_model=TripOut)
+def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
+    # 1. Dynamic field handling (hops, airport info, etc.)
+    origin_state = get_state_from_location(trip_in.origin)
+    dest_state = get_state_from_location(trip_in.destination)
+    is_interstate = origin_state != dest_state
+    if trip_in.hops:
+        for hop in trip_in.hops:
+            hop_state = get_state_from_location({"display_name": hop})
+            if hop_state != origin_state:
+                is_interstate = True
+                break
+    # 2. Pricing logic
+    price_components = calculate_price(
+        origin=trip_in.origin,
+        destination=trip_in.destination,
+        start_date=trip_in.start_date,
+        end_date=trip_in.end_date,
+        car_type=trip_in.preferred_car_type,
+        fuel_type=trip_in.preferred_fuel_type,
+        hops=trip_in.hops,
+        is_interstate=is_interstate,
+        is_round_trip=trip_in.is_round_trip,
+        num_adults=trip_in.num_adults,
+        num_children=trip_in.num_children,
+        num_luggages=trip_in.num_luggages,
+    )
+    # 3. Create Trip ORM object
+    trip = Trip(
+        creator_id=1,  # TODO: Replace with actual user from auth
+        creator_type=CreatorTypeEnum.customer,
+        trip_type=trip_in.trip_type,
+        origin_display_name=trip_in.origin.display_name,
+        origin_lat=trip_in.origin.lat,
+        origin_lng=trip_in.origin.lng,
+        origin_place_id=trip_in.origin.place_id,
+        origin_address=trip_in.origin.address,
+        destination_display_name=trip_in.destination.display_name,
+        destination_lat=trip_in.destination.lat,
+        destination_lng=trip_in.destination.lng,
+        destination_place_id=trip_in.destination.place_id,
+        destination_address=trip_in.destination.address,
+        hops=json.dumps(trip_in.hops) if trip_in.hops else None,
+        is_interstate=is_interstate,
+        is_round_trip=trip_in.is_round_trip,
+        start_date=trip_in.start_date,
+        end_date=trip_in.end_date,
+        num_adults=trip_in.num_adults,
+        num_children=trip_in.num_children,
+        num_luggages=trip_in.num_luggages,
+        preferred_car_type=trip_in.preferred_car_type,
+        preferred_fuel_type=trip_in.preferred_fuel_type,
+        permit_fee=price_components.get("permit_fee"),
+        driver_name=trip_in.driver_name,
+        driver_phone=trip_in.driver_phone,
+        car_model=trip_in.car_model,
+        car_registration_number=trip_in.car_registration_number,
+        payment_mode=trip_in.payment_mode,
+        payment_number=trip_in.payment_number,
+        flight_number=trip_in.flight_number,
+        terminal_number=trip_in.terminal_number,
+        status=TripStatusEnum.created,
+        base_fare=price_components.get("base_fare"),
+        driver_allowance=price_components.get("allowance"),
+        tolls_estimate=price_components.get("tolls_estimate"),
+        parking_estimate=price_components.get("parking_estimate"),
+        platform_fee=price_components.get("platform_fee"),
+        quoted_price=None,
+        final_price=price_components.get("total_price"),
+        final_display_price=price_components.get("total_price"),
+    )
+    db.add(trip)
+    db.flush()  # To get trip.id
+    # 4. Create audit trail
+    audit = TripStatusAudit(
+        trip_id=trip.id,
+        status=TripStatusEnum.created,
+        changed_by="customer",
+        reason="Trip created",
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(trip)
+    return trip
