@@ -17,6 +17,7 @@ dependencies = [
   "pydantic-settings",
   "sendgrid",
   "python-multipart",
+  "mapbox",
 ]
 
 [tool.uv]
