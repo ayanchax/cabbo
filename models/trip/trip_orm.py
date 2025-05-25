@@ -102,6 +102,8 @@ class Trip(Base):
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    indicative_overage_warning = Column(Boolean, default=False, nullable=False)
+
     status_audits = relationship("TripStatusAudit", back_populates="trip")
 
 

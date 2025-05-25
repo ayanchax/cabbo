@@ -17,18 +17,27 @@ class CabPricingBaseSchema(BaseModel):
 class OutstationCabPricingSchema(CabPricingBaseSchema):
     base_fare_per_km: float
     driver_allowance_per_day: float
+    min_included_km_per_day: int
+    overage_per_km: float
+    night_overage_per_block: float
+    night_block_hours: int
     # Outstation-specific: daily allotted km, permit fee, etc. can be added here
 
 
 # Local-specific pricing schema
 class LocalCabPricingSchema(CabPricingBaseSchema):
     hourly_rate: float
+    min_included_hours: int
+    max_included_hours: int
+    overage_per_hour: float
     # Local-specific: minimum rental duration, etc. can be added here
 
 
 # Airport-specific pricing schema
 class AirportCabPricingSchema(CabPricingBaseSchema):
     airport_fare_per_km: float
+    max_included_km: int
+    overage_per_km: float
     # Airport-specific: any other fields can be added here
 
 

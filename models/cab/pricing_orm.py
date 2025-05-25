@@ -74,6 +74,13 @@ class OutstationCabPricing(Base):
     )
     base_fare_per_km = Column(Float, nullable=False)
     driver_allowance_per_day = Column(Float, nullable=False)
+    # Overage config fields
+    min_included_km_per_day = Column(
+        Integer, nullable=False, default=300
+    )  # 200 for hatchback, 300 for others
+    overage_per_km = Column(Float, nullable=False)
+    night_overage_per_block = Column(Float, nullable=False, default=100)
+    night_block_hours = Column(Integer, nullable=False, default=3)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -101,6 +108,10 @@ class LocalCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     hourly_rate = Column(Float, nullable=False)
+    # Overage config fields
+    min_included_hours = Column(Integer, nullable=False, default=4)
+    max_included_hours = Column(Integer, nullable=False, default=12)
+    overage_per_hour = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -128,6 +139,9 @@ class AirportCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     airport_fare_per_km = Column(Float, nullable=False)
+    # Overage config fields
+    max_included_km = Column(Integer, nullable=False, default=42)
+    overage_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -165,3 +179,24 @@ class TollParkingConfig(Base):
     )
     # All fields except trip_type are nullable, so this table can flexibly store any trip-type-specific fixed rates
     # This table is independent of cab/fuel type, as these are global/fixed rates per trip type
+
+
+class OverageWarningConfig(Base):
+    __tablename__ = "overage_warning_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    trip_type = Column(SAEnum(TripTypeEnum), nullable=False, unique=True)
+    warning_factor = Column(Float, nullable=False)
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
