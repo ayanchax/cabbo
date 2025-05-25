@@ -10,6 +10,6 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 def seed_data(
     db: Session = Depends(get_mysql_session),
 ):
-    # seed_states(db)
+    seed_states(db)
     seed_pricing_master(db)
     return {"message": "Seed data generation completed successfully."}

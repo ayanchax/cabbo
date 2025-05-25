@@ -19,14 +19,44 @@ def seed_pricing_master(session: Session):
     # Cab Types
     cab_types = [
         CabType(
-            id=str(uuid.uuid4()), name=CarTypeEnum.hatchback, created_by=RoleEnum.system
+            id=str(uuid.uuid4()),
+            name=CarTypeEnum.hatchback,
+            description="Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
+            cab_names="WagonR, Celerio, Tiago, Santro, i10, Swift",
+            inventory_cab_names="WagonR (CNG)",
+            created_by=RoleEnum.system,
         ),
         CabType(
-            id=str(uuid.uuid4()), name=CarTypeEnum.sedan, created_by=RoleEnum.system
+            id=str(uuid.uuid4()),
+            name=CarTypeEnum.sedan,
+            description="Comfortable sedans, suitable for city and outstation travel.",
+            cab_names="Dzire, Amaze, Indigo",
+            inventory_cab_names="Dzire",
+            created_by=RoleEnum.system,
         ),
-        CabType(id=str(uuid.uuid4()), name=CarTypeEnum.suv, created_by=RoleEnum.system),
         CabType(
-            id=str(uuid.uuid4()), name=CarTypeEnum.suv_plus, created_by=RoleEnum.system
+            id=str(uuid.uuid4()),
+            name=CarTypeEnum.sedan_plus,
+            description="Premium sedans for extra comfort and luxury.",
+            cab_names="Honda City, Etios, Dzire Plus, Aura, Xcent, Verna, Ciaz, Yaris, Slavia",
+            inventory_cab_names="Etios, Dzire Plus, Xcent, Aura",
+            created_by=RoleEnum.system,
+        ),
+        CabType(
+            id=str(uuid.uuid4()),
+            name=CarTypeEnum.suv,
+            description="Spacious SUVs, good for family/group travel and rough roads.",
+            cab_names="Ertiga, Innova, Marazzo, XL6, Mobilio",
+            inventory_cab_names="Ertiga, Innova",
+            created_by=RoleEnum.system,
+        ),
+        CabType(
+            id=str(uuid.uuid4()),
+            name=CarTypeEnum.suv_plus,
+            description="Premium SUVs with extra comfort and luggage space.",
+            cab_names="Innova Crysta, Hexa, Fortuner, XUV500, Alcazar",
+            inventory_cab_names="Innova Crysta",
+            created_by=RoleEnum.system,
         ),
     ]
     # Fuel Types
@@ -50,12 +80,14 @@ def seed_pricing_master(session: Session):
     outstation_base_fares = {
         CarTypeEnum.hatchback: 11,
         CarTypeEnum.sedan: 12,
+        CarTypeEnum.sedan_plus: 14,
         CarTypeEnum.suv: 15,
         CarTypeEnum.suv_plus: 18,
     }
     outstation_driver_allowance = {
         CarTypeEnum.hatchback: 250,
         CarTypeEnum.sedan: 300,
+        CarTypeEnum.sedan_plus: 320,
         CarTypeEnum.suv: 350,
         CarTypeEnum.suv_plus: 400,
     }
@@ -63,13 +95,15 @@ def seed_pricing_master(session: Session):
     local_hourly_rates = {
         CarTypeEnum.hatchback: 180,
         CarTypeEnum.sedan: 220,
+        CarTypeEnum.sedan_plus: 300,
         CarTypeEnum.suv: 300,
-        CarTypeEnum.suv_plus: 350,
+        CarTypeEnum.suv_plus: 400,
     }
     # Airport fare per km by cab type
     airport_fare_per_km = {
         CarTypeEnum.hatchback: 16,
         CarTypeEnum.sedan: 18,
+        CarTypeEnum.sedan_plus: 20,
         CarTypeEnum.suv: 22,
         CarTypeEnum.suv_plus: 25,
     }
@@ -77,18 +111,21 @@ def seed_pricing_master(session: Session):
     outstation_min_km_per_day = {
         CarTypeEnum.hatchback: 200,
         CarTypeEnum.sedan: 300,
+        CarTypeEnum.sedan_plus: 300,
         CarTypeEnum.suv: 300,
         CarTypeEnum.suv_plus: 300,
     }
     outstation_overage_per_km = {
         CarTypeEnum.hatchback: 10,
         CarTypeEnum.sedan: 11,
+        CarTypeEnum.sedan_plus: 13,
         CarTypeEnum.suv: 13,
         CarTypeEnum.suv_plus: 16,
     }
     outstation_night_overage_per_block = {
         CarTypeEnum.hatchback: 100,
         CarTypeEnum.sedan: 100,
+        CarTypeEnum.sedan_plus: 100,
         CarTypeEnum.suv: 100,
         CarTypeEnum.suv_plus: 100,
     }
@@ -100,8 +137,9 @@ def seed_pricing_master(session: Session):
     local_overage_per_hour = {
         CarTypeEnum.hatchback: 180,
         CarTypeEnum.sedan: 220,
+        CarTypeEnum.sedan_plus: 300,
         CarTypeEnum.suv: 300,
-        CarTypeEnum.suv_plus: 350,
+        CarTypeEnum.suv_plus: 400,
     }
 
     # Airport overage config by cab type
@@ -109,12 +147,14 @@ def seed_pricing_master(session: Session):
     airport_overage_per_km = {
         CarTypeEnum.hatchback: 14,
         CarTypeEnum.sedan: 16,
+        CarTypeEnum.sedan_plus: 18,
         CarTypeEnum.suv: 19,
         CarTypeEnum.suv_plus: 22,
     }
 
     for cab in cab_types:
         for fuel in fuel_types:
+            # No fuel type restriction logic, allow all combinations
             # Outstation
             outstation_pricing.append(
                 OutstationCabPricing(

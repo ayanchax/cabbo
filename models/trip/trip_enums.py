@@ -33,8 +33,9 @@ class FuelTypeEnum(str, enum.Enum):
 
 
 class CarTypeEnum(str, enum.Enum):
-    hatchback = "Hatchback"
+    hatchback = "Hatchback"  # mini
     sedan = "Sedan"
+    sedan_plus = "Premium Sedan"
     suv = "SUV"
     suv_plus = "SUV+"
 
