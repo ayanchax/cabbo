@@ -198,7 +198,28 @@ class OverageWarningConfig(Base):
         index=True,
     )
     trip_type = Column(SAEnum(TripTypeEnum), nullable=False, unique=True)
-    warning_factor = Column(Float, nullable=False)
+    warning_km_threshold = Column(Float, nullable=False)
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
+
+
+class NightChargeConfig(Base):
+    __tablename__ = "night_charge_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    night_start_hour = Column(Integer, nullable=False)  # 24-hr format, e.g., 20 for 8PM
+    night_end_hour = Column(Integer, nullable=False)  # 24-hr format, e.g., 6 for 6AM
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

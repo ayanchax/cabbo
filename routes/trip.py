@@ -1,12 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from db.database import get_db
 from models.trip.trip_schema import TripCreate, TripOut
 from models.trip.trip_orm import Trip, TripStatusAudit, CreatorTypeEnum
 from services.pricing_service import calculate_price
-from core.constants import CENTRAL_BANGALORE_ADDRESS
 from models.trip.trip_enums import TripStatusEnum
-import datetime
 import json
 
 router = APIRouter(prefix="/trip", tags=["Trip"])
@@ -71,6 +69,7 @@ def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
         num_luggages=trip_in.num_luggages,
         permit_fee=permit_fee,
     )
+    indicative_overage_warning = False
     # 3. Create Trip ORM object
     trip = Trip(
         creator_id=1,  # TODO: Replace with actual user from auth
@@ -114,6 +113,7 @@ def create_trip(trip_in: TripCreate, db: Session = Depends(get_db)):
         quoted_price=None,
         final_price=price_components.get("total_price"),
         final_display_price=price_components.get("total_price"),
+        indicative_overage_warning=indicative_overage_warning,
     )
     db.add(trip)
     db.flush()  # To get trip.id

@@ -8,10 +8,12 @@ from models.cab.pricing_orm import (
     AirportCabPricing,
     TollParkingConfig,
     OverageWarningConfig,
+    NightChargeConfig,
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
 from sqlalchemy.sql import func
+from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
 
 
@@ -123,13 +125,14 @@ def seed_pricing_master(session: Session):
         CarTypeEnum.suv_plus: 16,
     }
     outstation_night_overage_per_block = {
-        CarTypeEnum.hatchback: 100,
-        CarTypeEnum.sedan: 100,
-        CarTypeEnum.sedan_plus: 100,
-        CarTypeEnum.suv: 100,
-        CarTypeEnum.suv_plus: 100,
+        CarTypeEnum.hatchback: 120,
+        CarTypeEnum.sedan: 120,
+        CarTypeEnum.sedan_plus: 120,
+        CarTypeEnum.suv: 120,
+        CarTypeEnum.suv_plus: 120,
+        # No discrimination in night overage, same for all cab types, as all drivers are humans
     }
-    outstation_night_block_hours = 3
+    outstation_night_block_hours = 1  # every 1 hour is a block for night overage
 
     # Local overage config by cab type
     local_min_hours = 4
@@ -154,7 +157,6 @@ def seed_pricing_master(session: Session):
 
     for cab in cab_types:
         for fuel in fuel_types:
-            # No fuel type restriction logic, allow all combinations
             # Outstation
             outstation_pricing.append(
                 OutstationCabPricing(
@@ -227,22 +229,29 @@ def seed_pricing_master(session: Session):
         OverageWarningConfig(
             id=str(uuid.uuid4()),
             trip_type=TripTypeEnum.airport_general,
-            warning_factor=2,
+            warning_km_threshold=2,
             created_by=RoleEnum.system,
         ),
         OverageWarningConfig(
             id=str(uuid.uuid4()),
             trip_type=TripTypeEnum.outstation,
-            warning_factor=50,
+            warning_km_threshold=50,
             created_by=RoleEnum.system,
         ),
         OverageWarningConfig(
             id=str(uuid.uuid4()),
             trip_type=TripTypeEnum.local,
-            warning_factor=0,
+            warning_km_threshold=0,
             created_by=RoleEnum.system,
         ),
     ]
+    # Night charge config seed
+    night_charge_config = NightChargeConfig(
+        id=str(uuid.uuid4()),
+        night_start_hour=20,  # 8PM
+        night_end_hour=6,  # 6AM
+        created_by=RoleEnum.system,
+    )
     # Add and commit cab_types and fuel_types first to satisfy FK constraints
     session.add_all(cab_types + fuel_types)
     session.commit()
@@ -254,6 +263,7 @@ def seed_pricing_master(session: Session):
         + airport_pricing
         + toll_configs
         + overage_warning_configs
+        + [night_charge_config]
     )
     session.commit()
 
@@ -261,7 +271,10 @@ def seed_pricing_master(session: Session):
 def seed_states(session: Session):
     states = [
         GeoStateModel(
-            state_name="Karnataka", state_code="KA", permit_fee=0.0, is_home_state=1
+            state_name=APP_HOME_STATE,
+            state_code=APP_HOME_STATE_CODE,
+            permit_fee=0.0,
+            is_home_state=1,
         ),
         GeoStateModel(
             state_name="Tamil Nadu", state_code="TN", permit_fee=700.0, is_home_state=0

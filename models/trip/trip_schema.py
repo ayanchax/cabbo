@@ -7,14 +7,7 @@ from models.trip.trip_enums import (
     FuelTypeEnum,
     CarTypeEnum,
 )
-
-
-class LocationInfo(BaseModel):
-    display_name: str
-    lat: float
-    lng: float
-    place_id: Optional[str] = None
-    address: Optional[str] = None
+from models.geography.geo_enums import LocationInfo
 
 
 class TripBase(BaseModel):
