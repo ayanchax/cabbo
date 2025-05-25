@@ -48,6 +48,7 @@ class Trip(Base):
     )
     # Trip details
     trip_type = Column(Enum(TripTypeEnum), nullable=False)
+    # Location information
     origin_display_name = Column(String(255), nullable=False)
     origin_lat = Column(Float, nullable=False)
     origin_lng = Column(Float, nullable=False)
@@ -61,14 +62,22 @@ class Trip(Base):
     hops = Column(Text, nullable=True)  # JSON/text list of hops for outstation
     is_interstate = Column(Boolean, default=False, nullable=False)
     is_round_trip = Column(Boolean, default=True, nullable=False)
+    # Date and time information
     start_date = Column(DateTime, nullable=False)
     end_date = Column(DateTime, nullable=False)
+    # Passenger and luggage information
     num_adults = Column(Integer, nullable=False)
     num_children = Column(Integer, nullable=False)
+    num_large_suitcases = Column(Integer, nullable=True)
+    num_carryons = Column(Integer, nullable=True)
+    num_backpacks = Column(Integer, nullable=True)
+    num_other_bags = Column(Integer, nullable=True)
     num_luggages = Column(Integer, nullable=True)
+
+    # Car and fuel preferences
     preferred_car_type = Column(Enum(CarTypeEnum), nullable=True)
     preferred_fuel_type = Column(Enum(FuelTypeEnum), nullable=True)
-    permit_fee = Column(Float, nullable=True)
+
     # Driver assignment fields
     driver_name = Column(String(255), nullable=True)
     driver_phone = Column(String(32), nullable=True)
@@ -86,6 +95,7 @@ class Trip(Base):
     driver_allowance = Column(Float, nullable=True)
     tolls_estimate = Column(Float, nullable=True)
     parking_estimate = Column(Float, nullable=True)
+    permit_fee = Column(Float, nullable=True)
     platform_fee = Column(Float, nullable=True)
     quoted_price = Column(Float, nullable=True)  # Customer's counter-quote
     final_price = Column(Float, nullable=True)  # System-calculated
@@ -102,8 +112,9 @@ class Trip(Base):
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    indicative_overage_warning = Column(Boolean, default=False, nullable=False)
-
+    indicative_overage_warning = Column(
+        Boolean, default=False, nullable=False
+    )  # does not apply to all hourly local trips
     status_audits = relationship("TripStatusAudit", back_populates="trip")
 
 

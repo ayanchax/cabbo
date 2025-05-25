@@ -18,7 +18,10 @@ class TripBase(BaseModel):
     end_date: datetime
     num_adults: int
     num_children: int
-    num_luggages: Optional[int] = None
+    num_large_suitcases: Optional[int] = None
+    num_carryons: Optional[int] = None
+    num_backpacks: Optional[int] = None
+    num_other_bags: Optional[int] = None
     preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
     preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
     hops: Optional[List[str]] = None  # For outstation multi-hop
@@ -37,6 +40,21 @@ class TripBase(BaseModel):
     final_display_price: Optional[float] = (
         None  # Price shown to driver admin (original or quoted)
     )
+
+    # num_luggages is now computed as the sum of all above fields
+    @property
+    def num_luggages(self) -> int:
+        return sum(
+            filter(
+                None,
+                [
+                    self.num_large_suitcases,
+                    self.num_carryons,
+                    self.num_backpacks,
+                    self.num_other_bags,
+                ],
+            )
+        )
 
 
 class TripCreate(TripBase):

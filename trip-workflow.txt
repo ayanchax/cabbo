@@ -178,4 +178,139 @@ Use haversine distance for outstation, duration for local.
 * Seed data and schemas updated for new structure
 * All logic and config changes are reflected in the backend and ready for use in pricing service
 
+---
+
+### 🌐 **Location Service Integration (Mapbox)**
+
+- ✅ Implemented a robust location service using Mapbox APIs for:
+  - ✅ Determining state name from a place name or coordinates (for interstate detection).
+  - ✅ Calculating driving distance in km between two places (for overage warning logic).
+- ✅ Service supports:
+  - ✅ Place name (string) or lat/lng input (dict or LocationInfo).
+  - ✅ Accurate state detection for all trip points (origin, hops, destination).
+  - ✅ Accurate route distance for airport, outstation, and local trips.
+- ✅ Exposed via `/location/state` and `/location/distance` endpoints for testing and integration.
+- ✅ Ensures all interstate and overage logic is data-driven and auditable.
+
+---
+
+### 🚦 **Overage Cases & Indicative Warnings**
+
+#### **Airport Pickup/Drop**
+- ✅ Max limit: 42km (per industry standard).
+- ✅ If distance to/from airport is within 2km of the limit (≤2km margin), show overage warning to customer.
+- ✅ If exceeded, overage per km is slightly less than base fare per km (deduction based on cab type/fuel type).
+- ✅ Overage warning factor: **≤2km**.
+
+#### **Local One Day Trip (Hourly Rental)**
+- ✅ Min: 4hrs, Max: 12hrs (industry standard).
+- ✅ Overage is per hour (or fraction) above booked duration, at the same hourly rate.
+- ✅ If no duration entered, default to 12hrs.
+- ✅ No indicative overage warning needed (not km-based, overage is time-based and always clear).
+
+#### **Outstation Multi-Day Trips**
+- ✅ Min limit: 300km/day (Sedan/Sedan Premium/SUV/SUV+), 200km/day (Hatchback).
+- ✅ Overage if total trip km exceeds allotted (days × min limit).
+- ✅ If margin between planned km and allotted km is ≤50km, show overage warning to customer.
+- ✅ Overage per km is slightly less than base fare per km (deduction based on cab type/fuel type).
+- ✅ Overage warning factor: **≤50km**.
+
+#### **Night Time Overages (Outstation Only)**
+- ✅ Night charge: Rs. 120 per hour between 8PM–6AM, max Rs. 1200/night.
+- ✅ No indicative warning needed (not km-based, only applies if night driving occurs).
+
+#### **General Overage Handling**
+- ✅ Overage charges are not included in initial quote; only shown as a warning if close to threshold.
+- ✅ Final bill is recalculated after trip completion, based on actual km/time/night usage reported by driver.
+- ✅ Invoice details all overage items for transparency (km, time, night driving).
+
+---
+
+### 🛠️ **Implementation Notes**
+- ✅ All overage logic is data-driven and configurable (warning factors, base/overage rates, night charge intervals).
+- ✅ Location service is fully integrated and tested for both state detection and distance calculation.
+- ✅ All pricing, overage, and warning logic is configurable, auditable and ready for admin panel integration.
+- ✅ Customer-facing UI shows overage warnings only when margin to threshold is small, building trust and transparency.
+- ✅ All cab, fuel, overage warning, and pricing master/config tables are fully configurable and admin-editable in the database, supporting future changes without code updates.
+
+---
+
+### 🚖 **Pricing & Overage Matrix (Quick Reference)**
+
+#### 1. Outstation Trip Pricing & Overage Matrix
+
+| Cab Type        | Fuel Type | Base Fare per KM | Min KM/Day | Overage per KM | Overage Warning Factor | Night Charge (per hr, 8PM–6AM) |
+|-----------------|-----------|------------------|------------|----------------|-----------------------|-------------------------------|
+| Hatchback       | Petrol    | ₹11              | 200        | ₹10            | ≤50km                 | ₹120                          |
+| Hatchback       | Diesel    | ₹11              | 200        | ₹10            | ≤50km                 | ₹120                          |
+| Hatchback       | CNG       | ₹11              | 200        | ₹10            | ≤50km                 | ₹120                          |
+| Sedan           | Petrol    | ₹12              | 300        | ₹11            | ≤50km                 | ₹120                          |
+| Sedan           | Diesel    | ₹12              | 300        | ₹11            | ≤50km                 | ₹120                          |
+| Sedan Premium   | Petrol    | ₹14              | 300        | ₹13            | ≤50km                 | ₹120                          |
+| Sedan Premium   | Diesel    | ₹14              | 300        | ₹13            | ≤50km                 | ₹120                          |
+| SUV             | Petrol    | ₹15              | 300        | ₹13            | ≤50km                 | ₹120                          |
+| SUV             | Diesel    | ₹15              | 300        | ₹13            | ≤50km                 | ₹120                          |
+| SUV+            | Petrol    | ₹18              | 300        | ₹16            | ≤50km                 | ₹120                          |
+| SUV+            | Diesel    | ₹18              | 300        | ₹16            | ≤50km                 | ₹120                          |
+
+- Night charge: ₹120 per hour (8PM–6AM), max ₹1000/night.
+
+---
+
+#### 2. Local (Hourly Rental) Trip Pricing & Overage Matrix
+
+| Cab Type        | Fuel Type | Hourly Rate | Min Hours | Max Hours | Overage per Hour | Overage Warning Factor |
+|-----------------|-----------|-------------|-----------|-----------|------------------|-----------------------|
+| Hatchback       | Petrol    | ₹180        | 4         | 12        | ₹180             | N/A                   |
+| Hatchback       | Diesel    | ₹180        | 4         | 12        | ₹180             | N/A                   |
+| Hatchback       | CNG       | ₹180        | 4         | 12        | ₹180             | N/A                   |
+| Sedan           | Petrol    | ₹220        | 4         | 12        | ₹220             | N/A                   |
+| Sedan           | Diesel    | ₹220        | 4         | 12        | ₹220             | N/A                   |
+| Sedan Premium   | Petrol    | ₹300        | 4         | 12        | ₹300             | N/A                   |
+| Sedan Premium   | Diesel    | ₹300        | 4         | 12        | ₹300             | N/A                   |
+| SUV             | Petrol    | ₹300        | 4         | 12        | ₹300             | N/A                   |
+| SUV             | Diesel    | ₹300        | 4         | 12        | ₹300             | N/A                   |
+| SUV+            | Petrol    | ₹400        | 4         | 12        | ₹400             | N/A                   |
+| SUV+            | Diesel    | ₹400        | 4         | 12        | ₹400             | N/A                   |
+
+---
+
+#### 3. Airport Pickup/Drop Trip Pricing & Overage Matrix
+
+| Cab Type        | Fuel Type | Base Fare per KM | Max KM | Overage per KM | Overage Warning Factor |
+|-----------------|-----------|------------------|--------|----------------|-----------------------|
+| Hatchback       | Petrol    | ₹16              | 42     | ₹14            | ≤2km                  |
+| Hatchback       | Diesel    | ₹16              | 42     | ₹14            | ≤2km                  |
+| Hatchback       | CNG       | ₹16              | 42     | ₹14            | ≤2km                  |
+| Sedan           | Petrol    | ₹18              | 42     | ₹16            | ≤2km                  |
+| Sedan           | Diesel    | ₹18              | 42     | ₹16            | ≤2km                  |
+| Sedan Premium   | Petrol    | ₹20              | 42     | ₹18            | ≤2km                  |
+| Sedan Premium   | Diesel    | ₹20              | 42     | ₹18            | ≤2km                  |
+| SUV             | Petrol    | ₹22              | 42     | ₹19            | ≤2km                  |
+| SUV             | Diesel    | ₹22              | 42     | ₹19            | ≤2km                  |
+| SUV+            | Petrol    | ₹25              | 42     | ₹22            | ≤2km                  |
+| SUV+            | Diesel    | ₹25              | 42     | ₹22            | ≤2km                  |
+
+---
+
+- All values (base fare, overage, min/max, warning factors) are admin-editable in the DB.
+- See seed_data_generation.py for how these are seeded and can be updated.
+- This matrix is a quick reference for all trip types, cab types, fuel types, and overage logic.
+
+---
+
+#### ⏰ **Trip Start/End DateTime Handling**
+
+- For all trip types, the user must provide a start datetime (date + time).
+- For **airport** and **local** trips:
+  - The user provides only the start datetime.
+  - The end datetime is left as `None` at booking/creation.
+  - The backend sets the end datetime when the trip is completed (for billing, audit, and reporting).
+- For **outstation** trips:
+  - The user provides both start date/time and end date/time (reporting and return).
+  - Both are stored at creation for pricing, overage, and planning.
+- This approach ensures clarity, auditability, and accurate billing for all trip types, and is aligned with industry standards.
+
+---
+
 
