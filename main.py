@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from routes import auth, customer, location  # Import your routers here
+from routes import auth, customer, location, seed  # Import your routers here
 from db.database import init_db
 from contextlib import asynccontextmanager
 from core.exceptions import CabboException
@@ -52,7 +52,7 @@ def read_root():
 # Include routers
 app.include_router(auth.router)
 app.include_router(customer.router)
-# app.include_router(seed.router)
+app.include_router(seed.router)
 app.include_router(location.router)
 
 # Ensure share/images directory exists relative to this file (project root)
