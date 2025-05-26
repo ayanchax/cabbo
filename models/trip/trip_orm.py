@@ -97,9 +97,11 @@ class Trip(Base):
         Float, nullable=True
     )  # Price shown to driver admin (final or quoted)
 
-    # Airport/flight metadata
+    # Airport pickup/flight metadata
     flight_number = Column(String(32), nullable=True)
     terminal_number = Column(String(32), nullable=True)
+    placard_required = Column(Boolean, nullable=True, default=False)
+    placard_name = Column(String(128), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
@@ -110,6 +112,8 @@ class Trip(Base):
         Boolean, default=False, nullable=False
     )  # does not apply to all hourly local trips
     status_audits = relationship("TripStatusAudit", back_populates="trip")
+
+    alternate_customer_phone = Column(String(32), nullable=True)
 
 
 class TripStatusAudit(Base):
