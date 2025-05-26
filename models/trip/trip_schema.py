@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 from models.trip.trip_enums import (
@@ -8,6 +8,8 @@ from models.trip.trip_enums import (
     CarTypeEnum,
 )
 from models.geography.geo_enums import LocationInfo
+from models.cab.pricing_orm import RoleEnum
+from utils.utility import validate_and_sanitize_country_phone
 
 
 class TripBase(BaseModel):
@@ -40,6 +42,13 @@ class TripBase(BaseModel):
     final_display_price: Optional[float] = (
         None  # Price shown to driver admin (original or quoted)
     )
+    placard_required: Optional[bool] = False
+    placard_name: Optional[str] = None
+    # If customer wants to provide an alternate phone number for contacting during the trip.
+    # This is optional and can be used for special cases like airport pickups
+    # where the customer may not be reachable on their primary number.
+    # However all invoices and receipts will still go to the primary phone number.
+    alternate_customer_phone: Optional[str] = None
 
     # num_luggages is now computed as the sum of all above fields
     @property
@@ -55,6 +64,16 @@ class TripBase(BaseModel):
                 ],
             )
         )
+
+    @field_validator("alternate_customer_phone", mode="before")
+    @classmethod
+    def phone_validator(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        if v == "":
+            return v
+        return validate_and_sanitize_country_phone(v)
 
 
 class TripCreate(TripBase):
@@ -100,6 +119,19 @@ class OutstandingDueOut(BaseModel):
     reason: str
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class TripTypeMasterOut(BaseModel):
+    id: str
+    trip_type: TripTypeEnum
+    display_name: str
+    description: Optional[str]
+    created_by: RoleEnum
+    created_at: datetime
+    last_modified: datetime
 
     class Config:
         orm_mode = True

@@ -87,3 +87,29 @@ def get_distance_km(
     except (KeyError, IndexError, TypeError) as e:
         print(f"Error extracting distance from response: {e}, data: {data}")
         return None
+
+
+def get_location_suggestions(query: str):
+    """
+    Given a partial location string, return a list of LocationInfo objects using Mapbox geocoding.
+    """
+    geocoder = Geocoder(access_token=MAPBOX_TOKEN)
+    resp = geocoder.forward(query, limit=5)
+    geojson = resp.geojson()
+    features = geojson.get("features", [])
+    suggestions = []
+    for feature in features:
+        display_name = feature.get("place_name")
+        coords = feature.get("center", [None, None])
+        lng, lat = coords if len(coords) == 2 else (None, None)
+        place_id = feature.get("id")
+        suggestions.append(
+            LocationInfo(
+                display_name=display_name,
+                lat=lat,
+                lng=lng,
+                place_id=place_id,
+                address=display_name,
+            )
+        )
+    return suggestions

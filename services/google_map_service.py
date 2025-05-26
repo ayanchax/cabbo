@@ -12,3 +12,7 @@ def get_distance_km(
     origin: Union[LocationInfo, dict, str], destination: Union[LocationInfo, dict, str]
 ):
     pass
+
+
+def get_location_suggestions(query: str):
+    pass

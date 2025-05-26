@@ -282,3 +282,41 @@ def seed_states(session: Session):
     ]
     session.add_all(states)
     session.commit()
+
+    # Trip Type Master seed (exclude airport_general, which is backend-only)
+    from models.trip.trip_orm import TripTypeMaster
+
+    trip_type_master = [
+        {
+            "trip_type": TripTypeEnum.local,
+            "display_name": "Local City Ride",
+            "description": "Hourly rental for city travel. Flexible for errands, meetings, and sightseeing within city limits.",
+        },
+        {
+            "trip_type": TripTypeEnum.outstation,
+            "display_name": "Outstation Trip",
+            "description": "Multi-day intercity travel. Ideal for business, leisure, or family trips outside your city.",
+        },
+        {
+            "trip_type": TripTypeEnum.airport_pickup,
+            "display_name": "Airport Pickup",
+            "description": "Pickup from airport to your destination. Includes flight tracking and driver meet & greet.",
+        },
+        {
+            "trip_type": TripTypeEnum.airport_drop,
+            "display_name": "Airport Drop",
+            "description": "Drop to airport from your location. Timely service for stress-free departures.",
+        },
+    ]
+    trip_type_master_objs = [
+        TripTypeMaster(
+            id=str(uuid.uuid4()),
+            trip_type=entry["trip_type"],
+            display_name=entry["display_name"],
+            description=entry["description"],
+            created_by=RoleEnum.system,
+        )
+        for entry in trip_type_master
+    ]
+    session.add_all(trip_type_master_objs)
+    session.commit()

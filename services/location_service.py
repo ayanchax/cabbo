@@ -31,3 +31,21 @@ def get_distance_km(
 
         return google_get_distance(origin, destination)
     return None
+
+
+def get_location_suggestions(query: str):
+    """
+    Given a partial location string, return a list of suggested addresses/locations using the configured provider.
+    Each suggestion should be a dict with at least 'display_name', 'lat', 'lng', and optionally 'place_id' or 'address'.
+    """
+    if provider == "mapbox":
+        from services.mapbox_service import get_location_suggestions as mapbox_suggest
+
+        return mapbox_suggest(query)
+    elif provider == "google":
+        from services.google_map_service import (
+            get_location_suggestions as google_suggest,
+        )
+
+        return google_suggest(query)
+    return []
