@@ -78,38 +78,118 @@ def seed_pricing_master(session: Session):
     local_pricing = []
     airport_pricing = []
     # Example realistic values based on industry standards (approximate, can be admin-edited later)
-    # Outstation base fare per km and driver allowance per day by cab type
+    # Outstation base fare per km and driver allowance per day by cab type and fuel type
     outstation_base_fares = {
-        CarTypeEnum.hatchback: 11,
-        CarTypeEnum.sedan: 12,
-        CarTypeEnum.sedan_plus: 14,
-        CarTypeEnum.suv: 15,
-        CarTypeEnum.suv_plus: 18,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 11,
+            FuelTypeEnum.diesel: 10,
+            FuelTypeEnum.cng: 9,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 12,
+            FuelTypeEnum.diesel: 11,
+            FuelTypeEnum.cng: 10,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 14,
+            FuelTypeEnum.diesel: 13,
+            FuelTypeEnum.cng: 12,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 15,
+            FuelTypeEnum.diesel: 14,
+            FuelTypeEnum.cng: 13,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 18,
+            FuelTypeEnum.diesel: 17,
+            FuelTypeEnum.cng: 16,
+        },
     }
     outstation_driver_allowance = {
-        CarTypeEnum.hatchback: 250,
-        CarTypeEnum.sedan: 300,
-        CarTypeEnum.sedan_plus: 320,
-        CarTypeEnum.suv: 350,
-        CarTypeEnum.suv_plus: 400,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 250,
+            FuelTypeEnum.diesel: 240,
+            FuelTypeEnum.cng: 230,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 290,
+            FuelTypeEnum.cng: 280,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 320,
+            FuelTypeEnum.diesel: 310,
+            FuelTypeEnum.cng: 300,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 350,
+            FuelTypeEnum.diesel: 340,
+            FuelTypeEnum.cng: 330,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 390,
+            FuelTypeEnum.cng: 380,
+        },
     }
-    # Local hourly rates by cab type
+    # Local hourly rates by cab type and fuel type
     local_hourly_rates = {
-        CarTypeEnum.hatchback: 180,
-        CarTypeEnum.sedan: 220,
-        CarTypeEnum.sedan_plus: 300,
-        CarTypeEnum.suv: 300,
-        CarTypeEnum.suv_plus: 400,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 180,
+            FuelTypeEnum.diesel: 170,
+            FuelTypeEnum.cng: 160,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 220,
+            FuelTypeEnum.diesel: 210,
+            FuelTypeEnum.cng: 200,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 290,
+            FuelTypeEnum.cng: 280,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 290,
+            FuelTypeEnum.cng: 280,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 390,
+            FuelTypeEnum.cng: 380,
+        },
     }
-    # Airport fare per km by cab type
+    # Airport fare per km by cab type and fuel type
     airport_fare_per_km = {
-        CarTypeEnum.hatchback: 16,
-        CarTypeEnum.sedan: 18,
-        CarTypeEnum.sedan_plus: 20,
-        CarTypeEnum.suv: 22,
-        CarTypeEnum.suv_plus: 25,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 16,
+            FuelTypeEnum.diesel: 15,
+            FuelTypeEnum.cng: 14,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 18,
+            FuelTypeEnum.diesel: 17,
+            FuelTypeEnum.cng: 16,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 20,
+            FuelTypeEnum.diesel: 19,
+            FuelTypeEnum.cng: 18,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 21,
+            FuelTypeEnum.cng: 20,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 25,
+            FuelTypeEnum.diesel: 24,
+            FuelTypeEnum.cng: 23,
+        },
     }
-    # Outstation overage config by cab type
+    # Outstation overage config by cab type and fuel type
     outstation_min_km_per_day = {
         CarTypeEnum.hatchback: 200,
         CarTypeEnum.sedan: 300,
@@ -118,11 +198,31 @@ def seed_pricing_master(session: Session):
         CarTypeEnum.suv_plus: 300,
     }
     outstation_overage_per_km = {
-        CarTypeEnum.hatchback: 10,
-        CarTypeEnum.sedan: 11,
-        CarTypeEnum.sedan_plus: 13,
-        CarTypeEnum.suv: 13,
-        CarTypeEnum.suv_plus: 16,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 10,
+            FuelTypeEnum.diesel: 9,
+            FuelTypeEnum.cng: 8,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 11,
+            FuelTypeEnum.diesel: 10,
+            FuelTypeEnum.cng: 9,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 13,
+            FuelTypeEnum.diesel: 12,
+            FuelTypeEnum.cng: 11,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 13,
+            FuelTypeEnum.diesel: 12,
+            FuelTypeEnum.cng: 11,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 16,
+            FuelTypeEnum.diesel: 15,
+            FuelTypeEnum.cng: 14,
+        },
     }
     outstation_night_overage_per_block = {
         CarTypeEnum.hatchback: 120,
@@ -130,29 +230,68 @@ def seed_pricing_master(session: Session):
         CarTypeEnum.sedan_plus: 120,
         CarTypeEnum.suv: 120,
         CarTypeEnum.suv_plus: 120,
-        # No discrimination in night overage, same for all cab types, as all drivers are humans
     }
     outstation_night_block_hours = 1  # every 1 hour is a block for night overage
 
-    # Local overage config by cab type
+    # Local overage config by cab type and fuel type
     local_min_hours = 4
     local_max_hours = 12
     local_overage_per_hour = {
-        CarTypeEnum.hatchback: 180,
-        CarTypeEnum.sedan: 220,
-        CarTypeEnum.sedan_plus: 300,
-        CarTypeEnum.suv: 300,
-        CarTypeEnum.suv_plus: 400,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 180,
+            FuelTypeEnum.diesel: 170,
+            FuelTypeEnum.cng: 160,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 220,
+            FuelTypeEnum.diesel: 210,
+            FuelTypeEnum.cng: 200,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 290,
+            FuelTypeEnum.cng: 280,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 290,
+            FuelTypeEnum.cng: 280,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 390,
+            FuelTypeEnum.cng: 380,
+        },
     }
 
-    # Airport overage config by cab type
+    # Airport overage config by cab type and fuel type
     airport_max_included_km = 42
     airport_overage_per_km = {
-        CarTypeEnum.hatchback: 14,
-        CarTypeEnum.sedan: 16,
-        CarTypeEnum.sedan_plus: 18,
-        CarTypeEnum.suv: 19,
-        CarTypeEnum.suv_plus: 22,
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 14,
+            FuelTypeEnum.diesel: 13,
+            FuelTypeEnum.cng: 12,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 16,
+            FuelTypeEnum.diesel: 15,
+            FuelTypeEnum.cng: 14,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 18,
+            FuelTypeEnum.diesel: 17,
+            FuelTypeEnum.cng: 16,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 19,
+            FuelTypeEnum.diesel: 18,
+            FuelTypeEnum.cng: 17,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 21,
+            FuelTypeEnum.cng: 20,
+        },
     }
 
     for cab in cab_types:
@@ -163,10 +302,12 @@ def seed_pricing_master(session: Session):
                     id=str(uuid.uuid4()),
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
-                    base_fare_per_km=outstation_base_fares[cab.name],
-                    driver_allowance_per_day=outstation_driver_allowance[cab.name],
+                    base_fare_per_km=outstation_base_fares[cab.name][fuel.name],
+                    driver_allowance_per_day=outstation_driver_allowance[cab.name][
+                        fuel.name
+                    ],
                     min_included_km_per_day=outstation_min_km_per_day[cab.name],
-                    overage_per_km=outstation_overage_per_km[cab.name],
+                    overage_per_km=outstation_overage_per_km[cab.name][fuel.name],
                     night_overage_per_block=outstation_night_overage_per_block[
                         cab.name
                     ],
@@ -180,10 +321,10 @@ def seed_pricing_master(session: Session):
                     id=str(uuid.uuid4()),
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
-                    hourly_rate=local_hourly_rates[cab.name],
+                    hourly_rate=local_hourly_rates[cab.name][fuel.name],
                     min_included_hours=local_min_hours,
                     max_included_hours=local_max_hours,
-                    overage_per_hour=local_overage_per_hour[cab.name],
+                    overage_per_hour=local_overage_per_hour[cab.name][fuel.name],
                     created_by=RoleEnum.system,
                 )
             )
@@ -193,9 +334,10 @@ def seed_pricing_master(session: Session):
                     id=str(uuid.uuid4()),
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
-                    airport_fare_per_km=airport_fare_per_km[cab.name],
+                    airport_fare_per_km=airport_fare_per_km[cab.name][fuel.name],
                     max_included_km=airport_max_included_km,
-                    overage_per_km=airport_overage_per_km[cab.name],
+                    overage_per_km=airport_overage_per_km[cab.name][fuel.name],
+                    placard_charge=50.0,  # Placard charge for airport pickup
                     created_by=RoleEnum.system,
                 )
             )

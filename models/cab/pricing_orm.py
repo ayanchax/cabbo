@@ -147,6 +147,9 @@ class AirportCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     airport_fare_per_km = Column(Float, nullable=False)
+    placard_charge = Column(
+        Float, nullable=True
+    )  # Only for airport pickup, can be null for others
     # Overage config fields
     max_included_km = Column(Integer, nullable=False, default=42)
     overage_per_km = Column(Float, nullable=False)

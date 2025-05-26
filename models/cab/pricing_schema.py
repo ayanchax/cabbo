@@ -68,3 +68,40 @@ class TollParkingConfigSchema(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class PricingBreakdownBaseSchema(BaseModel):
+    base_fare: float
+    platform_fee: float
+    final_price: Optional[float] = None  # System-calculated
+
+    class Config:
+        from_attributes = True
+
+
+class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
+    driver_allowance: Optional[float] = None
+    tolls_estimate: Optional[float] = None
+    parking_estimate: Optional[float] = None
+    permit_fee: Optional[float] = None
+    quoted_price: Optional[float] = None  # Customer's counter-quote
+
+
+class LocalPricingBreakdownSchema(PricingBreakdownBaseSchema):
+    driver_allowance: Optional[float] = None
+    tolls_estimate: Optional[float] = None
+    parking_estimate: Optional[float] = None
+    quoted_price: Optional[float] = None  # Customer's counter-quote
+
+
+class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
+    placard_charge: Optional[float] = (
+        None  # Only for airport pickup, can be null for others
+    )
+    tolls_estimate: Optional[float] = None
+    parking_estimate: Optional[float] = None
+    quoted_price: Optional[float] = None  # Customer's counter-quote
+
+    class Config:
+        orm_mode = True
+        extra = "allow"

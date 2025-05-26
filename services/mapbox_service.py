@@ -83,7 +83,7 @@ def get_distance_km(
         return None
     try:
         meters = data["features"][0]["properties"]["distance"]
-        return meters / 1000.0
+        return round(meters / 1000.0, 2)
     except (KeyError, IndexError, TypeError) as e:
         print(f"Error extracting distance from response: {e}, data: {data}")
         return None
