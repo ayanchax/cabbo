@@ -26,24 +26,11 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
     """
 
     options: List[TripSearchOption] = []
-    # 1. Determine valid cab/fuel types for this trip type
-    if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
-        if not search_in.origin:
-            search_in.origin = APP_AIRPORT_LOCATION.get(APP_HOME_STATE, None)
-        if not search_in.origin:
-            raise CabboException("Origin is required", status_code=400)
-
-        # Origin is airport, destination is required
-        if not search_in.destination:
-            raise CabboException("Destination is required", status_code=400)
-        est_km = get_distance_km(
-            origin=search_in.origin, destination=search_in.destination
-        )
-        if not est_km:
-            raise CabboException(
-                "Could not estimate distance between origin and destination",
-                status_code=400,
-            )
+    is_airport_trip = search_in.trip_type in [
+        TripTypeEnum.airport_pickup,
+        TripTypeEnum.airport_drop,
+    ]
+    if is_airport_trip:
         warning_config = (
             db.query(OverageWarningConfig)
             .filter_by(trip_type=TripTypeEnum.airport_general)
@@ -56,49 +43,131 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
         )
         toll = toll_parking_charge.toll if toll_parking_charge else 0.0
         parking = toll_parking_charge.parking if toll_parking_charge else 0.0
-        airport_pricings = (
-            db.query(AirportCabPricing, CabType, FuelType)
-            .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
-            .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
-            .all()
-        )
-        for pricing, cab_type, fuel_type in airport_pricings:
-            base_fare_per_km = pricing.airport_fare_per_km
-            max_included_km = pricing.max_included_km
-            overage_per_km = pricing.overage_per_km
-            placard_charge = (
-                pricing.placard_charge if search_in.placard_required else 0.0
+        if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
+            if not search_in.origin:
+                search_in.origin = APP_AIRPORT_LOCATION.get(APP_HOME_STATE, None)
+            if not search_in.origin:
+                raise CabboException("Origin is required", status_code=400)
+
+            # Origin is airport, destination is required
+            if not search_in.destination:
+                raise CabboException("Destination is required", status_code=400)
+            est_km = get_distance_km(
+                origin=search_in.origin, destination=search_in.destination
             )
-            base_price = base_fare_per_km * min(est_km, max_included_km)
-            overage = max(0, est_km - max_included_km) * overage_per_km
-            # Total price includes base fare, toll and parking charges and placard charges (if any)
-            # We wont add the overage charge to the total price for airport pickups because overages is an estimation and not a fixed charge
-            # Overages will apply if at the end of the trip the actual distance is more than the estimated distance
-            # This indicator is to ensure that the customer is aware that overage charges may apply for this route
-            total_price = math.ceil(base_price + toll + parking + placard_charge)
-            warning_km_threshold = warning_config.warning_km_threshold
-            margin = max_included_km - est_km  # Allow negative values for overage
-            indicative_overage_warning = margin <= warning_km_threshold
-            price_breakdown = AirportPricingBreakdownSchema(
-                base_fare=math.ceil(base_price),
-                platform_fee=0.0,  # Assuming no platform fee for now
-                final_price=math.ceil(total_price),
-                placard_charge=math.ceil(placard_charge),
-                tolls_estimate=math.ceil(toll),
-                parking_estimate=math.ceil(parking),
-                overage_per_km=overage_per_km,
-                overage_estimate=math.ceil(overage),
-            )
-            options.append(
-                TripSearchOption(
-                    car_type=cab_type.name,  # Use display name
-                    fuel_type=fuel_type.name,  # Use display name
-                    price=total_price,
-                    price_breakdown=price_breakdown,
-                    estimated_km=est_km,
-                    indicative_overage_warning=indicative_overage_warning,
+            if not est_km:
+                raise CabboException(
+                    "Could not estimate distance between origin and destination",
+                    status_code=400,
                 )
+            airport_pricings = (
+                db.query(AirportCabPricing, CabType, FuelType)
+                .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
+                .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+                .all()
             )
+            for pricing, cab_type, fuel_type in airport_pricings:
+                base_fare_per_km = pricing.airport_fare_per_km
+                max_included_km = pricing.max_included_km
+                overage_per_km = pricing.overage_per_km
+                placard_charge = (
+                    pricing.placard_charge if search_in.placard_required else 0.0
+                )
+                base_price = base_fare_per_km * min(est_km, max_included_km)
+                overage = max(0, est_km - max_included_km) * overage_per_km
+                # Total price includes base fare, toll and parking charges and placard charges (if any)
+                # We wont add the overage charge to the total price for airport pickups because overages is an estimation and not a fixed charge
+                # Overages will apply if at the end of the trip the actual distance is more than the estimated distance
+                # This indicator is to ensure that the customer is aware that overage charges may apply for this route
+                total_price = math.ceil(base_price + toll + parking + placard_charge)
+                warning_km_threshold = warning_config.warning_km_threshold
+                margin = max_included_km - est_km  # Allow negative values for overage
+                indicative_overage_warning = margin <= warning_km_threshold
+                price_breakdown = AirportPricingBreakdownSchema(
+                    base_fare=math.ceil(base_price),
+                    platform_fee=math.ceil(0.0),  # Assuming no platform fee for now
+                    final_price=math.ceil(total_price),
+                    placard_charge=math.ceil(placard_charge),
+                    tolls_estimate=math.ceil(toll),
+                    parking_estimate=math.ceil(parking),
+                    overage_per_km=overage_per_km,
+                    overage_estimate=math.ceil(overage),
+                )
+                options.append(
+                    TripSearchOption(
+                        car_type=cab_type.name,  # Use display name
+                        fuel_type=fuel_type.name,  # Use display name
+                        price=total_price,
+                        price_breakdown=price_breakdown,
+                        estimated_km=est_km,
+                        indicative_overage_warning=indicative_overage_warning,
+                    )
+                )
+
+        elif search_in.trip_type == TripTypeEnum.airport_drop:  # to airport
+            if not search_in.origin:
+                raise CabboException(
+                    "Origin is required for airport drop", status_code=400
+                )
+            if not search_in.destination:
+                search_in.destination = APP_AIRPORT_LOCATION.get(APP_HOME_STATE, None)
+            if not search_in.destination:
+                raise CabboException(
+                    "Destination is required for airport drop", status_code=400
+                )
+            est_km = get_distance_km(
+                origin=search_in.origin, destination=search_in.destination
+            )
+            if not est_km:
+                raise CabboException(
+                    "Could not estimate distance between origin and destination",
+                    status_code=400,
+                )
+            airport_pricings = (
+                db.query(AirportCabPricing, CabType, FuelType)
+                .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
+                .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+                .all()
+            )
+            for pricing, cab_type, fuel_type in airport_pricings:
+                base_fare_per_km = pricing.airport_fare_per_km
+                max_included_km = pricing.max_included_km
+                overage_per_km = pricing.overage_per_km
+                base_price = base_fare_per_km * min(est_km, max_included_km)
+                overage = max(0, est_km - max_included_km) * overage_per_km
+                # Total price includes base fare, toll and parking charges (if any)
+                # We wont add the overage charge to the total price for airport pickups because overages is an estimation and not a fixed charge
+                # Overages will apply if at the end of the trip the actual distance is more than the estimated distance
+                # This indicator is to ensure that the customer is aware that overage charges may apply for this route
+                total_price = math.ceil(base_price + toll + parking)
+                warning_km_threshold = warning_config.warning_km_threshold
+                margin = max_included_km - est_km  # Allow negative values for overage
+                indicative_overage_warning = margin <= warning_km_threshold
+                price_breakdown = AirportPricingBreakdownSchema(
+                    base_fare=math.ceil(base_price),
+                    platform_fee=math.ceil(0.0),  # Assuming no platform fee for now
+                    final_price=math.ceil(total_price),
+                    tolls_estimate=math.ceil(toll),
+                    parking_estimate=math.ceil(parking),
+                    overage_per_km=overage_per_km,
+                    overage_estimate=math.ceil(overage),
+                )
+                options.append(
+                    TripSearchOption(
+                        car_type=cab_type.name,  # Use display name
+                        fuel_type=fuel_type.name,  # Use display name
+                        price=total_price,
+                        price_breakdown=price_breakdown,
+                        estimated_km=est_km,
+                        indicative_overage_warning=indicative_overage_warning,
+                    )
+                )
+    else:
+        # For other trip types, we will implement later
+        raise CabboException(
+            "Only airport pickup/drop is implemented currently", status_code=501
+        )
+
     # We will do the next trip types later once we finish the airport pickup logic neatly
     # elif search_in.trip_type == TripTypeEnum.airport_drop:
     #     # Destination is airport, origin is required
