@@ -11,9 +11,11 @@
 * `Trip` model with fields (see code for full details):
   * All trip types supported: local, outstation, airport pickup/drop, multi-hop
   * Pickup/drop logic via origin/destination fields
-  * Passenger breakdown: num_adults, num_children, num_luggages
+  * Passenger breakdown: num_adults, num_children, num_luggages, **detailed luggage info (large suitcases, carryons, backpacks, other bags)**
   * Car/fuel preferences: preferred_car_type (default: Sedan), preferred_fuel_type (default: Diesel)
   * Hops, round trip, interstate, permit, driver assignment, payment, airport metadata, and financials
+  * **Placard support for airport pickup (placard_required, placard_name)**
+  * **Alternate customer phone number for contact at pickup**
   * final_display_price: always set to the price shown to driver admin (original price for direct booking, quoted price for quote-back)
   * Defaults handled at API/schema layer
 * `TripStatusAudit` model (table: trip_status_audits):
@@ -24,6 +26,7 @@
   * `OutstationCabPricing`, `LocalCabPricing`, `AirportCabPricing` (trip-type-specific, with only relevant fields, UUID PK, audit fields, FKs to cab/fuel type)
   * `TollParkingConfig` (global per trip type, uses TripTypeEnum, UUID PK, audit fields)
   * All master/config tables have created_by (RoleEnum), created_at, last_modified (UTC, auto-updated)
+  * **TripTypeMaster (admin-editable, DB-driven trip types for UI, excludes backend-only types like airport_general)**
 
 ✅ This sets the base for all trip workflows, pricing, and status tracking, and ensures all price components are recorded for each trip. Table names: `trips`, `trip_status_audits`, `outstanding_dues`, `cab_types_master`, `fuel_types_master`, `outstation_cab_pricing`, `local_cab_pricing`, `airport_cab_pricing`, `toll_parking_config`.
 
