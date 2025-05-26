@@ -1,10 +1,13 @@
-from pydantic import BaseModel, field_validator, Field
+from pydantic import BaseModel, field_validator
 from typing import Optional, List, Union
 from datetime import datetime
 from models.cab.pricing_schema import (
     AirportPricingBreakdownSchema,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
+    OverageWarningConfigSchema,
+    PlatformPricingConfigSchema,
+    TollParkingConfigSchema,
 )
 from models.trip.trip_enums import (
     TripStatusEnum,
@@ -171,7 +174,7 @@ class TripSearchRequest(BaseModel):
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     fuel_type: FuelTypeEnum
-    price: float
+    total_price: float
     price_breakdown: Union[
         AirportPricingBreakdownSchema,
         OutstationPricingBreakdownSchema,
@@ -184,3 +187,16 @@ class TripSearchOption(BaseModel):
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
+
+
+class TripTypeWiseConfig(BaseModel):
+    warning_config: Optional[
+        OverageWarningConfigSchema
+    ]  # Use ORM or schema if available
+    toll_parking_charge: Optional[TollParkingConfigSchema]
+    platform_fee_config: Optional[
+        PlatformPricingConfigSchema
+    ]  # Use ORM or schema if available
+
+    class Config:
+        from_attributes = True

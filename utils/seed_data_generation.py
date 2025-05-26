@@ -9,6 +9,7 @@ from models.cab.pricing_orm import (
     TollParkingConfig,
     OverageWarningConfig,
     NightChargeConfig,
+    PlatformPricingConfig,
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
@@ -398,33 +399,6 @@ def seed_pricing_master(session: Session):
     session.add_all(cab_types + fuel_types)
     session.commit()
 
-    # Now add and commit pricing and toll configs
-    session.add_all(
-        outstation_pricing
-        + local_pricing
-        + airport_pricing
-        + toll_configs
-        + overage_warning_configs
-        + [night_charge_config]
-    )
-    session.commit()
-
-
-def seed_states(session: Session):
-    states = [
-        GeoStateModel(
-            state_name=APP_HOME_STATE,
-            state_code=APP_HOME_STATE_CODE,
-            permit_fee=0.0,
-            is_home_state=1,
-        ),
-        GeoStateModel(
-            state_name="Tamil Nadu", state_code="TN", permit_fee=700.0, is_home_state=0
-        ),
-    ]
-    session.add_all(states)
-    session.commit()
-
     # Trip Type Master seed (exclude airport_general, which is backend-only)
     from models.trip.trip_orm import TripTypeMaster
 
@@ -461,4 +435,62 @@ def seed_states(session: Session):
         for entry in trip_type_master
     ]
     session.add_all(trip_type_master_objs)
+    session.commit()
+
+    # Now query TripTypeMaster for trip_type_id mapping
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+    platform_fee_configs = [
+        PlatformPricingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
+            platform_fee_percent=5.0,
+            created_by=RoleEnum.system,
+        ),
+        PlatformPricingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
+            platform_fee_percent=5.0,
+            created_by=RoleEnum.system,
+        ),
+        PlatformPricingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.local],
+            platform_fee_percent=10.0,
+            created_by=RoleEnum.system,
+        ),
+        PlatformPricingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
+            platform_fee_percent=16.0,
+            created_by=RoleEnum.system,
+        ),
+    ]
+
+    # Now add and commit pricing and toll configs
+    session.add_all(
+        outstation_pricing
+        + local_pricing
+        + airport_pricing
+        + toll_configs
+        + overage_warning_configs
+        + [night_charge_config]
+        + platform_fee_configs
+    )
+    session.commit()
+
+
+def seed_states(session: Session):
+    states = [
+        GeoStateModel(
+            state_name=APP_HOME_STATE,
+            state_code=APP_HOME_STATE_CODE,
+            permit_fee=0.0,
+            is_home_state=1,
+        ),
+        GeoStateModel(
+            state_name="Tamil Nadu", state_code="TN", permit_fee=700.0, is_home_state=0
+        ),
+    ]
+    session.add_all(states)
     session.commit()

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 from models.trip.trip_enums import TripTypeEnum
@@ -10,7 +11,7 @@ class CabPricingBaseSchema(BaseModel):
     fuel_type_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Outstation-specific pricing schema
@@ -35,45 +36,57 @@ class LocalCabPricingSchema(CabPricingBaseSchema):
 
 # Airport-specific pricing schema
 class AirportCabPricingSchema(CabPricingBaseSchema):
+    id: Optional[str]
+    cab_type_id: Optional[str]
+    fuel_type_id: Optional[str]
     airport_fare_per_km: float
+    placard_charge: Optional[float] = None
     max_included_km: int
     overage_per_km: float
-    # Airport-specific: any other fields can be added here
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+
+    class Config:
+
+        from_attributes = True
 
 
 class CabTypeSchema(BaseModel):
-    id: Optional[int]
+    id: Optional[str]
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class FuelTypeSchema(BaseModel):
-    id: Optional[int]
+    id: Optional[str]
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TollParkingConfigSchema(BaseModel):
-    id: Optional[int]
+    id: Optional[str]
     trip_type: TripTypeEnum
     toll: Optional[float]
     parking: Optional[float]
     toll_per_block: Optional[float]
     parking_per_block: Optional[float]
     block_days: Optional[int]
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PricingBreakdownBaseSchema(BaseModel):
     base_fare: float
     platform_fee: float
-    final_price: Optional[float] = None  # System-calculated
 
     class Config:
         from_attributes = True
@@ -86,12 +99,18 @@ class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
     permit_fee: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
+    class Config:
+        extra = "allow"
+
 
 class LocalPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
     tolls_estimate: Optional[float] = None
     parking_estimate: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
+
+    class Config:
+        extra = "allow"
 
 
 class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
@@ -103,5 +122,28 @@ class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
-        orm_mode = True
         extra = "allow"
+
+
+class OverageWarningConfigSchema(BaseModel):
+    id: Optional[str]
+    trip_type: TripTypeEnum
+    warning_km_threshold: float
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PlatformPricingConfigSchema(BaseModel):
+    id: Optional[str]
+    trip_type_id: str
+    platform_fee_percent: float
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
