@@ -8,6 +8,7 @@ from models.trip.trip_enums import (
     CarTypeEnum,
 )
 from models.geography.geo_enums import LocationInfo
+from models.cab.pricing_orm import RoleEnum
 
 
 class TripBase(BaseModel):
@@ -100,6 +101,19 @@ class OutstandingDueOut(BaseModel):
     reason: str
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class TripTypeMasterOut(BaseModel):
+    id: str
+    trip_type: TripTypeEnum
+    display_name: str
+    description: Optional[str]
+    created_by: RoleEnum
+    created_at: datetime
+    last_modified: datetime
 
     class Config:
         orm_mode = True

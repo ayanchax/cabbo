@@ -16,6 +16,8 @@ from sqlalchemy.sql import func
 from core.security import RoleEnum
 
 
+# Pricing models for different cab types and fuel types
+# Since cab types and fuel types are related to trip pricing, they are defined here
 class CabType(Base):
     __tablename__ = "cab_types_master"
     id = Column(
@@ -159,6 +161,7 @@ class AirportCabPricing(Base):
     )
 
 
+# Toll and parking pricing
 class TollParkingConfig(Base):
     __tablename__ = "toll_parking_config"
     id = Column(
@@ -188,6 +191,7 @@ class TollParkingConfig(Base):
     # This table is independent of cab/fuel type, as these are global/fixed rates per trip type
 
 
+# Overage pricing warning configuration
 class OverageWarningConfig(Base):
     __tablename__ = "overage_warning_config"
     id = Column(
@@ -209,6 +213,7 @@ class OverageWarningConfig(Base):
     )
 
 
+# Night charge pricing configuration
 class NightChargeConfig(Base):
     __tablename__ = "night_charge_config"
     id = Column(

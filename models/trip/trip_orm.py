@@ -1,3 +1,4 @@
+from core.security import RoleEnum
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -20,13 +21,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
-import enum
-
-
-class CreatorTypeEnum(str, enum.Enum):
-    customer = "customer"
-    driver = "driver"
-    system = "system"
 
 
 class Trip(Base):
@@ -42,8 +36,8 @@ class Trip(Base):
     #  Creator information
     creator_id = Column(Integer, nullable=False, index=True)
     creator_type = Column(
-        Enum(CreatorTypeEnum),
-        default=CreatorTypeEnum.customer,
+        Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
+        default=RoleEnum.customer,
         nullable=False,
     )
     # Trip details
@@ -144,4 +138,27 @@ class OutstandingDue(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class TripTypeMaster(Base):
+    __tablename__ = "trip_types_master"
+
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    trip_type = Column(Enum(TripTypeEnum), nullable=False, unique=True)
+    display_name = Column(String(64), nullable=False)
+    description = Column(String(255), nullable=True)
+    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
     )

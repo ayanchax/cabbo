@@ -25,6 +25,8 @@ class RoleEnum(str, Enum):
     system = (
         "system"  # System role for internal operations during seeding or migrations
     )
+    customer = "customer"  # Regular customer role
+    driver = "driver"  # Regular driver role
 
 
 def validate_customer_token(
