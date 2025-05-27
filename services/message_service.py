@@ -4,6 +4,8 @@ import sendgrid
 import secrets
 from sendgrid.helpers.mail import Mail
 from datetime import datetime, timezone, timedelta
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+import os
 
 EMAIL_VERIFY_EXPIRY_UNIT = 2
 EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
@@ -22,6 +24,17 @@ client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 # SendGrid Configuration for sending Emails
 SENDGRID_API_KEY = settings.SENDGRID_API_KEY
 sg_client = sendgrid.SendGridAPIClient(api_key=SENDGRID_API_KEY)
+
+WELCOME_EMAIL_FILE = "welcome.html"
+EMAIL_VERIFICATION_FILE = "email_verification.html"
+# Jinja2 Environment for email templates
+EMAIL_TEMPLATES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "templates", "emails"
+)
+jinja_templates_env = Environment(
+    loader=FileSystemLoader(EMAIL_TEMPLATES_DIR),
+    autoescape=select_autoescape(["html", "xml"]),
+)
 
 # Twilio Text Messaging Service
 
@@ -69,6 +82,17 @@ def send_email(
         return False
 
 
+def render_email_template(template_name: str, for_customer=True, **kwargs) -> str:
+    """
+    Render an email template with the given context.
+    """
+    if for_customer:
+        template_name = f"customer/{template_name}"
+
+    template = jinja_templates_env.get_template(template_name)
+    return template.render(**kwargs)
+
+
 def create_email_verification_link(
     id: str,
     endpoint: str,
@@ -88,6 +112,6 @@ def create_email_verification_link(
     else:
         expiry = now + timedelta(hours=EMAIL_VERIFY_EXPIRY_UNIT)  # fallback
     verification_url = (
-        f"{settings.API_URL}{endpoint}?id={id}&token={secrets.token_urlsafe(16)}"
+        f"{settings.APP_URL}?ep={endpoint}&id={id}&token={secrets.token_urlsafe(16)}"
     )
     return verification_url, expiry

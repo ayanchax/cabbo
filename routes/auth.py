@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, BackgroundTasks, Header
+from fastapi import APIRouter, Body, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from services.customer_service import create_customer
@@ -10,7 +10,6 @@ from services.otp_service import (
 )
 from models.customer.customer_schema import (
     CustomerCreate,
-    CustomerRead,
     CustomerOnboardInitiationRequest,
     CustomerLoginRequest,
     CustomerLoginResponse,
@@ -22,7 +21,12 @@ from services.customer_service import (
     persist_bearer_token,
     is_customer_logged_in,
 )
-from services.message_service import send_otp, send_email
+from services.message_service import (
+    send_otp,
+    send_email,
+    WELCOME_EMAIL_FILE,
+)
+from core.config import settings
 from core.exceptions import CabboException
 from core.constants import APP_NAME
 
@@ -74,7 +78,14 @@ def register(
     # Send welcome email in background if email is provided
     if customer.email and customer.name:
         subject = f"Welcome to {APP_NAME}!"
-        html_content = f"<h1>Welcome to {APP_NAME}, {customer.name}!</h1><p>Thank you for registering with us.</p>"
+        from services.message_service import render_email_template
+
+        html_content = render_email_template(
+            WELCOME_EMAIL_FILE,
+            name=customer.name,
+            app_name=APP_NAME.capitalize(),
+            app_url=settings.APP_URL,
+        )
         background_tasks.add_task(send_email, customer.email, subject, html_content)
 
     # Give login token directly after registration
@@ -84,9 +95,9 @@ def register(
     return CustomerLoginResponse(
         access_token=token,
         token_type="bearer",
-        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,
+        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,  # n days in seconds
         customer_id=str(customer.id),
-        first_time_login=True,  # Indicating this is the first login after registration, so that in UI we can show a welcome message or a welcome Tour
+        first_time_login=True,  # Indicating this is the first login after registration, so that in UI we can show a welcome message or initiate a welcome Tour for customer
     )
 
 
@@ -136,6 +147,6 @@ def login(
     return CustomerLoginResponse(
         access_token=token,
         token_type="bearer",
-        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,
+        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,  # n days in seconds
         customer_id=str(customer.id),
     )

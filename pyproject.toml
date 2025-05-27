@@ -18,6 +18,7 @@ dependencies = [
   "sendgrid",
   "python-multipart",
   "mapbox",
+  "Jinja2",
 ]
 
 [tool.uv]
