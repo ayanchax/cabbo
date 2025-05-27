@@ -8,6 +8,7 @@ ENV_FILE = ".env.dev" if ENV == "dev" else ".env.prod"
 
 
 class Settings(BaseSettings):
+    APP_URL: str
     API_URL: str
     ENV: str = ENV
     REGION: str

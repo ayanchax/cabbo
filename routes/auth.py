@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, BackgroundTasks, Header
+from fastapi import APIRouter, Body, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from services.customer_service import create_customer
@@ -10,7 +10,6 @@ from services.otp_service import (
 )
 from models.customer.customer_schema import (
     CustomerCreate,
-    CustomerRead,
     CustomerOnboardInitiationRequest,
     CustomerLoginRequest,
     CustomerLoginResponse,
@@ -84,9 +83,9 @@ def register(
     return CustomerLoginResponse(
         access_token=token,
         token_type="bearer",
-        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,
+        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,  # n days in seconds
         customer_id=str(customer.id),
-        first_time_login=True,  # Indicating this is the first login after registration, so that in UI we can show a welcome message or a welcome Tour
+        first_time_login=True,  # Indicating this is the first login after registration, so that in UI we can show a welcome message or initiate a welcome Tour for customer
     )
 
 
@@ -136,6 +135,6 @@ def login(
     return CustomerLoginResponse(
         access_token=token,
         token_type="bearer",
-        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,
+        expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,  # n days in seconds
         customer_id=str(customer.id),
     )

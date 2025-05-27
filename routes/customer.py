@@ -41,8 +41,6 @@ from core.security import validate_customer_token
 from core.exceptions import CabboException
 from services.message_service import send_email, EMAIL_VERIFY_EXPIRY_UNIT
 from core.constants import APP_NAME
-from datetime import datetime, timezone
-import os
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 

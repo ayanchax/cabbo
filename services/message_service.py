@@ -88,6 +88,6 @@ def create_email_verification_link(
     else:
         expiry = now + timedelta(hours=EMAIL_VERIFY_EXPIRY_UNIT)  # fallback
     verification_url = (
-        f"{settings.API_URL}{endpoint}?id={id}&token={secrets.token_urlsafe(16)}"
+        f"{settings.APP_URL}?ep={endpoint}&id={id}&token={secrets.token_urlsafe(16)}"
     )
     return verification_url, expiry
