@@ -48,3 +48,4 @@ dist/
 *.local
 share/
 application-requirements.txt
+notes/

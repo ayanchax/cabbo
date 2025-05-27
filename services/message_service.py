@@ -42,6 +42,7 @@ def send_sms(to_number: str, message: str) -> bool:
         client.messages.create(body=message, from_=TWILIO_FROM_NUMBER, to=to_number)
         return True
     except Exception as e:
+        print(f"Twilio SMS send failed: {e}")
         # Log the error and delete OTP from temp table if sending fails
         return False
 
