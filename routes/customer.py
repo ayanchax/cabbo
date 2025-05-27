@@ -39,7 +39,12 @@ from models.customer.customer_schema import (
 )
 from core.security import validate_customer_token
 from core.exceptions import CabboException
-from services.message_service import send_email, EMAIL_VERIFY_EXPIRY_UNIT
+from core.config import settings
+from services.message_service import (
+    send_email,
+    EMAIL_VERIFY_EXPIRY_UNIT,
+    EMAIL_VERIFICATION_FILE,
+)
 from core.constants import APP_NAME
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -159,7 +164,16 @@ def trigger_email_verification(
 
     # Send email in background
     subject = f"Verify your email for {customer.name or APP_NAME}"
-    html_content = f"<p>Click <a href='{customer_email_verification.verification_url}'>here</a> to verify your email. This link expires in {str(EMAIL_VERIFY_EXPIRY_UNIT)} hours.</p>"
+    from services.message_service import render_email_template
+
+    html_content = render_email_template(
+        EMAIL_VERIFICATION_FILE,
+        name=customer.name or "User",
+        verification_link=customer_email_verification.verification_url,
+        expiry_hours=str(EMAIL_VERIFY_EXPIRY_UNIT),
+        app_name=APP_NAME.capitalize(),
+        app_url=settings.APP_URL,
+    )
     background_tasks.add_task(send_email, customer.email, subject, html_content)
     return {"message": "Verification email sent. Please check your inbox."}
 
