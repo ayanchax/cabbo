@@ -25,7 +25,6 @@ from services.customer_service import (
 from services.message_service import send_otp, send_email
 from core.exceptions import CabboException
 from core.constants import APP_NAME
-from core.security import decode_jwt_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
