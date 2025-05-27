@@ -1,6 +1,14 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime
+from models.cab.pricing_schema import (
+    AirportPricingBreakdownSchema,
+    LocalPricingBreakdownSchema,
+    OutstationPricingBreakdownSchema,
+    OverageWarningConfigSchema,
+    PlatformPricingConfigSchema,
+    TollParkingConfigSchema,
+)
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -135,3 +143,60 @@ class TripTypeMasterOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class TripSearchRequest(BaseModel):
+    trip_type: TripTypeEnum
+    origin: LocationInfo
+    destination: Optional[LocationInfo] = None
+    start_date: str  # ISO date or datetime string
+    end_date: Optional[str] = None
+    num_adults: int
+    num_children: int
+    num_large_suitcases: Optional[int] = 0
+    num_carryons: Optional[int] = 0
+    num_backpacks: Optional[int] = 0
+    num_other_bags: Optional[int] = 0
+    preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
+    preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
+    duration_hours: Optional[int] = None  # For local trips
+    flight_number: Optional[str] = None  # For airport pickup
+    terminal_number: Optional[str] = None  # For airport pickup
+    placard_required: Optional[bool] = (
+        False  # For airport pickup Indicates if a placard is needed
+    )
+    placard_name: Optional[str] = (
+        None  # Name to display on the placard for airport pickup
+    )
+    # ...add other fields as needed for search...
+
+
+class TripSearchOption(BaseModel):
+    car_type: CarTypeEnum
+    fuel_type: FuelTypeEnum
+    total_price: float
+    price_breakdown: Union[
+        AirportPricingBreakdownSchema,
+        OutstationPricingBreakdownSchema,
+        LocalPricingBreakdownSchema,
+    ]  # Trip type specific pricing breakdown
+    estimated_km: Optional[float] = None
+    estimated_hours: Optional[float] = None
+    indicative_overage_warning: Optional[bool] = False  # Add this field for UI
+
+
+class TripSearchResponse(BaseModel):
+    options: List[TripSearchOption]
+
+
+class TripTypeWiseConfig(BaseModel):
+    warning_config: Optional[
+        OverageWarningConfigSchema
+    ]  # Use ORM or schema if available
+    toll_parking_charge: Optional[TollParkingConfigSchema]
+    platform_fee_config: Optional[
+        PlatformPricingConfigSchema
+    ]  # Use ORM or schema if available
+
+    class Config:
+        from_attributes = True
