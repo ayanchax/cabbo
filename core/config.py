@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     TWILLIO_AUTH_TOKEN: str
     TWILLIO_PHONE_NUMBER: str
     SENDGRID_API_KEY: str
-    SENDGRID_FROM_EMAIL: str
+    SENDGRID_FROM_NO_REPLY_EMAIL: str  # Email address used for sending emails to customers on events of welcome email, booking confirmation, trip updates, etc.
     JWT_SECRET: str
     SHARE_PATH: str
     MAPBOX_TOKEN: str
