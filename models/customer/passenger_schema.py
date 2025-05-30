@@ -10,12 +10,9 @@ class PassengerBase(BaseModel):
     phone_number: str
     is_active: Optional[bool] = True
 
-    @field_validator("v", mode="before")
+    @field_validator("phone_number", mode="before")
     @classmethod
     def phone_validator(cls, v):
-        v = v.strip()
-        if v == "":
-            return v
         return validate_and_sanitize_country_phone(v)
 
 

@@ -241,7 +241,7 @@ class NightChargeConfig(Base):
     )
 
 
-# Platform fee configuration per trip type
+# Dynamic Platform fee configuration per trip type
 class PlatformPricingConfig(Base):
     __tablename__ = "platform_pricing_config"
     id = Column(
@@ -255,6 +255,27 @@ class PlatformPricingConfig(Base):
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
     )  # FK to TripTypeMaster.id
     platform_fee_percent = Column(Float, nullable=False)  # e.g., 5.0 for 5%
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
+
+
+# Fixed Platform fee for cost to serve per booking
+class FixedPlatformPricingConfig(Base):
+    __tablename__ = "fixed_platform_pricing_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
