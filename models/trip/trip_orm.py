@@ -4,6 +4,7 @@ from models.trip.trip_enums import (
     TripTypeEnum,
     FuelTypeEnum,
     CarTypeEnum,
+    CancellationSubStatusEnum,
 )
 import uuid
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -95,11 +96,14 @@ class Trip(Base):
     final_price = Column(Float, nullable=True)  # System-calculated
     final_display_price = Column(
         Float, nullable=True
-    )  # Price shown to driver admin (final or quoted)
+    )  # Price shown to driver admin (final or quoted) w/o platform fee
 
     # Airport pickup/flight metadata
     flight_number = Column(String(32), nullable=True)
     terminal_number = Column(String(32), nullable=True)
+    toll_road_preferred = Column(
+        Boolean, default=False, nullable=False
+    )  # Customer opted for toll road usage for faster trip. This is applicable only for airport trips.
     placard_required = Column(Boolean, nullable=True, default=False)
     placard_name = Column(String(128), nullable=True)
 
@@ -115,6 +119,15 @@ class Trip(Base):
 
     alternate_customer_phone = Column(String(32), nullable=True)
 
+    # Passenger info (nullable, for 'book for someone else' feature)
+    passenger_id = Column(
+        MySQL_CHAR(36),
+        ForeignKey("passengers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="FK to passengers table; null if trip is for self",
+    )
+
 
 class TripStatusAudit(Base):
     __tablename__ = "trip_status_audits"
@@ -128,6 +141,20 @@ class TripStatusAudit(Base):
     reason = Column(String(255), nullable=True)  # New: reason/message for audit
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
 
+    # New: for analytics and auditability
+    cancellation_sub_status = Column(
+        Enum(CancellationSubStatusEnum),
+        nullable=True,
+        default=None,
+        comment="Detailed cancellation reason for analytics (nullable, only for cancelled trips)",
+    )
+    # Nullable: Only populated when cancellation_sub_status == CancellationSubStatusEnum.customer_preferences_not_met
+    responsible_preference_keys_for_cancelation = Column(
+        Text,  # Use Text for flexibility; can store comma-separated or JSON string
+        nullable=True,
+        comment="Snapshot of preference keys/flags at status change (nullable)",
+    )
+
     trip = relationship("Trip", back_populates="status_audits")
 
 
@@ -136,7 +163,7 @@ class OutstandingDue(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
-    customer_id = Column(MySQL_CHAR(36), nullable=False)
+    customer_id = Column(MySQL_CHAR(36), ForeignKey("customers.id"), nullable=False)
     amount = Column(Float, nullable=False)
     reason = Column(String(255), nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

@@ -86,8 +86,8 @@ class OutstationCabPricing(Base):
     min_included_km_per_day = Column(
         Integer, nullable=False, default=300
     )  # 200 for hatchback, 300 for others
-    overage_per_km = Column(Float, nullable=False)
-    night_overage_per_block = Column(Float, nullable=False, default=100)
+    overage_amount_per_km = Column(Float, nullable=False)
+    night_overage_amount_per_block = Column(Float, nullable=False, default=100)
     night_block_hours = Column(Integer, nullable=False, default=3)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
@@ -119,7 +119,7 @@ class LocalCabPricing(Base):
     # Overage config fields
     min_included_hours = Column(Integer, nullable=False, default=4)
     max_included_hours = Column(Integer, nullable=False, default=12)
-    overage_per_hour = Column(Float, nullable=False)
+    overage_amount_per_hour = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -152,7 +152,7 @@ class AirportCabPricing(Base):
     )  # Only for airport pickup, can be null for others
     # Overage config fields
     max_included_km = Column(Integer, nullable=False, default=42)
-    overage_per_km = Column(Float, nullable=False)
+    overage_amount_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -173,9 +173,10 @@ class TollParkingConfig(Base):
         unique=True,
         index=True,
     )
-    trip_type = Column(
-        SAEnum(TripTypeEnum), nullable=False
-    )  # local, airport, outstation
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
+    )  # FK to TripTypeMaster.id
+
     toll = Column(Float, nullable=True)  # For local/airport
     parking = Column(Float, nullable=True)  # For local/airport
     toll_per_block = Column(Float, nullable=True)  # For outstation
@@ -203,7 +204,10 @@ class OverageWarningConfig(Base):
         unique=True,
         index=True,
     )
-    trip_type = Column(SAEnum(TripTypeEnum), nullable=False, unique=True)
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
+    )  # FK to TripTypeMaster.id
+
     warning_km_threshold = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())

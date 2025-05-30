@@ -2,6 +2,14 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from utils.utility import validate_and_sanitize_country_phone
+from enum import Enum
+
+
+class GenderEnum(str, Enum):
+    male = "male"
+    female = "female"
+    transgender = "transgender"
+    prefer_not_to_disclose = "prefer_not_to_disclose"
 
 
 class CustomerBase(BaseModel):
@@ -11,9 +19,7 @@ class CustomerBase(BaseModel):
     dob: Optional[datetime] = None
     # age is not accepted directly, calculated from dob
     age: Optional[int] = None
-    gender: Optional[str] = (
-        None  # 'male', 'female', 'transgender', 'prefer_not_to_disclose'
-    )
+    gender: Optional[GenderEnum] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None
     opt_in_updates: Optional[bool] = False
@@ -56,7 +62,7 @@ class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     dob: Optional[datetime] = None
-    gender: Optional[str] = None
+    gender: Optional[GenderEnum] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None
     opt_in_updates: Optional[bool] = None

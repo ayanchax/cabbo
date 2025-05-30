@@ -52,7 +52,7 @@ def read_root():
 # Include routers
 app.include_router(auth.router)
 app.include_router(customer.router)
-# app.include_router(seed.router)
+app.include_router(seed.router)
 app.include_router(location.router)
 app.include_router(trip.router)
 

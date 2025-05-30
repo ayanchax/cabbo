@@ -28,7 +28,11 @@ def create_customer(
                 if hasattr(data, "dob") and data.dob
                 else None
             ),
-            gender=data.gender if hasattr(data, "gender") else None,
+            gender=(
+                data.gender.value
+                if hasattr(data, "gender") and data.gender is not None
+                else None
+            ),
             emergency_contact_name=(
                 data.emergency_contact_name
                 if hasattr(data, "emergency_contact_name")
@@ -171,8 +175,11 @@ def update_customer_emergency_contact(payload: CustomerUpdate, customer: Custome
 
 def update_customer_gender(payload: CustomerUpdate, customer: Customer):
     if payload.gender is not None:
-        if customer.gender != payload.gender:
-            customer.gender = payload.gender
+        gender_value = (
+            payload.gender.value if hasattr(payload.gender, "value") else payload.gender
+        )
+        if customer.gender != gender_value:
+            customer.gender = gender_value
             return True
     return False
 

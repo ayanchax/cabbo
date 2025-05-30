@@ -14,10 +14,12 @@ from models.trip.trip_enums import (
     TripTypeEnum,
     FuelTypeEnum,
     CarTypeEnum,
+    CancellationSubStatusEnum,
 )
 from models.geography.geo_enums import LocationInfo
 from models.cab.pricing_orm import RoleEnum
 from utils.utility import validate_and_sanitize_country_phone
+from models.customer.passenger_schema import PassengerCreate, PassengerOut
 
 
 class TripBase(BaseModel):
@@ -57,6 +59,8 @@ class TripBase(BaseModel):
     # where the customer may not be reachable on their primary number.
     # However all invoices and receipts will still go to the primary phone number.
     alternate_customer_phone: Optional[str] = None
+    # Optional: passenger info for 'book for someone else' feature
+    passenger: Optional[PassengerCreate] = None  # If provided, trip is for someone else
 
     # num_luggages is now computed as the sum of all above fields
     @property
@@ -91,7 +95,7 @@ class TripCreate(TripBase):
 class TripOut(TripBase):
     id: str
     creator_id: str
-    creator_type: str
+    creator_type: RoleEnum = RoleEnum.customer
     status: TripStatusEnum
     base_fare: Optional[float]
     driver_allowance: Optional[float]
@@ -102,6 +106,7 @@ class TripOut(TripBase):
     final_price: Optional[float]
     created_at: datetime
     updated_at: datetime
+    passenger_id: Optional[str] = None  # FK to passengers.id if not self
 
     class Config:
         orm_mode = True
@@ -114,6 +119,11 @@ class TripStatusAuditOut(BaseModel):
     changed_by: str
     reason: Optional[str] = None
     timestamp: datetime
+    cancellation_sub_status: Optional[CancellationSubStatusEnum] = None
+    # Nullable: Only populated when cancellation_sub_status == CancellationSubStatusEnum.customer_preferences_not_met
+    responsible_preference_keys_for_cancelation: Optional[str] = (
+        None  # Comma-separated or JSON string of unmet preferences
+    )
 
     class Config:
         orm_mode = True
@@ -162,13 +172,16 @@ class TripSearchRequest(BaseModel):
     duration_hours: Optional[int] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
+    toll_road_preferred: Optional[bool] = (
+        False  # For airport trips Indicates if toll roads are preferred
+    )
     placard_required: Optional[bool] = (
         False  # For airport pickup Indicates if a placard is needed
     )
     placard_name: Optional[str] = (
         None  # Name to display on the placard for airport pickup
     )
-    # ...add other fields as needed for search...
+    passenger: Optional[PassengerCreate] = None  # If provided, trip is for someone else
 
 
 class TripSearchOption(BaseModel):
