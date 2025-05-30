@@ -2,6 +2,7 @@ import uuid
 from sqlalchemy.orm import Session
 from models.cab.pricing_orm import (
     CabType,
+    FixedPlatformPricingConfig,
     FuelType,
     OutstationCabPricing,
     LocalCabPricing,
@@ -417,6 +418,10 @@ def seed_pricing_master(session: Session):
         ),
     ]
 
+    fixed_platform_fee_config = FixedPlatformPricingConfig(
+        id=str(uuid.uuid4()), fixed_platform_fee=6.0
+    )  # Fixed platform fee for all trips
+
     # Toll/Parking Config
     toll_configs = [
         TollParkingConfig(
@@ -483,6 +488,7 @@ def seed_pricing_master(session: Session):
         night_end_hour=6,  # 6AM
         created_by=RoleEnum.system,
     )
+
     # Now add and commit pricing and toll configs
     session.add_all(
         outstation_pricing
@@ -492,6 +498,7 @@ def seed_pricing_master(session: Session):
         + overage_warning_configs
         + [night_charge_config]
         + platform_fee_configs
+        + [fixed_platform_fee_config]
     )
     session.commit()
 

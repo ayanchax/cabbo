@@ -147,3 +147,14 @@ class PlatformPricingConfigSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FixedPlatformPricingConfigSchema(BaseModel):
+    id: Optional[str]
+    fixed_platform_fee: float
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
