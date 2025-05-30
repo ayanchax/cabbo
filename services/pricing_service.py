@@ -157,9 +157,7 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
                 placard_charge=math.ceil(placard_charge),
                 tolls_estimate=math.ceil(toll),
                 parking_estimate=math.ceil(parking),
-                platform_fee=math.ceil(
-                    platform_fee_amount
-                ),  # Assuming no platform fee for now
+                platform_fee=math.ceil(platform_fee_amount),
                 overage_per_km=overage_per_km,
                 overage_estimate=math.ceil(overage),
             )

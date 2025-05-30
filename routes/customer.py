@@ -50,11 +50,6 @@ from core.constants import APP_NAME
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 
-@router.get("/")
-def get_customers():
-    return {"message": "List customers endpoint"}
-
-
 @router.get("/{customer_id}", response_model=CustomerReadWithProfilePicture)
 def get_customer_profile(
     customer_id: str = Path(..., description="UUID of the customer"),

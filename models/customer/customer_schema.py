@@ -8,15 +8,33 @@ class CustomerBase(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone_number: str  # Initially during onboarding we just need a phone number, hence no optional
+    dob: Optional[datetime] = None
+    # age is not accepted directly, calculated from dob
+    age: Optional[int] = None
+    gender: Optional[str] = (
+        None  # 'male', 'female', 'transgender', 'prefer_not_to_disclose'
+    )
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    opt_in_updates: Optional[bool] = False
 
     @field_validator("phone_number", mode="before")
     @classmethod
     def phone_validator(cls, v):
         return validate_and_sanitize_country_phone(v)
 
+    @field_validator("emergency_contact_number", mode="before")
+    @classmethod
+    def emergency_contact_number_validator(cls, v):
+        if v is None:
+            return v
+        return validate_and_sanitize_country_phone(v)
+
 
 class CustomerCreate(CustomerBase):
     otp: str
+
+    # All other optional fields are inherited from CustomerBase
 
 
 class CustomerRead(CustomerBase):
@@ -37,8 +55,20 @@ class CustomerReadWithProfilePicture(CustomerRead):
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    dob: Optional[datetime] = None
+    gender: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    opt_in_updates: Optional[bool] = None
 
     # phone_number intentionally omitted to prevent updates
+
+    @field_validator("emergency_contact_number", mode="before")
+    @classmethod
+    def emergency_contact_number_validator(cls, v):
+        if v is None:
+            return v
+        return validate_and_sanitize_country_phone(v)
 
 
 class CustomerReadProfilePictureAfterUpdate(BaseModel):
