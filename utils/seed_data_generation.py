@@ -308,8 +308,10 @@ def seed_pricing_master(session: Session):
                         fuel.name
                     ],
                     min_included_km_per_day=outstation_min_km_per_day[cab.name],
-                    overage_per_km=outstation_overage_per_km[cab.name][fuel.name],
-                    night_overage_per_block=outstation_night_overage_per_block[
+                    overage_amount_per_km=outstation_overage_per_km[cab.name][
+                        fuel.name
+                    ],
+                    night_overage_amount_per_block=outstation_night_overage_per_block[
                         cab.name
                     ],
                     night_block_hours=outstation_night_block_hours,
@@ -325,7 +327,7 @@ def seed_pricing_master(session: Session):
                     hourly_rate=local_hourly_rates[cab.name][fuel.name],
                     min_included_hours=local_min_hours,
                     max_included_hours=local_max_hours,
-                    overage_per_hour=local_overage_per_hour[cab.name][fuel.name],
+                    overage_amount_per_hour=local_overage_per_hour[cab.name][fuel.name],
                     created_by=RoleEnum.system,
                 )
             )
@@ -337,64 +339,12 @@ def seed_pricing_master(session: Session):
                     fuel_type_id=fuel.id,
                     airport_fare_per_km=airport_fare_per_km[cab.name][fuel.name],
                     max_included_km=airport_max_included_km,
-                    overage_per_km=airport_overage_per_km[cab.name][fuel.name],
+                    overage_amount_per_km=airport_overage_per_km[cab.name][fuel.name],
                     placard_charge=50.0,  # Placard charge for airport pickup
                     created_by=RoleEnum.system,
                 )
             )
-    # Toll/Parking Config
-    toll_configs = [
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type=TripTypeEnum.local,
-            toll=80,
-            parking=60,
-            created_by=RoleEnum.system,
-        ),
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type=TripTypeEnum.airport_general,
-            toll=120,
-            parking=100,
-            created_by=RoleEnum.system,
-        ),
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type=TripTypeEnum.outstation,
-            toll_per_block=500,
-            parking_per_block=150,
-            block_days=3,
-            created_by=RoleEnum.system,
-        ),
-    ]
-    # Overage warning config seed
-    overage_warning_configs = [
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type=TripTypeEnum.airport_general,
-            warning_km_threshold=2,
-            created_by=RoleEnum.system,
-        ),
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type=TripTypeEnum.outstation,
-            warning_km_threshold=50,
-            created_by=RoleEnum.system,
-        ),
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type=TripTypeEnum.local,
-            warning_km_threshold=0,
-            created_by=RoleEnum.system,
-        ),
-    ]
-    # Night charge config seed
-    night_charge_config = NightChargeConfig(
-        id=str(uuid.uuid4()),
-        night_start_hour=20,  # 8PM
-        night_end_hour=6,  # 6AM
-        created_by=RoleEnum.system,
-    )
+
     # Add and commit cab_types and fuel_types first to satisfy FK constraints
     session.add_all(cab_types + fuel_types)
     session.commit()
@@ -467,6 +417,72 @@ def seed_pricing_master(session: Session):
         ),
     ]
 
+    # Toll/Parking Config
+    toll_configs = [
+        TollParkingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.local],
+            toll=80,
+            parking=60,
+            created_by=RoleEnum.system,
+        ),
+        TollParkingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
+            toll=120,
+            parking=100,
+            created_by=RoleEnum.system,
+        ),
+        TollParkingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
+            toll=120,
+            parking=0,
+            created_by=RoleEnum.system,
+        ),
+        TollParkingConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
+            toll_per_block=500,
+            parking_per_block=150,
+            block_days=2,
+            created_by=RoleEnum.system,
+        ),
+    ]
+    # Overage warning config seed
+    overage_warning_configs = [
+        OverageWarningConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
+            warning_km_threshold=2,
+            created_by=RoleEnum.system,
+        ),
+        OverageWarningConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
+            warning_km_threshold=2,
+            created_by=RoleEnum.system,
+        ),
+        OverageWarningConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
+            warning_km_threshold=50,
+            created_by=RoleEnum.system,
+        ),
+        OverageWarningConfig(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[TripTypeEnum.local],
+            warning_km_threshold=0,
+            created_by=RoleEnum.system,
+        ),
+    ]
+    # Night charge config seed
+    night_charge_config = NightChargeConfig(
+        id=str(uuid.uuid4()),
+        night_start_hour=20,  # 8PM
+        night_end_hour=6,  # 6AM
+        created_by=RoleEnum.system,
+    )
     # Now add and commit pricing and toll configs
     session.add_all(
         outstation_pricing

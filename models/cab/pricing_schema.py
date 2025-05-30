@@ -19,8 +19,8 @@ class OutstationCabPricingSchema(CabPricingBaseSchema):
     base_fare_per_km: float
     driver_allowance_per_day: float
     min_included_km_per_day: int
-    overage_per_km: float
-    night_overage_per_block: float
+    overage_amount_per_km: float
+    night_overage_amount_per_block: float
     night_block_hours: int
     # Outstation-specific: daily allotted km, permit fee, etc. can be added here
 
@@ -30,7 +30,7 @@ class LocalCabPricingSchema(CabPricingBaseSchema):
     hourly_rate: float
     min_included_hours: int
     max_included_hours: int
-    overage_per_hour: float
+    overage_amount_per_hour: float
     # Local-specific: minimum rental duration, etc. can be added here
 
 
@@ -42,7 +42,7 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
     airport_fare_per_km: float
     placard_charge: Optional[float] = None
     max_included_km: int
-    overage_per_km: float
+    overage_amount_per_km: float
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None
@@ -70,7 +70,7 @@ class FuelTypeSchema(BaseModel):
 
 class TollParkingConfigSchema(BaseModel):
     id: Optional[str]
-    trip_type: TripTypeEnum
+    trip_type_id: str
     toll: Optional[float]
     parking: Optional[float]
     toll_per_block: Optional[float]
@@ -127,7 +127,7 @@ class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
 
 class OverageWarningConfigSchema(BaseModel):
     id: Optional[str]
-    trip_type: TripTypeEnum
+    trip_type_id: str
     warning_km_threshold: float
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None

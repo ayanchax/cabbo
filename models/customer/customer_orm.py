@@ -11,6 +11,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
 import uuid
+from sqlalchemy.types import Enum as SqlEnum
+from models.customer.customer_schema import GenderEnum
 
 
 class Customer(Base):
@@ -29,9 +31,7 @@ class Customer(Base):
     # Secondary data
     dob = Column(DateTime, nullable=True)
     age = Column(Integer, nullable=True)  # auto-calculate on update
-    gender = Column(
-        String(32), nullable=True
-    )  # 'male', 'female', 'transgender', 'prefer_not_to_disclose'
+    gender = Column(SqlEnum(GenderEnum, name="gender_enum"), nullable=True)
     emergency_contact_name = Column(String(255), nullable=True)
     emergency_contact_number = Column(String(20), nullable=True)
     opt_in_updates = Column(

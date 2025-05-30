@@ -133,7 +133,7 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             base_fare_per_km = pricing_schema.airport_fare_per_km
             max_included_km = pricing_schema.max_included_km
-            overage_per_km = pricing_schema.overage_per_km
+            overage_per_km = pricing_schema.overage_amount_per_km
             placard_charge = (
                 pricing_schema.placard_charge if search_in.placard_required else 0.0
             )
@@ -203,7 +203,7 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             base_fare_per_km = pricing_schema.airport_fare_per_km
             max_included_km = pricing_schema.max_included_km
-            overage_per_km = pricing_schema.overage_per_km
+            overage_per_km = pricing_schema.overage_amount_per_km
             base_price = base_fare_per_km * min(est_km, max_included_km)
             overage = max(0, est_km - max_included_km) * overage_per_km
             # Total price includes base fare, toll and parking charges (if any)

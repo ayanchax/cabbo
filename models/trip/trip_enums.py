@@ -10,17 +10,36 @@ class TripStatusEnum(str, enum.Enum):
     created = "created"
     quoted = "quoted"
     pending_admin_review = "pending_admin_review"
-    accepted = "accepted"
+    quote_accepted = "quote_accepted"
     confirmed = "confirmed"
-    assigned = "assigned"
+    assigned = "assigned"  # Driver assigned to the trip
     ongoing = "ongoing"
-    completed = "completed"
-    closed = "closed"
+    completed = "completed"  # Trip completed successfully
+    closed = "closed"  # Trip closed after completion with all dues settled
+    no_show = "no_show"  # Customer did not show up for the trip
     cancelled = "cancelled"
-    cancelled_by_customer = "cancelled_by_customer"
-    cancelled_by_admin = "cancelled_by_admin"
-    cancelled_no_driver = "cancelled_no_driver"
     dispute = "dispute"
+
+
+# Cancellation Sub-status Enum stores the various sub-states a cancellation can have.
+# This is useful for understanding the reason for cancellation and taking appropriate actions.
+class CancellationSubStatusEnum(str, enum.Enum):
+    none = "none"
+    customer_cancelled = "customer_cancelled"
+    system_cancelled = "system_cancelled"
+    sys_admin_cancelled = "sys_admin_cancelled"
+    driver_admin_cancelled = "driver_admin_cancelled"
+    finance_admin_cancelled = "finance_admin_cancelled"
+    driver_cancelled = "driver_cancelled"
+    driver_unavailable = "driver_unavailable"
+    driver_no_show = "driver_no_show"
+    customer_no_show = "customer_no_show"
+    payment_failed = "payment_failed"
+    technical_issue = "technical_issue"
+    customer_preferences_not_met = (
+        "customer_preferences_not_met"  # e.g., car type, fuel type, etc.
+    )
+    other = "other"
 
 
 # Trip Type Enum defines the type of trip being requested.
