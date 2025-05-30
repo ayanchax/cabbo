@@ -22,6 +22,26 @@ def create_customer(
             phone_number=data.phone_number,
             is_phone_verified=phone_verified,  # True
             is_active=activate,  # True
+            dob=data.dob if hasattr(data, "dob") else None,
+            age=(
+                calculate_customer_age(data)
+                if hasattr(data, "dob") and data.dob
+                else None
+            ),
+            gender=data.gender if hasattr(data, "gender") else None,
+            emergency_contact_name=(
+                data.emergency_contact_name
+                if hasattr(data, "emergency_contact_name")
+                else None
+            ),
+            emergency_contact_number=(
+                data.emergency_contact_number
+                if hasattr(data, "emergency_contact_number")
+                else None
+            ),
+            opt_in_updates=(
+                data.opt_in_updates if hasattr(data, "opt_in_updates") else False
+            ),
         )
         db.add(customer)
         db.commit()
@@ -71,27 +91,18 @@ def update_customer_profile(
 ) -> Customer:
     try:
         customer = get_active_customer_by_id(customer_id, db)
-        updated = False
-        if payload.name is not None:
-            if customer.name != payload.name:
-                customer.name = payload.name
-                updated = True
-        if payload.email is not None:
-            existing_customer = (
-                db.query(Customer)
-                .filter(Customer.email == payload.email, Customer.id != customer_id)
-                .first()
-            )
-            if existing_customer:
-                raise CabboException(
-                    "Email already in use, this update will not happen.",
-                    status_code=400,
-                )
-            if customer.email != payload.email:
-                customer.email = payload.email
-                customer.is_email_verified = False
-                updated = True
-        if updated:
+        updated_flags = [
+            # Primary fields that can be updated
+            update_customer_name(payload, customer),
+            update_email(customer_id, payload, customer, db),
+            # Secondary fields that can be updated
+            update_customer_dob(payload, customer),
+            update_customer_gender(payload, customer),
+            update_customer_emergency_contact(payload, customer),
+            update_opt_in_status(payload, customer),
+        ]
+        if any(updated_flags):
+            # If any field was updated, set last_modified to now and commit changes
             customer.last_modified = datetime.now(timezone.utc)
             db.commit()
             db.refresh(customer)
@@ -103,6 +114,96 @@ def update_customer_profile(
             status_code=500,
             include_traceback=True,
         )
+
+
+def update_customer_name(payload: CustomerUpdate, customer: Customer):
+    if payload.name is not None:
+        if customer.name != payload.name:
+            customer.name = payload.name
+            return True
+    return False
+
+
+def update_email(
+    customer_id: str,
+    payload: CustomerUpdate,
+    customer: Customer,
+    db: Session,
+):
+    if payload.email is not None:
+        existing_customer = (
+            db.query(Customer)
+            .filter(Customer.email == payload.email, Customer.id != customer_id)
+            .first()
+        )
+        if existing_customer:
+            raise CabboException(
+                "Email already in use, this update will not happen.",
+                status_code=400,
+            )
+        if customer.email != payload.email:
+            customer.email = payload.email
+            customer.is_email_verified = False
+            return True
+    return False
+
+
+def update_opt_in_status(payload: CustomerUpdate, customer: Customer):
+    if payload.opt_in_updates is not None:
+        if customer.opt_in_updates != payload.opt_in_updates:
+            customer.opt_in_updates = payload.opt_in_updates
+            return True
+    return False
+
+
+def update_customer_emergency_contact(payload: CustomerUpdate, customer: Customer):
+    updated = False
+    if payload.emergency_contact_name is not None:
+        if customer.emergency_contact_name != payload.emergency_contact_name:
+            customer.emergency_contact_name = payload.emergency_contact_name
+            updated = True
+    if payload.emergency_contact_number is not None:
+        if customer.emergency_contact_number != payload.emergency_contact_number:
+            customer.emergency_contact_number = payload.emergency_contact_number
+            updated = True
+    return updated
+
+
+def update_customer_gender(payload: CustomerUpdate, customer: Customer):
+    if payload.gender is not None:
+        if customer.gender != payload.gender:
+            customer.gender = payload.gender
+            return True
+    return False
+
+
+def update_customer_dob(payload: CustomerUpdate, customer: Customer):
+    if payload.dob is not None:
+        if customer.dob != payload.dob:
+            customer.dob = payload.dob
+            # Auto-calculate age if dob is provided
+            customer.age = calculate_customer_age(payload)
+            return True
+
+    return False
+
+
+def calculate_customer_age(payload: CustomerUpdate):
+    today = datetime.now(timezone.utc).date()
+    if payload.dob:
+        try:
+            dob_date = (
+                payload.dob.date() if hasattr(payload.dob, "date") else payload.dob
+            )
+            return (
+                today.year
+                - dob_date.year
+                - ((today.month, today.day) < (dob_date.month, dob_date.day))
+            )
+
+        except Exception:
+            return None
+    return None
 
 
 def get_active_customer_by_id_and_bearer_token(
