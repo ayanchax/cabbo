@@ -73,9 +73,8 @@ class TollParkingConfigSchema(BaseModel):
     trip_type_id: str
     toll: Optional[float]
     parking: Optional[float]
-    toll_per_block: Optional[float]
-    parking_per_block: Optional[float]
-    block_days: Optional[int]
+    minimum_toll: Optional[float] = None
+    minimum_parking: Optional[float] = None
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None

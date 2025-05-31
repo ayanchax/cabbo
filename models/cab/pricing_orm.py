@@ -177,11 +177,10 @@ class TollParkingConfig(Base):
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
     )  # FK to TripTypeMaster.id
 
-    toll = Column(Float, nullable=True)  # For local/airport
-    parking = Column(Float, nullable=True)  # For local/airport
-    toll_per_block = Column(Float, nullable=True)  # For outstation
-    parking_per_block = Column(Float, nullable=True)  # For outstation
-    block_days = Column(Integer, nullable=True)  # For outstation
+    toll = Column(Float, nullable=True)  # For airport pickup and drop
+    parking = Column(Float, nullable=True)  # For airport pickup
+    minimum_toll = Column(Float, nullable=True)  # For local/outstation
+    minimum_parking = Column(Float, nullable=True)  # For local/outstation
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

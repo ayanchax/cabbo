@@ -3,6 +3,7 @@ from typing import Optional, List, Union
 from datetime import datetime
 from models.cab.pricing_schema import (
     AirportPricingBreakdownSchema,
+    FixedPlatformPricingConfigSchema,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
     OverageWarningConfigSchema,
@@ -30,7 +31,7 @@ class TripBase(BaseModel):
     end_date: datetime
     num_adults: int
     num_children: int
-    num_large_suitcases: Optional[int] = None
+    num_large_suitcases: Optional[int] = None  # Trolley bags, large suitcases
     num_carryons: Optional[int] = None
     num_backpacks: Optional[int] = None
     num_other_bags: Optional[int] = None
@@ -39,6 +40,12 @@ class TripBase(BaseModel):
     hops: Optional[List[str]] = None  # For outstation multi-hop
     is_round_trip: Optional[bool] = True
     is_interstate: Optional[bool] = False
+    total_unique_states: Optional[int] = (
+        None  # Applicable for outstation trips which are interstate
+    )
+    unique_states: Optional[str] = (
+        None  # Comma-separated list of unique states, applicable for outstation trips which are interstate
+    )
     permit_fee: Optional[float] = None
     # Driver assignment fields
     driver_name: Optional[str] = None
@@ -158,12 +165,13 @@ class TripTypeMasterOut(BaseModel):
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
     origin: LocationInfo
+    hops: Optional[List[str]] = None  # Not available for local or airport trips
     destination: Optional[LocationInfo] = None
     start_date: str  # ISO date or datetime string
     end_date: Optional[str] = None
     num_adults: int
     num_children: int
-    num_large_suitcases: Optional[int] = 0
+    num_large_suitcases: Optional[int] = 0  # Trolley bags, large suitcases
     num_carryons: Optional[int] = 0
     num_backpacks: Optional[int] = 0
     num_other_bags: Optional[int] = 0
@@ -210,6 +218,7 @@ class TripTypeWiseConfig(BaseModel):
     platform_fee_config: Optional[
         PlatformPricingConfigSchema
     ]  # Use ORM or schema if available
+    fixed_platform_fee_config: Optional[FixedPlatformPricingConfigSchema]
 
     class Config:
         from_attributes = True

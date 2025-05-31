@@ -56,6 +56,12 @@ class Trip(Base):
     destination_address = Column(String(255), nullable=True)
     hops = Column(Text, nullable=True)  # JSON/text list of hops for outstation
     is_interstate = Column(Boolean, default=False, nullable=False)
+    total_unique_states = Column(
+        Integer, nullable=True
+    )  ##Applicable for outstation trips which are interstate
+    unique_states = Column(
+        Text, nullable=True
+    )  # comma separated list of unique states, applicable for outstation trips which are interstate
     is_round_trip = Column(Boolean, default=True, nullable=False)
     # Date and time information
     start_date = Column(DateTime, nullable=False)
@@ -63,7 +69,9 @@ class Trip(Base):
     # Passenger and luggage information
     num_adults = Column(Integer, nullable=False)
     num_children = Column(Integer, nullable=False)
-    num_large_suitcases = Column(Integer, nullable=True)
+    num_large_suitcases = Column(
+        Integer, nullable=True
+    )  # Trolley bags, large suitcases
     num_carryons = Column(Integer, nullable=True)
     num_backpacks = Column(Integer, nullable=True)
     num_other_bags = Column(Integer, nullable=True)

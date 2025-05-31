@@ -427,8 +427,8 @@ def seed_pricing_master(session: Session):
         TollParkingConfig(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            toll=80,
-            parking=60,
+            minimum_toll=0,
+            minimum_parking=80,
             created_by=RoleEnum.system,
         ),
         TollParkingConfig(
@@ -448,9 +448,8 @@ def seed_pricing_master(session: Session):
         TollParkingConfig(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            toll_per_block=500,
-            parking_per_block=150,
-            block_days=2,
+            minimum_toll=500,
+            minimum_parking=150,
             created_by=RoleEnum.system,
         ),
     ]
