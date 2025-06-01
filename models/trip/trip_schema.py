@@ -3,12 +3,9 @@ from typing import Optional, List, Union
 from datetime import datetime
 from models.cab.pricing_schema import (
     AirportPricingBreakdownSchema,
-    FixedPlatformPricingConfigSchema,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
-    OverageWarningConfigSchema,
-    PlatformPricingConfigSchema,
-    TollParkingConfigSchema,
+    OveragesSchema,
 )
 from models.trip.trip_enums import (
     TripStatusEnum,
@@ -202,23 +199,10 @@ class TripSearchOption(BaseModel):
         LocalPricingBreakdownSchema,
     ]  # Trip type specific pricing breakdown
     estimated_km: Optional[float] = None
+    included_km: Optional[float] = None
     estimated_hours: Optional[float] = None
-    indicative_overage_warning: Optional[bool] = False  # Add this field for UI
+    overages: Optional[OveragesSchema] = None
 
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
-
-
-class TripTypeWiseConfig(BaseModel):
-    warning_config: Optional[
-        OverageWarningConfigSchema
-    ]  # Use ORM or schema if available
-    toll_parking_charge: Optional[TollParkingConfigSchema]
-    platform_fee_config: Optional[
-        PlatformPricingConfigSchema
-    ]  # Use ORM or schema if available
-    fixed_platform_fee_config: Optional[FixedPlatformPricingConfigSchema]
-
-    class Config:
-        from_attributes = True

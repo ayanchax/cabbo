@@ -4,6 +4,21 @@ import enum
 # Trip-related Enums
 
 
+# Happy Path transition flow for trip status:
+# created -> confirmed(driver_admin) -> assigned -> ongoing -> completed -> closed
+# quoted  -> quote_accepted -> confirmed(by customer) -> assigned -> ongoing -> completed -> closed
+
+# Worst Case transition flow for trip status:
+# created -> cancelled(by admin)
+# created -> cancelled(by customer)
+# created -> confirmed -> no_show(by customer)
+# created -> confirmed -> assigned -> ongoing -> completed -> dispute(by customer)
+# quoted -> cancelled(by driver)
+# quoted -> cancelled(by customer)
+# quoted -> quote_accepted -> confirmed -> assigned -> ongoing -> completed -> dispute(by customer)
+# quoted -> quote_accepted -> cancelled(by customer)
+
+
 # Trip Status Enum stores the various states a trip can be in during its lifecycle.
 # We do not need to store the status in the database, as it is derived from the trip status audit logs.
 class TripStatusEnum(str, enum.Enum):

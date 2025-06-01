@@ -20,17 +20,14 @@ class OutstationCabPricingSchema(CabPricingBaseSchema):
     driver_allowance_per_day: float
     min_included_km_per_day: int
     overage_amount_per_km: float
-    night_overage_amount_per_block: float
-    night_block_hours: int
+
     # Outstation-specific: daily allotted km, permit fee, etc. can be added here
 
 
 # Local-specific pricing schema
 class LocalCabPricingSchema(CabPricingBaseSchema):
     hourly_rate: float
-    min_included_hours: int
-    max_included_hours: int
-    overage_amount_per_hour: float
+    overage_hourly_rate: float
     # Local-specific: minimum rental duration, etc. can be added here
 
 
@@ -40,8 +37,6 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
     cab_type_id: Optional[str]
     fuel_type_id: Optional[str]
     airport_fare_per_km: float
-    placard_charge: Optional[float] = None
-    max_included_km: int
     overage_amount_per_km: float
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -68,21 +63,6 @@ class FuelTypeSchema(BaseModel):
         from_attributes = True
 
 
-class TollParkingConfigSchema(BaseModel):
-    id: Optional[str]
-    trip_type_id: str
-    toll: Optional[float]
-    parking: Optional[float]
-    minimum_toll: Optional[float] = None
-    minimum_parking: Optional[float] = None
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
 class PricingBreakdownBaseSchema(BaseModel):
     base_fare: float
     platform_fee: float
@@ -93,8 +73,8 @@ class PricingBreakdownBaseSchema(BaseModel):
 
 class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
-    tolls_estimate: Optional[float] = None
-    parking_estimate: Optional[float] = None
+    minimum_toll: Optional[float] = None
+    minimum_parking: Optional[float] = None
     permit_fee: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
@@ -104,8 +84,8 @@ class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
 
 class LocalPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
-    tolls_estimate: Optional[float] = None
-    parking_estimate: Optional[float] = None
+    minimum_toll: Optional[float] = None
+    minimum_parking: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
@@ -116,44 +96,46 @@ class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
     placard_charge: Optional[float] = (
         None  # Only for airport pickup, can be null for others
     )
-    tolls_estimate: Optional[float] = None
-    parking_estimate: Optional[float] = None
+    toll: Optional[float] = None
+    parking: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
         extra = "allow"
 
 
-class OverageWarningConfigSchema(BaseModel):
+class OveragesSchema(BaseModel):
+    indicative_overage_warning: Optional[bool] = False  # Add this field for UI
+    overage_amount_per_km: Optional[float] = None  # For outstation trips
+    overage_estimate: Optional[float] = None  # For outstation trips
+    overage_amount_per_hour: Optional[float] = None  # For local trips
+
+    class Config:
+        extra = "allow"
+
+
+class CommonPricingConfigSchema(BaseModel):
     id: Optional[str]
-    trip_type_id: str
-    warning_km_threshold: float
+    trip_type_id: TripTypeEnum
+    dynamic_platform_fee_percent: float  # e.g., 5.0 for 5%
+    min_included_hours: Optional[int] = None  # Local cab minimum included hours
+    max_included_hours: Optional[int] = None  # Local cab maximum included hours
+    placard_charge: Optional[float] = (
+        None  # Only for airport pickup, can be null for others
+    )
+    max_included_km: Optional[int] = None  # For airport pickup/drop
+    overage_warning_km_threshold: Optional[float] = (
+        None  # For airport pickup/drop and outstation
+    )
+    toll: Optional[float] = None  # For airport pickup and drop
+    parking: Optional[float] = None  # For airport pickup
+    minimum_toll: Optional[float] = None  # For local/outstation
+    minimum_parking: Optional[float] = None  # For local/outstation
+    fixed_platform_fee: Optional[float] = None  # e.g., 50.0 for ₹50
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None
 
     class Config:
         from_attributes = True
-
-
-class PlatformPricingConfigSchema(BaseModel):
-    id: Optional[str]
-    trip_type_id: str
-    platform_fee_percent: float
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-class FixedPlatformPricingConfigSchema(BaseModel):
-    id: Optional[str]
-    fixed_platform_fee: float
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
+        extra = "allow"

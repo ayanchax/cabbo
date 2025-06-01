@@ -18,10 +18,11 @@ JWT_EXPIRY_UNIT_TIME_FRAME = {
 
 
 class RoleEnum(str, Enum):
-    system_admin = "sys_admin"  # System administrator with full access
+    system_admin = "sys_admin"  # Super admin System administrator with full access
     driver_admin = "driver_admin"  # Administrator for driver management
     finance_admin = "fin_admin"  # Administrator for financial operations
     customer_admin = "cust_admin"  # Administrator for customer management
+
     system = (
         "system"  # System role for internal operations during seeding or migrations
     )
