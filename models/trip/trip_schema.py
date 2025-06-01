@@ -206,3 +206,4 @@ class TripSearchOption(BaseModel):
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
+    preferences: Optional[TripSearchRequest] = None  # User preferences used for search

@@ -42,7 +42,9 @@ class Trip(Base):
         nullable=False,
     )
     # Trip details
-    trip_type = Column(Enum(TripTypeEnum), nullable=False)
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
+    )  # FK to trip types master table
     # Location information
     origin_display_name = Column(String(255), nullable=False)
     origin_lat = Column(Float, nullable=False)
@@ -144,8 +146,13 @@ class TripStatusAudit(Base):
     trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
     status = Column(Enum(TripStatusEnum), nullable=False)
     changed_by = Column(
-        String(64), nullable=False
-    )  # Could be 'customer', 'admin', etc.
+        Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
+        default=RoleEnum.customer,
+        nullable=True,
+    )
+    committer_id = Column(
+        MySQL_CHAR(36), nullable=False, index=True
+    )  # ID of the user who changed the status
     reason = Column(String(255), nullable=True)  # New: reason/message for audit
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
 

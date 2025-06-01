@@ -19,6 +19,7 @@ from models.trip.trip_orm import TripTypeMaster
 from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchOption,
+    TripSearchResponse,
 )
 from sqlalchemy.orm import Session
 from models.cab.pricing_orm import (
@@ -162,9 +163,11 @@ def _retrieve_trip_wise_pricing_config(
     )
 
 
-def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
+def get_trip_search_options(
+    search_in: TripSearchRequest, db: Session
+) -> TripSearchResponse:
     """
-    Returns a list of cab options with detailed pricing and breakdown for a user's trip search.
+    Returns a list of cab options with detailed pricing and breakdown for a user's trip search and preferences.
 
     This method is responsible for presenting the user with various cab options (car type and fuel type)
     along with the total price and a transparent price breakdown for each option, whenever a trip booking
@@ -184,7 +187,7 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
         db (Session): SQLAlchemy database session for fetching pricing/config data.
 
     Returns:
-        List[TripSearchOption]: List of cab options, each with car type, fuel type, total price, price breakdown,
+        TripSearchResponse: List of cab options, each with car type, fuel type, total price, price breakdown,
             and overage information, sorted by suitability for the user's request.
 
     Raises:
@@ -572,7 +575,7 @@ def get_trip_search_options(search_in: TripSearchRequest, db: Session) -> list:
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
-    return _options
+    return TripSearchResponse(options=options, preferences=search_in)
 
 
 def _track_state_transitions(search_in: TripSearchRequest):
