@@ -56,7 +56,9 @@ class Trip(Base):
     destination_lng = Column(Float, nullable=False)
     destination_place_id = Column(String(128), nullable=True)
     destination_address = Column(String(255), nullable=True)
-    hops = Column(Text, nullable=True)  # JSON/text list of hops for outstation
+    hops = Column(
+        Text, nullable=True
+    )  # JSON/text list of hops for outstation and hourly rental [Providing hops by customer helps us approximate the overages more efficiently]
     is_interstate = Column(Boolean, default=False, nullable=False)
     total_unique_states = Column(
         Integer, nullable=True
@@ -200,6 +202,30 @@ class TripTypeMaster(Base):
     trip_type = Column(Enum(TripTypeEnum), nullable=False, unique=True)
     display_name = Column(String(64), nullable=False)
     description = Column(String(255), nullable=True)
+    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
+
+
+class TripPackageConfig(Base):
+    __tablename__ = "trip_package_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
+    )
+    duration_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
+    included_km = Column(Integer, nullable=False)  # e.g., 40, 60, 80, 100, 120
     created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

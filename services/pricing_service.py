@@ -367,7 +367,7 @@ def get_trip_search_options(
             if not duration:
                 duration = min_included_hours  # Ensure duration is at least the minimum included hours
             max_included_hours = configs.max_included_hours
-            overage_amount_per_hour = pricing_schema.overage_hourly_rate
+            overage_amount_per_hour = pricing_schema.overage_per_hour
             base_hours = min(duration, max_included_hours)
             num_overage_hours = max(0, duration - max_included_hours)
             base_fare = hourly_rate * base_hours

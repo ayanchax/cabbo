@@ -1,3 +1,4 @@
+from typing import List
 import uuid
 from sqlalchemy.orm import Session
 from models.cab.pricing_orm import (
@@ -15,6 +16,8 @@ from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
 from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
+from models.trip.trip_orm import TripPackageConfig
+from models.trip.trip_schema import TripPackageSchema
 
 
 def seed_pricing_master(session: Session):
@@ -254,6 +257,34 @@ def seed_pricing_master(session: Session):
         },
     }
 
+    local_overage_per_km = {
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 12,
+            FuelTypeEnum.diesel: 10,
+            FuelTypeEnum.cng: 7,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 13,
+            FuelTypeEnum.diesel: 11,
+            FuelTypeEnum.cng: 10,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 15,
+            FuelTypeEnum.diesel: 13,
+            FuelTypeEnum.cng: 11,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 18,
+            FuelTypeEnum.diesel: 15,
+            FuelTypeEnum.cng: 14,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 18,
+            FuelTypeEnum.cng: 16,
+        },
+    }
+
     # Airport overage config by cab type and fuel type
     airport_overage_per_km = {
         CarTypeEnum.hatchback: {
@@ -309,7 +340,8 @@ def seed_pricing_master(session: Session):
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     hourly_rate=local_hourly_rates[cab.name][fuel.name],
-                    overage_hourly_rate=local_overage_per_hour[cab.name][fuel.name],
+                    overage_per_hour=local_overage_per_hour[cab.name][fuel.name],
+                    overage_per_km=local_overage_per_km[cab.name][fuel.name],
                     created_by=RoleEnum.system,
                 )
             )
@@ -374,9 +406,9 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            dynamic_platform_fee_percent=5.0,  # 5% platform fee
-            placard_charge=50.0,  # Fixed charge for airport pickup
-            max_included_km=42,  # 42 km included for airport trips
+            dynamic_platform_fee_percent=4.0,  # 4% platform fee
+            placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
+            max_included_km=42,  # 42 km included for airport trips is a common standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
             toll=120,  # toll for airport pickup set to 120 if customer opts for it
             parking=100,  # parking charge for airport pickup
@@ -385,8 +417,8 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            dynamic_platform_fee_percent=5.0,  # 5% platform fee
-            max_included_km=42,  # 42 km included for airport trips
+            dynamic_platform_fee_percent=4.0,  # 4% platform fee
+            max_included_km=42,  # 42 km included for airport trips is a standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
             toll=120,  # toll for airport drop set to 120 if customer opts for it
             parking=0,  # no parking charge for airport drop
@@ -395,7 +427,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            dynamic_platform_fee_percent=10.0,  # 10% platform fee
+            dynamic_platform_fee_percent=7.0,  # 7% platform fee
             min_included_hours=4,  # Minimum 4 hours for local trips
             max_included_hours=12,  # Maximum 12 hours for local trips
             minimum_toll=0,  # No minimum toll for local trips
@@ -405,13 +437,35 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            dynamic_platform_fee_percent=15.0,  # 15% platform fee
+            dynamic_platform_fee_percent=10.0,  # 10% platform fee
             overage_warning_km_threshold=50,  # Warning threshold for overages
             minimum_toll=500,  # minimum toll 500 for outstation trips
             minimum_parking=150,  # minimum parking 150 for outstation trips
             created_by=RoleEnum.system,
         ),
     ]
+    # Maintain a collection for duration and included km for outstation packages
+
+    hourly_rental_packages = [
+        TripPackageSchema(duration_hours=4, included_km=40),
+        TripPackageSchema(duration_hours=6, included_km=60),
+        TripPackageSchema(duration_hours=8, included_km=80),
+        TripPackageSchema(duration_hours=10, included_km=100),
+        TripPackageSchema(duration_hours=12, included_km=120),
+    ]
+    trip_wise_packages: List[TripPackageSchema] = []
+    trip_wise_packages.extend(hourly_rental_packages)
+    trip_package_configs = []
+    for package in trip_wise_packages:
+        trip_package_configs.append(
+            TripPackageConfig(
+                id=str(uuid.uuid4()),
+                trip_type_id=trip_type_id_map[TripTypeEnum.local],
+                duration_hours=package.duration_hours,
+                included_km=package.included_km,
+                created_by=RoleEnum.system,
+            )
+        )
 
     # Fixed platform fee for all trips
     fixed_platform_fee_config = FixedPlatformPricing(
@@ -433,6 +487,7 @@ def seed_pricing_master(session: Session):
         + airport_pricing
         + [night_charge_config]
         + common_pricing_configs
+        + trip_package_configs
         + [fixed_platform_fee_config]
     )
     session.commit()

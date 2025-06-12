@@ -159,10 +159,21 @@ class TripTypeMasterOut(BaseModel):
         orm_mode = True
 
 
+class TripPackageSchema(BaseModel):
+    duration_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_km: int  # e.g., 40, 60, 80, 100, 120
+
+    class Config:
+        extra = "forbid"  # No extra fields allowed
+        from_attributes = True
+
+
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
     origin: LocationInfo
-    hops: Optional[List[str]] = None  # Not available for local or airport trips
+    hops: Optional[Union[List[str], List[LocationInfo]]] = (
+        None  # Available for outstation and hourly rental multi-hop trips [Providing hops by customer helps us approximate the overages more efficiently and helps the customer get almost accurate quotes upfront]
+    )
     destination: Optional[LocationInfo] = None
     start_date: str  # ISO date or datetime string
     end_date: Optional[str] = None
@@ -174,7 +185,7 @@ class TripSearchRequest(BaseModel):
     num_other_bags: Optional[int] = 0
     preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
     preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
-    duration_hours: Optional[int] = None  # For local trips
+    package: Optional[TripPackageSchema] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
     toll_road_preferred: Optional[bool] = (
@@ -207,3 +218,18 @@ class TripSearchOption(BaseModel):
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
     preferences: Optional[TripSearchRequest] = None  # User preferences used for search
+
+
+class TripBookRequest(BaseModel):
+    option: TripSearchOption  # Selected option to book
+    preferences: TripSearchRequest
+
+
+class TripPackageConfigSchema(BaseModel):
+    id: str
+    trip_type_id: str
+    duration_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_km: int  # e.g., 40, 60, 80, 100, 120
+
+    class Config:
+        from_attributes = True

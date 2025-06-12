@@ -3,6 +3,7 @@ from core.security import validate_customer_token
 from db.database import get_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_schema import (
+    TripBookRequest,
     TripSearchRequest,
     TripSearchResponse,
 )
@@ -27,7 +28,7 @@ def search_trip(
 
 @router.post("/book")
 def book_trip(
-    trip_in: TripSearchRequest,
+    trip_in: TripBookRequest,
     db: Session = Depends(get_mysql_session),
     # current_customer: Customer = Depends(validate_customer_token),
 ):
@@ -41,7 +42,7 @@ def book_trip(
 
 @router.post("/quote")
 def quote_trip(
-    trip_in: TripSearchRequest,
+    trip_in: TripBookRequest,
     db: Session = Depends(get_mysql_session),
     # current_customer: Customer = Depends(validate_customer_token),
 ):
