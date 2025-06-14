@@ -74,8 +74,8 @@ class PricingBreakdownBaseSchema(BaseModel):
 
 class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
-    minimum_toll: Optional[float] = None
-    minimum_parking: Optional[float] = None
+    minimum_toll_wallet: Optional[float] = None
+    minimum_parking_wallet: Optional[float] = None
     permit_fee: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
@@ -85,8 +85,7 @@ class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
 
 class LocalPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
-    minimum_toll: Optional[float] = None
-    minimum_parking: Optional[float] = None
+    minimum_parking_wallet: Optional[float] = None
     quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
@@ -130,8 +129,8 @@ class CommonPricingConfigSchema(BaseModel):
     )
     toll: Optional[float] = None  # For airport pickup and drop
     parking: Optional[float] = None  # For airport pickup
-    minimum_toll: Optional[float] = None  # For local/outstation
-    minimum_parking: Optional[float] = None  # For local/outstation
+    minimum_toll_wallet: Optional[float] = None  # For local/outstation
+    minimum_parking_wallet: Optional[float] = None  # For local/outstation
     fixed_platform_fee: Optional[float] = None  # e.g., 50.0 for ₹50
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None

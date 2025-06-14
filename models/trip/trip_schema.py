@@ -185,7 +185,7 @@ class TripSearchRequest(BaseModel):
     num_other_bags: Optional[int] = 0
     preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
     preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
-    package: Optional[TripPackageSchema] = None  # For local trips
+    package_id: Optional[str] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
     toll_road_preferred: Optional[bool] = (

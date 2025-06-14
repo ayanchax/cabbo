@@ -213,8 +213,8 @@ class CommonPricingConfiguration(Base):
     )  # For airport pickup/drop and outstation
     toll = Column(Float, nullable=True)  # For airport pickup and drop
     parking = Column(Float, nullable=True)  # For airport pickup
-    minimum_toll = Column(Float, nullable=True)  # For local/outstation
-    minimum_parking = Column(Float, nullable=True)  # For local/outstation
+    minimum_toll_wallet = Column(Float, nullable=True)  # For local/outstation
+    minimum_parking_wallet = Column(Float, nullable=True)  # For local/outstation
 
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())

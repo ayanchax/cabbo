@@ -194,7 +194,7 @@ def seed_pricing_master(session: Session):
     }
     # Outstation overage config by cab type and fuel type
     outstation_min_km_per_day = {
-        CarTypeEnum.hatchback: 200,
+        CarTypeEnum.hatchback: 300,
         CarTypeEnum.sedan: 300,
         CarTypeEnum.sedan_plus: 300,
         CarTypeEnum.suv: 300,
@@ -431,7 +431,7 @@ def seed_pricing_master(session: Session):
             min_included_hours=4,  # Minimum 4 hours for local trips
             max_included_hours=12,  # Maximum 12 hours for local trips
             minimum_toll=0,  # No minimum toll for local trips
-            minimum_parking=80,  #  minimum parking 80 for local trips
+            minimum_parking_wallet=80,  #  minimum parking 80 for local trips
             created_by=RoleEnum.system,
         ),
         CommonPricingConfiguration(
@@ -440,7 +440,7 @@ def seed_pricing_master(session: Session):
             dynamic_platform_fee_percent=10.0,  # 10% platform fee
             overage_warning_km_threshold=50,  # Warning threshold for overages
             minimum_toll=500,  # minimum toll 500 for outstation trips
-            minimum_parking=150,  # minimum parking 150 for outstation trips
+            minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
             created_by=RoleEnum.system,
         ),
     ]
@@ -498,11 +498,14 @@ def seed_states(session: Session):
         GeoStateModel(
             state_name=APP_HOME_STATE,
             state_code=APP_HOME_STATE_CODE,
-            permit_fee=0.0,
+            permit_fee_per_week=0.0,
             is_home_state=1,
         ),
         GeoStateModel(
-            state_name="Tamil Nadu", state_code="TN", permit_fee=700.0, is_home_state=0
+            state_name="Tamil Nadu",
+            state_code="TN",
+            permit_fee_per_week=500.0,
+            is_home_state=0,
         ),
     ]
     session.add_all(states)

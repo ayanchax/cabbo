@@ -16,7 +16,7 @@ class GeoStateModel(Base):
     )
     state_name = Column(String(64), unique=True, nullable=False)
     state_code = Column(String(8), unique=True, nullable=False)  # e.g. KA, TN
-    permit_fee = Column(Float, nullable=False, default=0.0)
+    permit_fee_per_week = Column(Float, nullable=False, default=0.0)
     is_home_state = Column(
         Integer, nullable=False, default=0
     )  # 1 for home state (e.g. KA), 0 for others

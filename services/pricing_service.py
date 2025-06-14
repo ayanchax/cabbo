@@ -1,6 +1,6 @@
 from typing import List, Set
 
-from sqlalchemy import any_
+from sqlalchemy import any_, func
 from models.cab.pricing_schema import (
     AirportCabPricingSchema,
     AirportPricingBreakdownSchema,
@@ -43,16 +43,19 @@ import math
 from utils.utility import validate_date_time
 
 
-def _retrieve_interstate_permit_fee(unique_states: List[str], db: Session):
+def _retrieve_interstate_permit_fee(
+    unique_states: List[str], trip_days: int, db: Session
+):
     """
-    Calculates and returns the total interstate permit fee for a list of unique states crossed during a trip.
+    Calculates and returns the total interstate permit fee for a list of unique states crossed during a trip,
+    based on the total trip duration in days.
 
-    This method is used for outstation/interstate trips to determine the total permit fees that must be charged
-    based on all unique states crossed (case-insensitive). It fetches the permit fee for each state from the
-    database and sums them up. If no states are provided, returns 0.0. If any state is not found, raises an error.
+    For each unique state, the permit fee is charged for a minimum of 7 days (weekly fee).
+    If the trip is longer than 7 days, a pro-rata fee is added for the extra days.
 
     Args:
         unique_states (List[str]): List of unique state names (case-insensitive) crossed during the trip.
+        trip_days (int): Total number of days for the trip (inclusive).
         db (Session): SQLAlchemy database session for ORM queries.
 
     Returns:
@@ -61,27 +64,33 @@ def _retrieve_interstate_permit_fee(unique_states: List[str], db: Session):
     Raises:
         CabboException: If any of the provided states are not found in the database.
     """
-    # For interstate trips, we need to consider permit fees
-    # Convert all unique_states to lower case for matching
     unique_states_lower = [s.lower() for s in unique_states]
-    if not unique_states_lower:
-        return 0.0  # No states means no permit fee
+    if not unique_states_lower or trip_days <= 0:
+        # If no states provided or trip days is 0 or less, return 0
+        return 0.0
     permit_fee = 0.0
-    # Fetch all states that match the unique states
     all_states = (
         db.query(GeoStateModel)
-        .filter(GeoStateModel.state_name.ilike(any_(unique_states_lower)))
+        .filter(
+            func.lower(GeoStateModel.state_name).in_(unique_states_lower),
+            GeoStateModel.permit_fee_per_week != None,
+            GeoStateModel.permit_fee_per_week > 0,
+        )
         .all()
     )
     if not all_states:
-        raise CabboException(
-            "Could not find states for the given interstate locations", status_code=400
-        )
+        # If no states found with permit fees, return 0
+        return 0.0
     for state in all_states:
-        if state.permit_fee:
-            temp_permit_fee = GeoStateOut.model_validate(state).permit_fee
-            permit_fee += temp_permit_fee
-
+        if state.permit_fee_per_week:
+            weekly_fee = GeoStateOut.model_validate(state).permit_fee_per_week
+            if trip_days <= 7:
+                # If the trip is 7 days or less, charge only the weekly fee
+                state_permit_fee = weekly_fee
+            else:
+                # Calculate pro-rata fee for days beyond the first week
+                state_permit_fee = weekly_fee + ((trip_days - 7) * (weekly_fee / 7))
+            permit_fee += state_permit_fee
     return permit_fee
 
 
@@ -163,6 +172,18 @@ def _retrieve_trip_wise_pricing_config(
     )
 
 
+def _get_airport_toll(toll: float, toll_road_preferred: bool):
+    return toll if toll_road_preferred and toll is not None else 0.0
+
+
+def _get_preauthorized_minimum_wallet_amount(pre_authorized_wallet_amount: float):
+    return (
+        pre_authorized_wallet_amount
+        if pre_authorized_wallet_amount is not None
+        else 0.0
+    )
+
+
 def get_trip_search_options(
     search_in: TripSearchRequest, db: Session
 ) -> TripSearchResponse:
@@ -203,11 +224,7 @@ def get_trip_search_options(
     if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
         _, _, est_km = _get_trip_origin_destination_distance_airport_pickup(search_in)
         parking = configs.parking if configs.parking is not None else 0.0
-        toll = (
-            configs.toll
-            if search_in.toll_road_preferred and configs.toll is not None
-            else 0.0
-        )
+        toll = _get_airport_toll(configs.toll, search_in.toll_road_preferred)
 
         airport_pricings = (
             db.query(AirportCabPricing, CabType, FuelType)
@@ -279,11 +296,7 @@ def get_trip_search_options(
             )
     elif search_in.trip_type == TripTypeEnum.airport_drop:  # to airport
         _, _, est_km = _get_trip_origin_destination_distance_airport_drop(search_in)
-        toll = (
-            configs.toll
-            if search_in.toll_road_preferred and configs.toll is not None
-            else 0.0
-        )
+        toll = _get_airport_toll(configs.toll, search_in.toll_road_preferred)
 
         airport_pricings = (
             db.query(AirportCabPricing, CabType, FuelType)
@@ -346,9 +359,9 @@ def get_trip_search_options(
             )
     elif search_in.trip_type == TripTypeEnum.local:
         _, _, _ = _get_trip_origin_destination_distance_local(search_in)
-        minimum_toll = toll
-        minimum_parking = (
-            configs.minimum_parking if configs.minimum_parking is not None else 0.0
+        # Minimum parking wallet amount is configured to 80 for local trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer separately.
+        minimum_parking_wallet = _get_preauthorized_minimum_wallet_amount(
+            configs.minimum_parking_wallet
         )
         duration = search_in.duration_hours or configs.min_included_hours
         local_pricings = (
@@ -373,7 +386,7 @@ def get_trip_search_options(
             base_fare = hourly_rate * base_hours
             overage_amount = overage_amount_per_hour * num_overage_hours
             total_price_before_platform_fee = (
-                base_fare + minimum_toll + minimum_parking + overage_amount
+                base_fare + minimum_parking_wallet + overage_amount
             )
 
             # Platform fee is a sum of a fixed cost to service and a percentage of the total price calculated before adding platform fee
@@ -383,8 +396,7 @@ def get_trip_search_options(
 
             price_breakdown = LocalPricingBreakdownSchema(
                 base_fare=math.ceil(base_fare),
-                minimum_toll=math.ceil(minimum_toll),
-                minimum_parking=math.ceil(minimum_parking),
+                minimum_parking_wallet=math.ceil(minimum_parking_wallet),
                 platform_fee=math.ceil(platform_fee_amount),
             )
             indicative_overage_warning = duration > max_included_hours
@@ -414,13 +426,18 @@ def get_trip_search_options(
                     ),
                 )
             )
+
     elif search_in.trip_type == TripTypeEnum.outstation:
         _, _, est_km = _get_trip_origin_destination_distance_outstation(search_in)
         total_trip_days = _validate_outstation_schedule(search_in)
+        # Minumum toll wallet amount is configured to 500.00 for outstation trips, if the total cost of the toll goes above the minimum toll amount during the trip, then the surplus amount will be charged to the customer separately.
+        minimum_toll_wallet = _get_preauthorized_minimum_wallet_amount(
+            configs.minimum_toll_wallet
+        )
 
-        minimum_toll = configs.minimum_toll if configs.minimum_toll is not None else 0.0
-        minimum_parking = (
-            configs.minimum_parking if configs.minimum_parking is not None else 0.0
+        # Minimum parking wallet amount is configured to 150 for outstation trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer separately.
+        minimum_parking_wallet = _get_preauthorized_minimum_wallet_amount(
+            configs.minimum_parking_wallet
         )
 
         # Identify unique state borders crossed (including between hops)
@@ -431,7 +448,7 @@ def get_trip_search_options(
         )  # Always Round trip distance for outstation, therefore multiply by 2
         if is_interstate:
             permit_fee = _retrieve_interstate_permit_fee(
-                unique_states, db
+                unique_states, total_trip_days, db
             )  # Permit fee for interstate roundtrips is charged only once per state gate during entry(for entry and exit)
         # Fetch all outstation cab pricings
         outstation_pricings = (
@@ -466,8 +483,8 @@ def get_trip_search_options(
             total_price_before_platform_fee = (
                 base_price
                 + driver_allowance_amount
-                + minimum_toll
-                + minimum_parking
+                + minimum_toll_wallet
+                + minimum_parking_wallet
                 + permit_fee
                 + overage_amount
             )
@@ -478,8 +495,8 @@ def get_trip_search_options(
             price_breakdown = OutstationPricingBreakdownSchema(
                 base_fare=math.ceil(base_price),
                 driver_allowance=math.ceil(driver_allowance_amount),
-                minimum_toll=math.ceil(minimum_toll),
-                minimum_parking=math.ceil(minimum_parking),
+                minimum_toll_wallet=math.ceil(minimum_toll_wallet),
+                minimum_parking_wallet=math.ceil(minimum_parking_wallet),
                 permit_fee=math.ceil(permit_fee),
                 platform_fee=math.ceil(platform_fee_amount),
             )
@@ -575,7 +592,7 @@ def get_trip_search_options(
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
-    return TripSearchResponse(options=options, preferences=search_in)
+    return TripSearchResponse(options=_options, preferences=search_in)
 
 
 def _track_state_transitions(search_in: TripSearchRequest):
