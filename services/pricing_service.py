@@ -37,7 +37,7 @@ from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.exceptions import CabboException
 from services.location_service import get_distance_km, get_state_from_location
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
-from core.constants import APP_HOME_STATE
+from core.constants import APP_COUNTRY_CURRENCY_SYMBOL, APP_HOME_STATE
 from datetime import datetime, timezone, timedelta
 import math
 
@@ -190,21 +190,21 @@ def _retrieve_package_by_id(
 ):
     if not package_id:
         return TripPackageConfigSchema(
-            duration_hours=fallback_duration, included_km=fallback_km
+            included_hours=fallback_duration, included_km=fallback_km
         )
     package = (
         db.query(TripPackageConfig).filter(TripPackageConfig.id == package_id).first()
     )
     if not package:
         return TripPackageConfigSchema(
-            duration_hours=fallback_duration, included_km=fallback_km
+            included_hours=fallback_duration, included_km=fallback_km
         )
     package_schema = TripPackageConfigSchema.model_validate(package)
     return (
         package_schema
-        if package_schema.duration_hours and package_schema.duration_hours > 0
+        if package_schema.included_hours and package_schema.included_hours > 0
         else TripPackageConfigSchema(
-            duration_hours=fallback_duration, included_km=fallback_km
+            included_hours=fallback_duration, included_km=fallback_km
         )
     )
 
@@ -384,7 +384,7 @@ def get_trip_search_options(
             )
     elif search_in.trip_type == TripTypeEnum.local:
         _, _, _ = _get_trip_origin_destination_distance_local(search_in)
-        # Minimum parking wallet amount is configured to 80 for local trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer separately.
+        # Minimum parking wallet amount is configured to 80 for local trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer separately, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
         minimum_parking_wallet = _get_preauthorized_minimum_wallet_amount(
             configs.minimum_parking_wallet
         )
@@ -408,15 +408,10 @@ def get_trip_search_options(
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             hourly_rate = pricing_schema.hourly_rate
             max_included_hours = configs.max_included_hours
-            overage_amount_per_hour = pricing_schema.overage_per_hour
-            base_hours = min(package.duration_hours, max_included_hours)
-            num_overage_hours = max(0, package.duration_hours - max_included_hours)
+            base_hours = min(package.included_hours, max_included_hours)
             base_fare = hourly_rate * base_hours
-            overage_amount = overage_amount_per_hour * num_overage_hours
-            # No tolls are added for local trips, if any tolls are incurred, they will be charged separately to the customer once the trip is completed
-            total_price_before_platform_fee = (
-                base_fare + minimum_parking_wallet + overage_amount
-            )
+            # No tolls are added for local trips as for local trips toll cannot be estimated or walleted in advance, if any tolls are incurred, they will be charged separately to the customer once the trip is completed
+            total_price_before_platform_fee = base_fare + minimum_parking_wallet
 
             # Platform fee is a sum of a fixed cost to service and a percentage of the total price calculated before adding platform fee
             platform_fee_amount = configs.fixed_platform_fee + (
@@ -428,7 +423,12 @@ def get_trip_search_options(
                 minimum_parking_wallet=math.ceil(minimum_parking_wallet),
                 platform_fee=math.ceil(platform_fee_amount),
             )
-            indicative_overage_warning = package.duration_hours > max_included_hours
+            # For local trips, we can't estimate distance in advance since routes are uncertain and hence no est_km is provided.
+            # Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, to keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
+            package_string = f"{package.included_hours}hrs, {package.included_km}kms"
+            overage_amount_per_km = pricing_schema.overage_amount_per_km
+            overage_amount_per_hour = pricing_schema.overage_amount_per_hour
+            disclaimer_message = f"If you exceed the included hours and/or kilometers in your selected package({package_string}), extra charges will apply: {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km. Overages will be calculated based on actual usage at trip end."
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
@@ -437,20 +437,12 @@ def get_trip_search_options(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
                     price_breakdown=price_breakdown,
-                    package=package,
+                    included_hours=package.included_hours,
+                    included_km=package.included_km,
+                    package=package_string,  # Use package string for display
                     overages=(
                         OveragesSchema(
-                            indicative_overage_warning=indicative_overage_warning,
-                            overage_amount_per_hour=(
-                                overage_amount_per_hour
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            overage_estimate=(
-                                math.ceil(overage_amount)
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
+                            disclaimer=disclaimer_message,
                         )
                     ),
                 )
@@ -459,12 +451,12 @@ def get_trip_search_options(
     elif search_in.trip_type == TripTypeEnum.outstation:
         _, _, est_km = _get_trip_origin_destination_distance_outstation(search_in)
         total_trip_days = _validate_outstation_schedule(search_in)
-        # Minumum toll wallet amount is configured to 500.00 for outstation trips, if the total cost of the toll goes above the minimum toll amount during the trip, then the surplus amount will be charged to the customer separately.
+        # Minumum toll wallet amount is configured to 500.00 for outstation trips, if the total cost of the toll goes above the minimum toll amount during the trip, then the surplus amount will be charged to the customer separately, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
         minimum_toll_wallet = _get_preauthorized_minimum_wallet_amount(
             configs.minimum_toll_wallet
         )
 
-        # Minimum parking wallet amount is configured to 150 for outstation trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer separately.
+        # Minimum parking wallet amount is configured to 150 for outstation trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer separately, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
         minimum_parking_wallet = _get_preauthorized_minimum_wallet_amount(
             configs.minimum_parking_wallet
         )

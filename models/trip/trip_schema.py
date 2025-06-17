@@ -194,7 +194,7 @@ class TripSearchRequest(BaseModel):
 class TripPackageConfigSchema(BaseModel):
     id: Optional[str] = None  # Optional ID for existing packages
     trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
-    duration_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_hours: int  # e.g., 4, 6, 8, 10, 12
     included_km: int  # e.g., 40, 60, 80, 100, 120
 
     class Config:
@@ -212,7 +212,8 @@ class TripSearchOption(BaseModel):
     ]  # Trip type specific pricing breakdown
     estimated_km: Optional[float] = None
     included_km: Optional[float] = None
-    package: Optional[TripPackageConfigSchema] = None  # For local trips
+    included_hours: Optional[int] = None  # For local trips
+    package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
 
 

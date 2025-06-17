@@ -114,8 +114,8 @@ class LocalCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     hourly_rate = Column(Float, nullable=False)
-    overage_per_hour = Column(Float, nullable=False)
-    overage_per_km = Column(Float, nullable=False)
+    overage_amount_per_hour = Column(Float, nullable=False)
+    overage_amount_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

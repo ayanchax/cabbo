@@ -341,8 +341,8 @@ def seed_pricing_master(session: Session):
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     hourly_rate=local_hourly_rates[cab.name][fuel.name],
-                    overage_per_hour=local_overage_per_hour[cab.name][fuel.name],
-                    overage_per_km=local_overage_per_km[cab.name][fuel.name],
+                    overage_amount_per_hour=local_overage_per_hour[cab.name][fuel.name],
+                    overage_amount_per_km=local_overage_per_km[cab.name][fuel.name],
                     created_by=RoleEnum.system,
                 )
             )
@@ -450,11 +450,11 @@ def seed_pricing_master(session: Session):
     # Maintain a collection for duration and included km for outstation packages
 
     hourly_rental_packages = [
-        TripPackageConfigSchema(duration_hours=4, included_km=40),
-        TripPackageConfigSchema(duration_hours=6, included_km=60),
-        TripPackageConfigSchema(duration_hours=8, included_km=80),
-        TripPackageConfigSchema(duration_hours=10, included_km=100),
-        TripPackageConfigSchema(duration_hours=12, included_km=120),
+        TripPackageConfigSchema(included_hours=4, included_km=40),
+        TripPackageConfigSchema(included_hours=6, included_km=60),
+        TripPackageConfigSchema(included_hours=8, included_km=80),
+        TripPackageConfigSchema(included_hours=10, included_km=100),
+        TripPackageConfigSchema(included_hours=12, included_km=120),
     ]
     trip_wise_packages: List[TripPackageConfigSchema] = []
     trip_wise_packages.extend(hourly_rental_packages)
@@ -464,7 +464,7 @@ def seed_pricing_master(session: Session):
             TripPackageConfig(
                 id=str(uuid.uuid4()),
                 trip_type_id=trip_type_id_map[TripTypeEnum.local],
-                duration_hours=package.duration_hours,
+                included_hours=package.included_hours,
                 included_km=package.included_km,
                 created_by=RoleEnum.system,
             )

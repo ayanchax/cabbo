@@ -27,8 +27,8 @@ class OutstationCabPricingSchema(CabPricingBaseSchema):
 # Local-specific pricing schema
 class LocalCabPricingSchema(CabPricingBaseSchema):
     hourly_rate: float
-    overage_per_hour: float
-    overage_per_km: Optional[float] = None  # Optional for local trips
+    overage_amount_per_hour: float
+    overage_amount_per_km: Optional[float] = None  # Optional for local trips
     # Local-specific: minimum rental duration, etc. can be added here
 
 

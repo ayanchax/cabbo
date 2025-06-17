@@ -224,7 +224,7 @@ class TripPackageConfig(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
     )
-    duration_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
+    included_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
     included_km = Column(Integer, nullable=False)  # e.g., 40, 60, 80, 100, 120
     created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
