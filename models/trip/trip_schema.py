@@ -17,7 +17,7 @@ from models.trip.trip_enums import (
 from models.geography.geo_enums import LocationInfo
 from models.cab.pricing_orm import RoleEnum
 from utils.utility import validate_and_sanitize_country_phone
-from models.customer.passenger_schema import PassengerCreate, PassengerOut
+from models.customer.passenger_schema import PassengerCreate
 
 
 class TripBase(BaseModel):
@@ -159,15 +159,6 @@ class TripTypeMasterOut(BaseModel):
         orm_mode = True
 
 
-class TripPackageSchema(BaseModel):
-    duration_hours: int  # e.g., 4, 6, 8, 10, 12
-    included_km: int  # e.g., 40, 60, 80, 100, 120
-
-    class Config:
-        extra = "forbid"  # No extra fields allowed
-        from_attributes = True
-
-
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
     origin: LocationInfo
@@ -200,6 +191,16 @@ class TripSearchRequest(BaseModel):
     passenger: Optional[PassengerCreate] = None  # If provided, trip is for someone else
 
 
+class TripPackageConfigSchema(BaseModel):
+    id: Optional[str] = None  # Optional ID for existing packages
+    trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
+    duration_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_km: int  # e.g., 40, 60, 80, 100, 120
+
+    class Config:
+        from_attributes = True
+
+
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     fuel_type: FuelTypeEnum
@@ -211,7 +212,7 @@ class TripSearchOption(BaseModel):
     ]  # Trip type specific pricing breakdown
     estimated_km: Optional[float] = None
     included_km: Optional[float] = None
-    estimated_hours: Optional[float] = None
+    package: Optional[TripPackageConfigSchema] = None  # For local trips
     overages: Optional[OveragesSchema] = None
 
 
@@ -223,13 +224,3 @@ class TripSearchResponse(BaseModel):
 class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book
     preferences: TripSearchRequest
-
-
-class TripPackageConfigSchema(BaseModel):
-    id: str
-    trip_type_id: str
-    duration_hours: int  # e.g., 4, 6, 8, 10, 12
-    included_km: int  # e.g., 40, 60, 80, 100, 120
-
-    class Config:
-        from_attributes = True

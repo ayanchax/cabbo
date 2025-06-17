@@ -202,6 +202,12 @@ class CommonPricingConfiguration(Base):
     max_included_hours = Column(
         Integer, nullable=True, default=None
     )  # Local cab maximum included hours
+    min_included_km = Column(
+        Integer, nullable=True, default=None
+    )  # For local cab minimum included km
+    max_included_km = Column(
+        Integer, nullable=True, default=None
+    )  # For local cab maximum included km
     placard_charge = Column(
         Float, nullable=True
     )  # Only for airport pickup, can be null for others
@@ -237,6 +243,35 @@ class FixedPlatformPricing(Base):
         index=True,
     )
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
+
+
+class PermitFeeConfiguration(Base):
+    __tablename__ = "permit_fee_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    cab_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
+    )
+    fuel_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
+    )
+    state_id = Column(
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
+    )  # FK to GeoStateModel.id
+    permit_fee = Column(Float, nullable=False)  # Permit fee amount
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

@@ -15,8 +15,9 @@ from models.cab.pricing_schema import (
 )
 from models.geography.state_orm import GeoStateModel
 from models.geography.state_schema import GeoStateOut
-from models.trip.trip_orm import TripTypeMaster
+from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
+    TripPackageConfigSchema,
     TripSearchRequest,
     TripSearchOption,
     TripSearchResponse,
@@ -181,6 +182,30 @@ def _get_preauthorized_minimum_wallet_amount(pre_authorized_wallet_amount: float
         pre_authorized_wallet_amount
         if pre_authorized_wallet_amount is not None
         else 0.0
+    )
+
+
+def _retrieve_package_by_id(
+    package_id: str, fallback_duration: int, fallback_km: int, db: Session
+):
+    if not package_id:
+        return TripPackageConfigSchema(
+            duration_hours=fallback_duration, included_km=fallback_km
+        )
+    package = (
+        db.query(TripPackageConfig).filter(TripPackageConfig.id == package_id).first()
+    )
+    if not package:
+        return TripPackageConfigSchema(
+            duration_hours=fallback_duration, included_km=fallback_km
+        )
+    package_schema = TripPackageConfigSchema.model_validate(package)
+    return (
+        package_schema
+        if package_schema.duration_hours and package_schema.duration_hours > 0
+        else TripPackageConfigSchema(
+            duration_hours=fallback_duration, included_km=fallback_km
+        )
     )
 
 
@@ -363,7 +388,13 @@ def get_trip_search_options(
         minimum_parking_wallet = _get_preauthorized_minimum_wallet_amount(
             configs.minimum_parking_wallet
         )
-        duration = search_in.duration_hours or configs.min_included_hours
+        # Get the package ID if provided, otherwise use configs.min_included_hours for duration
+        package = _retrieve_package_by_id(
+            package_id=search_in.package_id,
+            fallback_duration=configs.min_included_hours,
+            fallback_km=configs.min_included_km,
+            db=db,
+        )
         local_pricings = (
             db.query(LocalCabPricing, CabType, FuelType)
             .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
@@ -376,15 +407,13 @@ def get_trip_search_options(
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             hourly_rate = pricing_schema.hourly_rate
-            min_included_hours = configs.min_included_hours
-            if not duration:
-                duration = min_included_hours  # Ensure duration is at least the minimum included hours
             max_included_hours = configs.max_included_hours
             overage_amount_per_hour = pricing_schema.overage_per_hour
-            base_hours = min(duration, max_included_hours)
-            num_overage_hours = max(0, duration - max_included_hours)
+            base_hours = min(package.duration_hours, max_included_hours)
+            num_overage_hours = max(0, package.duration_hours - max_included_hours)
             base_fare = hourly_rate * base_hours
             overage_amount = overage_amount_per_hour * num_overage_hours
+            # No tolls are added for local trips, if any tolls are incurred, they will be charged separately to the customer once the trip is completed
             total_price_before_platform_fee = (
                 base_fare + minimum_parking_wallet + overage_amount
             )
@@ -399,7 +428,7 @@ def get_trip_search_options(
                 minimum_parking_wallet=math.ceil(minimum_parking_wallet),
                 platform_fee=math.ceil(platform_fee_amount),
             )
-            indicative_overage_warning = duration > max_included_hours
+            indicative_overage_warning = package.duration_hours > max_included_hours
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
@@ -408,7 +437,7 @@ def get_trip_search_options(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
                     price_breakdown=price_breakdown,
-                    estimated_hours=duration,
+                    package=package,
                     overages=(
                         OveragesSchema(
                             indicative_overage_warning=indicative_overage_warning,

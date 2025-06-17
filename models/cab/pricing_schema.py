@@ -120,6 +120,8 @@ class CommonPricingConfigSchema(BaseModel):
     dynamic_platform_fee_percent: float  # e.g., 5.0 for 5%
     min_included_hours: Optional[int] = None  # Local cab minimum included hours
     max_included_hours: Optional[int] = None  # Local cab maximum included hours
+    min_included_km: Optional[int] = None  # For local cab minimum included km
+    max_included_km: Optional[int] = None  # For local cab maximum included
     placard_charge: Optional[float] = (
         None  # Only for airport pickup, can be null for others
     )
@@ -132,6 +134,21 @@ class CommonPricingConfigSchema(BaseModel):
     minimum_toll_wallet: Optional[float] = None  # For local/outstation
     minimum_parking_wallet: Optional[float] = None  # For local/outstation
     fixed_platform_fee: Optional[float] = None  # e.g., 50.0 for ₹50
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        extra = "allow"
+
+
+class PermitFeeSchema(BaseModel):
+    id: Optional[str]
+    state_id: str  # FK to GeoState.id
+    cab_type_id: str  # FK to CabType.id
+    fuel_type_id: str  # FK to FuelType.id
+    permit_fee: float  # Permit fee amount
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None

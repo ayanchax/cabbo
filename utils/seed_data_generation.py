@@ -17,7 +17,8 @@ from core.security import RoleEnum
 from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripPackageConfig
-from models.trip.trip_schema import TripPackageSchema
+from models.trip.trip_schema import TripPackageConfigSchema
+from models.cab.pricing_orm import PermitFeeConfiguration
 
 
 def seed_pricing_master(session: Session):
@@ -430,6 +431,8 @@ def seed_pricing_master(session: Session):
             dynamic_platform_fee_percent=7.0,  # 7% platform fee
             min_included_hours=4,  # Minimum 4 hours for local trips
             max_included_hours=12,  # Maximum 12 hours for local trips
+            min_included_km=40,  # Minimum 40 km included for local trips
+            max_included_km=120,  # Maximum 120 km included for local trips
             minimum_toll=0,  # No minimum toll for local trips
             minimum_parking_wallet=80,  #  minimum parking 80 for local trips
             created_by=RoleEnum.system,
@@ -447,13 +450,13 @@ def seed_pricing_master(session: Session):
     # Maintain a collection for duration and included km for outstation packages
 
     hourly_rental_packages = [
-        TripPackageSchema(duration_hours=4, included_km=40),
-        TripPackageSchema(duration_hours=6, included_km=60),
-        TripPackageSchema(duration_hours=8, included_km=80),
-        TripPackageSchema(duration_hours=10, included_km=100),
-        TripPackageSchema(duration_hours=12, included_km=120),
+        TripPackageConfigSchema(duration_hours=4, included_km=40),
+        TripPackageConfigSchema(duration_hours=6, included_km=60),
+        TripPackageConfigSchema(duration_hours=8, included_km=80),
+        TripPackageConfigSchema(duration_hours=10, included_km=100),
+        TripPackageConfigSchema(duration_hours=12, included_km=120),
     ]
-    trip_wise_packages: List[TripPackageSchema] = []
+    trip_wise_packages: List[TripPackageConfigSchema] = []
     trip_wise_packages.extend(hourly_rental_packages)
     trip_package_configs = []
     for package in trip_wise_packages:
@@ -480,6 +483,67 @@ def seed_pricing_master(session: Session):
         created_by=RoleEnum.system,
     )
 
+    # Here create a permit fee config per state_id per cab_type_id by iterating over cab_types and states
+    permit_fees_mapping_by_state_and_cab = {
+        "TN": {
+            CarTypeEnum.hatchback: {
+                FuelTypeEnum.petrol: 300,
+                FuelTypeEnum.diesel: 300,
+                FuelTypeEnum.cng: 200,
+            },
+            CarTypeEnum.sedan: {
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 400,
+            },
+            CarTypeEnum.sedan_plus: {
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 400,
+            },
+            CarTypeEnum.suv: {
+                FuelTypeEnum.petrol: 1200,
+                FuelTypeEnum.diesel: 1200,
+                FuelTypeEnum.cng: 1000,
+            },
+            CarTypeEnum.suv_plus: {
+                FuelTypeEnum.petrol: 1200,
+                FuelTypeEnum.diesel: 1200,
+                FuelTypeEnum.cng: 1000,
+            },
+        },
+        # Add more states as needed
+    }
+    states = session.query(GeoStateModel).filter(GeoStateModel.is_home_state != 1).all()
+    permit_fee_configs = []
+    for state in states:
+        state_code = getattr(state, "state_code", None)
+        state_mapping = permit_fees_mapping_by_state_and_cab.get(state_code)
+        if not state_mapping:
+            continue  # Skip states not in mapping
+        for cab in cab_types:
+            cab_mapping = state_mapping.get(cab.name)
+            if not cab_mapping:
+                continue  # Skip cab types not in mapping
+            for fuel in fuel_types:
+                permit_fee = cab_mapping.get(fuel.name)
+                if permit_fee is None:
+                    continue  # Skip if no permit fee defined
+                try:
+                    permit_fee_configs.append(
+                        PermitFeeConfiguration(
+                            id=str(uuid.uuid4()),
+                            state_id=state.id,
+                            cab_type_id=cab.id,
+                            fuel_type_id=fuel.id,
+                            permit_fee=permit_fee,
+                            created_by=RoleEnum.system,
+                        )
+                    )
+                except Exception:
+                    # Silently skip any errors in config creation
+                    continue
+
     # Now add and commit pricing and toll configs
     session.add_all(
         outstation_pricing
@@ -489,6 +553,7 @@ def seed_pricing_master(session: Session):
         + common_pricing_configs
         + trip_package_configs
         + [fixed_platform_fee_config]
+        + permit_fee_configs
     )
     session.commit()
 
@@ -498,13 +563,11 @@ def seed_states(session: Session):
         GeoStateModel(
             state_name=APP_HOME_STATE,
             state_code=APP_HOME_STATE_CODE,
-            permit_fee_per_week=0.0,
             is_home_state=1,
         ),
         GeoStateModel(
             state_name="Tamil Nadu",
             state_code="TN",
-            permit_fee_per_week=500.0,
             is_home_state=0,
         ),
     ]

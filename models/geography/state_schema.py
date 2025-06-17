@@ -7,7 +7,6 @@ from core.security import RoleEnum
 class GeoStateBase(BaseModel):
     state_name: str
     state_code: str
-    permit_fee_per_week: float = 0.0
     is_home_state: int = 0
 
 
