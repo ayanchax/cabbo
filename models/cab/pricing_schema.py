@@ -116,8 +116,8 @@ class OveragesSchema(BaseModel):
 
 class CommonPricingConfigSchema(BaseModel):
     id: Optional[str]
-    trip_type_id: TripTypeEnum
-    dynamic_platform_fee_percent: float  # e.g., 5.0 for 5%
+    trip_type_id: Optional[str] = None  # FK to TripType.id
+    dynamic_platform_fee_percent: Optional[float] = None  # e.g., 5.0 for 5%
     min_included_hours: Optional[int] = None  # Local cab minimum included hours
     max_included_hours: Optional[int] = None  # Local cab maximum included hours
     min_included_km: Optional[int] = None  # For local cab minimum included km
