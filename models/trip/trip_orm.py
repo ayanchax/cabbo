@@ -226,6 +226,7 @@ class TripPackageConfig(Base):
     )
     included_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
     included_km = Column(Integer, nullable=False)  # e.g., 40, 60, 80, 100, 120
+    package_label = Column(String(64), nullable=False, unique=True)
     created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

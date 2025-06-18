@@ -196,6 +196,7 @@ class TripPackageConfigSchema(BaseModel):
     trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
     included_hours: int  # e.g., 4, 6, 8, 10, 12
     included_km: int  # e.g., 40, 60, 80, 100, 120
+    package_label: str  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
 
     class Config:
         from_attributes = True

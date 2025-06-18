@@ -433,7 +433,6 @@ def seed_pricing_master(session: Session):
             max_included_hours=12,  # Maximum 12 hours for local trips
             min_included_km=40,  # Minimum 40 km included for local trips
             max_included_km=120,  # Maximum 120 km included for local trips
-            minimum_toll=0,  # No minimum toll for local trips
             minimum_parking_wallet=80,  #  minimum parking 80 for local trips
             created_by=RoleEnum.system,
         ),
@@ -442,7 +441,7 @@ def seed_pricing_master(session: Session):
             trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
             dynamic_platform_fee_percent=10.0,  # 10% platform fee
             overage_warning_km_threshold=50,  # Warning threshold for overages
-            minimum_toll=500,  # minimum toll 500 for outstation trips
+            minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
             minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
             created_by=RoleEnum.system,
         ),
@@ -450,11 +449,21 @@ def seed_pricing_master(session: Session):
     # Maintain a collection for duration and included km for outstation packages
 
     hourly_rental_packages = [
-        TripPackageConfigSchema(included_hours=4, included_km=40),
-        TripPackageConfigSchema(included_hours=6, included_km=60),
-        TripPackageConfigSchema(included_hours=8, included_km=80),
-        TripPackageConfigSchema(included_hours=10, included_km=100),
-        TripPackageConfigSchema(included_hours=12, included_km=120),
+        TripPackageConfigSchema(
+            included_hours=4, included_km=40, package_label="4Hours / 40KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=6, included_km=60, package_label="6Hours / 60KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=8, included_km=80, package_label="8Hours / 80KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=10, included_km=100, package_label="10Hours / 100KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=12, included_km=120, package_label="12Hours / 120KM"
+        ),
     ]
     trip_wise_packages: List[TripPackageConfigSchema] = []
     trip_wise_packages.extend(hourly_rental_packages)
@@ -466,6 +475,7 @@ def seed_pricing_master(session: Session):
                 trip_type_id=trip_type_id_map[TripTypeEnum.local],
                 included_hours=package.included_hours,
                 included_km=package.included_km,
+                package_label=package.package_label,
                 created_by=RoleEnum.system,
             )
         )

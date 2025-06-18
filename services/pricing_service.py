@@ -12,6 +12,7 @@ from models.cab.pricing_schema import (
     CabTypeSchema,
     FuelTypeSchema,
     OutstationPricingBreakdownSchema,
+    PermitFeeSchema,
 )
 from models.geography.state_orm import GeoStateModel
 from models.geography.state_schema import GeoStateOut
@@ -32,6 +33,7 @@ from models.cab.pricing_orm import (
     LocalCabPricing,
     OutstationCabPricing,
     FixedPlatformPricing,
+    PermitFeeConfiguration,
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.exceptions import CabboException
@@ -45,11 +47,15 @@ from utils.utility import validate_date_time
 
 
 def _retrieve_interstate_permit_fee(
-    unique_states: List[str], trip_days: int, db: Session
+    unique_states: List[str],
+    trip_days: int,
+    cab_type_id: str,
+    fuel_type_id: str,
+    db: Session,
 ):
     """
     Calculates and returns the total interstate permit fee for a list of unique states crossed during a trip,
-    based on the total trip duration in days.
+    based on the total trip duration in days, cab type, and fuel type.
 
     For each unique state, the permit fee is charged for a minimum of 7 days (weekly fee).
     If the trip is longer than 7 days, a pro-rata fee is added for the extra days.
@@ -57,34 +63,51 @@ def _retrieve_interstate_permit_fee(
     Args:
         unique_states (List[str]): List of unique state names (case-insensitive) crossed during the trip.
         trip_days (int): Total number of days for the trip (inclusive).
+        cab_type_id (str): The cab type ID for which to fetch permit fees.
+        fuel_type_id (str): The fuel type ID for which to fetch permit fees.
         db (Session): SQLAlchemy database session for ORM queries.
 
     Returns:
         float: The total permit fee for all unique states crossed.
 
     Raises:
-        CabboException: If any of the provided states are not found in the database.
+        CabboException: If any of the provided states are not found in the database or required parameters are missing.
     """
     unique_states_lower = [s.lower() for s in unique_states]
     if not unique_states_lower or trip_days <= 0:
         # If no states provided or trip days is 0 or less, return 0
         return 0.0
+    # Fetch all states with permit fees that match the unique states and are valid for the given cab and fuel type
+    if not cab_type_id or not fuel_type_id:
+        return 0.0
+
+    # Initialize permit fee to 0
     permit_fee = 0.0
     all_states = (
-        db.query(GeoStateModel)
+        db.query(GeoStateModel, PermitFeeConfiguration, CabType, FuelType)
+        .join(
+            PermitFeeConfiguration,
+            PermitFeeConfiguration.state_id == GeoStateModel.id,
+        )
+        .join(CabType, PermitFeeConfiguration.cab_type_id == CabType.id)
+        .join(FuelType, PermitFeeConfiguration.fuel_type_id == FuelType.id)
         .filter(
             func.lower(GeoStateModel.state_name).in_(unique_states_lower),
-            GeoStateModel.permit_fee_per_week != None,
-            GeoStateModel.permit_fee_per_week > 0,
+            PermitFeeConfiguration.permit_fee != None,
+            PermitFeeConfiguration.permit_fee > 0,
         )
         .all()
     )
     if not all_states:
         # If no states found with permit fees, return 0
         return 0.0
-    for state in all_states:
-        if state.permit_fee_per_week:
-            weekly_fee = GeoStateOut.model_validate(state).permit_fee_per_week
+    for _, permit_fee_config, _, _ in all_states:
+        permit_fee_config_schema = PermitFeeSchema.model_validate(permit_fee_config)
+        if (
+            permit_fee_config_schema.permit_fee is not None
+            and permit_fee_config_schema.permit_fee > 0
+        ):
+            weekly_fee = permit_fee_config_schema.permit_fee
             if trip_days <= 7:
                 # If the trip is 7 days or less, charge only the weekly fee
                 state_permit_fee = weekly_fee
@@ -209,6 +232,22 @@ def _retrieve_package_by_id(
     )
 
 
+def _populate_default_preferences(search_in: TripSearchRequest):
+    """
+    Populates default preferences for car type and fuel type in the given TripSearchRequest object.
+
+    If the 'preferred_car_type' attribute is not set, it defaults to CarTypeEnum.sedan.
+    If the 'preferred_fuel_type' attribute is not set, it defaults to FuelTypeEnum.diesel.
+
+    Args:
+        search_in (TripSearchRequest): The trip search request object to populate defaults for.
+    """
+    if not search_in.preferred_car_type:
+        search_in.preferred_car_type = CarTypeEnum.sedan
+    if not search_in.preferred_fuel_type:
+        search_in.preferred_fuel_type = FuelTypeEnum.diesel
+
+
 def get_trip_search_options(
     search_in: TripSearchRequest, db: Session
 ) -> TripSearchResponse:
@@ -240,6 +279,8 @@ def get_trip_search_options(
         CabboException: If the trip type is invalid or not supported, or if any validation fails.
     """
     _validate_trip_type(search_in)  # Validate trip type before proceeding
+    _populate_default_preferences(search_in)  # Ensure preferences are set
+
     options: List[TripSearchOption] = []
     configs = _retrieve_trip_wise_pricing_config(db, search_in.trip_type)
     platform_fee_percent = configs.dynamic_platform_fee_percent
@@ -395,6 +436,9 @@ def get_trip_search_options(
             fallback_km=configs.min_included_km,
             db=db,
         )
+        package_label = package.package_label
+        package_included_hours = package.included_hours
+        package_included_km = package.included_km
         local_pricings = (
             db.query(LocalCabPricing, CabType, FuelType)
             .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
@@ -425,10 +469,12 @@ def get_trip_search_options(
             )
             # For local trips, we can't estimate distance in advance since routes are uncertain and hence no est_km is provided.
             # Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, to keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
-            package_string = f"{package.included_hours}hrs, {package.included_km}kms"
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             overage_amount_per_hour = pricing_schema.overage_amount_per_hour
-            disclaimer_message = f"If you exceed the included hours and/or kilometers in your selected package({package_string}), extra charges will apply: {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km. Overages will be calculated based on actual usage at trip end."
+            disclaimer_message = f"""Extra charges may apply: 
+                                     - If you exceed the included hours and/or kilometers in your selected package({package_label}), {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km. 
+                                     - If any tolls are availed during your trip  
+                                     - All extra charges will be calculated based on actual usage at trip end."""
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
@@ -437,9 +483,9 @@ def get_trip_search_options(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
                     price_breakdown=price_breakdown,
-                    included_hours=package.included_hours,
-                    included_km=package.included_km,
-                    package=package_string,  # Use package string for display
+                    included_hours=package_included_hours,
+                    included_km=package_included_km,
+                    package=package_label,  # Use package string for display
                     overages=(
                         OveragesSchema(
                             disclaimer=disclaimer_message,
@@ -467,10 +513,7 @@ def get_trip_search_options(
         est_km = (
             2 * est_km
         )  # Always Round trip distance for outstation, therefore multiply by 2
-        if is_interstate:
-            permit_fee = _retrieve_interstate_permit_fee(
-                unique_states, total_trip_days, db
-            )  # Permit fee for interstate roundtrips is charged only once per state gate during entry(for entry and exit)
+
         # Fetch all outstation cab pricings
         outstation_pricings = (
             db.query(OutstationCabPricing, CabType, FuelType)
@@ -485,6 +528,15 @@ def get_trip_search_options(
             pricing_schema = OutstationCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
+            # Calculate interstate permit fee if applicable per cab type and fuel type for the unique states crossed
+            if is_interstate and unique_states:
+                permit_fee = _retrieve_interstate_permit_fee(
+                    unique_states=unique_states,
+                    trip_days=total_trip_days,
+                    cab_type_id=cab_type_schema.id,
+                    fuel_type_id=fuel_type_schema.id,
+                    db=db,
+                )
             base_fare_per_km = pricing_schema.base_fare_per_km
             min_included_km_per_day = pricing_schema.min_included_km_per_day
             overage_amount_per_km = pricing_schema.overage_amount_per_km
