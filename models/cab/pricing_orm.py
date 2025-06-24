@@ -87,8 +87,6 @@ class OutstationCabPricing(Base):
         Integer, nullable=False, default=300
     )  # 200 for hatchback, 300 for others
     overage_amount_per_km = Column(Float, nullable=False)
-    night_overage_amount_per_block = Column(Float, nullable=False, default=100)
-    night_block_hours = Column(Integer, nullable=False, default=3)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -116,10 +114,8 @@ class LocalCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     hourly_rate = Column(Float, nullable=False)
-    # Overage config fields
-    min_included_hours = Column(Integer, nullable=False, default=4)
-    max_included_hours = Column(Integer, nullable=False, default=12)
     overage_amount_per_hour = Column(Float, nullable=False)
+    overage_amount_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -147,11 +143,6 @@ class AirportCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     airport_fare_per_km = Column(Float, nullable=False)
-    placard_charge = Column(
-        Float, nullable=True
-    )  # Only for airport pickup, can be null for others
-    # Overage config fields
-    max_included_km = Column(Integer, nullable=False, default=42)
     overage_amount_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
@@ -163,65 +154,9 @@ class AirportCabPricing(Base):
     )
 
 
-# Toll and parking pricing
-class TollParkingConfig(Base):
-    __tablename__ = "toll_parking_config"
-    id = Column(
-        MySQL_CHAR(36),
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-        unique=True,
-        index=True,
-    )
-    trip_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
-    )  # FK to TripTypeMaster.id
-
-    toll = Column(Float, nullable=True)  # For local/airport
-    parking = Column(Float, nullable=True)  # For local/airport
-    toll_per_block = Column(Float, nullable=True)  # For outstation
-    parking_per_block = Column(Float, nullable=True)  # For outstation
-    block_days = Column(Integer, nullable=True)  # For outstation
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(
-        DateTime,
-        nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
-    )
-    # All fields except trip_type are nullable, so this table can flexibly store any trip-type-specific fixed rates
-    # This table is independent of cab/fuel type, as these are global/fixed rates per trip type
-
-
-# Overage pricing warning configuration
-class OverageWarningConfig(Base):
-    __tablename__ = "overage_warning_config"
-    id = Column(
-        MySQL_CHAR(36),
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-        unique=True,
-        index=True,
-    )
-    trip_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
-    )  # FK to TripTypeMaster.id
-
-    warning_km_threshold = Column(Float, nullable=False)
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(
-        DateTime,
-        nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
-    )
-
-
 # Night charge pricing configuration
-class NightChargeConfig(Base):
-    __tablename__ = "night_charge_config"
+class FixedNightPricing(Base):
+    __tablename__ = "night_pricing_config"
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -231,6 +166,16 @@ class NightChargeConfig(Base):
     )
     night_start_hour = Column(Integer, nullable=False)  # 24-hr format, e.g., 20 for 8PM
     night_end_hour = Column(Integer, nullable=False)  # 24-hr format, e.g., 6 for 6AM
+    night_hours_label = Column(
+        String(50), nullable=False, default="8 PM to 6 AM"
+    )  # e.g., "8PM - 6AM"
+    night_overage_amount_per_block = Column(
+        Float, nullable=False, default=100
+    )  # Applies to all trip types, but now mostly used for outstation
+    night_block_hours = Column(
+        Integer, nullable=False, default=1
+    )  # Applies to all trip types, but now mostly used for outstation
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -241,9 +186,8 @@ class NightChargeConfig(Base):
     )
 
 
-# Dynamic Platform fee configuration per trip type
-class PlatformPricingConfig(Base):
-    __tablename__ = "platform_pricing_config"
+class CommonPricingConfiguration(Base):
+    __tablename__ = "common_pricing_config"
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -254,7 +198,33 @@ class PlatformPricingConfig(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
     )  # FK to TripTypeMaster.id
-    platform_fee_percent = Column(Float, nullable=False)  # e.g., 5.0 for 5%
+    dynamic_platform_fee_percent = Column(Float, nullable=False)  # e.g., 5.0 for 5%
+    min_included_hours = Column(
+        Integer, nullable=True, default=None
+    )  # Local cab minimum included hours
+    max_included_hours = Column(
+        Integer, nullable=True, default=None
+    )  # Local cab maximum included hours
+    min_included_km = Column(
+        Integer, nullable=True, default=None
+    )  # For local cab minimum included km
+    max_included_km = Column(
+        Integer, nullable=True, default=None
+    )  # For local cab maximum included km
+    placard_charge = Column(
+        Float, nullable=True
+    )  # Only for airport pickup, can be null for others
+    max_included_km = Column(
+        Integer, nullable=True, default=None
+    )  # For airport pickup/drop
+    overage_warning_km_threshold = Column(
+        Float, nullable=True
+    )  # For airport pickup/drop and outstation
+    toll = Column(Float, nullable=True)  # For airport pickup and drop
+    parking = Column(Float, nullable=True)  # For airport pickup
+    minimum_toll_wallet = Column(Float, nullable=True)  # For local/outstation
+    minimum_parking_wallet = Column(Float, nullable=True)  # For local/outstation
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -266,8 +236,8 @@ class PlatformPricingConfig(Base):
 
 
 # Fixed Platform fee for cost to serve per booking
-class FixedPlatformPricingConfig(Base):
-    __tablename__ = "fixed_platform_pricing_config"
+class FixedPlatformPricing(Base):
+    __tablename__ = "fixed_platform_pricing"
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -276,6 +246,35 @@ class FixedPlatformPricingConfig(Base):
         index=True,
     )
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
+
+
+class PermitFeeConfiguration(Base):
+    __tablename__ = "permit_fee_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    cab_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
+    )
+    fuel_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
+    )
+    state_id = Column(
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
+    )  # FK to GeoStateModel.id
+    permit_fee = Column(Float, nullable=False)  # Permit fee amount
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

@@ -42,7 +42,9 @@ class Trip(Base):
         nullable=False,
     )
     # Trip details
-    trip_type = Column(Enum(TripTypeEnum), nullable=False)
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
+    )  # FK to trip types master table
     # Location information
     origin_display_name = Column(String(255), nullable=False)
     origin_lat = Column(Float, nullable=False)
@@ -54,24 +56,45 @@ class Trip(Base):
     destination_lng = Column(Float, nullable=False)
     destination_place_id = Column(String(128), nullable=True)
     destination_address = Column(String(255), nullable=True)
-    hops = Column(Text, nullable=True)  # JSON/text list of hops for outstation
+    hops = Column(
+        Text, nullable=True
+    )  # JSON/text list of hops for outstation and hourly rental [Providing hops by customer helps us approximate the overages more efficiently]
     is_interstate = Column(Boolean, default=False, nullable=False)
+    total_unique_states = Column(
+        Integer, nullable=True
+    )  ##Applicable for outstation trips which are interstate
+    unique_states = Column(
+        Text, nullable=True
+    )  # comma separated list of unique states, applicable for outstation trips which are interstate
     is_round_trip = Column(Boolean, default=True, nullable=False)
+    # Package information selected by customer
+    # This is applicable only for hourly rental trips
+    package_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_package_config.id"), nullable=True, index=True
+    )  # FK to trip package config table for hourly rental trips
     # Date and time information
     start_date = Column(DateTime, nullable=False)
     end_date = Column(DateTime, nullable=False)
     # Passenger and luggage information
-    num_adults = Column(Integer, nullable=False)
-    num_children = Column(Integer, nullable=False)
-    num_large_suitcases = Column(Integer, nullable=True)
-    num_carryons = Column(Integer, nullable=True)
-    num_backpacks = Column(Integer, nullable=True)
-    num_other_bags = Column(Integer, nullable=True)
-    num_luggages = Column(Integer, nullable=True)
+    num_adults = Column(Integer, nullable=False, default=1)
+    num_children = Column(Integer, nullable=True, default=0)
+    num_large_suitcases = Column(
+        Integer, nullable=True, default=0
+    )  # Trolley bags, large suitcases
+    num_carryons = Column(Integer, nullable=True, default=0)
+    num_backpacks = Column(Integer, nullable=True, default=0)
+    num_other_bags = Column(
+        Integer, nullable=True, default=0
+    )  # Other bags, small items
+    num_luggages = Column(Integer, nullable=True, default=0)  # Total luggage count
 
     # Car and fuel preferences
-    preferred_car_type = Column(Enum(CarTypeEnum), nullable=True)
-    preferred_fuel_type = Column(Enum(FuelTypeEnum), nullable=True)
+    preferred_car_type = Column(
+        Enum(CarTypeEnum), nullable=True, default=CarTypeEnum.sedan
+    )
+    preferred_fuel_type = Column(
+        Enum(FuelTypeEnum), nullable=True, default=FuelTypeEnum.diesel
+    )
 
     # Driver assignment fields
     driver_name = Column(String(255), nullable=True)
@@ -86,18 +109,35 @@ class Trip(Base):
     )
 
     # Financial fields
-    base_fare = Column(Float, nullable=True)
-    driver_allowance = Column(Float, nullable=True)
-    tolls_estimate = Column(Float, nullable=True)
-    parking_estimate = Column(Float, nullable=True)
-    permit_fee = Column(Float, nullable=True)
-    platform_fee = Column(Float, nullable=True)
+    base_fare = Column(Float, nullable=True, default=0.0)  # Base fare for the trip
+    driver_allowance = Column(
+        Float, nullable=True, default=0.0
+    )  # Daily driver allowance for outstation trips
+    tolls_estimate = Column(
+        Float, nullable=True, default=0.0
+    )  # Estimated tolls for the trip
+    parking_estimate = Column(
+        Float, nullable=True, default=0.0
+    )  # Estimated parking charges for the trip
+    permit_fee = Column(
+        Float, nullable=True, default=0.0
+    )  # Interstate permit fee for outstation trips
+    platform_fee = Column(
+        Float, nullable=True, default=0.0
+    )  # Platform fee charged by the system
     quoted_price = Column(Float, nullable=True)  # Customer's counter-quote
-    final_price = Column(Float, nullable=True)  # System-calculated
+    final_price = Column(Float, nullable=True, default=0.0)  # System-calculated
     final_display_price = Column(
-        Float, nullable=True
+        Float, nullable=True, default=0.0
     )  # Price shown to driver admin (final or quoted) w/o platform fee
 
+    # Inclusions and exclusions
+    inclusions = Column(
+        Text, nullable=True
+    )  # JSON/text list of inclusions (e.g., driver meals, tolls)
+    exclusions = Column(
+        Text, nullable=True
+    )  # JSON/text list of exclusions (e.g., fuel, parking, tolls
     # Airport pickup/flight metadata
     flight_number = Column(String(32), nullable=True)
     terminal_number = Column(String(32), nullable=True)
@@ -136,8 +176,13 @@ class TripStatusAudit(Base):
     trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
     status = Column(Enum(TripStatusEnum), nullable=False)
     changed_by = Column(
-        String(64), nullable=False
-    )  # Could be 'customer', 'admin', etc.
+        Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
+        default=RoleEnum.customer,
+        nullable=True,
+    )
+    committer_id = Column(
+        MySQL_CHAR(36), nullable=False, index=True
+    )  # ID of the user who changed the status
     reason = Column(String(255), nullable=True)  # New: reason/message for audit
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
 
@@ -185,6 +230,31 @@ class TripTypeMaster(Base):
     trip_type = Column(Enum(TripTypeEnum), nullable=False, unique=True)
     display_name = Column(String(64), nullable=False)
     description = Column(String(255), nullable=True)
+    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    last_modified = Column(
+        DateTime,
+        nullable=False,
+        default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+    )
+
+
+class TripPackageConfig(Base):
+    __tablename__ = "trip_package_config"
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
+    )
+    included_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
+    included_km = Column(Integer, nullable=False)  # e.g., 40, 60, 80, 100, 120
+    package_label = Column(String(64), nullable=False, unique=True)
     created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

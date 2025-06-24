@@ -5,9 +5,7 @@ from models.cab.pricing_schema import (
     AirportPricingBreakdownSchema,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
-    OverageWarningConfigSchema,
-    PlatformPricingConfigSchema,
-    TollParkingConfigSchema,
+    OveragesSchema,
 )
 from models.trip.trip_enums import (
     TripStatusEnum,
@@ -19,7 +17,7 @@ from models.trip.trip_enums import (
 from models.geography.geo_enums import LocationInfo
 from models.cab.pricing_orm import RoleEnum
 from utils.utility import validate_and_sanitize_country_phone
-from models.customer.passenger_schema import PassengerCreate, PassengerOut
+from models.customer.passenger_schema import PassengerCreate
 
 
 class TripBase(BaseModel):
@@ -30,7 +28,7 @@ class TripBase(BaseModel):
     end_date: datetime
     num_adults: int
     num_children: int
-    num_large_suitcases: Optional[int] = None
+    num_large_suitcases: Optional[int] = None  # Trolley bags, large suitcases
     num_carryons: Optional[int] = None
     num_backpacks: Optional[int] = None
     num_other_bags: Optional[int] = None
@@ -39,6 +37,12 @@ class TripBase(BaseModel):
     hops: Optional[List[str]] = None  # For outstation multi-hop
     is_round_trip: Optional[bool] = True
     is_interstate: Optional[bool] = False
+    total_unique_states: Optional[int] = (
+        None  # Applicable for outstation trips which are interstate
+    )
+    unique_states: Optional[str] = (
+        None  # Comma-separated list of unique states, applicable for outstation trips which are interstate
+    )
     permit_fee: Optional[float] = None
     # Driver assignment fields
     driver_name: Optional[str] = None
@@ -158,18 +162,21 @@ class TripTypeMasterOut(BaseModel):
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
     origin: LocationInfo
+    hops: Optional[Union[List[str], List[LocationInfo]]] = (
+        None  # Available for outstation and hourly rental multi-hop trips [Providing hops by customer helps us approximate the overages more efficiently and helps the customer get almost accurate quotes upfront]
+    )
     destination: Optional[LocationInfo] = None
     start_date: str  # ISO date or datetime string
     end_date: Optional[str] = None
     num_adults: int
     num_children: int
-    num_large_suitcases: Optional[int] = 0
+    num_large_suitcases: Optional[int] = 0  # Trolley bags, large suitcases
     num_carryons: Optional[int] = 0
     num_backpacks: Optional[int] = 0
     num_other_bags: Optional[int] = 0
     preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
     preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
-    duration_hours: Optional[int] = None  # For local trips
+    package_id: Optional[str] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
     toll_road_preferred: Optional[bool] = (
@@ -184,6 +191,17 @@ class TripSearchRequest(BaseModel):
     passenger: Optional[PassengerCreate] = None  # If provided, trip is for someone else
 
 
+class TripPackageConfigSchema(BaseModel):
+    id: Optional[str] = None  # Optional ID for existing packages
+    trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
+    included_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_km: int  # e.g., 40, 60, 80, 100, 120
+    package_label: str  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+
+    class Config:
+        from_attributes = True
+
+
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     fuel_type: FuelTypeEnum
@@ -194,22 +212,23 @@ class TripSearchOption(BaseModel):
         LocalPricingBreakdownSchema,
     ]  # Trip type specific pricing breakdown
     estimated_km: Optional[float] = None
-    estimated_hours: Optional[float] = None
-    indicative_overage_warning: Optional[bool] = False  # Add this field for UI
+    included_km: Optional[float] = None
+    included_hours: Optional[int] = None  # For local trips
+    package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
+    overages: Optional[OveragesSchema] = None
+    inclusions: Optional[List[str]] = (
+        None  # List of inclusions like tolls, parking, etc.
+    )
+    exclusions: Optional[List[str]] = (
+        None  # List of exclusions like fuel, driver meals, etc.
+    )
 
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
+    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
 
 
-class TripTypeWiseConfig(BaseModel):
-    warning_config: Optional[
-        OverageWarningConfigSchema
-    ]  # Use ORM or schema if available
-    toll_parking_charge: Optional[TollParkingConfigSchema]
-    platform_fee_config: Optional[
-        PlatformPricingConfigSchema
-    ]  # Use ORM or schema if available
-
-    class Config:
-        from_attributes = True
+class TripBookRequest(BaseModel):
+    option: TripSearchOption  # Selected option to book
+    preferences: TripSearchRequest

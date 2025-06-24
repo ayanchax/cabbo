@@ -1,22 +1,24 @@
+from typing import List
 import uuid
 from sqlalchemy.orm import Session
 from models.cab.pricing_orm import (
     CabType,
-    FixedPlatformPricingConfig,
+    CommonPricingConfiguration,
+    FixedPlatformPricing,
     FuelType,
     OutstationCabPricing,
     LocalCabPricing,
     AirportCabPricing,
-    TollParkingConfig,
-    OverageWarningConfig,
-    NightChargeConfig,
-    PlatformPricingConfig,
+    FixedNightPricing,
+    FixedPlatformPricing,
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
-from sqlalchemy.sql import func
 from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
+from models.trip.trip_orm import TripPackageConfig
+from models.trip.trip_schema import TripPackageConfigSchema
+from models.cab.pricing_orm import PermitFeeConfiguration
 
 
 def seed_pricing_master(session: Session):
@@ -193,7 +195,7 @@ def seed_pricing_master(session: Session):
     }
     # Outstation overage config by cab type and fuel type
     outstation_min_km_per_day = {
-        CarTypeEnum.hatchback: 200,
+        CarTypeEnum.hatchback: 300,
         CarTypeEnum.sedan: 300,
         CarTypeEnum.sedan_plus: 300,
         CarTypeEnum.suv: 300,
@@ -226,18 +228,8 @@ def seed_pricing_master(session: Session):
             FuelTypeEnum.cng: 14,
         },
     }
-    outstation_night_overage_per_block = {
-        CarTypeEnum.hatchback: 120,
-        CarTypeEnum.sedan: 120,
-        CarTypeEnum.sedan_plus: 120,
-        CarTypeEnum.suv: 120,
-        CarTypeEnum.suv_plus: 120,
-    }
-    outstation_night_block_hours = 1  # every 1 hour is a block for night overage
 
     # Local overage config by cab type and fuel type
-    local_min_hours = 4
-    local_max_hours = 12
     local_overage_per_hour = {
         CarTypeEnum.hatchback: {
             FuelTypeEnum.petrol: 180,
@@ -266,8 +258,35 @@ def seed_pricing_master(session: Session):
         },
     }
 
+    local_overage_per_km = {
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 12,
+            FuelTypeEnum.diesel: 10,
+            FuelTypeEnum.cng: 7,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 13,
+            FuelTypeEnum.diesel: 11,
+            FuelTypeEnum.cng: 10,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 15,
+            FuelTypeEnum.diesel: 13,
+            FuelTypeEnum.cng: 11,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 18,
+            FuelTypeEnum.diesel: 15,
+            FuelTypeEnum.cng: 14,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 18,
+            FuelTypeEnum.cng: 16,
+        },
+    }
+
     # Airport overage config by cab type and fuel type
-    airport_max_included_km = 42
     airport_overage_per_km = {
         CarTypeEnum.hatchback: {
             FuelTypeEnum.petrol: 14,
@@ -312,10 +331,6 @@ def seed_pricing_master(session: Session):
                     overage_amount_per_km=outstation_overage_per_km[cab.name][
                         fuel.name
                     ],
-                    night_overage_amount_per_block=outstation_night_overage_per_block[
-                        cab.name
-                    ],
-                    night_block_hours=outstation_night_block_hours,
                     created_by=RoleEnum.system,
                 )
             )
@@ -326,9 +341,8 @@ def seed_pricing_master(session: Session):
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     hourly_rate=local_hourly_rates[cab.name][fuel.name],
-                    min_included_hours=local_min_hours,
-                    max_included_hours=local_max_hours,
                     overage_amount_per_hour=local_overage_per_hour[cab.name][fuel.name],
+                    overage_amount_per_km=local_overage_per_km[cab.name][fuel.name],
                     created_by=RoleEnum.system,
                 )
             )
@@ -339,9 +353,7 @@ def seed_pricing_master(session: Session):
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     airport_fare_per_km=airport_fare_per_km[cab.name][fuel.name],
-                    max_included_km=airport_max_included_km,
                     overage_amount_per_km=airport_overage_per_km[cab.name][fuel.name],
-                    placard_charge=50.0,  # Placard charge for airport pickup
                     created_by=RoleEnum.system,
                 )
             )
@@ -391,114 +403,167 @@ def seed_pricing_master(session: Session):
     # Now query TripTypeMaster for trip_type_id mapping
     trip_type_master_objs = session.query(TripTypeMaster).all()
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
-    platform_fee_configs = [
-        PlatformPricingConfig(
+    common_pricing_configs = [
+        CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            platform_fee_percent=5.0,
+            dynamic_platform_fee_percent=4.0,  # 4% platform fee
+            placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
+            max_included_km=42,  # 42 km included for airport trips is a common standard
+            overage_warning_km_threshold=2,  # Warning threshold for overages
+            toll=120,  # toll for airport pickup set to 120 if customer opts for it
+            parking=100,  # parking charge for airport pickup
             created_by=RoleEnum.system,
         ),
-        PlatformPricingConfig(
+        CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            platform_fee_percent=5.0,
+            dynamic_platform_fee_percent=4.0,  # 4% platform fee
+            max_included_km=42,  # 42 km included for airport trips is a standard
+            overage_warning_km_threshold=2,  # Warning threshold for overages
+            toll=120,  # toll for airport drop set to 120 if customer opts for it
+            parking=0,  # no parking charge for airport drop
             created_by=RoleEnum.system,
         ),
-        PlatformPricingConfig(
+        CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            platform_fee_percent=10.0,
+            dynamic_platform_fee_percent=7.0,  # 7% platform fee
+            min_included_hours=4,  # Minimum 4 hours for local trips
+            max_included_hours=12,  # Maximum 12 hours for local trips
+            min_included_km=40,  # Minimum 40 km included for local trips
+            max_included_km=120,  # Maximum 120 km included for local trips
+            minimum_parking_wallet=80,  #  minimum parking 80 for local trips
             created_by=RoleEnum.system,
         ),
-        PlatformPricingConfig(
+        CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            platform_fee_percent=16.0,
+            dynamic_platform_fee_percent=10.0,  # 10% platform fee
+            overage_warning_km_threshold=50,  # Warning threshold for overages
+            minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
+            minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
             created_by=RoleEnum.system,
         ),
     ]
+    # Maintain a collection for duration and included km for outstation packages
 
-    fixed_platform_fee_config = FixedPlatformPricingConfig(
-        id=str(uuid.uuid4()), fixed_platform_fee=6.0
-    )  # Fixed platform fee for all trips
+    hourly_rental_packages = [
+        TripPackageConfigSchema(
+            included_hours=4, included_km=40, package_label="4Hours / 40KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=6, included_km=60, package_label="6Hours / 60KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=8, included_km=80, package_label="8Hours / 80KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=10, included_km=100, package_label="10Hours / 100KM"
+        ),
+        TripPackageConfigSchema(
+            included_hours=12, included_km=120, package_label="12Hours / 120KM"
+        ),
+    ]
+    trip_wise_packages: List[TripPackageConfigSchema] = []
+    trip_wise_packages.extend(hourly_rental_packages)
+    trip_package_configs = []
+    for package in trip_wise_packages:
+        trip_package_configs.append(
+            TripPackageConfig(
+                id=str(uuid.uuid4()),
+                trip_type_id=trip_type_id_map[TripTypeEnum.local],
+                included_hours=package.included_hours,
+                included_km=package.included_km,
+                package_label=package.package_label,
+                created_by=RoleEnum.system,
+            )
+        )
 
-    # Toll/Parking Config
-    toll_configs = [
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            toll=80,
-            parking=60,
-            created_by=RoleEnum.system,
-        ),
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            toll=120,
-            parking=100,
-            created_by=RoleEnum.system,
-        ),
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            toll=120,
-            parking=0,
-            created_by=RoleEnum.system,
-        ),
-        TollParkingConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            toll_per_block=500,
-            parking_per_block=150,
-            block_days=2,
-            created_by=RoleEnum.system,
-        ),
-    ]
-    # Overage warning config seed
-    overage_warning_configs = [
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            warning_km_threshold=2,
-            created_by=RoleEnum.system,
-        ),
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            warning_km_threshold=2,
-            created_by=RoleEnum.system,
-        ),
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            warning_km_threshold=50,
-            created_by=RoleEnum.system,
-        ),
-        OverageWarningConfig(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            warning_km_threshold=0,
-            created_by=RoleEnum.system,
-        ),
-    ]
+    # Fixed platform fee for all trips
+    fixed_platform_fee_config = FixedPlatformPricing(
+        id=str(uuid.uuid4()), fixed_platform_fee=3.0
+    )
+
     # Night charge config seed
-    night_charge_config = NightChargeConfig(
+    night_charge_config = FixedNightPricing(
         id=str(uuid.uuid4()),
         night_start_hour=20,  # 8PM
         night_end_hour=6,  # 6AM
         created_by=RoleEnum.system,
     )
 
+    # Here create a permit fee config per state_id per cab_type_id by iterating over cab_types and states
+    permit_fees_mapping_by_state_and_cab = {
+        "TN": {
+            CarTypeEnum.hatchback: {
+                FuelTypeEnum.petrol: 300,
+                FuelTypeEnum.diesel: 300,
+                FuelTypeEnum.cng: 200,
+            },
+            CarTypeEnum.sedan: {
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 400,
+            },
+            CarTypeEnum.sedan_plus: {
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 400,
+            },
+            CarTypeEnum.suv: {
+                FuelTypeEnum.petrol: 1200,
+                FuelTypeEnum.diesel: 1200,
+                FuelTypeEnum.cng: 1000,
+            },
+            CarTypeEnum.suv_plus: {
+                FuelTypeEnum.petrol: 1200,
+                FuelTypeEnum.diesel: 1200,
+                FuelTypeEnum.cng: 1000,
+            },
+        },
+        # Add more states as needed
+    }
+    states = session.query(GeoStateModel).filter(GeoStateModel.is_home_state != 1).all()
+    permit_fee_configs = []
+    for state in states:
+        state_code = getattr(state, "state_code", None)
+        state_mapping = permit_fees_mapping_by_state_and_cab.get(state_code)
+        if not state_mapping:
+            continue  # Skip states not in mapping
+        for cab in cab_types:
+            cab_mapping = state_mapping.get(cab.name)
+            if not cab_mapping:
+                continue  # Skip cab types not in mapping
+            for fuel in fuel_types:
+                permit_fee = cab_mapping.get(fuel.name)
+                if permit_fee is None:
+                    continue  # Skip if no permit fee defined
+                try:
+                    permit_fee_configs.append(
+                        PermitFeeConfiguration(
+                            id=str(uuid.uuid4()),
+                            state_id=state.id,
+                            cab_type_id=cab.id,
+                            fuel_type_id=fuel.id,
+                            permit_fee=permit_fee,
+                            created_by=RoleEnum.system,
+                        )
+                    )
+                except Exception:
+                    # Silently skip any errors in config creation
+                    continue
+
     # Now add and commit pricing and toll configs
     session.add_all(
         outstation_pricing
         + local_pricing
         + airport_pricing
-        + toll_configs
-        + overage_warning_configs
         + [night_charge_config]
-        + platform_fee_configs
+        + common_pricing_configs
+        + trip_package_configs
         + [fixed_platform_fee_config]
+        + permit_fee_configs
     )
     session.commit()
 
@@ -508,11 +573,12 @@ def seed_states(session: Session):
         GeoStateModel(
             state_name=APP_HOME_STATE,
             state_code=APP_HOME_STATE_CODE,
-            permit_fee=0.0,
             is_home_state=1,
         ),
         GeoStateModel(
-            state_name="Tamil Nadu", state_code="TN", permit_fee=700.0, is_home_state=0
+            state_name="Tamil Nadu",
+            state_code="TN",
+            is_home_state=0,
         ),
     ]
     session.add_all(states)
