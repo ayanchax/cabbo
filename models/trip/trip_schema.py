@@ -216,6 +216,12 @@ class TripSearchOption(BaseModel):
     included_hours: Optional[int] = None  # For local trips
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
+    inclusions: Optional[List[str]] = (
+        None  # List of inclusions like tolls, parking, etc.
+    )
+    exclusions: Optional[List[str]] = (
+        None  # List of exclusions like fuel, driver meals, etc.
+    )
 
 
 class TripSearchResponse(BaseModel):

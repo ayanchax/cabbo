@@ -166,6 +166,9 @@ class FixedNightPricing(Base):
     )
     night_start_hour = Column(Integer, nullable=False)  # 24-hr format, e.g., 20 for 8PM
     night_end_hour = Column(Integer, nullable=False)  # 24-hr format, e.g., 6 for 6AM
+    night_hours_label = Column(
+        String(50), nullable=False, default="8 PM to 6 AM"
+    )  # e.g., "8PM - 6AM"
     night_overage_amount_per_block = Column(
         Float, nullable=False, default=100
     )  # Applies to all trip types, but now mostly used for outstation

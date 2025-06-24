@@ -114,6 +114,22 @@ class OveragesSchema(BaseModel):
         extra = "allow"
 
 
+class FixedNightPricingSchema(BaseModel):
+    id: Optional[str]
+    night_hours_label: Optional[str] = None  # e.g., "10 PM - 6 AM"
+    night_overage_amount_per_block: Optional[float] = (
+        None  # Amount charged for night trips
+    )
+    night_block_hours: Optional[int] = None  # Number of hours in a night block
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        extra = "allow"
+
+
 class CommonPricingConfigSchema(BaseModel):
     id: Optional[str]
     trip_type_id: Optional[str] = None  # FK to TripType.id
@@ -134,6 +150,9 @@ class CommonPricingConfigSchema(BaseModel):
     minimum_toll_wallet: Optional[float] = None  # For local/outstation
     minimum_parking_wallet: Optional[float] = None  # For local/outstation
     fixed_platform_fee: Optional[float] = None  # e.g., 50.0 for ₹50
+    fixed_night_pricing: Optional[FixedNightPricingSchema] = (
+        None  # Fixed night pricing details for mainly outstation trips
+    )
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None

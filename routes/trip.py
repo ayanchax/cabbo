@@ -7,7 +7,7 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.pricing_service import get_trip_search_options
+from services.trip_service import get_trip_search_options
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/trip", tags=["Trip"])
