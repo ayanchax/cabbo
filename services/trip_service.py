@@ -608,7 +608,7 @@ def _get_outstation_inclusions_exclusions(is_interstate: bool):
     ]
     exclusions = [
         "Personal expenses",
-        "Self sponsored driver meals",
+        "Self sponsored driver meals and/or accomodation",
         "Night surcharges(if applicable)",
         "Extra tolls(if any)",
         "Extra parking(if any)",
@@ -779,9 +779,14 @@ def _validate_outstation_trip_schedule(search_in: TripSearchRequest):
         )
     # Parse and validate start_date
     start_date = validate_date_time(date_time=search_in.start_date)
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
     end_date = validate_date_time(date_time=search_in.end_date)
+    if end_date.tzinfo is None:
+        end_date = end_date.replace(tzinfo=timezone.utc)
 
     now = datetime.now(timezone.utc)
+
     # Check for past dates
     if start_date < now or end_date < now:
         raise CabboException(

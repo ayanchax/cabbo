@@ -29,7 +29,7 @@ def seed_pricing_master(session: Session):
             name=CarTypeEnum.hatchback,
             description="Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
             cab_names="WagonR, Celerio, Tiago, Santro, i10, Swift",
-            inventory_cab_names="WagonR (CNG)",
+            inventory_cab_names="WagonR",
             created_by=RoleEnum.system,
         ),
         CabType(
@@ -90,107 +90,107 @@ def seed_pricing_master(session: Session):
             FuelTypeEnum.cng: 9,
         },
         CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 12,
-            FuelTypeEnum.diesel: 11,
-            FuelTypeEnum.cng: 10,
+            FuelTypeEnum.petrol: 13,
+            FuelTypeEnum.diesel: 12,
+            FuelTypeEnum.cng: 11,
         },
         CarTypeEnum.sedan_plus: {
-            FuelTypeEnum.petrol: 14,
-            FuelTypeEnum.diesel: 13,
-            FuelTypeEnum.cng: 12,
-        },
-        CarTypeEnum.suv: {
             FuelTypeEnum.petrol: 15,
             FuelTypeEnum.diesel: 14,
             FuelTypeEnum.cng: 13,
         },
-        CarTypeEnum.suv_plus: {
+        CarTypeEnum.suv: {
             FuelTypeEnum.petrol: 18,
             FuelTypeEnum.diesel: 17,
             FuelTypeEnum.cng: 16,
         },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 20,
+            FuelTypeEnum.cng: 18,
+        },
     }
     outstation_driver_allowance = {
         CarTypeEnum.hatchback: {
-            FuelTypeEnum.petrol: 250,
-            FuelTypeEnum.diesel: 240,
-            FuelTypeEnum.cng: 230,
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 400,
+            FuelTypeEnum.cng: 400,
         },
         CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 300,
-            FuelTypeEnum.diesel: 290,
-            FuelTypeEnum.cng: 280,
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 400,
+            FuelTypeEnum.cng: 400,
         },
         CarTypeEnum.sedan_plus: {
-            FuelTypeEnum.petrol: 320,
-            FuelTypeEnum.diesel: 310,
-            FuelTypeEnum.cng: 300,
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 400,
+            FuelTypeEnum.cng: 400,
         },
         CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 350,
-            FuelTypeEnum.diesel: 340,
-            FuelTypeEnum.cng: 330,
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 400,
+            FuelTypeEnum.cng: 400,
         },
         CarTypeEnum.suv_plus: {
             FuelTypeEnum.petrol: 400,
-            FuelTypeEnum.diesel: 390,
-            FuelTypeEnum.cng: 380,
+            FuelTypeEnum.diesel: 400,
+            FuelTypeEnum.cng: 400,
         },
     }
     # Local hourly rates by cab type and fuel type
     local_hourly_rates = {
         CarTypeEnum.hatchback: {
-            FuelTypeEnum.petrol: 180,
-            FuelTypeEnum.diesel: 170,
-            FuelTypeEnum.cng: 160,
+            FuelTypeEnum.petrol: 250,
+            FuelTypeEnum.diesel: 250,
+            FuelTypeEnum.cng: 250,
         },
         CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 220,
-            FuelTypeEnum.diesel: 210,
-            FuelTypeEnum.cng: 200,
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 280,
+            FuelTypeEnum.cng: 270,
         },
         CarTypeEnum.sedan_plus: {
-            FuelTypeEnum.petrol: 300,
-            FuelTypeEnum.diesel: 290,
-            FuelTypeEnum.cng: 280,
+            FuelTypeEnum.petrol: 350,
+            FuelTypeEnum.diesel: 340,
+            FuelTypeEnum.cng: 330,
         },
         CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 300,
-            FuelTypeEnum.diesel: 290,
-            FuelTypeEnum.cng: 280,
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 380,
+            FuelTypeEnum.cng: 360,
         },
         CarTypeEnum.suv_plus: {
-            FuelTypeEnum.petrol: 400,
-            FuelTypeEnum.diesel: 390,
-            FuelTypeEnum.cng: 380,
+            FuelTypeEnum.petrol: 450,
+            FuelTypeEnum.diesel: 420,
+            FuelTypeEnum.cng: 400,
         },
     }
     # Airport fare per km by cab type and fuel type
     airport_fare_per_km = {
         CarTypeEnum.hatchback: {
-            FuelTypeEnum.petrol: 16,
-            FuelTypeEnum.diesel: 15,
-            FuelTypeEnum.cng: 14,
-        },
-        CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 18,
-            FuelTypeEnum.diesel: 17,
-            FuelTypeEnum.cng: 16,
-        },
-        CarTypeEnum.sedan_plus: {
             FuelTypeEnum.petrol: 20,
             FuelTypeEnum.diesel: 19,
             FuelTypeEnum.cng: 18,
         },
-        CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 22,
-            FuelTypeEnum.diesel: 21,
-            FuelTypeEnum.cng: 20,
-        },
-        CarTypeEnum.suv_plus: {
+        CarTypeEnum.sedan: {
             FuelTypeEnum.petrol: 25,
             FuelTypeEnum.diesel: 24,
             FuelTypeEnum.cng: 23,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 26,
+            FuelTypeEnum.diesel: 25,
+            FuelTypeEnum.cng: 24,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 39,
+            FuelTypeEnum.diesel: 38,
+            FuelTypeEnum.cng: 37,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 46,
+            FuelTypeEnum.diesel: 45,
+            FuelTypeEnum.cng: 40,
         },
     }
     # Outstation overage config by cab type and fuel type
@@ -208,90 +208,61 @@ def seed_pricing_master(session: Session):
             FuelTypeEnum.cng: 8,
         },
         CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 11,
-            FuelTypeEnum.diesel: 10,
-            FuelTypeEnum.cng: 9,
+            FuelTypeEnum.petrol: 13,
+            FuelTypeEnum.diesel: 12,
+            FuelTypeEnum.cng: 11,
         },
         CarTypeEnum.sedan_plus: {
-            FuelTypeEnum.petrol: 13,
-            FuelTypeEnum.diesel: 12,
-            FuelTypeEnum.cng: 11,
+            FuelTypeEnum.petrol: 14,
+            FuelTypeEnum.diesel: 13,
+            FuelTypeEnum.cng: 12,
         },
         CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 13,
-            FuelTypeEnum.diesel: 12,
-            FuelTypeEnum.cng: 11,
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 20,
+            FuelTypeEnum.cng: 18,
         },
         CarTypeEnum.suv_plus: {
-            FuelTypeEnum.petrol: 16,
-            FuelTypeEnum.diesel: 15,
-            FuelTypeEnum.cng: 14,
+            FuelTypeEnum.petrol: 22,
+            FuelTypeEnum.diesel: 20,
+            FuelTypeEnum.cng: 17,
         },
     }
 
     # Local overage config by cab type and fuel type
     local_overage_per_hour = {
         CarTypeEnum.hatchback: {
-            FuelTypeEnum.petrol: 180,
-            FuelTypeEnum.diesel: 170,
-            FuelTypeEnum.cng: 160,
+            FuelTypeEnum.petrol: 250,
+            FuelTypeEnum.diesel: 250,
+            FuelTypeEnum.cng: 250,
         },
         CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 220,
-            FuelTypeEnum.diesel: 210,
-            FuelTypeEnum.cng: 200,
+            FuelTypeEnum.petrol: 300,
+            FuelTypeEnum.diesel: 280,
+            FuelTypeEnum.cng: 280,
         },
         CarTypeEnum.sedan_plus: {
-            FuelTypeEnum.petrol: 300,
-            FuelTypeEnum.diesel: 290,
-            FuelTypeEnum.cng: 280,
+            FuelTypeEnum.petrol: 350,
+            FuelTypeEnum.diesel: 340,
+            FuelTypeEnum.cng: 330,
         },
         CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 300,
-            FuelTypeEnum.diesel: 290,
-            FuelTypeEnum.cng: 280,
+            FuelTypeEnum.petrol: 400,
+            FuelTypeEnum.diesel: 380,
+            FuelTypeEnum.cng: 360,
         },
         CarTypeEnum.suv_plus: {
-            FuelTypeEnum.petrol: 400,
-            FuelTypeEnum.diesel: 390,
-            FuelTypeEnum.cng: 380,
+            FuelTypeEnum.petrol: 450,
+            FuelTypeEnum.diesel: 420,
+            FuelTypeEnum.cng: 400,
         },
     }
 
     local_overage_per_km = {
         CarTypeEnum.hatchback: {
-            FuelTypeEnum.petrol: 12,
-            FuelTypeEnum.diesel: 10,
-            FuelTypeEnum.cng: 7,
-        },
-        CarTypeEnum.sedan: {
-            FuelTypeEnum.petrol: 13,
-            FuelTypeEnum.diesel: 11,
-            FuelTypeEnum.cng: 10,
-        },
-        CarTypeEnum.sedan_plus: {
             FuelTypeEnum.petrol: 15,
-            FuelTypeEnum.diesel: 13,
-            FuelTypeEnum.cng: 11,
-        },
-        CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 18,
             FuelTypeEnum.diesel: 15,
-            FuelTypeEnum.cng: 14,
-        },
-        CarTypeEnum.suv_plus: {
-            FuelTypeEnum.petrol: 22,
-            FuelTypeEnum.diesel: 18,
-            FuelTypeEnum.cng: 16,
-        },
-    }
-
-    # Airport overage config by cab type and fuel type
-    airport_overage_per_km = {
-        CarTypeEnum.hatchback: {
-            FuelTypeEnum.petrol: 14,
-            FuelTypeEnum.diesel: 13,
-            FuelTypeEnum.cng: 12,
+            FuelTypeEnum.cng: 15,
         },
         CarTypeEnum.sedan: {
             FuelTypeEnum.petrol: 16,
@@ -304,14 +275,43 @@ def seed_pricing_master(session: Session):
             FuelTypeEnum.cng: 16,
         },
         CarTypeEnum.suv: {
-            FuelTypeEnum.petrol: 19,
-            FuelTypeEnum.diesel: 18,
-            FuelTypeEnum.cng: 17,
+            FuelTypeEnum.petrol: 20,
+            FuelTypeEnum.diesel: 19,
+            FuelTypeEnum.cng: 18,
         },
         CarTypeEnum.suv_plus: {
             FuelTypeEnum.petrol: 22,
             FuelTypeEnum.diesel: 21,
             FuelTypeEnum.cng: 20,
+        },
+    }
+
+    # Airport overage config by cab type and fuel type
+    airport_overage_per_km = {
+        CarTypeEnum.hatchback: {
+            FuelTypeEnum.petrol: 18,
+            FuelTypeEnum.diesel: 17,
+            FuelTypeEnum.cng: 17,
+        },
+        CarTypeEnum.sedan: {
+            FuelTypeEnum.petrol: 20,
+            FuelTypeEnum.diesel: 19,
+            FuelTypeEnum.cng: 18,
+        },
+        CarTypeEnum.sedan_plus: {
+            FuelTypeEnum.petrol: 21,
+            FuelTypeEnum.diesel: 20,
+            FuelTypeEnum.cng: 19,
+        },
+        CarTypeEnum.suv: {
+            FuelTypeEnum.petrol: 38,
+            FuelTypeEnum.diesel: 37,
+            FuelTypeEnum.cng: 36,
+        },
+        CarTypeEnum.suv_plus: {
+            FuelTypeEnum.petrol: 43,
+            FuelTypeEnum.diesel: 42,
+            FuelTypeEnum.cng: 38,
         },
     }
 
@@ -494,32 +494,86 @@ def seed_pricing_master(session: Session):
     )
 
     # Here create a permit fee config per state_id per cab_type_id by iterating over cab_types and states
-    permit_fees_mapping_by_state_and_cab = {
+    weekly_permit_fees_mapping_by_state_and_cab = {
         "TN": {
             CarTypeEnum.hatchback: {
-                FuelTypeEnum.petrol: 300,
-                FuelTypeEnum.diesel: 300,
-                FuelTypeEnum.cng: 200,
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 500,
             },
             CarTypeEnum.sedan: {
                 FuelTypeEnum.petrol: 500,
                 FuelTypeEnum.diesel: 500,
-                FuelTypeEnum.cng: 400,
+                FuelTypeEnum.cng: 500,
             },
             CarTypeEnum.sedan_plus: {
-                FuelTypeEnum.petrol: 500,
-                FuelTypeEnum.diesel: 500,
-                FuelTypeEnum.cng: 400,
+                FuelTypeEnum.petrol: 570,
+                FuelTypeEnum.diesel: 570,
+                FuelTypeEnum.cng: 570,
             },
             CarTypeEnum.suv: {
-                FuelTypeEnum.petrol: 1200,
-                FuelTypeEnum.diesel: 1200,
-                FuelTypeEnum.cng: 1000,
+                FuelTypeEnum.petrol: 800,
+                FuelTypeEnum.diesel: 800,
+                FuelTypeEnum.cng: 800,
             },
             CarTypeEnum.suv_plus: {
                 FuelTypeEnum.petrol: 1200,
                 FuelTypeEnum.diesel: 1200,
-                FuelTypeEnum.cng: 1000,
+                FuelTypeEnum.cng: 1200,
+            },
+        },
+        "KL": {
+            CarTypeEnum.hatchback: {
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 500,
+            },
+            CarTypeEnum.sedan: {
+                FuelTypeEnum.petrol: 800,
+                FuelTypeEnum.diesel: 800,
+                FuelTypeEnum.cng: 800,
+            },
+            CarTypeEnum.sedan_plus: {
+                FuelTypeEnum.petrol: 800,
+                FuelTypeEnum.diesel: 800,
+                FuelTypeEnum.cng: 800,
+            },
+            CarTypeEnum.suv: {
+                FuelTypeEnum.petrol: 2700,
+                FuelTypeEnum.diesel: 2700,
+                FuelTypeEnum.cng: 2700,
+            },
+            CarTypeEnum.suv_plus: {
+                FuelTypeEnum.petrol: 2700,
+                FuelTypeEnum.diesel: 2700,
+                FuelTypeEnum.cng: 2700,
+            },
+        },
+        "AP": {
+            CarTypeEnum.hatchback: {
+                FuelTypeEnum.petrol: 500,
+                FuelTypeEnum.diesel: 500,
+                FuelTypeEnum.cng: 500,
+            },
+            CarTypeEnum.sedan: {
+                FuelTypeEnum.petrol: 800,
+                FuelTypeEnum.diesel: 800,
+                FuelTypeEnum.cng: 800,
+            },
+            CarTypeEnum.sedan_plus: {
+                FuelTypeEnum.petrol: 800,
+                FuelTypeEnum.diesel: 800,
+                FuelTypeEnum.cng: 800,
+            },
+            CarTypeEnum.suv: {
+                FuelTypeEnum.petrol: 2200,
+                FuelTypeEnum.diesel: 2200,
+                FuelTypeEnum.cng: 2200,
+            },
+            CarTypeEnum.suv_plus: {
+                FuelTypeEnum.petrol: 2200,
+                FuelTypeEnum.diesel: 2200,
+                FuelTypeEnum.cng: 2200,
             },
         },
         # Add more states as needed
@@ -528,7 +582,7 @@ def seed_pricing_master(session: Session):
     permit_fee_configs = []
     for state in states:
         state_code = getattr(state, "state_code", None)
-        state_mapping = permit_fees_mapping_by_state_and_cab.get(state_code)
+        state_mapping = weekly_permit_fees_mapping_by_state_and_cab.get(state_code)
         if not state_mapping:
             continue  # Skip states not in mapping
         for cab in cab_types:
@@ -578,6 +632,16 @@ def seed_states(session: Session):
         GeoStateModel(
             state_name="Tamil Nadu",
             state_code="TN",
+            is_home_state=0,
+        ),
+        GeoStateModel(
+            state_name="Kerala",
+            state_code="KL",
+            is_home_state=0,
+        ),
+        GeoStateModel(
+            state_name="Andhra Pradesh",
+            state_code="AP",
             is_home_state=0,
         ),
     ]
