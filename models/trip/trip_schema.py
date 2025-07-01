@@ -17,7 +17,6 @@ from models.trip.trip_enums import (
 from models.geography.geo_enums import LocationInfo
 from models.cab.pricing_orm import RoleEnum
 from utils.utility import validate_and_sanitize_country_phone
-from models.customer.passenger_schema import PassengerCreate
 
 
 class TripBase(BaseModel):
@@ -64,7 +63,7 @@ class TripBase(BaseModel):
     # However all invoices and receipts will still go to the primary phone number.
     alternate_customer_phone: Optional[str] = None
     # Optional: passenger info for 'book for someone else' feature
-    passenger: Optional[PassengerCreate] = None  # If provided, trip is for someone else
+    passenger_id: Optional[str] = None  # If provided, trip is for someone else
 
     # num_luggages is now computed as the sum of all above fields
     @property
@@ -113,7 +112,7 @@ class TripOut(TripBase):
     passenger_id: Optional[str] = None  # FK to passengers.id if not self
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TripStatusAuditOut(BaseModel):
@@ -130,7 +129,7 @@ class TripStatusAuditOut(BaseModel):
     )
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class OutstandingDueOut(BaseModel):
@@ -143,7 +142,7 @@ class OutstandingDueOut(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TripTypeMasterOut(BaseModel):
@@ -156,7 +155,7 @@ class TripTypeMasterOut(BaseModel):
     last_modified: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TripSearchRequest(BaseModel):
@@ -188,7 +187,7 @@ class TripSearchRequest(BaseModel):
     placard_name: Optional[str] = (
         None  # Name to display on the placard for airport pickup
     )
-    passenger: Optional[PassengerCreate] = None  # If provided, trip is for someone else
+    passenger_id: Optional[str] = None  # If provided, trip is for someone else
 
 
 class TripPackageConfigSchema(BaseModel):
@@ -197,6 +196,9 @@ class TripPackageConfigSchema(BaseModel):
     included_hours: int  # e.g., 4, 6, 8, 10, 12
     included_km: int  # e.g., 40, 60, 80, 100, 120
     package_label: str  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    driver_allowance: Optional[float] = (
+        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
+    )
 
     class Config:
         from_attributes = True
@@ -216,17 +218,17 @@ class TripSearchOption(BaseModel):
     included_hours: Optional[int] = None  # For local trips
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
+
+
+class TripSearchResponse(BaseModel):
+    options: List[TripSearchOption]
+    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
     inclusions: Optional[List[str]] = (
         None  # List of inclusions like tolls, parking, etc.
     )
     exclusions: Optional[List[str]] = (
         None  # List of exclusions like fuel, driver meals, etc.
     )
-
-
-class TripSearchResponse(BaseModel):
-    options: List[TripSearchOption]
-    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
 
 
 class TripBookRequest(BaseModel):

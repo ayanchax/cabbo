@@ -49,3 +49,4 @@ dist/
 share/
 application-requirements.txt
 notes/
+testdata/
