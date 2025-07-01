@@ -198,7 +198,10 @@ def get_preauthorized_minimum_wallet_amount(pre_authorized_wallet_amount: float)
 
 
 def get_local_trips_disclaimer_lines(
-    package_label: str, overage_amount_per_hour: float, overage_amount_per_km: float
+    package_label: str,
+    overage_amount_per_hour: float,
+    overage_amount_per_km: float,
+    applicable_driver_allowance: float = 0.0,
 ):
     """
     Returns the disclaimer lines for local trips, including overage charges and parking fees.
@@ -209,8 +212,16 @@ def get_local_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for local trips.
     """
+    if applicable_driver_allowance == 0.0:
+        return [
+            f"If you exceed the included hours and/or kilometers in your selected package ({package_label}), {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km will be charged.",
+            "If any tolls are incurred during your trip, they will be billed based on actual usage.",
+            "If parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.",
+            "All extra charges are based on actual usage and will be transparently shown in your invoice.",
+        ]
     return [
         f"If you exceed the included hours and/or kilometers in your selected package ({package_label}), {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km will be charged.",
+        f"If you exceed the included hours in your selected package ({package_label}), an additional driver allowance of {APP_COUNTRY_CURRENCY_SYMBOL}{applicable_driver_allowance} will be charged.",
         "If any tolls are incurred during your trip, they will be billed based on actual usage.",
         "If parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.",
         "All extra charges are based on actual usage and will be transparently shown in your invoice.",

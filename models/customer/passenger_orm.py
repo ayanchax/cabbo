@@ -1,5 +1,14 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Integer,
+    Boolean,
+    ForeignKey,
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.mysql import CHAR
+from core.security import RoleEnum
 from db.database import Base
 from sqlalchemy.sql import func
 import uuid
@@ -24,6 +33,7 @@ class Passenger(Base):
     name = Column(String(255), nullable=False)
     phone_number = Column(String(20), unique=True, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
     last_modified = Column(
         DateTime,

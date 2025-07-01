@@ -144,6 +144,7 @@ def get_trip_search_options(
     Raises:
         CabboException: If the trip type is invalid or not supported, or if any validation fails.
     """
+
     _validate_trip_type(search_in)  # Validate trip type before proceeding
     _populate_default_preferences(search_in)  # Ensure preferences are set
     options: List[TripSearchOption] = []
@@ -216,8 +217,6 @@ def get_trip_search_options(
                     price_breakdown=price_breakdown,
                     estimated_km=est_km,
                     package=package_label,  # Use package string for display
-                    inclusions=inclusions,
-                    exclusions=exclusions,
                     overages=(
                         OveragesSchema(
                             indicative_overage_warning=indicative_overage_warning,
@@ -287,8 +286,6 @@ def get_trip_search_options(
                     price_breakdown=price_breakdown,
                     estimated_km=est_km,
                     package=package_label,
-                    inclusions=inclusions,
-                    exclusions=exclusions,
                     overages=(
                         OveragesSchema(
                             indicative_overage_warning=indicative_overage_warning,
@@ -362,9 +359,10 @@ def get_trip_search_options(
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             overage_amount_per_hour = pricing_schema.overage_amount_per_hour
             disclaimer_lines = get_local_trips_disclaimer_lines(
-                package_label=package_label,
+                package_label=package.package_label,
                 overage_amount_per_hour=overage_amount_per_hour,
                 overage_amount_per_km=overage_amount_per_km,
+                applicable_driver_allowance=price_breakdown.driver_allowance,
             )
 
             disclaimer_message = (
@@ -381,8 +379,6 @@ def get_trip_search_options(
                     included_hours=package_included_hours,
                     included_km=package_included_km,
                     package=package_label,  # Use package string for display
-                    inclusions=inclusions,
-                    exclusions=exclusions,
                     overages=(
                         OveragesSchema(
                             disclaimer=disclaimer_message,
@@ -492,8 +488,6 @@ def get_trip_search_options(
                     ),
                     price_breakdown=price_breakdown,
                     included_km=included_km,
-                    inclusions=inclusions,
-                    exclusions=exclusions,
                     package=package_label,
                     overages=(
                         OveragesSchema(
@@ -579,7 +573,12 @@ def get_trip_search_options(
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
-    return TripSearchResponse(options=_options, preferences=search_in)
+    return TripSearchResponse(
+        options=_options,
+        inclusions=inclusions,
+        exclusions=exclusions,
+        preferences=search_in,
+    )
 
 
 def _get_local_inclusions_exclusions():
