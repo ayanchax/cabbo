@@ -35,6 +35,8 @@ from datetime import datetime, timezone, timedelta
 import math
 from services.pricing_service import (
     get_airport_toll,
+    get_local_trips_disclaimer_lines,
+    get_outstation_trips_disclaimer_lines,
     get_preauthorized_minimum_wallet_amount,
     retrieve_interstate_permit_fee,
     retrieve_trip_wise_pricing_config,
@@ -318,6 +320,7 @@ def get_trip_search_options(
             fallback_km=configs.min_included_km,
             db=db,
         )
+
         package_label = f"{package.package_label} | AC {search_in.preferred_car_type} - ({search_in.preferred_fuel_type})"
         package_included_hours = package.included_hours
         package_included_km = package.included_km
@@ -348,16 +351,25 @@ def get_trip_search_options(
                 base_fare=math.ceil(base_fare),
                 minimum_parking_wallet=math.ceil(minimum_parking_wallet),
                 platform_fee=math.ceil(platform_fee_amount),
+                driver_allowance=(
+                    math.ceil(package.driver_allowance)
+                    if package.driver_allowance
+                    else 0.0
+                ),
             )
             # For local trips, we can't estimate distance in advance since routes are uncertain and hence no est_km is provided.
             # Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, to keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             overage_amount_per_hour = pricing_schema.overage_amount_per_hour
-            disclaimer_message = f"""Extra charges may apply: 
-                                     - If you exceed the included hours and/or kilometers in your selected package({package_label}), {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km will be charged. 
-                                     - If any tolls are incurred during your trip, they will be billed based on actual usage
-                                     - If parking expenses during your trip exceed the included wallet amount, the extra will be charged separately. If you use less than the included amount, the unused balance will be refunded (subtracted from your final bill) at the end of your trip.
-                                     - All extra charges are based on actual usage and will be transparently shown in your invoice"""
+            disclaimer_lines = get_local_trips_disclaimer_lines(
+                package_label=package_label,
+                overage_amount_per_hour=overage_amount_per_hour,
+                overage_amount_per_km=overage_amount_per_km,
+            )
+
+            disclaimer_message = (
+                "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
+            )
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
@@ -464,6 +476,13 @@ def get_trip_search_options(
                 permit_fee=math.ceil(permit_fee),
                 platform_fee=math.ceil(platform_fee_amount),
             )
+            disclaimer_lines = get_outstation_trips_disclaimer_lines(
+                night_hours_display_label=night_hours_display_label,
+                night_surcharge_per_hour=night_surcharge_per_hour,
+            )
+            disclaimer = "Extra charges may apply:\n - " + "\n - ".join(
+                disclaimer_lines
+            )
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,
@@ -489,10 +508,7 @@ def get_trip_search_options(
                                 if indicative_overage_warning
                                 else 0.0
                             ),
-                            disclaimer=f"""Extra charges may apply:
-    - If the driver drives during night hours ({night_hours_display_label}), a nightly hourly surcharge of {APP_COUNTRY_CURRENCY_SYMBOL}{night_surcharge_per_hour} will be applied.
-    - If total toll and/or parking expenses during your trip exceed the included wallet amount, the extra will be charged separately. If you use less than the included amount, the unused balance will be refunded (subtracted from your final bill) at the end of your trip.
-    - All extra charges are based on actual usage and will be transparently shown in your invoice.""",
+                            disclaimer=disclaimer,
                         )
                     ),
                 )

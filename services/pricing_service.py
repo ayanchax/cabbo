@@ -1,6 +1,7 @@
 from typing import List
 
 from sqlalchemy import func
+from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
 from models.cab.pricing_schema import (
     CommonPricingConfigSchema,
     FixedNightPricingSchema,
@@ -194,3 +195,44 @@ def get_preauthorized_minimum_wallet_amount(pre_authorized_wallet_amount: float)
         if pre_authorized_wallet_amount is not None
         else 0.0
     )
+
+
+def get_local_trips_disclaimer_lines(
+    package_label: str, overage_amount_per_hour: float, overage_amount_per_km: float
+):
+    """
+    Returns the disclaimer lines for local trips, including overage charges and parking fees.
+
+    This function provides the standard disclaimer lines that are used in local trip pricing
+    calculations, ensuring that customers are aware of potential extra charges.
+
+    Returns:
+        List[str]: A list of disclaimer lines for local trips.
+    """
+    return [
+        f"If you exceed the included hours and/or kilometers in your selected package ({package_label}), {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_hour} per additional hour and/or {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional km will be charged.",
+        "If any tolls are incurred during your trip, they will be billed based on actual usage.",
+        "If parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.",
+        "All extra charges are based on actual usage and will be transparently shown in your invoice.",
+    ]
+
+
+def get_outstation_trips_disclaimer_lines(
+    night_hours_display_label: str,
+    night_surcharge_per_hour: float,
+):
+    """
+    Returns the disclaimer lines for outstation trips, including overage charges and parking fees.
+
+    This function provides the standard disclaimer lines that are used in outstation trip pricing
+    calculations, ensuring that customers are aware of potential extra charges.
+
+    Returns:
+        List[str]: A list of disclaimer lines for outstation trips.
+    """
+
+    return [
+        f"If the driver drives during night hours ({night_hours_display_label}), a nightly hourly surcharge of {APP_COUNTRY_CURRENCY_SYMBOL}{night_surcharge_per_hour} will be applied.",
+        "If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.",
+        "All extra charges are based on actual usage and will be transparently shown in your invoice.",
+    ]

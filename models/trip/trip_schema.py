@@ -113,7 +113,7 @@ class TripOut(TripBase):
     passenger_id: Optional[str] = None  # FK to passengers.id if not self
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TripStatusAuditOut(BaseModel):
@@ -130,7 +130,7 @@ class TripStatusAuditOut(BaseModel):
     )
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class OutstandingDueOut(BaseModel):
@@ -143,7 +143,7 @@ class OutstandingDueOut(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TripTypeMasterOut(BaseModel):
@@ -156,7 +156,7 @@ class TripTypeMasterOut(BaseModel):
     last_modified: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TripSearchRequest(BaseModel):
@@ -197,6 +197,9 @@ class TripPackageConfigSchema(BaseModel):
     included_hours: int  # e.g., 4, 6, 8, 10, 12
     included_km: int  # e.g., 40, 60, 80, 100, 120
     package_label: str  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    driver_allowance: Optional[float] = (
+        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
+    )
 
     class Config:
         from_attributes = True
