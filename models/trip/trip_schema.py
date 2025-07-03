@@ -1,12 +1,14 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional, List, Union
 from datetime import datetime
+from core.exceptions import CabboException
 from models.cab.pricing_schema import (
     AirportPricingBreakdownSchema,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
     OveragesSchema,
 )
+from models.customer.passenger_schema import PassengerOut
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -188,6 +190,25 @@ class TripSearchRequest(BaseModel):
         None  # Name to display on the placard for airport pickup
     )
     passenger_id: Optional[str] = None  # If provided, trip is for someone else
+    passenger_details: Optional[Union[str, PassengerOut]] = None
+
+    # Validate trip type and ensure it is one of the supported types
+    @field_validator("trip_type", mode="before")
+    @classmethod
+    def validate_trip_type(cls, v):
+        valid_trip_types = [
+            TripTypeEnum.airport_pickup,
+            TripTypeEnum.airport_drop,
+            TripTypeEnum.local,
+            TripTypeEnum.outstation,
+        ]
+        if v not in valid_trip_types:
+            supported_types = ", ".join([t.value for t in valid_trip_types])
+            raise CabboException(
+                f"Invalid trip type. Supported types are: {supported_types}",
+                status_code=400,
+            )
+        return v
 
 
 class TripPackageConfigSchema(BaseModel):
@@ -204,6 +225,19 @@ class TripPackageConfigSchema(BaseModel):
         from_attributes = True
 
 
+class AmenitiesSchema(BaseModel):
+    ac: bool = True  # Air conditioning
+    music_system: bool = True  # Music system
+    water_bottle: bool = False  # Water bottle
+    tissues: bool = False  # Tissues
+    candies: bool = False  # Candies
+    snacks: bool = False  # Snacks
+    phone_charger: bool = False  # Phone charger
+    aux_cable: bool = False  # Aux cable for music
+    bluetooth: bool = False  # Bluetooth connectivity
+    wifi: bool = False  # Wifi connectivity
+
+
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     fuel_type: FuelTypeEnum
@@ -216,6 +250,9 @@ class TripSearchOption(BaseModel):
     estimated_km: Optional[float] = None
     included_km: Optional[float] = None
     included_hours: Optional[int] = None  # For local trips
+    package_short_label: Optional[str] = (
+        None  # Short label for the package, e.g., "4 Hours / 40 KM"
+    )
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
 
@@ -228,6 +265,12 @@ class TripSearchResponse(BaseModel):
     )
     exclusions: Optional[List[str]] = (
         None  # List of exclusions like fuel, driver meals, etc.
+    )
+    in_car_amenities: Optional[AmenitiesSchema] = (
+        None  # List of in-car amenities like water bottles, tissues, etc.
+    )
+    total_trip_days: Optional[int] = (
+        None  # Total number of days for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
 
 

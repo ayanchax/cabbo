@@ -11,8 +11,10 @@ from models.cab.pricing_schema import (
     FuelTypeSchema,
     OutstationPricingBreakdownSchema,
 )
+from models.customer.passenger_schema import PassengerOut, PassengerRead
 from models.trip.trip_orm import TripPackageConfig
 from models.trip.trip_schema import (
+    AmenitiesSchema,
     TripPackageConfigSchema,
     TripSearchRequest,
     TripSearchOption,
@@ -33,6 +35,7 @@ from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from core.constants import APP_COUNTRY_CURRENCY_SYMBOL, APP_HOME_STATE
 from datetime import datetime, timezone, timedelta
 import math
+from services.passenger_service import get_passenger_by_id
 from services.pricing_service import (
     get_airport_toll,
     get_local_trips_disclaimer_lines,
@@ -114,8 +117,31 @@ def _validate_placard_requirements(search_in: TripSearchRequest):
         )
 
 
+def _validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Session):
+    if search_in.passenger_id:
+        search_in.passenger_id = search_in.passenger_id.strip()
+        passenger = get_passenger_by_id(passenger_id=search_in.passenger_id, db=db)
+        if not passenger:
+            raise CabboException("Invalid passenger ID provided", status_code=400)
+        if passenger.customer_id != requestor:
+            raise CabboException(
+                "Passenger does not belong to the requesting customer", status_code=403
+            )
+        if passenger.is_active is False:
+            raise CabboException("Passenger is not active", status_code=403)
+        passenger_read = PassengerRead.model_validate(
+            passenger
+        )  # Validate passenger schema
+        search_in.passenger_details = (
+            passenger_read  # Attach passenger details to request
+        )
+    else:
+        search_in.passenger_details = "self"  # No passenger details provided
+        search_in.passenger_id = requestor  # Clear passenger ID if not provided
+
+
 def get_trip_search_options(
-    search_in: TripSearchRequest, db: Session
+    search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
     """
     Returns a list of cab options with detailed pricing and breakdown for a user's trip search and preferences.
@@ -144,14 +170,19 @@ def get_trip_search_options(
     Raises:
         CabboException: If the trip type is invalid or not supported, or if any validation fails.
     """
-
-    _validate_trip_type(search_in)  # Validate trip type before proceeding
+    _validate_passenger_id(
+        search_in, requestor, db
+    )  # Validate passenger ID if provided
     _populate_default_preferences(search_in)  # Ensure preferences are set
     options: List[TripSearchOption] = []
     configs = retrieve_trip_wise_pricing_config(db, search_in.trip_type)
     platform_fee_percent = configs.dynamic_platform_fee_percent
     toll = 0.0
     parking = 0.0
+    in_car_amenities = _get_default_amenities()
+    total_trip_days = (
+        None  # Default to 1 day for local and airport trips, can be overridden later
+    )
 
     if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
         _validate_airport_schedule(search_in)  # Validate airport pickup schedule
@@ -163,12 +194,14 @@ def get_trip_search_options(
             toll_road_preferred=search_in.toll_road_preferred,
             placard_required=search_in.placard_required,
         )
+
         airport_pricings = (
             db.query(AirportCabPricing, CabType, FuelType)
             .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
             .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
             .all()
         )
+        package_short_label = "Airport Pickup"
 
         for pricing, cab_type, fuel_type in airport_pricings:
             pricing_schema = AirportCabPricingSchema.model_validate(pricing)
@@ -198,7 +231,7 @@ def get_trip_search_options(
             platform_fee_amount = configs.fixed_platform_fee + (
                 platform_fee_percent * total_price_before_platform_fee / 100
             )
-            package_label = f"Airport Pickup | AC {cab_type_schema.name} - ({fuel_type_schema.name})"
+            package_label = f"{package_short_label} | AC {cab_type_schema.name} - ({fuel_type_schema.name})"
 
             price_breakdown = AirportPricingBreakdownSchema(
                 base_fare=math.ceil(base_price),
@@ -217,6 +250,7 @@ def get_trip_search_options(
                     price_breakdown=price_breakdown,
                     estimated_km=est_km,
                     package=package_label,  # Use package string for display
+                    package_short_label=package_short_label,
                     overages=(
                         OveragesSchema(
                             indicative_overage_warning=indicative_overage_warning,
@@ -241,12 +275,14 @@ def get_trip_search_options(
         inclusions, exclusions = _get_airport_drop_inclusions_exclusions(
             toll_road_preferred=search_in.toll_road_preferred
         )
+
         airport_pricings = (
             db.query(AirportCabPricing, CabType, FuelType)
             .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
             .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
             .all()
         )
+        package_short_label = "Airport Drop"
         for pricing, cab_type, fuel_type in airport_pricings:
             pricing_schema = AirportCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
@@ -268,9 +304,7 @@ def get_trip_search_options(
             platform_fee_amount = configs.fixed_platform_fee + (
                 platform_fee_percent * total_price_before_platform_fee / 100
             )
-            package_label = (
-                f"Airport Drop | AC {cab_type_schema.name} - ({fuel_type_schema.name})"
-            )
+            package_label = f"{package_short_label} | AC {cab_type_schema.name} - ({fuel_type_schema.name})"
             price_breakdown = AirportPricingBreakdownSchema(
                 base_fare=math.ceil(base_price),
                 toll=math.ceil(toll),
@@ -286,6 +320,7 @@ def get_trip_search_options(
                     price_breakdown=price_breakdown,
                     estimated_km=est_km,
                     package=package_label,
+                    package_short_label=package_short_label,
                     overages=(
                         OveragesSchema(
                             indicative_overage_warning=indicative_overage_warning,
@@ -304,8 +339,13 @@ def get_trip_search_options(
                 )
             )
     elif search_in.trip_type == TripTypeEnum.local:
+        _validate_local_trip_schedule(search_in)  # Validate local trip schedule
         _, _, _ = _get_trip_origin_destination_distance_local(search_in)
         inclusions, exclusions = _get_local_inclusions_exclusions()
+        in_car_amenities.phone_charger = (
+            True  # Always include phone charger for local trips
+        )
+        in_car_amenities.aux_cable = True  # Always include aux cable for local trips
         # Minimum parking wallet amount is configured to 80 for local trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer accordingly, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
         minimum_parking_wallet = get_preauthorized_minimum_wallet_amount(
             configs.minimum_parking_wallet
@@ -317,8 +357,8 @@ def get_trip_search_options(
             fallback_km=configs.min_included_km,
             db=db,
         )
-
-        package_label = f"{package.package_label} | AC {search_in.preferred_car_type} - ({search_in.preferred_fuel_type})"
+        package_short_label = package.package_label
+        package_label = f"{package_short_label} | AC {search_in.preferred_car_type} - ({search_in.preferred_fuel_type})"
         package_included_hours = package.included_hours
         package_included_km = package.included_km
         local_pricings = (
@@ -379,6 +419,7 @@ def get_trip_search_options(
                     included_hours=package_included_hours,
                     included_km=package_included_km,
                     package=package_label,  # Use package string for display
+                    package_short_label=package_short_label,
                     overages=(
                         OveragesSchema(
                             disclaimer=disclaimer_message,
@@ -387,7 +428,6 @@ def get_trip_search_options(
                 )
             )
     elif search_in.trip_type == TripTypeEnum.outstation:
-
         _, _, est_km = _get_trip_origin_destination_distance_outstation(search_in)
         total_trip_days = _validate_outstation_trip_schedule(search_in)
         # Minumum toll wallet amount is configured to 500.00 for outstation trips, if the total cost of the toll goes above the minimum toll amount during the trip, then the surplus amount will be charged to the customer accordingly, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
@@ -403,6 +443,16 @@ def get_trip_search_options(
         # Identify unique state borders crossed (including between hops)
         is_interstate, _, unique_states = _track_state_transitions(search_in)
         inclusions, exclusions = _get_outstation_inclusions_exclusions(is_interstate)
+        in_car_amenities.candies = True  # Candies are included for outstation trips
+        in_car_amenities.phone_charger = (
+            True  # Always include phone charger for outstation trips
+        )
+        in_car_amenities.aux_cable = (
+            True  # Always include aux cable for outstation trips
+        )
+        in_car_amenities.bluetooth = (
+            True  # Always include bluetooth for outstation trips
+        )
         permit_fee = 0.0
         est_km = (
             2 * est_km
@@ -449,7 +499,10 @@ def get_trip_search_options(
             warning_km_threshold = configs.overage_warning_km_threshold
             margin = included_km - est_km  # Allow negative values for overage
             indicative_overage_warning = margin <= warning_km_threshold
-            package_label = f"{max(est_km, included_km)} km | Round trip | ({total_trip_days} days) - AC {cab_type_schema.name} - ({fuel_type_schema.name})"
+            package_short_label = (
+                f"{max(est_km, included_km)} km | Round trip | ({total_trip_days} days)"
+            )
+            package_label = f"{package_short_label} - AC {cab_type_schema.name} - ({fuel_type_schema.name})"
 
             # Total before platform fee
             total_price_before_platform_fee = (
@@ -489,6 +542,7 @@ def get_trip_search_options(
                     price_breakdown=price_breakdown,
                     included_km=included_km,
                     package=package_label,
+                    package_short_label=package_short_label,
                     overages=(
                         OveragesSchema(
                             indicative_overage_warning=indicative_overage_warning,
@@ -578,6 +632,8 @@ def get_trip_search_options(
         inclusions=inclusions,
         exclusions=exclusions,
         preferences=search_in,
+        in_car_amenities=in_car_amenities,
+        total_trip_days=total_trip_days,
     )
 
 
@@ -594,6 +650,7 @@ def _get_local_inclusions_exclusions():
         "Minimum parking allowance",
         "Water bottles and tissues",
         "Platform fee",
+        "Premium AC cab experience with professional driver",
     ]
     exclusions = [
         "Personal expenses",
@@ -602,6 +659,15 @@ def _get_local_inclusions_exclusions():
         "Extra parking(if any)",
     ]
     return inclusions, exclusions
+
+
+def _get_default_amenities():
+    return AmenitiesSchema(
+        water_bottle=True,
+        tissues=True,
+        ac=True,
+        music_system=True,
+    )
 
 
 def _get_outstation_inclusions_exclusions(is_interstate: bool):
@@ -620,6 +686,7 @@ def _get_outstation_inclusions_exclusions(is_interstate: bool):
         "Minimum parking and toll allowance",
         "Water bottles, candies, and tissues",
         "Platform fee",
+        "Premium AC cab experience with professional driver",
     ]
     exclusions = [
         "Personal expenses",
@@ -636,6 +703,7 @@ def _get_outstation_inclusions_exclusions(is_interstate: bool):
             "State entry taxes",
             "Water bottles, candies, and tissues",
             "Platform fee",
+            "Premium AC cab experience with professional driver",
         ]
     return inclusions, exclusions
 
@@ -654,11 +722,17 @@ def _get_airport_drop_inclusions_exclusions(toll_road_preferred: bool = False):
             "Toll",
             "Water bottles and tissues",
             "Platform fee",
+            "Premium AC cab experience with professional driver",
         ]
     else:
         # If toll road is not preferred, we don't include toll charges
         # and hence we don't include it in the inclusions list
-        inclusions = ["Base fare", "Water bottles and tissues", "Platform fee"]
+        inclusions = [
+            "Base fare",
+            "Water bottles and tissues",
+            "Platform fee",
+            "Premium AC cab experience with professional driver",
+        ]
 
     exclusions = ["Personal expenses", "Self sponsored driver meals"]
     return inclusions, exclusions
@@ -680,6 +754,7 @@ def _get_airport_pickup_inclusions_exclusions(
             "Toll",
             "Parking",
             "Platform fee",
+            "Premium AC cab experience with professional driver",
             "Water bottles and tissues",
             "Placard charges",
         ]
@@ -690,12 +765,14 @@ def _get_airport_pickup_inclusions_exclusions(
             "Parking",
             "Water bottles and tissues",
             "Platform fee",
+            "Premium AC cab experience with professional driver",
         ]
     elif not toll_road_preferred and placard_required:
         inclusions = [
             "Base fare",
             "Parking",
             "Platform fee",
+            "Premium AC cab experience with professional driver",
             "Water bottles and tissues",
             "Placard charges",
         ]
@@ -707,6 +784,7 @@ def _get_airport_pickup_inclusions_exclusions(
             "Parking",
             "Water bottles and tissues",
             "Platform fee",
+            "Premium AC cab experience with professional driver",
         ]
     exclusions = ["Personal expenses", "Self sponsored driver meals"]
     return inclusions, exclusions
@@ -730,7 +808,7 @@ def _track_state_transitions(search_in: TripSearchRequest):
     if search_in.hops:
         all_locations.extend(search_in.hops)  # List of LocationInfo instances
     all_locations.append(search_in.destination)  # Instance of LocationInfo
-    unique_states = Set[str]()
+    unique_states = set[str]()
     state_borders_crossed = 0
     prev_state = get_state_from_location(all_locations[0])  # Origin location state
     unique_states.add(prev_state)
@@ -749,25 +827,37 @@ def _track_state_transitions(search_in: TripSearchRequest):
     return is_interstate, total_unique_states, list(unique_states)
 
 
-def _validate_trip_type(search_in: TripSearchRequest):
+def _validate_local_trip_schedule(search_in: TripSearchRequest):
     """
-    Validates the trip type in the search request.
-
+    Validates the start date and end date for local trips.
+    Ensures that:
+    - Start date is provided
+    - Start date is not in the past
+    - Start date is at least 3 hours from now
     Args:
-        search_in (TripSearchRequest): The trip search request containing the trip type.
-
+        search_in (TripSearchRequest): The trip search request containing start date.
     Raises:
-        CabboException: If the trip type is not supported.
+        CabboException: If any validation fails, with appropriate error messages.
     """
-    valid_trip_types = [
-        TripTypeEnum.airport_pickup,
-        TripTypeEnum.airport_drop,
-        TripTypeEnum.local,
-        TripTypeEnum.outstation,
-    ]
-    if search_in.trip_type not in valid_trip_types:
+    if search_in.start_date is None:
+        raise CabboException("Start date is required for local trip", status_code=400)
+    # Parse and validate start_date
+    start_date = validate_date_time(date_time=search_in.start_date)
+
+    now = datetime.now(timezone.utc)
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+
+    # Check for past dates
+    if start_date < now:
         raise CabboException(
-            "Invalid trip type. Supported types are: airport_pickup, airport_drop, local, outstation",
+            "Start date for local trip cannot be in the past.", status_code=400
+        )
+    # Start date must be at least 6 hours after now
+    min_start = now + timedelta(hours=6)
+    if start_date < min_start:
+        raise CabboException(
+            "Start date for local trip must be at least 6 hours from now.",
             status_code=400,
         )
 
@@ -801,6 +891,8 @@ def _validate_outstation_trip_schedule(search_in: TripSearchRequest):
         end_date = end_date.replace(tzinfo=timezone.utc)
 
     now = datetime.now(timezone.utc)
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
 
     # Check for past dates
     if start_date < now or end_date < now:
@@ -847,6 +939,13 @@ def _validate_airport_schedule(search_in: TripSearchRequest):
     if start_date < now:
         raise CabboException(
             "Start date for airport transfer cannot be in the past.",
+            status_code=400,
+        )
+    # Start date must be at least 3 hours after now
+    min_start = now + timedelta(hours=3)
+    if start_date < min_start:
+        raise CabboException(
+            "Start date for outstation trip must be at least 3 hours from now.",
             status_code=400,
         )
 

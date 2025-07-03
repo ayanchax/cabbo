@@ -1,3 +1,4 @@
+from typing import Union
 from fastapi import (
     APIRouter,
     Depends,
@@ -11,6 +12,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from models.customer.customer_orm import Customer
+from models.customer.passenger_schema import PassengerCreate, PassengerOut
 from services.customer_service import (
     get_active_customer_by_id,
     update_customer_profile,
@@ -46,6 +48,7 @@ from services.message_service import (
     EMAIL_VERIFICATION_FILE,
 )
 from core.constants import APP_NAME
+from services.passenger_service import create_passenger
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -198,3 +201,23 @@ def verify_email(
         ):
             return {"message": "Email verified successfully."}
     raise CabboException("Failed to verify email", status_code=500)
+
+
+@router.post("/{customer_id}/passenger/add", response_model=PassengerOut)
+def add_passenger(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    payload: PassengerCreate = Body(..., description="Passenger create payload"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    # Only allow self-service
+    if str(current_customer.id) != customer_id:
+        raise CabboException("Unauthorized", status_code=403)
+
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer is None:
+        raise CabboException("Customer not found", status_code=404)
+    passenger = create_passenger(customer_id, payload, db)
+    if passenger is None:
+        raise CabboException("Failed to create passenger", status_code=500)
+    return PassengerOut.model_validate(passenger)

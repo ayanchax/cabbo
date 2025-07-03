@@ -73,8 +73,14 @@ class Trip(Base):
         MySQL_CHAR(36), ForeignKey("trip_package_config.id"), nullable=True, index=True
     )  # FK to trip package config table for hourly rental trips
     # Date and time information
-    start_date = Column(DateTime, nullable=False)
-    end_date = Column(DateTime, nullable=False)
+    start_datetime = Column(DateTime, nullable=False)
+    expected_end_datetime = Column(
+        DateTime, nullable=True
+    )  # Nullable | for local trips, we set it by package chosen
+    end_datetime = Column(DateTime, nullable=False)
+    total_days = Column(
+        Integer, nullable=False, default=1
+    )  # Total days for outstation trips
     # Passenger and luggage information
     num_adults = Column(Integer, nullable=False, default=1)
     num_children = Column(Integer, nullable=True, default=0)

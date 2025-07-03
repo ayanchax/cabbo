@@ -17,13 +17,15 @@ router = APIRouter(prefix="/trip", tags=["Trip"])
 def search_trip(
     search_in: TripSearchRequest,
     db: Session = Depends(get_mysql_session),
-    # current_customer: Customer = Depends(validate_customer_token),
+    current_customer: Customer = Depends(validate_customer_token),
 ):
     """
     Returns a list of top K trip options (cab/fuel/price) based on user preferences and current pricing logic.
     No DB writes. Used for search workflow.
     """
-    return get_trip_search_options(search_in=search_in, db=db)
+    return get_trip_search_options(
+        search_in=search_in, requestor=current_customer.id, db=db
+    )
 
 
 @router.post("/book")

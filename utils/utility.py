@@ -16,7 +16,7 @@ def validate_and_sanitize_country_phone(v):
     else:
         num = v
     if not re.fullmatch(APP_COUNTRY_PHONE_NUMBER_REGEX, num):
-        raise ValueError(APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR)
+        raise CabboException(APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR, status_code=422)
     return APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE + num
 
 
