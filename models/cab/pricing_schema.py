@@ -1,17 +1,18 @@
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 from models.trip.trip_enums import TripTypeEnum
 
 
 # Base schema for common trip pricing fields
 class CabPricingBaseSchema(BaseModel):
-    id: Optional[int]
-    cab_type_id: int
-    fuel_type_id: int
+    id: Optional[Union[int, str]]
+    cab_type_id: Union[str, int]  # Can be str (UUID) or int (DB ID)
+    fuel_type_id: Union[str, int]  # Can be str (UUID) or int (DB ID)
 
     class Config:
         from_attributes = True
+        extra = "allow"
 
 
 # Outstation-specific pricing schema
@@ -29,6 +30,7 @@ class LocalCabPricingSchema(CabPricingBaseSchema):
     hourly_rate: float
     overage_amount_per_hour: float
     overage_amount_per_km: Optional[float] = None  # Optional for local trips
+
     # Local-specific: minimum rental duration, etc. can be added here
 
 
@@ -42,10 +44,6 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None
-
-    class Config:
-
-        from_attributes = True
 
 
 class CabTypeSchema(BaseModel):

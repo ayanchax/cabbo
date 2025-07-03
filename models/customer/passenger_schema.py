@@ -20,11 +20,23 @@ class PassengerCreate(PassengerBase):
     pass
 
 
+class PassengerUpdate(PassengerCreate):
+    pass
+
+
 class PassengerOut(PassengerBase):
     id: str
     customer_id: str
     created_at: datetime
     last_modified: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PassengerRead(BaseModel):
+    name: str
+    phone_number: str
 
     class Config:
         from_attributes = True
