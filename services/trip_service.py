@@ -137,7 +137,7 @@ def _validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Ses
         )
     else:
         search_in.passenger_details = "self"  # No passenger details provided
-        search_in.passenger_id = "self"  # Clear passenger ID if not provided
+        search_in.passenger_id = requestor  # Clear passenger ID if not provided
 
 
 def get_trip_search_options(
