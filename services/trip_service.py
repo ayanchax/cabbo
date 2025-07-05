@@ -11,7 +11,11 @@ from models.cab.pricing_schema import (
     FuelTypeSchema,
     OutstationPricingBreakdownSchema,
 )
-from models.customer.passenger_schema import PassengerOut, PassengerRead
+from models.customer.passenger_schema import (
+    PassengerOut,
+    PassengerRead,
+    PassengerRequest,
+)
 from models.trip.trip_orm import TripPackageConfig
 from models.trip.trip_schema import (
     AmenitiesSchema,
@@ -38,6 +42,7 @@ import math
 from services.passenger_service import get_passenger_by_id
 from services.pricing_service import (
     get_airport_toll,
+    get_airport_trips_disclaimer_lines,
     get_local_trips_disclaimer_lines,
     get_outstation_trips_disclaimer_lines,
     get_preauthorized_minimum_wallet_amount,
@@ -118,26 +123,31 @@ def _validate_placard_requirements(search_in: TripSearchRequest):
 
 
 def _validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Session):
-    if search_in.passenger_id:
-        search_in.passenger_id = search_in.passenger_id.strip()
-        passenger = get_passenger_by_id(passenger_id=search_in.passenger_id, db=db)
+    if (
+        search_in.passenger
+        and isinstance(search_in.passenger, PassengerRequest)
+        and search_in.passenger.id
+    ):
+        search_in.passenger.id = search_in.passenger.id.strip()
+        passenger = get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
         if not passenger:
             raise CabboException("Invalid passenger ID provided", status_code=400)
         if passenger.customer_id != requestor:
             raise CabboException(
                 "Passenger does not belong to the requesting customer", status_code=403
             )
-        if passenger.is_active is False:
+        if not passenger.is_active:
             raise CabboException("Passenger is not active", status_code=403)
         passenger_read = PassengerRead.model_validate(
             passenger
         )  # Validate passenger schema
-        search_in.passenger_details = (
-            passenger_read  # Attach passenger details to request
-        )
+        search_in.passenger.name = (
+            passenger_read.name
+        )  # Attach passenger details to request
+        search_in.passenger.phone_number = passenger_read.phone_number
     else:
-        search_in.passenger_details = "self"  # No passenger details provided
-        search_in.passenger_id = requestor  # Clear passenger ID if not provided
+
+        search_in.passenger = "self"  # Use a string to indicate self-booking
 
 
 def get_trip_search_options(
@@ -183,6 +193,7 @@ def get_trip_search_options(
     total_trip_days = (
         None  # Default to 1 day for local and airport trips, can be overridden later
     )
+    est_km = None
 
     if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
         _validate_airport_schedule(search_in)  # Validate airport pickup schedule
@@ -240,6 +251,9 @@ def get_trip_search_options(
                 parking=math.ceil(parking),
                 platform_fee=math.ceil(platform_fee_amount),
             )
+            disclaimer_lines = get_airport_trips_disclaimer_lines(
+                overage_amount_per_km, max_included_km
+            )
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
@@ -248,7 +262,6 @@ def get_trip_search_options(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
                     price_breakdown=price_breakdown,
-                    estimated_km=est_km,
                     package=package_label,  # Use package string for display
                     package_short_label=package_short_label,
                     overages=(
@@ -259,11 +272,12 @@ def get_trip_search_options(
                                 if indicative_overage_warning
                                 else 0.0
                             ),
-                            overage_estimate=(
+                            overage_estimate_amount=(
                                 math.ceil(overage_amount)
                                 if indicative_overage_warning
                                 else 0.0
                             ),
+                            disclaimer=disclaimer_lines,
                         )
                     ),
                 )
@@ -310,6 +324,10 @@ def get_trip_search_options(
                 toll=math.ceil(toll),
                 platform_fee=math.ceil(platform_fee_amount),
             )
+            disclaimer_lines = get_airport_trips_disclaimer_lines(
+                overage_amount_per_km, max_included_km
+            )
+
             options.append(
                 TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name
@@ -318,7 +336,6 @@ def get_trip_search_options(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
                     price_breakdown=price_breakdown,
-                    estimated_km=est_km,
                     package=package_label,
                     package_short_label=package_short_label,
                     overages=(
@@ -329,11 +346,12 @@ def get_trip_search_options(
                                 if indicative_overage_warning
                                 else 0.0
                             ),
-                            overage_estimate=(
+                            overage_estimate_amount=(
                                 math.ceil(overage_amount)
                                 if indicative_overage_warning
                                 else 0.0
                             ),
+                            disclaimer=disclaimer_lines,
                         )
                     ),
                 )
@@ -357,6 +375,7 @@ def get_trip_search_options(
             fallback_km=configs.min_included_km,
             db=db,
         )
+
         package_short_label = package.package_label
         package_label = f"{package_short_label} | AC {search_in.preferred_car_type} - ({search_in.preferred_fuel_type})"
         package_included_hours = package.included_hours
@@ -551,7 +570,7 @@ def get_trip_search_options(
                                 if indicative_overage_warning
                                 else 0.0
                             ),
-                            overage_estimate=(
+                            overage_estimate_amount=(
                                 math.ceil(overage_amount)
                                 if indicative_overage_warning
                                 else 0.0
@@ -627,6 +646,7 @@ def get_trip_search_options(
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
+
     return TripSearchResponse(
         options=_options,
         inclusions=inclusions,
@@ -634,6 +654,7 @@ def get_trip_search_options(
         preferences=search_in,
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
+        estimated_km=est_km,
     )
 
 

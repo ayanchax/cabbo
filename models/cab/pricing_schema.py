@@ -105,7 +105,7 @@ class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
 class OveragesSchema(BaseModel):
     indicative_overage_warning: Optional[bool] = False  # Add this field for UI
     overage_amount_per_km: Optional[float] = None  # For outstation trips
-    overage_estimate: Optional[float] = None  # For outstation trips
+    overage_estimate_amount: Optional[float] = None  # For outstation trips
     overage_amount_per_hour: Optional[float] = None  # For local trips
 
     class Config:

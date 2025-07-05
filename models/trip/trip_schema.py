@@ -8,7 +8,7 @@ from models.cab.pricing_schema import (
     OutstationPricingBreakdownSchema,
     OveragesSchema,
 )
-from models.customer.passenger_schema import PassengerOut
+from models.customer.passenger_schema import PassengerOut, PassengerRequest
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -189,8 +189,7 @@ class TripSearchRequest(BaseModel):
     placard_name: Optional[str] = (
         None  # Name to display on the placard for airport pickup
     )
-    passenger_id: Optional[str] = None  # If provided, trip is for someone else
-    passenger_details: Optional[Union[str, PassengerOut]] = None
+    passenger: Optional[Union[str, PassengerRequest]] = None
 
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
@@ -247,7 +246,6 @@ class TripSearchOption(BaseModel):
         OutstationPricingBreakdownSchema,
         LocalPricingBreakdownSchema,
     ]  # Trip type specific pricing breakdown
-    estimated_km: Optional[float] = None
     included_km: Optional[float] = None
     included_hours: Optional[int] = None  # For local trips
     package_short_label: Optional[str] = (
@@ -271,6 +269,9 @@ class TripSearchResponse(BaseModel):
     )
     total_trip_days: Optional[int] = (
         None  # Total number of days for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
+    )
+    estimated_km: Optional[float] = (
+        None  # Estimated kilometers for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
 
 
