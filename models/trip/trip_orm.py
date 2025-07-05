@@ -41,10 +41,13 @@ class Trip(Base):
         default=RoleEnum.customer,
         nullable=False,
     )
+    #  Creator information - END
+
     # Trip details
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
     )  # FK to trip types master table
+
     # Location information
     origin_display_name = Column(String(255), nullable=False)
     origin_lat = Column(Float, nullable=False)
@@ -67,11 +70,15 @@ class Trip(Base):
         Text, nullable=True
     )  # comma separated list of unique states, applicable for outstation trips which are interstate
     is_round_trip = Column(Boolean, default=True, nullable=False)
+    # Location information - END
+
     # Package information selected by customer
     # This is applicable only for hourly rental trips
     package_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_package_config.id"), nullable=True, index=True
     )  # FK to trip package config table for hourly rental trips
+    # Package information selected by customer - END
+    
     # Date and time information
     start_datetime = Column(DateTime, nullable=False)
     expected_end_datetime = Column(
@@ -81,6 +88,8 @@ class Trip(Base):
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
+    # Date and time information - END
+
     # Passenger and luggage information
     num_adults = Column(Integer, nullable=False, default=1)
     num_children = Column(Integer, nullable=True, default=0)
@@ -93,6 +102,7 @@ class Trip(Base):
         Integer, nullable=True, default=0
     )  # Other bags, small items
     num_luggages = Column(Integer, nullable=True, default=0)  # Total luggage count
+    # Passenger and luggage information - END
 
     # Car and fuel preferences
     preferred_car_type = Column(
@@ -101,6 +111,7 @@ class Trip(Base):
     preferred_fuel_type = Column(
         Enum(FuelTypeEnum), nullable=True, default=FuelTypeEnum.diesel
     )
+    # Car and fuel preferences - END
 
     # Driver assignment fields
     driver_name = Column(String(255), nullable=True)
@@ -109,6 +120,7 @@ class Trip(Base):
     car_registration_number = Column(String(32), nullable=True)
     payment_mode = Column(String(32), nullable=True)  # gpay, phonepe, paytm
     payment_number = Column(String(32), nullable=True)  # UPI phone number
+    # Driver assignment fields -END
 
     status = Column(
         Enum(TripStatusEnum), default=TripStatusEnum.created, nullable=False
@@ -136,6 +148,12 @@ class Trip(Base):
     final_display_price = Column(
         Float, nullable=True, default=0.0
     )  # Price shown to driver admin (final or quoted) w/o platform fee
+    advance_payment = Column(
+        Float, nullable=True, default=0.0
+    )  # Advance payment made by customer(generally the platform fee), if any
+    balance_payment = Column(
+        Float, nullable=True, default=0.0
+    )  # Balance payment to be made by customer after trip completion
 
     # Inclusions and exclusions
     inclusions = Column(
@@ -144,6 +162,8 @@ class Trip(Base):
     exclusions = Column(
         Text, nullable=True
     )  # JSON/text list of exclusions (e.g., fuel, parking, tolls
+    # Inclusions and exclusions - END
+
     # Airport pickup/flight metadata
     flight_number = Column(String(32), nullable=True)
     terminal_number = Column(String(32), nullable=True)
@@ -152,19 +172,20 @@ class Trip(Base):
     )  # Customer opted for toll road usage for faster trip. This is applicable only for airport trips.
     placard_required = Column(Boolean, nullable=True, default=False)
     placard_name = Column(String(128), nullable=True)
+    # Airport pickup/flight metadata - END
 
+    # Trip metadata
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    # Trip metadata - END
 
+    # Additional metadata
     indicative_overage_warning = Column(
         Boolean, default=False, nullable=False
     )  # does not apply to all hourly local trips
-    status_audits = relationship("TripStatusAudit", back_populates="trip")
-
     alternate_customer_phone = Column(String(32), nullable=True)
-
     # Passenger info (nullable, for 'book for someone else' feature)
     passenger_id = Column(
         MySQL_CHAR(36),
@@ -173,6 +194,12 @@ class Trip(Base):
         index=True,
         comment="FK to passengers table; null if trip is for self",
     )
+    # Additional metadata - END
+
+    #Audit fields
+    status_audits = relationship("TripStatusAudit", back_populates="trip")
+    #Audit fields - END
+
 
 
 class TripStatusAudit(Base):
@@ -217,6 +244,8 @@ class OutstandingDue(Base):
     customer_id = Column(MySQL_CHAR(36), ForeignKey("customers.id"), nullable=False)
     amount = Column(Float, nullable=False)
     reason = Column(String(255), nullable=False)
+    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
+    # Nullable: Only populated when
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
