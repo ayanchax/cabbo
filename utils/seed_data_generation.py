@@ -12,11 +12,12 @@ from models.cab.pricing_orm import (
     FixedNightPricing,
     FixedPlatformPricing,
 )
+from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
 from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
-from models.trip.trip_orm import TripPackageConfig
+from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
 from models.cab.pricing_orm import PermitFeeConfiguration
 
@@ -363,7 +364,6 @@ def seed_pricing_master(session: Session):
     session.commit()
 
     # Trip Type Master seed (exclude airport_general, which is backend-only)
-    from models.trip.trip_orm import TripTypeMaster
 
     trip_type_master = [
         {
@@ -620,7 +620,7 @@ def seed_pricing_master(session: Session):
                 except Exception:
                     # Silently skip any errors in config creation
                     continue
-
+    
     # Now add and commit pricing and toll configs
     session.add_all(
         outstation_pricing
@@ -659,4 +659,39 @@ def seed_states(session: Session):
         ),
     ]
     session.add_all(states)
+    session.commit()
+
+
+def seed_serviceable_geography(session: Session):
+    #First get trip type master so that we can use their ids in the ServiceableGeographyOrm
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+    #Now get all states so that we can have their state code in the ServiceableGeographyOrm state_codes json for outstation trips
+    states = session.query(GeoStateModel).all()
+    state_codes = [state.state_code for state in states]
+    serviceable_geography=[
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
+            service_area_state_codes=state_codes,  ),
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.local],
+            service_area_state_codes=[APP_HOME_STATE_CODE],  # Local trips are only serviceable in home state
+            service_area_cities=['Bangalore']
+        ),   
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
+            service_area_state_codes=[APP_HOME_STATE_CODE],  # Airport pickup is only serviceable in home state
+            service_area_cities=['Bangalore'],
+            airport_place_ids=["ChIJL_P_CXMEDTkRw0ZdG-0GVvw"],
+
+        ),
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
+            service_area_state_codes=[APP_HOME_STATE_CODE],  # Airport drop is only serviceable in home state
+            service_area_cities=['Bangalore'],
+            airport_place_ids=["ChIJL_P_CXMEDTkRw0ZdG-0GVvw"],
+        ),
+
+    ]
+    session.add_all(serviceable_geography)
     session.commit()

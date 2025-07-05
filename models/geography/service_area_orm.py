@@ -32,12 +32,11 @@ class ServiceableGeographyOrm(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
     )  # Foreign key to trip type master
-    service_area_name = Column(String(64), nullable=False, unique=True)
-    service_area_code = Column(String(16), nullable=False, unique=True)
+    
     # JSON field to store city names, airport place_ids, or state codes as per trip type
-    city_names = Column(JSON, nullable=True)  # For local trips
+    service_area_cities = Column(JSON, nullable=True)  # For local trips
     airport_place_ids = Column(JSON, nullable=True)  # For airport trips
-    state_codes = Column(JSON, nullable=True)  # For outstation trips
+    service_area_state_codes = Column(JSON, nullable=True)  # For outstation trips
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     created_at = Column(

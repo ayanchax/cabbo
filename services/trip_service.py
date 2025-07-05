@@ -1,4 +1,4 @@
-from typing import List, Set
+from typing import List
 
 from models.cab.pricing_schema import (
     AirportCabPricingSchema,
@@ -12,7 +12,6 @@ from models.cab.pricing_schema import (
     OutstationPricingBreakdownSchema,
 )
 from models.customer.passenger_schema import (
-    PassengerOut,
     PassengerRead,
     PassengerRequest,
 )
@@ -36,13 +35,12 @@ from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.exceptions import CabboException
 from services.location_service import get_distance_km, get_state_from_location
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
-from core.constants import APP_COUNTRY_CURRENCY_SYMBOL, APP_HOME_STATE
+from core.constants import APP_HOME_STATE
 from datetime import datetime, timezone, timedelta
 import math
 from services.passenger_service import get_passenger_by_id
 from services.pricing_service import (
     get_airport_toll,
-    get_airport_trips_disclaimer_lines,
     get_local_trips_disclaimer_lines,
     get_outstation_trips_disclaimer_lines,
     get_preauthorized_minimum_wallet_amount,
@@ -50,6 +48,8 @@ from services.pricing_service import (
     retrieve_trip_wise_pricing_config,
 )
 from utils.utility import validate_date_time
+from models.geography.service_area_orm import ServiceableGeographyOrm
+from models.trip.trip_enums import TripTypeEnum
 
 
 def _retrieve_trip_package_by_id(
@@ -184,6 +184,7 @@ def get_trip_search_options(
         search_in, requestor, db
     )  # Validate passenger ID if provided
     _populate_default_preferences(search_in)  # Ensure preferences are set
+    _validate_serviceable_area(search_in, db)  # Enforce serviceable area boundaries
     options: List[TripSearchOption] = []
     configs = retrieve_trip_wise_pricing_config(db, search_in.trip_type)
     platform_fee_percent = configs.dynamic_platform_fee_percent
@@ -251,7 +252,7 @@ def get_trip_search_options(
                 parking=math.ceil(parking),
                 platform_fee=math.ceil(platform_fee_amount),
             )
-            disclaimer_lines = get_airport_trips_disclaimer_lines(
+            disclaimer_lines = get_airport_tips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
             options.append(
@@ -325,7 +326,7 @@ def get_trip_search_options(
                 toll=math.ceil(toll),
                 platform_fee=math.ceil(platform_fee_amount),
             )
-            disclaimer_lines = get_airport_trips_disclaimer_lines(
+            disclaimer_lines = get_airport_tips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
 
@@ -1098,3 +1099,39 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
         )
 
     return search_in.origin, search_in.destination, est_km
+
+
+def _validate_serviceable_area(search_in: TripSearchRequest, db: Session):
+    """
+    Validates if the trip search request is within the serviceable area for the given trip type.
+    Raises CabboException if the request is outside the serviceable area.
+    """
+    trip_type = search_in.trip_type
+    # Query the serviceable area config for this trip type
+    service_area = db.query(ServiceableGeographyOrm).filter(ServiceableGeographyOrm.trip_type_id == trip_type).first()
+    if not service_area:
+        raise CabboException(f"Serviceable area not configured for trip type: {trip_type}", status_code=500)
+
+    # For local and airport trips, check city/airport
+    if trip_type in [TripTypeEnum.local, TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        city_names = service_area.service_area_cities or []
+        airport_place_ids = service_area.airport_place_ids or []
+        # For local: check origin city
+        if trip_type == TripTypeEnum.local:
+            origin_city = getattr(search_in.origin, 'display_name', '').lower()
+            if not any(city.lower() in origin_city for city in city_names):
+                raise CabboException(f"Local trips are only serviceable in: {', '.join(city_names)}", status_code=400)
+        # For airport pickup/drop: check if either origin or destination is airport/city
+        elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+            origin_place_id = getattr(search_in.origin, 'place_id', None)
+            dest_place_id = getattr(search_in.destination, 'place_id', None)
+            # Accept if either matches the airport
+            if not (origin_place_id in airport_place_ids or dest_place_id in airport_place_ids):
+                raise CabboException("Airport trips are only serviceable for the configured airport.", status_code=400)
+    # For outstation, check state codes
+    elif trip_type == TripTypeEnum.outstation:
+        from services.location_service import get_state_from_location
+        dest_state = get_state_from_location(search_in.destination)
+        allowed_states = service_area.service_area_state_codes or []
+        if dest_state not in allowed_states:
+            raise CabboException(f"Outstation trips are only serviceable to: {', '.join(allowed_states)}", status_code=400)

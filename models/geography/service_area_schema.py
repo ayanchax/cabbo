@@ -8,11 +8,9 @@ from core.security import RoleEnum
 class ServiceableGeographySchema(BaseModel):
     id: Optional[str] = None
     trip_type_id: str
-    service_area_name: str
-    service_area_code: str
-    city_names: Optional[List[str]] = None
+    service_area_cities: Optional[List[str]] = None
     airport_place_ids: Optional[List[str]] = None
-    state_codes: Optional[List[str]] = None
+    service_area_state_codes: Optional[List[str]] = None
     created_by: Optional[RoleEnum] = None
     created_at: Optional[str] = None
     last_modified: Optional[str] = None
