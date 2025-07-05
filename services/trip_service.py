@@ -15,7 +15,7 @@ from models.customer.passenger_schema import (
     PassengerRead,
     PassengerRequest,
 )
-from models.trip.trip_orm import TripPackageConfig
+from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
     TripPackageConfigSchema,
@@ -41,6 +41,7 @@ import math
 from services.passenger_service import get_passenger_by_id
 from services.pricing_service import (
     get_airport_toll,
+    get_airport_trips_disclaimer_lines,
     get_local_trips_disclaimer_lines,
     get_outstation_trips_disclaimer_lines,
     get_preauthorized_minimum_wallet_amount,
@@ -211,6 +212,7 @@ def get_trip_search_options(
             db.query(AirportCabPricing, CabType, FuelType)
             .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
             .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+            .filter(AirportCabPricing.is_available_in_network == True)  # Ensure only available cabs are considered
             .all()
         )
         package_short_label = "Airport Pickup"
@@ -252,7 +254,7 @@ def get_trip_search_options(
                 parking=math.ceil(parking),
                 platform_fee=math.ceil(platform_fee_amount),
             )
-            disclaimer_lines = get_airport_tips_disclaimer_lines(
+            disclaimer_lines = get_airport_trips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
             options.append(
@@ -296,6 +298,7 @@ def get_trip_search_options(
             db.query(AirportCabPricing, CabType, FuelType)
             .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
             .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+            .filter(AirportCabPricing.is_available_in_network == True)  # Ensure only available cabs are considered
             .all()
         )
         package_short_label = "Airport Drop"
@@ -326,7 +329,7 @@ def get_trip_search_options(
                 toll=math.ceil(toll),
                 platform_fee=math.ceil(platform_fee_amount),
             )
-            disclaimer_lines = get_airport_tips_disclaimer_lines(
+            disclaimer_lines = get_airport_trips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
 
@@ -391,6 +394,8 @@ def get_trip_search_options(
             db.query(LocalCabPricing, CabType, FuelType)
             .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
             .join(FuelType, LocalCabPricing.fuel_type_id == FuelType.id)
+            .filter(
+                LocalCabPricing.is_available_in_network == True,)  # Ensure only available cabs are considered
             .all()
         )
 
@@ -494,12 +499,11 @@ def get_trip_search_options(
             db.query(OutstationCabPricing, CabType, FuelType)
             .join(CabType, OutstationCabPricing.cab_type_id == CabType.id)
             .join(FuelType, OutstationCabPricing.fuel_type_id == FuelType.id)
+            .filter(
+                OutstationCabPricing.is_available_in_network == True, ) # Ensure only available cabs are considered
             .all()
         )
         for pricing, cab_type, fuel_type in outstation_pricings:
-            # Skip CNG cabs for outstation trips
-            if fuel_type.name.lower() == FuelTypeEnum.cng.lower():
-                continue
             pricing_schema = OutstationCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
@@ -664,6 +668,7 @@ def get_trip_search_options(
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
         estimated_km=est_km,
+        choices=len(_options),  # Total number of options returned
     )
 
 
@@ -1097,6 +1102,12 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
             "Could not estimate distance between origin and destination",
             status_code=400,
         )
+    if est_km<100:
+        # Ensure that the estimated distance is at least 100 km for outstation trips
+        raise CabboException(
+            "Outstation trips must have a minimum distance of 100 km, the route you have selected is less than 100 km, try with a different route or switch to local trip",
+            status_code=400,
+        )
 
     return search_in.origin, search_in.destination, est_km
 
@@ -1108,30 +1119,125 @@ def _validate_serviceable_area(search_in: TripSearchRequest, db: Session):
     """
     trip_type = search_in.trip_type
     # Query the serviceable area config for this trip type
-    service_area = db.query(ServiceableGeographyOrm).filter(ServiceableGeographyOrm.trip_type_id == trip_type).first()
+    service_area = db.query(ServiceableGeographyOrm).join(
+        TripTypeMaster, ServiceableGeographyOrm.trip_type_id == TripTypeMaster.id
+    ).filter(ServiceableGeographyOrm.trip_type_id == TripTypeMaster.id, TripTypeMaster.trip_type==trip_type).first()
     if not service_area:
         raise CabboException(f"Serviceable area not configured for trip type: {trip_type}", status_code=500)
 
     # For local and airport trips, check city/airport
     if trip_type in [TripTypeEnum.local, TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
         city_names = service_area.service_area_cities or []
+        
+        if not city_names:
+            raise CabboException(
+                f"Serviceable cities not configured for trip type: {trip_type}",
+                status_code=500,
+            )
         airport_place_ids = service_area.airport_place_ids or []
         # For local: check origin city
         if trip_type == TripTypeEnum.local:
+            if not search_in.origin:
+                raise CabboException("Origin is required for local trip", status_code=400)
+            origin_city = getattr(search_in.origin, 'display_name', '').lower()
+            message = f"Local trips are only serviceable in: {', '.join(city_names)}"
+            context = f"The city '{origin_city}' you have selected for local trip is not serviceable, try again with a different city."
+            if not any(city.lower() in origin_city for city in city_names):
+                raise CabboException({
+                    "message": message,
+                    "context": context,
+                }, status_code=400)
+        
+        #For airport drop, check origin city
+        elif trip_type == TripTypeEnum.airport_drop:
+            if not airport_place_ids:
+                raise CabboException(
+                    "Airport place IDs not configured for airport drop trips",
+                    status_code=500,
+                )
+            if not search_in.origin:
+                raise CabboException("Origin is required for airport drop", status_code=400)
             origin_city = getattr(search_in.origin, 'display_name', '').lower()
             if not any(city.lower() in origin_city for city in city_names):
-                raise CabboException(f"Local trips are only serviceable in: {', '.join(city_names)}", status_code=400)
-        # For airport pickup/drop: check if either origin or destination is airport/city
-        elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-            origin_place_id = getattr(search_in.origin, 'place_id', None)
-            dest_place_id = getattr(search_in.destination, 'place_id', None)
-            # Accept if either matches the airport
-            if not (origin_place_id in airport_place_ids or dest_place_id in airport_place_ids):
-                raise CabboException("Airport trips are only serviceable for the configured airport.", status_code=400)
+                message = f"Airport drop trips are only serviceable in: {', '.join(city_names)}"
+                context = f"The city '{origin_city}' you have selected for airport drop is not serviceable, try again with a different city."
+                raise CabboException({
+                    "message": message,
+                    "context": context,
+                }, status_code=400)
+            airport_place_id = getattr(search_in.destination, 'place_id', None)
+            if airport_place_id is not None and airport_place_id not in airport_place_ids:
+                raise CabboException(f"Airport drop trips are only serviceable to: {', '.join(airport_place_ids)}", status_code=400)
+        
+        #For airport pickup, check destination city
+        elif trip_type == TripTypeEnum.airport_pickup:
+            if not airport_place_ids:
+                raise CabboException(
+                    "Airport place IDs not configured for airport pickup trips",
+                    status_code=500,
+                )
+            if not search_in.destination:
+                raise CabboException("Destination is required for airport pickup", status_code=400)
+            dest_city = getattr(search_in.destination, 'display_name', '').lower()
+            if not any(city.lower() in dest_city for city in city_names):
+                message = f"Airport pickup trips are only serviceable in: {', '.join(city_names)}"
+                context = f"The city '{dest_city}' you have selected for airport pickup is not serviceable, try again with a different city."
+                raise CabboException({
+                    message: message,
+                   "context": context,
+                    }, status_code=400)
+            airport_place_id = getattr(search_in.origin, 'place_id', None)
+            if airport_place_id is not None and airport_place_id not in airport_place_ids:
+                raise CabboException(f"Airport pickup trips are only serviceable from: {', '.join(airport_place_ids)}", status_code=400)
+        
     # For outstation, check state codes
     elif trip_type == TripTypeEnum.outstation:
-        from services.location_service import get_state_from_location
-        dest_state = get_state_from_location(search_in.destination)
+        if not search_in.origin or not search_in.destination:
+            raise CabboException("Origin and destination are required for outstation trip", status_code=400)
+        origin_state = get_state_from_location(location=search_in.origin, state_code=True)
         allowed_states = service_area.service_area_state_codes or []
+        if not origin_state:
+            raise CabboException(f"This location is not servicable yet", status_code=400)
+        if origin_state not in allowed_states:
+            message = f"Outstation trips are only serviceable from: {', '.join(allowed_states)}"
+            context = f"The origin state '{origin_state}' you have selected for outstation trip is not serviceable, try again with a different state."
+            raise CabboException({
+                "message": message,
+                "context": context,
+            }, status_code=400)
+        dest_state = get_state_from_location(location=search_in.destination, state_code=True)
+        if not dest_state:
+            raise CabboException(f"This location is not servicable yet", status_code=400)
         if dest_state not in allowed_states:
-            raise CabboException(f"Outstation trips are only serviceable to: {', '.join(allowed_states)}", status_code=400)
+                message = f"Outstation trips are only serviceable to: {', '.join(allowed_states)}"
+                context = f"The destination state '{dest_state}' you have selected for outstation trip is not serviceable, try again with a different state."
+                raise CabboException({
+                    "message": message,
+                    "context": context,
+                }, status_code=400)
+        if search_in.hops:
+            invalid_hops = []
+            for hop in search_in.hops:
+                hop_state = get_state_from_location(location=hop, state_code=True)
+                if not hop_state:
+                    continue
+                if hop_state not in allowed_states:
+                    invalid_hops.append(hop_state)
+            if invalid_hops:
+                message = (
+                    f"Outstation trips are only serviceable to: {', '.join(allowed_states)}."
+                )
+                context = f"One or more hops in your trip is not serviceable: {', '.join(invalid_hops)}, try again with different hops within serviceable states or remove them."
+                raise CabboException(
+                    {
+                        "message": message,
+                        "context": context,
+                    },
+                    status_code=400,
+                )
+                    
+    else:
+        # If the trip type is not supported, raise an exception
+        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)
+    
+    print(f"Trip search request is within serviceable area for trip type: {trip_type}")

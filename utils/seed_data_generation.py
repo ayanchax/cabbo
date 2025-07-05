@@ -12,10 +12,11 @@ from models.cab.pricing_orm import (
     FixedNightPricing,
     FixedPlatformPricing,
 )
+from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
-from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
+from core.constants import APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
@@ -315,13 +316,22 @@ def seed_pricing_master(session: Session):
             FuelTypeEnum.cng: 38,
         },
     }
-
+    is_available_in_network=True
     for cab in cab_types:
         for fuel in fuel_types:
             # Outstation
+            if cab.name == CarTypeEnum.hatchback and fuel.name in [FuelTypeEnum.petrol, FuelTypeEnum.diesel, FuelTypeEnum.cng]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel, FuelTypeEnum.cng]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv_plus and fuel.name in [FuelTypeEnum.cng]:
+                is_available_in_network = False
+            else:
+                is_available_in_network = True
             outstation_pricing.append(
                 OutstationCabPricing(
                     id=str(uuid.uuid4()),
+                    is_available_in_network=is_available_in_network,
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     base_fare_per_km=outstation_base_fares[cab.name][fuel.name],
@@ -336,9 +346,18 @@ def seed_pricing_master(session: Session):
                 )
             )
             # Local
+            if cab.name == CarTypeEnum.hatchback and fuel.name in [FuelTypeEnum.petrol, FuelTypeEnum.diesel]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel, FuelTypeEnum.cng]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv_plus and fuel.name in [FuelTypeEnum.cng]:
+                is_available_in_network = False
+            else:
+                is_available_in_network = True
             local_pricing.append(
                 LocalCabPricing(
                     id=str(uuid.uuid4()),
+                    is_available_in_network=is_available_in_network,
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     hourly_rate=local_hourly_rates[cab.name][fuel.name],
@@ -348,9 +367,18 @@ def seed_pricing_master(session: Session):
                 )
             )
             # Airport
+            if cab.name == CarTypeEnum.hatchback and fuel.name in [FuelTypeEnum.petrol, FuelTypeEnum.diesel]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv_plus and fuel.name in [FuelTypeEnum.cng]:
+                is_available_in_network = False
+            else:
+                is_available_in_network = True
             airport_pricing.append(
                 AirportCabPricing(
                     id=str(uuid.uuid4()),
+                    is_available_in_network=is_available_in_network,
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     airport_fare_per_km=airport_fare_per_km[cab.name][fuel.name],
@@ -676,20 +704,20 @@ def seed_serviceable_geography(session: Session):
         ServiceableGeographyOrm(
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
             service_area_state_codes=[APP_HOME_STATE_CODE],  # Local trips are only serviceable in home state
-            service_area_cities=['Bangalore']
+            service_area_cities=[APP_HOME_CITY, APP_HOME_CITY_ALT]
         ),   
         ServiceableGeographyOrm(
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
             service_area_state_codes=[APP_HOME_STATE_CODE],  # Airport pickup is only serviceable in home state
-            service_area_cities=['Bangalore'],
-            airport_place_ids=["ChIJL_P_CXMEDTkRw0ZdG-0GVvw"],
+            service_area_cities=[APP_HOME_CITY,APP_HOME_CITY_ALT],
+            airport_place_ids=[APP_AIRPORT_LOCATION.get(APP_HOME_STATE).place_id],
 
         ),
         ServiceableGeographyOrm(
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
             service_area_state_codes=[APP_HOME_STATE_CODE],  # Airport drop is only serviceable in home state
-            service_area_cities=['Bangalore'],
-            airport_place_ids=["ChIJL_P_CXMEDTkRw0ZdG-0GVvw"],
+            service_area_cities=[APP_HOME_CITY,APP_HOME_CITY_ALT],
+            airport_place_ids=[APP_AIRPORT_LOCATION.get(APP_HOME_STATE).place_id],
         ),
 
     ]

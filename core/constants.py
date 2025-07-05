@@ -24,6 +24,17 @@ APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR = (
 APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE = "+91"
 APP_COUNTRY_FLAG = "🇮🇳"
 APP_COUNTRY_TIMEZONE = "Asia/Kolkata"
+APP_HOME_CITY = "Bangalore"
+APP_HOME_CITY_ALT = "Bengaluru"
+APP_HOME_CITY_CODE = "BLR"
 APP_HOME_STATE = "Karnataka"
 APP_HOME_STATE_CODE = "KA"
 APP_HOME_STATE_PERMIT_FEE = 0.0
+APP_HOME_CITY_AIRPORT={
+        "display_name":"Kempegowda International Airport, Bengaluru",
+        "lat":13.1986,
+        "lng":77.7066,
+        "place_id":"ChIJL_P_CXMEDTkRw0ZdG-0GVvw", #official Mapbox place ID for the airport in Bengaluru
+        "address":"Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India",
+   
+}

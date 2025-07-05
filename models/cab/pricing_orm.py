@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -86,6 +87,9 @@ class OutstationCabPricing(Base):
     min_included_km_per_day = Column(
         Integer, nullable=False, default=300
     )  # 200 for hatchback, 300 for others
+    is_available_in_network = Column(
+        Boolean, nullable=False, default=True
+    )  # Indicates if this cab type is available for high-demand outstation trips
     overage_amount_per_km = Column(Float, nullable=False)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
@@ -116,6 +120,9 @@ class LocalCabPricing(Base):
     hourly_rate = Column(Float, nullable=False)
     overage_amount_per_hour = Column(Float, nullable=False)
     overage_amount_per_km = Column(Float, nullable=False)
+    is_available_in_network = Column(
+        Boolean, nullable=False, default=True
+    ) # Indicates if this cab type is available for local trips
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -144,6 +151,9 @@ class AirportCabPricing(Base):
     )
     airport_fare_per_km = Column(Float, nullable=False)
     overage_amount_per_km = Column(Float, nullable=False)
+    is_available_in_network = Column(
+        Boolean, nullable=False, default=True
+    ) # Indicates if this cab type is available for airport trips
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

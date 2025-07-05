@@ -162,7 +162,7 @@ class TripTypeMasterOut(BaseModel):
 
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
-    origin: LocationInfo
+    origin: Optional[LocationInfo] = None  # For airport trips, this is the pickup location
     hops: Optional[Union[List[str], List[LocationInfo]]] = (
         None  # Available for outstation and hourly rental multi-hop trips [Providing hops by customer helps us approximate the overages more efficiently and helps the customer get almost accurate quotes upfront]
     )
@@ -276,6 +276,7 @@ class TripSearchResponse(BaseModel):
     estimated_km: Optional[float] = (
         None  # Estimated kilometers for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
+    choices:Optional[int] = None  # Number of choices available for the user to book from
 
 
 class TripBookRequest(BaseModel):

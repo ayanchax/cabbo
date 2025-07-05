@@ -9,6 +9,7 @@ class CabPricingBaseSchema(BaseModel):
     id: Optional[Union[int, str]]
     cab_type_id: Union[str, int]  # Can be str (UUID) or int (DB ID)
     fuel_type_id: Union[str, int]  # Can be str (UUID) or int (DB ID)
+    is_available_in_network: bool = True  # Indicates if this cab type is available in the network
 
     class Config:
         from_attributes = True
