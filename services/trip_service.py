@@ -278,6 +278,7 @@ def get_trip_search_options(
                                 else 0.0
                             ),
                             disclaimer=disclaimer_lines,
+                            extra_charges_disclaimers=disclaimer_lines,
                         )
                     ),
                 )
@@ -352,6 +353,7 @@ def get_trip_search_options(
                                 else 0.0
                             ),
                             disclaimer=disclaimer_lines,
+                            extra_charges_disclaimers=disclaimer_lines,
                         )
                     ),
                 )
@@ -380,6 +382,10 @@ def get_trip_search_options(
         package_label = f"{package_short_label} | AC {search_in.preferred_car_type} - ({search_in.preferred_fuel_type})"
         package_included_hours = package.included_hours
         package_included_km = package.included_km
+        
+        search_in.expected_end_date = validate_date_time(search_in.start_date) + timedelta(
+            hours=package_included_hours
+        )
         local_pricings = (
             db.query(LocalCabPricing, CabType, FuelType)
             .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
@@ -442,6 +448,7 @@ def get_trip_search_options(
                     overages=(
                         OveragesSchema(
                             disclaimer=disclaimer_message,
+                            extra_charges_disclaimers=disclaimer_lines,
                         )
                     ),
                 )
@@ -480,7 +487,7 @@ def get_trip_search_options(
             configs.fixed_night_pricing.night_overage_amount_per_block
         )
         night_hours_display_label = configs.fixed_night_pricing.night_hours_label
-
+        search_in.expected_end_date = search_in.end_date
         # Fetch all outstation cab pricings
         outstation_pricings = (
             db.query(OutstationCabPricing, CabType, FuelType)
@@ -576,6 +583,7 @@ def get_trip_search_options(
                                 else 0.0
                             ),
                             disclaimer=disclaimer,
+                            extra_charges_disclaimers=disclaimer_lines,
                         )
                     ),
                 )

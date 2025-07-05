@@ -169,6 +169,9 @@ class TripSearchRequest(BaseModel):
     destination: Optional[LocationInfo] = None
     start_date: str  # ISO date or datetime string
     end_date: Optional[str] = None
+    expected_end_date: Optional[str] = (
+        None  # for local trips, we set it by package chosen
+    )
     num_adults: int
     num_children: int
     num_large_suitcases: Optional[int] = 0  # Trolley bags, large suitcases
