@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     func,
     Enum as SAEnum,
+    JSON,
 )
 from core.security import RoleEnum
 from db.database import Base
@@ -14,7 +15,7 @@ from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 
 class ServiceableGeographyOrm(Base):
     """
-    Serviceable Geography ORM model for managing service areas.
+    Serviceable Geography ORM model for managing service areas and boundaries per trip type.
     """
 
     __tablename__ = "serviceable_geographies"
@@ -33,6 +34,10 @@ class ServiceableGeographyOrm(Base):
     )  # Foreign key to trip type master
     service_area_name = Column(String(64), nullable=False, unique=True)
     service_area_code = Column(String(16), nullable=False, unique=True)
+    # JSON field to store city names, airport place_ids, or state codes as per trip type
+    city_names = Column(JSON, nullable=True)  # For local trips
+    airport_place_ids = Column(JSON, nullable=True)  # For airport trips
+    state_codes = Column(JSON, nullable=True)  # For outstation trips
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     created_at = Column(
@@ -46,3 +51,5 @@ class ServiceableGeographyOrm(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
