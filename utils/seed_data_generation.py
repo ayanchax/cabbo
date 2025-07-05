@@ -12,11 +12,13 @@ from models.cab.pricing_orm import (
     FixedNightPricing,
     FixedPlatformPricing,
 )
+from models.geography.geo_enums import APP_AIRPORT_LOCATION
+from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum
-from core.constants import APP_HOME_STATE, APP_HOME_STATE_CODE
+from core.constants import APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
-from models.trip.trip_orm import TripPackageConfig
+from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
 from models.cab.pricing_orm import PermitFeeConfiguration
 
@@ -314,13 +316,22 @@ def seed_pricing_master(session: Session):
             FuelTypeEnum.cng: 38,
         },
     }
-
+    is_available_in_network=True
     for cab in cab_types:
         for fuel in fuel_types:
             # Outstation
+            if cab.name == CarTypeEnum.hatchback and fuel.name in [FuelTypeEnum.petrol, FuelTypeEnum.diesel, FuelTypeEnum.cng]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel, FuelTypeEnum.cng]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv_plus and fuel.name in [FuelTypeEnum.cng]:
+                is_available_in_network = False
+            else:
+                is_available_in_network = True
             outstation_pricing.append(
                 OutstationCabPricing(
                     id=str(uuid.uuid4()),
+                    is_available_in_network=is_available_in_network,
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     base_fare_per_km=outstation_base_fares[cab.name][fuel.name],
@@ -335,9 +346,18 @@ def seed_pricing_master(session: Session):
                 )
             )
             # Local
+            if cab.name == CarTypeEnum.hatchback and fuel.name in [FuelTypeEnum.petrol, FuelTypeEnum.diesel]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel, FuelTypeEnum.cng]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv_plus and fuel.name in [FuelTypeEnum.cng]:
+                is_available_in_network = False
+            else:
+                is_available_in_network = True
             local_pricing.append(
                 LocalCabPricing(
                     id=str(uuid.uuid4()),
+                    is_available_in_network=is_available_in_network,
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     hourly_rate=local_hourly_rates[cab.name][fuel.name],
@@ -347,9 +367,18 @@ def seed_pricing_master(session: Session):
                 )
             )
             # Airport
+            if cab.name == CarTypeEnum.hatchback and fuel.name in [FuelTypeEnum.petrol, FuelTypeEnum.diesel]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel]:
+                is_available_in_network = False
+            elif cab.name == CarTypeEnum.suv_plus and fuel.name in [FuelTypeEnum.cng]:
+                is_available_in_network = False
+            else:
+                is_available_in_network = True
             airport_pricing.append(
                 AirportCabPricing(
                     id=str(uuid.uuid4()),
+                    is_available_in_network=is_available_in_network,
                     cab_type_id=cab.id,
                     fuel_type_id=fuel.id,
                     airport_fare_per_km=airport_fare_per_km[cab.name][fuel.name],
@@ -363,7 +392,6 @@ def seed_pricing_master(session: Session):
     session.commit()
 
     # Trip Type Master seed (exclude airport_general, which is backend-only)
-    from models.trip.trip_orm import TripTypeMaster
 
     trip_type_master = [
         {
@@ -407,7 +435,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            dynamic_platform_fee_percent=2.0,  # 2% platform fee
+            dynamic_platform_fee_percent=0.5,  # platform fee
             placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
             max_included_km=42,  # 42 km included for airport trips is a common standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
@@ -418,7 +446,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            dynamic_platform_fee_percent=2.0,  # 2% platform fee
+            dynamic_platform_fee_percent=1.0,  # platform fee
             max_included_km=42,  # 42 km included for airport trips is a standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
             toll=120,  # toll for airport drop set to 120 if customer opts for it
@@ -428,7 +456,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            dynamic_platform_fee_percent=4.0,  # 4% platform fee
+            dynamic_platform_fee_percent=1.5,  # platform fee
             min_included_hours=4,  # Minimum 4 hours for local trips
             max_included_hours=12,  # Maximum 12 hours for local trips
             min_included_km=40,  # Minimum 40 km included for local trips
@@ -487,7 +515,8 @@ def seed_pricing_master(session: Session):
                 included_hours=package.included_hours,
                 included_km=package.included_km,
                 package_label=package.package_label,
-                driver_allowance=package.driver_allowance or 0.0,  # Default to 0 if not set
+                driver_allowance=package.driver_allowance
+                or 0.0,  # Default to 0 if not set
                 created_by=RoleEnum.system,
             )
         )
@@ -619,7 +648,7 @@ def seed_pricing_master(session: Session):
                 except Exception:
                     # Silently skip any errors in config creation
                     continue
-
+    
     # Now add and commit pricing and toll configs
     session.add_all(
         outstation_pricing
@@ -658,4 +687,39 @@ def seed_states(session: Session):
         ),
     ]
     session.add_all(states)
+    session.commit()
+
+
+def seed_serviceable_geography(session: Session):
+    #First get trip type master so that we can use their ids in the ServiceableGeographyOrm
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+    #Now get all states so that we can have their state code in the ServiceableGeographyOrm state_codes json for outstation trips
+    states = session.query(GeoStateModel).all()
+    state_codes = [state.state_code for state in states]
+    serviceable_geography=[
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
+            service_area_state_codes=state_codes,  ),
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.local],
+            service_area_state_codes=[APP_HOME_STATE_CODE],  # Local trips are only serviceable in home state
+            service_area_cities=[APP_HOME_CITY, APP_HOME_CITY_ALT]
+        ),   
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
+            service_area_state_codes=[APP_HOME_STATE_CODE],  # Airport pickup is only serviceable in home state
+            service_area_cities=[APP_HOME_CITY,APP_HOME_CITY_ALT],
+            airport_place_ids=[APP_AIRPORT_LOCATION.get(APP_HOME_STATE).place_id],
+
+        ),
+        ServiceableGeographyOrm(
+            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
+            service_area_state_codes=[APP_HOME_STATE_CODE],  # Airport drop is only serviceable in home state
+            service_area_cities=[APP_HOME_CITY,APP_HOME_CITY_ALT],
+            airport_place_ids=[APP_AIRPORT_LOCATION.get(APP_HOME_STATE).place_id],
+        ),
+
+    ]
+    session.add_all(serviceable_geography)
     session.commit()

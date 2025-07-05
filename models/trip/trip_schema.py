@@ -8,7 +8,7 @@ from models.cab.pricing_schema import (
     OutstationPricingBreakdownSchema,
     OveragesSchema,
 )
-from models.customer.passenger_schema import PassengerOut
+from models.customer.passenger_schema import PassengerOut, PassengerRequest
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -162,13 +162,16 @@ class TripTypeMasterOut(BaseModel):
 
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
-    origin: LocationInfo
+    origin: Optional[LocationInfo] = None  # For airport trips, this is the pickup location
     hops: Optional[Union[List[str], List[LocationInfo]]] = (
         None  # Available for outstation and hourly rental multi-hop trips [Providing hops by customer helps us approximate the overages more efficiently and helps the customer get almost accurate quotes upfront]
     )
     destination: Optional[LocationInfo] = None
     start_date: str  # ISO date or datetime string
     end_date: Optional[str] = None
+    expected_end_date: Optional[str] = (
+        None  # for local trips, we set it by package chosen
+    )
     num_adults: int
     num_children: int
     num_large_suitcases: Optional[int] = 0  # Trolley bags, large suitcases
@@ -189,8 +192,7 @@ class TripSearchRequest(BaseModel):
     placard_name: Optional[str] = (
         None  # Name to display on the placard for airport pickup
     )
-    passenger_id: Optional[str] = None  # If provided, trip is for someone else
-    passenger_details: Optional[Union[str, PassengerOut]] = None
+    passenger: Optional[Union[str, PassengerRequest]] = None
 
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
@@ -247,7 +249,6 @@ class TripSearchOption(BaseModel):
         OutstationPricingBreakdownSchema,
         LocalPricingBreakdownSchema,
     ]  # Trip type specific pricing breakdown
-    estimated_km: Optional[float] = None
     included_km: Optional[float] = None
     included_hours: Optional[int] = None  # For local trips
     package_short_label: Optional[str] = (
@@ -272,6 +273,10 @@ class TripSearchResponse(BaseModel):
     total_trip_days: Optional[int] = (
         None  # Total number of days for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
+    estimated_km: Optional[float] = (
+        None  # Estimated kilometers for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
+    )
+    choices:Optional[int] = None  # Number of choices available for the user to book from
 
 
 class TripBookRequest(BaseModel):

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
-from utils.seed_data_generation import seed_pricing_master, seed_states
+from utils.seed_data_generation import seed_pricing_master, seed_serviceable_geography, seed_states
 
 router = APIRouter(prefix="/seed", tags=["seed"])
 
@@ -12,4 +12,5 @@ def seed_data(
 ):
     seed_states(db)
     seed_pricing_master(db)
+    seed_serviceable_geography(db)
     return {"message": "Seed data generation completed successfully."}

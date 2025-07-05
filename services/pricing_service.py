@@ -1,5 +1,6 @@
 from typing import List
 
+from aiohttp_retry import Union
 from sqlalchemy import func
 from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
 from models.cab.pricing_schema import (
@@ -60,6 +61,7 @@ def retrieve_interstate_permit_fee(
 
     # Initialize permit fee to 0
     permit_fee = 0.0
+
     all_states = (
         db.query(GeoStateModel, PermitFeeConfiguration, CabType, FuelType)
         .join(
@@ -72,6 +74,8 @@ def retrieve_interstate_permit_fee(
             func.lower(GeoStateModel.state_name).in_(unique_states_lower),
             PermitFeeConfiguration.permit_fee != None,
             PermitFeeConfiguration.permit_fee > 0,
+            PermitFeeConfiguration.cab_type_id == cab_type_id,
+            PermitFeeConfiguration.fuel_type_id == fuel_type_id,
         )
         .all()
     )
@@ -195,6 +199,24 @@ def get_preauthorized_minimum_wallet_amount(pre_authorized_wallet_amount: float)
         if pre_authorized_wallet_amount is not None
         else 0.0
     )
+
+
+def get_airport_trips_disclaimer_lines(
+    overage_amount_per_km: float, included_kms: Union[int, float] = 0
+):
+    """
+    Returns the disclaimer lines for airport trips, including overage charges and placard fees.
+
+    This function provides the standard disclaimer lines that are used in airport trip pricing
+    calculations, ensuring that customers are aware of potential extra charges.
+
+    Returns:
+        List[str]: A list of disclaimer lines for airport trips.
+    """
+    return [
+        f"If you exceed the included kilometers({included_kms}) in your airport transfer, {APP_COUNTRY_CURRENCY_SYMBOL}{overage_amount_per_km} per additional kilometer will be charged.",
+        "All extra charges are based on actual usage and will be transparently shown in your invoice.",
+    ]
 
 
 def get_local_trips_disclaimer_lines(

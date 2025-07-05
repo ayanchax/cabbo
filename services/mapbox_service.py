@@ -6,10 +6,11 @@ from core.config import settings
 MAPBOX_TOKEN = settings.MAPBOX_TOKEN
 
 
-def get_state_from_location(location: Union[LocationInfo, dict, str]) -> str:
+def get_state_from_location(location: Union[LocationInfo, dict, str], state_code: bool = False) -> str:
     """
-    Given a location (LocationInfo, dict, or string), return the state name using Mapbox geocoding.
+    Given a location (LocationInfo, dict, or string), return the state name or state code using Mapbox geocoding.
     If a string is provided, geocode to get lat/lng, then reverse geocode to get state.
+    If state_code=True, returns the state code (e.g., 'KA'), else returns the state name (e.g., 'Karnataka').
     Handles region extraction from both features and context.
     """
     geocoder = Geocoder(access_token=MAPBOX_TOKEN)
@@ -35,11 +36,31 @@ def get_state_from_location(location: Union[LocationInfo, dict, str]) -> str:
     # Try to find a feature of type 'region'
     for feature in features:
         if "region" in feature.get("place_type", []):
-            return feature.get("text")
+            if state_code:
+                # Try to get short_code (e.g., 'IN-KA') and extract last part
+                short_code = feature.get("properties", {}).get("short_code")
+                if short_code and "-" in short_code:
+                    return short_code.split("-")[-1].upper()
+                # Fallback: try context
+                for ctx in feature.get("context", []):
+                    if ctx.get("id", "").startswith("region"):
+                        sc = ctx.get("short_code")
+                        if sc and "-" in sc:
+                            return sc.split("-")[-1].upper()
+                # Fallback: return None
+                return None
+            else:
+                return feature.get("text")
         # Check context for region
         for ctx in feature.get("context", []):
             if ctx.get("id", "").startswith("region"):
-                return ctx.get("text")
+                if state_code:
+                    sc = ctx.get("short_code")
+                    if sc and "-" in sc:
+                        return sc.split("-")[-1].upper()
+                    return None
+                else:
+                    return ctx.get("text")
     print(f"No region found in reverse geocode for: {location}, features: {features}")
     return None
 
