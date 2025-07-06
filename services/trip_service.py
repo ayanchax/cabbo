@@ -1,5 +1,6 @@
 from typing import List
 
+from core.security import generate_trip_hash
 from models.cab.pricing_schema import (
     AirportCabPricingSchema,
     AirportPricingBreakdownSchema,
@@ -257,8 +258,7 @@ def get_trip_search_options(
             disclaimer_lines = get_airport_trips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
-            options.append(
-                TripSearchOption(
+            option = TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
                     fuel_type=fuel_type_schema.name,  # Use display name from schema
                     total_price=math.ceil(
@@ -285,6 +285,11 @@ def get_trip_search_options(
                         )
                     ),
                 )
+            
+            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option.hash = hash  # Attach the generated hash to the option
+            options.append(
+                option
             )
     elif search_in.trip_type == TripTypeEnum.airport_drop:  # to airport
         _validate_airport_schedule(search_in)  # Validate airport drop schedule
@@ -332,10 +337,8 @@ def get_trip_search_options(
             disclaimer_lines = get_airport_trips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
-
-            options.append(
-                TripSearchOption(
-                    car_type=cab_type_schema.name,  # Use display name
+            option=TripSearchOption(
+                car_type=cab_type_schema.name,  # Use display name
                     fuel_type=fuel_type_schema.name,  # Use display name
                     total_price=math.ceil(
                         total_price_before_platform_fee + price_breakdown.platform_fee
@@ -359,9 +362,11 @@ def get_trip_search_options(
                             disclaimer=disclaimer_lines,
                             extra_charges_disclaimers=disclaimer_lines,
                         )
-                    ),
-                )
-            )
+                    ))
+            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option.hash = hash  # Attach the generated hash to the option
+            options.append(option)
+            
     elif search_in.trip_type == TripTypeEnum.local:
         _validate_local_trip_schedule(search_in)  # Validate local trip schedule
         _, _, _ = _get_trip_origin_destination_distance_local(search_in)
@@ -439,8 +444,7 @@ def get_trip_search_options(
             disclaimer_message = (
                 "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
             )
-            options.append(
-                TripSearchOption(
+            option= TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
                     fuel_type=fuel_type_schema.name,  # Use display name from schema
                     total_price=math.ceil(
@@ -458,7 +462,11 @@ def get_trip_search_options(
                         )
                     ),
                 )
-            )
+            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option.hash = hash  # Attach the generated hash to the option
+            options.append(option)
+             
+            
     elif search_in.trip_type == TripTypeEnum.outstation:
         _, _, est_km = _get_trip_origin_destination_distance_outstation(search_in)
         total_trip_days = _validate_outstation_trip_schedule(search_in)
@@ -563,8 +571,7 @@ def get_trip_search_options(
             disclaimer = "Extra charges may apply:\n - " + "\n - ".join(
                 disclaimer_lines
             )
-            options.append(
-                TripSearchOption(
+            option =  TripSearchOption(
                     car_type=cab_type_schema.name,
                     fuel_type=fuel_type_schema.name,
                     total_price=math.ceil(
@@ -592,7 +599,13 @@ def get_trip_search_options(
                         )
                     ),
                 )
-            )
+            
+            
+            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option.hash = hash  # Attach the generated hash to the option
+            options.append(option)
+           
+            
     else:
         # If the trip type is not supported, raise an exception
         raise CabboException("Trip is not supported", status_code=501)
@@ -659,7 +672,7 @@ def get_trip_search_options(
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
-
+    
     return TripSearchResponse(
         options=_options,
         inclusions=inclusions,

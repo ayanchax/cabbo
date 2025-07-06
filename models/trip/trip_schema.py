@@ -64,9 +64,9 @@ class TripBase(BaseModel):
     # where the customer may not be reachable on their primary number.
     # However all invoices and receipts will still go to the primary phone number.
     alternate_customer_phone: Optional[str] = None
-    # Optional: passenger info for 'book for someone else' feature
-    passenger_id: Optional[str] = None  # If provided, trip is for someone else
 
+    # Optional: passenger info for 'book for someone else' feature
+    passenger: Optional[Union[str, PassengerRequest]] = None # If provided, trip is for someone else
     # num_luggages is now computed as the sum of all above fields
     @property
     def num_luggages(self) -> int:
@@ -257,6 +257,10 @@ class TripSearchOption(BaseModel):
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
 
+    class Config:
+        extra = "allow"  # Allow extra fields not defined in the model
+    
+     
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]

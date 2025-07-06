@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     SHARE_PATH: str
     MAPBOX_TOKEN: str
     LOCATION_SERVICE_PROVIDER: str
+    RAZOR_PAY_KEY_ID: str
+    RAZOR_PAY_KEY_SECRET: str
+    CABBO_TRIP_BOOKING_SECRET_KEY: str
 
     class Config:
         env_file = ENV_FILE

@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 from core.constants import APP_NAME
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+import hmac
+import hashlib
+import json
 
 JWT_EXPIRY_UNIT = 5
 JWT_EXPIRY_UNIT_TIME_FRAME = {
@@ -15,6 +18,7 @@ JWT_EXPIRY_UNIT_TIME_FRAME = {
     "HOURS": "hours",
     "MINUTES": "minutes",
 }
+SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
 
 class RoleEnum(str, Enum):
@@ -98,3 +102,15 @@ def generate_jwt_payload(
         "identity": identity,
     }
     return payload
+
+def generate_trip_hash(option,preferences) -> str:
+    """
+    Generate a hash for the trip booking option and preferences.
+    This is used to verify the integrity of the booking data.
+    """
+    payload = json.dumps({"option": option, "preferences": preferences}, sort_keys=True)
+    return hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
+
+def verify_trip_hash(option, preferences, client_hash: str) -> bool:
+    expected_hash = generate_trip_hash(option, preferences)
+    return hmac.compare_digest(expected_hash, client_hash)
