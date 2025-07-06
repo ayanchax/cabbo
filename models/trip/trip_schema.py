@@ -257,6 +257,10 @@ class TripSearchOption(BaseModel):
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
 
+    class Config:
+        extra = "allow"  # Allow extra fields not defined in the model
+    
+     
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
