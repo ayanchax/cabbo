@@ -260,11 +260,7 @@ class TripSearchOption(BaseModel):
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
     
-     
-
-class TripSearchResponse(BaseModel):
-    options: List[TripSearchOption]
-    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
+class TripSearchAdditionalData(BaseModel):
     inclusions: Optional[List[str]] = (
         None  # List of inclusions like tolls, parking, etc.
     )
@@ -281,8 +277,27 @@ class TripSearchResponse(BaseModel):
         None  # Estimated kilometers for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
     choices:Optional[int] = None  # Number of choices available for the user to book from
+    
+    is_interstate: Optional[bool] = (
+        None  # Indicates if the trip is interstate, mainly applicable for outstation trips
+    )  # This is used to calculate the total price for outstation trips which are interstate
+    total_unique_states: Optional[int] = (
+        None  # Applicable for outstation trips which are interstate
+    )
+    unique_states: Optional[str] = (
+        None  # Comma-separated list of unique states, applicable for outstation trips which are interstate
+    )
 
+    is_round_trip: Optional[bool] = (
+        True  # Indicates if the trip is a round trip, mainly applicable for outstation trips
+    )  # This is used to calculate the total price for outstation trips which are round trips
+
+class TripSearchResponse(BaseModel):
+    options: List[TripSearchOption]
+    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
+    metadata:Optional[TripSearchAdditionalData] = None  # Metadata about the trip search, like total options found, etc.
 
 class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book
     preferences: TripSearchRequest
+    metadata: Optional[TripSearchAdditionalData] = None  # Additional metadata for the booking

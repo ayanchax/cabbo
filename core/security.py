@@ -103,7 +103,7 @@ def generate_jwt_payload(
     }
     return payload
 
-def generate_trip_hash(option,preferences) -> str:
+def generate_trip_hash(option:dict,preferences:dict) -> str:
     """
     Generate a hash for the trip booking option and preferences.
     This is used to verify the integrity of the booking data.
@@ -111,6 +111,6 @@ def generate_trip_hash(option,preferences) -> str:
     payload = json.dumps({"option": option, "preferences": preferences}, sort_keys=True)
     return hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
 
-def verify_trip_hash(option, preferences, client_hash: str) -> bool:
+def verify_trip_hash(option:dict, preferences:dict, client_hash: str) -> bool:
     expected_hash = generate_trip_hash(option, preferences)
     return hmac.compare_digest(expected_hash, client_hash)
