@@ -1,10 +1,7 @@
 from core.security import RoleEnum
 from models.trip.trip_enums import (
-    TripStatusEnum,
-    TripTypeEnum,
     FuelTypeEnum,
     CarTypeEnum,
-    CancellationSubStatusEnum,
 )
 import uuid
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -20,13 +17,10 @@ from sqlalchemy import (
     Boolean,
     Text,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
-
-
-class Trip(Base):
-    __tablename__ = "trips"
+class TempTrip(Base):
+    __tablename__ = "temp_trips"
 
     id = Column(
         MySQL_CHAR(36),
@@ -46,7 +40,7 @@ class Trip(Base):
 
     # Trip details
     trip_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
+        MySQL_CHAR(36), nullable=False,
     )  # FK to trip types master table
 
     # Location information
@@ -76,15 +70,14 @@ class Trip(Base):
     # Package information selected by customer
     # This is applicable only for hourly rental trips
     package_id = Column(
-        MySQL_CHAR(36), ForeignKey("trip_package_config.id"), nullable=True, index=True
-    )
+        MySQL_CHAR(36), nullable=True, index=True
+    )  # FK to trip package config table for hourly rental trips
     package_label = Column(
         String(255), nullable=True, default=None
     )  # Label for the package, e.g., "4 Hours / 40 KM" 
     package_label_short = Column(
         String(100), nullable=True, default=None
     )  # Short label for the package, e.g., "4H/40KM" 
-    # FK to trip package config table for hourly rental trips
     # Package information selected by customer - END
     
     # Date and time information
@@ -124,18 +117,7 @@ class Trip(Base):
     )  # JSON/text list of in-car amenities (e.g., AC, music system, etc.)
     # Car and fuel preferences - END
 
-    # Driver assignment fields
-    driver_name = Column(String(255), nullable=True)
-    driver_phone = Column(String(32), nullable=True)
-    car_model = Column(String(64), nullable=True)
-    car_registration_number = Column(String(32), nullable=True)
-    payment_mode = Column(String(32), nullable=True)  # gpay, phonepe, paytm
-    payment_number = Column(String(32), nullable=True)  # UPI phone number
-    # Driver assignment fields -END
-
-    status = Column(
-        Enum(TripStatusEnum), default=TripStatusEnum.created, nullable=False
-    )
+  
 
     # Financial fields
     base_fare = Column(Float, nullable=True, default=0.0)  # Base fare for the trip
@@ -154,18 +136,11 @@ class Trip(Base):
     platform_fee = Column(
         Float, nullable=True, default=0.0
     )  # Platform fee charged by the system
-    quoted_price = Column(Float, nullable=True)  # Customer's counter-quote
     final_price = Column(Float, nullable=True, default=0.0)  # System-calculated
     final_display_price = Column(
         Float, nullable=True, default=0.0
     )  # Price shown to driver admin (final or quoted) w/o platform fee
-    advance_payment = Column(
-        Float, nullable=True, default=0.0
-    )  # Advance payment made by customer(generally the platform fee), if any
-    balance_payment = Column(
-        Float, nullable=True, default=0.0
-    )  # Balance payment to be made by customer after trip completion
-
+     
     # Inclusions and exclusions
     inclusions = Column(
         JSON, nullable=True
@@ -202,115 +177,8 @@ class Trip(Base):
     # Passenger info (nullable, for 'book for someone else' feature)
     passenger_id = Column(
         MySQL_CHAR(36),
-        ForeignKey("passengers.id", ondelete="SET NULL"),
         nullable=True,
-        index=True,
-        comment="FK to passengers table; null if trip is for self",
     )
     # Additional metadata - END
-
-    #Audit fields
-    status_audits = relationship("TripStatusAudit", back_populates="trip")
-    #Audit fields - END
-
-
-
-class TripStatusAudit(Base):
-    __tablename__ = "trip_status_audits"
-
-    id = Column(Integer, primary_key=True, index=True)
-    trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
-    status = Column(Enum(TripStatusEnum), nullable=False)
-    changed_by = Column(
-        Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
-        default=RoleEnum.customer,
-        nullable=True,
-    )
-    committer_id = Column(
-        MySQL_CHAR(36), nullable=False, index=True
-    )  # ID of the user who changed the status
-    reason = Column(String(255), nullable=True)  # New: reason/message for audit
-    timestamp = Column(DateTime, server_default=func.now(), nullable=False)
-
-    # New: for analytics and auditability
-    cancellation_sub_status = Column(
-        Enum(CancellationSubStatusEnum),
-        nullable=True,
-        default=None,
-        comment="Detailed cancellation reason for analytics (nullable, only for cancelled trips)",
-    )
-    # Nullable: Only populated when cancellation_sub_status == CancellationSubStatusEnum.customer_preferences_not_met
-    responsible_preference_keys_for_cancelation = Column(
-        Text,  # Use Text for flexibility; can store comma-separated or JSON string
-        nullable=True,
-        comment="Snapshot of preference keys/flags at status change (nullable)",
-    )
-
-    trip = relationship("Trip", back_populates="status_audits")
-
-
-class OutstandingDue(Base):
-    __tablename__ = "outstanding_dues"
-
-    id = Column(Integer, primary_key=True, index=True)
-    trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
-    customer_id = Column(MySQL_CHAR(36), ForeignKey("customers.id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    reason = Column(String(255), nullable=False)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
-    # Nullable: Only populated when
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-
-class TripTypeMaster(Base):
-    __tablename__ = "trip_types_master"
-
-    id = Column(
-        MySQL_CHAR(36),
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-        unique=True,
-        index=True,
-    )
-    trip_type = Column(Enum(TripTypeEnum), nullable=False, unique=True)
-    display_name = Column(String(64), nullable=False)
-    description = Column(String(255), nullable=True)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(
-        DateTime,
-        nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
-    )
-
-
-class TripPackageConfig(Base):
-    __tablename__ = "trip_package_config"
-    id = Column(
-        MySQL_CHAR(36),
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-        unique=True,
-        index=True,
-    )
-    trip_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
-    )
-    included_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
-    included_km = Column(Integer, nullable=False)  # e.g., 40, 60, 80, 100, 120
-    driver_allowance = Column(
-        Float, nullable=True, default=0.0
-    )  # Daily driver allowance for outstation/local trips
-    package_label = Column(String(64), nullable=False, unique=True)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(
-        DateTime,
-        nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
-    )
+ 
+ 

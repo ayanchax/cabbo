@@ -1,6 +1,6 @@
 from typing import List
 
-from core.security import generate_trip_hash
+from core.security import generate_trip_hash, verify_trip_hash
 from models.cab.pricing_schema import (
     AirportCabPricingSchema,
     AirportPricingBreakdownSchema,
@@ -16,10 +16,12 @@ from models.customer.passenger_schema import (
     PassengerRead,
     PassengerRequest,
 )
-from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
+from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
+    TripBookRequest,
     TripPackageConfigSchema,
+    TripSearchAdditionalData,
     TripSearchRequest,
     TripSearchOption,
     TripSearchResponse,
@@ -32,7 +34,7 @@ from models.cab.pricing_orm import (
     LocalCabPricing,
     OutstationCabPricing,
 )
-from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
+from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, TripTypeEnum
 from core.exceptions import CabboException
 from services.location_service import get_distance_km, get_state_from_location
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
@@ -197,7 +199,10 @@ def get_trip_search_options(
         None  # Default to 1 day for local and airport trips, can be overridden later
     )
     est_km = None
+    total_unique_states:int = 0
+    unique_states=[]
 
+    is_interstate = False  # Default to False, will be set for outstation trips
     if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
         _validate_airport_schedule(search_in)  # Validate airport pickup schedule
         _validate_placard_requirements(search_in)  # Validate placard requirements
@@ -481,7 +486,7 @@ def get_trip_search_options(
         )
 
         # Identify unique state borders crossed (including between hops)
-        is_interstate, _, unique_states = _track_state_transitions(search_in)
+        is_interstate, total_unique_states, unique_states = _track_state_transitions(search_in)
         inclusions, exclusions = _get_outstation_inclusions_exclusions(is_interstate)
         in_car_amenities.candies = True  # Candies are included for outstation trips
         in_car_amenities.phone_charger = (
@@ -672,16 +677,22 @@ def get_trip_search_options(
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
-    
-    return TripSearchResponse(
-        options=_options,
+    metadata=TripSearchAdditionalData(
         inclusions=inclusions,
         exclusions=exclusions,
-        preferences=search_in,
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
         estimated_km=est_km,
         choices=len(_options),  # Total number of options returned
+        is_round_trip=True,
+        is_interstate=is_interstate,
+        total_unique_states=total_unique_states,
+        unique_states=unique_states if is_interstate else None,
+        )
+    return TripSearchResponse(
+        options=_options,
+        preferences=search_in,
+        metadata=metadata,
     )
 
 
@@ -1254,3 +1265,104 @@ def _validate_serviceable_area(search_in: TripSearchRequest, db: Session):
         raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)
     
     print(f"Trip search request is within serviceable area for trip type: {trip_type}")
+
+def _verify_trip_hash(booking_request: TripBookRequest):
+    if not booking_request.option or not booking_request.option.hash:
+        raise CabboException("Invalid booking request, option hash is required", status_code=400)
+    if not booking_request.preferences:
+        raise CabboException("Invalid booking request, preferences are required", status_code=400)
+    # Validate the trip option hash
+    if not verify_trip_hash(option=booking_request.option.model_dump(), preferences=booking_request.preferences.model_dump(), client_hash=booking_request.option.hash):
+        raise CabboException("Invalid booking request, option hash is not valid", status_code=400)
+
+def _validate_duplicate_local_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 24):
+        start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        end_date = start_date + timedelta(hours=overlap_hours)  # Check for bookings within the next 24 hours
+        existing_bookings = db.query(Trip).join(TripTypeMaster).filter(
+            Trip.trip_type_id == TripTypeMaster.id,
+            Trip.creator_id == requestor,
+            Trip.start_datetime >= start_date,
+            Trip.start_datetime <= end_date,
+            Trip.status != TripStatusEnum.cancelled
+        ).all()
+        if existing_bookings:
+            raise CabboException("You already have a booking for this time slot", status_code=400)
+
+def _validate_duplicate_outstation_bookings(booking_request: TripBookRequest, requestor: str, db: Session):
+        start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        end_date = validate_date_time(date_time=booking_request.preferences.end_date)
+        if end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
+        existing_bookings = (
+            db.query(Trip)
+            .join(TripTypeMaster)
+            .filter(
+                Trip.trip_type_id == TripTypeMaster.id,
+                Trip.creator_id == requestor,
+                Trip.status != TripStatusEnum.cancelled,
+                Trip.start_datetime < end_date,
+                Trip.end_datetime > start_date,
+            )
+            .all()
+        )
+        if existing_bookings:
+            raise CabboException("You already have a booking for this time slot", status_code=400)
+
+def _validate_airport_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 6):
+        start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        end_date = start_date + timedelta(hours=overlap_hours)  # Check for bookings within the next 6 hours
+        existing_bookings = db.query(Trip).join(TripTypeMaster).filter(
+            Trip.trip_type_id == TripTypeMaster.id,
+            Trip.creator_id == requestor,
+            Trip.start_datetime >= start_date,  
+            Trip.start_datetime <= end_date,
+            Trip.status != TripStatusEnum.cancelled
+        ).all()
+        if existing_bookings:
+            raise CabboException("You already have a booking for this time slot", status_code=400)
+
+def _validate_booking_request(booking_request: TripBookRequest, requestor: str, db: Session):
+    # case 1: If the trip is local, check for existing bookings for the same customer with the same start date within the next 24 hours
+    
+    if booking_request.preferences.trip_type == TripTypeEnum.local:
+        _validate_duplicate_local_bookings(booking_request=booking_request, requestor=requestor, db=db)
+    
+    # case 2: If the trip is outstation, check for existing bookings for the same customer between the start and end dates
+
+    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
+        _validate_duplicate_outstation_bookings(booking_request=booking_request, requestor=requestor, db=db)
+    
+    # case 3: If the trip is airport pickup or drop, check for existing bookings for the same customer with the same start date within the next 6 hours
+    elif booking_request.preferences.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        _validate_airport_bookings(booking_request=booking_request, requestor=requestor, db=db)
+
+    else:
+        raise CabboException(f"Trip type {booking_request.preferences.trip_type} is not supported for booking", status_code=501)
+
+def initiate_booking(booking_request:TripBookRequest, requestor:str, db:Session):
+
+    """
+    Initiates a booking for a trip based on the provided booking request.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing trip details.
+        requestor (str): The user or system initiating the booking.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TripBookResponse: The response containing booking details.
+    Raises:
+        CabboException: If the booking request is invalid or if any error occurs during booking.
+
+    """
+    # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
+    _verify_trip_hash(booking_request=booking_request)
+    
+    # Check for duplicate or conflicting bookings for the same customer.
+    _validate_booking_request(booking_request=booking_request, requestor=requestor, db=db)
+
+    #Store in temp_trip_orm 
