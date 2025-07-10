@@ -16,6 +16,7 @@ from models.customer.passenger_schema import (
     PassengerRead,
     PassengerRequest,
 )
+from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
@@ -57,7 +58,7 @@ from models.trip.trip_enums import TripTypeEnum
 
 
 def _retrieve_trip_package_by_id(
-    package_id: str, fallback_duration: int, fallback_km: int, db: Session
+    package_id: str, db: Session, fallback_duration: int=4, fallback_km: int=40
 ):
     if not package_id:
         return TripPackageConfigSchema(
@@ -1345,6 +1346,208 @@ def _validate_booking_request(booking_request: TripBookRequest, requestor: str, 
     else:
         raise CabboException(f"Trip type {booking_request.preferences.trip_type} is not supported for booking", status_code=501)
 
+def _get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session) -> str:
+    """
+    Retrieves the trip type ID from the database based on the provided trip type.
+    Args:
+        trip_type (TripTypeEnum): The trip type for which to retrieve the ID.
+        db (Session): The database session for ORM operations.
+    Returns:
+        str: The ID of the trip type.
+    Raises:
+        CabboException: If the trip type is not found in the database.
+    """
+    trip_type_obj = db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
+    if not trip_type_obj:
+        raise CabboException(f"Trip type {trip_type} not found", status_code=404)
+    return trip_type_obj.id
+
+def _delete_temp_trip(requestor: str, db: Session):
+    """
+    Deletes all temporary trip details for the given requestor.
+    Args:
+        requestor (str): The user or system initiating the deletion.
+        db (Session): The database session for ORM operations.
+    """
+    try:
+        db.query(TempTrip).filter(TempTrip.creator_id == requestor).delete()
+        print(f"Temporary trip details deleted for requestor: {requestor}")
+    except Exception as e:
+        raise CabboException(f"Failed to delete temporary trip details: {str(e)}", status_code=500)
+
+def _calculate_expected_end_datetime(trip_type: TripTypeEnum, start_date: datetime, end_date: datetime, db:Session, package_id: str = None) -> datetime:
+    """
+    Calculates the expected end datetime for a trip based on the trip type, start date, end date, and package ID.
+    Args:
+        trip_type (TripTypeEnum): The type of trip (local, outstation, airport).
+        start_date (datetime): The start date of the trip.
+        end_date (datetime): The end date of the trip.
+        package_id (str): The package ID if applicable.
+    Returns:
+        datetime: The expected end datetime for the trip.
+    """
+    if trip_type == TripTypeEnum.local:
+        # For local trips, retrieve the package duration if available, otherwise default to 6 hours
+        if package_id:
+            package = _retrieve_trip_package_by_id(package_id=package_id, db=db)
+            if package and package.included_hours:
+                return start_date + timedelta(hours=package.included_hours)
+        return start_date + timedelta(hours=4)  # Default to 4 hours for local trips
+    
+    elif trip_type == TripTypeEnum.outstation:
+        # For outstation trips, use the provided end date
+        return end_date
+    
+    elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        # For airport trips, we can assume a short duration
+        return start_date + timedelta(hours=1)  # Default to 1 hour for airport trips
+    else:
+        raise CabboException(f"Trip type {trip_type} is not supported for expected end datetime calculation", status_code=501)
+
+def _get_total_num_luggages(booking_request: TripBookRequest) -> int:
+    """
+    Calculates the total number of luggages based on the booking request.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing luggage details.
+    Returns:
+        int: The total number of luggages.
+    """
+    return (
+        booking_request.preferences.num_large_suitcases
+        + booking_request.preferences.num_carryons
+        + booking_request.preferences.num_backpacks
+        + booking_request.preferences.num_other_bags
+    )
+
+def _get_tolls_estimate(booking_request: TripBookRequest) -> float:
+    """
+    Calculates the estimated tolls for the trip based on the booking request.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing toll details.
+    Returns:
+        float: The estimated tolls for the trip.
+    """
+    if booking_request.preferences.trip_type == TripTypeEnum.local:
+        # For local trips, tolls are not applicable
+        return 0.0
+    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
+        # For outstation trips, use the tolls estimate from the request if available
+        return booking_request.option.price_breakdown.minimum_toll_wallet if booking_request.option.price_breakdown.minimum_toll_wallet  else 0.0
+    elif booking_request.preferences.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        # For airport trips, use the tolls estimate from the request if available
+        return booking_request.option.price_breakdown.toll if booking_request.preferences.toll_road_preferred and  booking_request.option.price_breakdown.toll else 0.0
+    else:
+        raise CabboException(f"Trip type {booking_request.preferences.trip_type} is not supported for tolls estimation", status_code=501)
+
+def _get_parking_estimate(booking_request: TripBookRequest) -> float:
+    """
+    Calculates the estimated parking charges for the trip based on the booking request.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing parking details.
+    Returns:
+        float: The estimated parking charges for the trip.
+    """
+    if booking_request.preferences.trip_type == TripTypeEnum.local:
+        # For local trips, parking is not applicable
+        return booking_request.option.price_breakdown.minimum_parking_wallet if booking_request.option.price_breakdown.minimum_parking_wallet else 0.0
+    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
+        # For outstation trips, use the parking estimate from the request if available
+        return booking_request.option.price_breakdown.minimum_parking_wallet if booking_request.option.price_breakdown.minimum_parking_wallet else 0.0
+    elif booking_request.preferences.trip_type ==TripTypeEnum.airport_pickup:
+        # For airport pickup, use the parking estimate from the request if available
+        return booking_request.option.price_breakdown.parking if booking_request.option.price_breakdown.parking else 0.0
+    else:
+        return 0.0  # For airport drop, parking is not applicable
+
+def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db: Session) -> TempTrip:
+    """
+    
+    Creates a temporary trip record in the database based on the booking request.
+    This function validates the booking request, calculates necessary fields, and stores the trip details.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing preferences and options.
+        requestor (str): The user or system initiating the trip creation.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TempTrip: The created temporary trip record.
+    Raises:
+        CabboException: If the booking request is invalid or if any database operation fails.
+    """
+    trip_type_id = _get_trip_type_id_by_trip_type(booking_request.preferences.trip_type, db=db)
+    validated_start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+    if validated_start_date.tzinfo is None:
+        validated_start_date = validated_start_date.replace(tzinfo=timezone.utc)
+    validated_end_date = None
+    if booking_request.preferences.end_date:
+        validated_end_date = validate_date_time(date_time=booking_request.preferences.end_date)
+        if validated_end_date.tzinfo is None:
+            validated_end_date = validated_end_date.replace(tzinfo=timezone.utc)
+    
+    temp_trip = TempTrip(
+        creator_id=requestor,
+        trip_type_id=trip_type_id,
+        origin_display_name=booking_request.preferences.origin.display_name,
+        origin_lat=booking_request.preferences.origin.lat,
+        origin_lng=booking_request.preferences.origin.lng,
+        origin_place_id=booking_request.preferences.origin.place_id,
+        origin_address=booking_request.preferences.origin.address,
+        destination_display_name=booking_request.preferences.destination.display_name,
+        destination_lat=booking_request.preferences.destination.lat,
+        destination_lng=booking_request.preferences.destination.lng,
+        destination_place_id=booking_request.preferences.destination.place_id,
+        destination_address=booking_request.preferences.destination.address,
+        hops=booking_request.preferences.hops if booking_request.preferences.hops else None,
+        is_interstate=booking_request.metadata.is_interstate if booking_request.preferences.trip_type == TripTypeEnum.outstation else False,
+        total_unique_states=booking_request.metadata.total_unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
+        unique_states=booking_request.metadata.unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
+        package_id=booking_request.preferences.package_id if booking_request.preferences.package_id else None,
+        package_label=booking_request.option.package if booking_request.option.package else None,
+        package_label_short=booking_request.option.package_short_label if booking_request.option.package_short_label else None,
+        start_datetime=validated_start_date,
+        end_datetime=validated_end_date,
+        expected_end_datetime=_calculate_expected_end_datetime(booking_request.preferences.trip_type, validated_start_date, validated_end_date, db, booking_request.preferences.package_id),
+        total_days=booking_request.metadata.total_trip_days if booking_request.metadata.total_trip_days else None,
+        num_adults=booking_request.preferences.num_adults,
+        num_children=booking_request.preferences.num_children,
+        num_large_suitcases=booking_request.preferences.num_large_suitcases,
+        num_carryons=booking_request.preferences.num_carryons,
+        num_backpacks=booking_request.preferences.num_backpacks,
+        num_other_bags=booking_request.preferences.num_other_bags,
+        num_luggages=_get_total_num_luggages(booking_request=booking_request),
+        preferred_car_type=booking_request.preferences.preferred_car_type,
+        preferred_fuel_type=booking_request.preferences.preferred_fuel_type,
+        in_car_amenities=booking_request.metadata.in_car_amenities.model_dump() if booking_request.metadata.in_car_amenities else None,
+        price_breakdown=booking_request.option.price_breakdown.model_dump() if booking_request.option.price_breakdown else None,
+        overages=booking_request.option.overages.model_dump() if booking_request.option.overages else None,
+        base_fare=booking_request.option.price_breakdown.base_fare,
+        driver_allowance=booking_request.option.price_breakdown.driver_allowance if  booking_request.option.price_breakdown.driver_allowance else 0.0,
+        tolls_estimate=_get_tolls_estimate(booking_request=booking_request),
+        parking_estimate=_get_parking_estimate(booking_request=booking_request),
+        permit_fee=booking_request.option.price_breakdown.permit_fee if booking_request.metadata.is_interstate and booking_request.option.price_breakdown.permit_fee else 0.0,
+        platform_fee=booking_request.option.price_breakdown.platform_fee if booking_request.option.price_breakdown.platform_fee else 0.0,
+        final_price=booking_request.option.total_price,
+        final_display_price=(booking_request.option.total_price - booking_request.option.price_breakdown.platform_fee) ,
+        inclusions=booking_request.metadata.inclusions if booking_request.metadata.inclusions else None,
+        exclusions=booking_request.metadata.exclusions if booking_request.metadata.exclusions else None,
+        flight_number=booking_request.preferences.flight_number if booking_request.preferences.flight_number else None,
+        terminal_number=booking_request.preferences.terminal_number if booking_request.preferences.terminal_number else None,
+        toll_road_preferred=booking_request.preferences.toll_road_preferred if booking_request.preferences.toll_road_preferred else False,
+        placard_required=booking_request.preferences.placard_required if booking_request.preferences.placard_required else False,
+        placard_name=booking_request.preferences.placard_name if booking_request.preferences.placard_name else None,
+        estimated_km=booking_request.metadata.estimated_km if booking_request.metadata.estimated_km else 0.0,
+        indicative_overage_warning=booking_request.option.overages.indicative_overage_warning if booking_request.option.overages.indicative_overage_warning else None,
+        alternate_customer_phone=None,
+        passenger_id=booking_request.preferences.passenger.id if booking_request.preferences.passenger and booking_request.preferences.passenger.id else None,
+    )
+    try:
+        db.add(temp_trip)
+        db.commit()
+        db.refresh(temp_trip)
+        print(f"Temporary trip created for requestor: {requestor}")
+    except Exception as e:
+        db.rollback()
+        raise CabboException(f"Failed to create temporary trip: {str(e)}", status_code=500)
+
 def initiate_booking(booking_request:TripBookRequest, requestor:str, db:Session):
 
     """
@@ -1365,4 +1568,11 @@ def initiate_booking(booking_request:TripBookRequest, requestor:str, db:Session)
     # Check for duplicate or conflicting bookings for the same customer.
     _validate_booking_request(booking_request=booking_request, requestor=requestor, db=db)
 
-    #Store in temp_trip_orm 
+    #Delete all previous temporary trip details for the customer
+    _delete_temp_trip(requestor=requestor, db=db)
+
+    # Create a new Temp Trip object from the booking request
+    _create_temporary_trip(booking_request=booking_request, requestor=requestor, db=db)
+
+    # Create razor pay order for the trip
+    
