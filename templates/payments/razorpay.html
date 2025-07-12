@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cabbo Payment - Razorpay</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+    <h2>Pay for your Cabbo Trip</h2>
+    <button id="payBtn">Pay Now</button>
+    <script>
+        // Mock order details (replace with actual values from backend)
+        const orderDetails = {
+            key: "rzp_test_bAsq5gLjRpUUOC", // Replace with your Razorpay Key ID
+            amount: 2000, // Amount in paise
+            currency: "INR",
+            name: "Cabbo Trip Booking",
+            description: "Trip booking for local trip",
+            order_id: "order_QsI2vNBkioeQdR", // Replace with actual order ID
+            prefill: {
+                name: "Ayan",
+                email: "ayan@gmail.com",
+                contact: "+919831305667"
+            },
+            handler: function (response) {
+                console.log("Payment successful:", response);
+                // Callback after payment
+                // Send payment details to backend for verification
+                // fetch('/trip/book', {
+                //     method: 'POST',
+                //     headers: {
+                //         'Content-Type': 'application/json'
+                //     },
+                //     body: JSON.stringify({
+                //         razorpay_payment_id: response.razorpay_payment_id,
+                //         razorpay_order_id: response.razorpay_order_id,
+                //         razorpay_signature: response.razorpay_signature,
+                //         temp_trip_id: "temp_trip_id" // Replace with actual temp trip ID
+                //     })
+                // })
+                // .then(res => res.json())
+                // .then(data => {
+                //     alert('Payment verified! Trip confirmed.');
+                //     // Optionally redirect or show confirmation
+                // })
+                // .catch(err => {
+                //     alert('Payment verification failed.');
+                // });
+            }
+        };
+
+        document.getElementById('payBtn').onclick = function() {
+            const rzp = new Razorpay(orderDetails);
+            rzp.open();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,1306 @@
+{
+	"info": {
+		"_postman_id": "ac763d24-9c80-4da7-93b8-14759d0af430",
+		"name": "cabbo-api-production-grade",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "4729541"
+	},
+	"item": [
+		{
+			"name": "customer",
+			"description": "Customer management endpoints: registration, login, profile update, and verification.",
+			"item": [
+				{
+					"name": "passenger",
+					"item": [
+						{
+							"name": "create-passenger",
+							"description": "Create a new passenger for a customer. Required: name, phone_number. Returns passenger details.",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"name\":\"Ram\",\r\n    \"phone_number\":\"9908109901\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/customers/{{customer_id}}/passenger/add",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"customers",
+										"{{customer_id}}",
+										"passenger",
+										"add"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "onboard-initiate",
+					"description": "Initiate onboarding for a customer. Required: phone_number. Triggers OTP send.",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"phone_number\":\"+91 9831305667\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/auth/onboard/initiate",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"auth",
+								"onboard",
+								"initiate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "register-with-otp",
+					"description": "Register a customer with OTP verification. Required: name, email, phone_number, otp, dob, gender, emergency contact info. Returns customer profile.",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Ayan Chax\",\r\n  \"email\": \"ayanchax9088@gmail.com\",\r\n  \"phone_number\": \"+919831305667\",\r\n  \"otp\": \"1984\",\r\n  \"dob\": \"1988-08-03T00:00:00Z\",\r\n  \"gender\": \"male\",\r\n  \"emergency_contact_name\": \"Oyendrila Majumdar\",\r\n  \"emergency_contact_number\": \"+91 8017084241\",\r\n  \"opt_in_updates\": true\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/auth/register",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get_active_customer",
+					"description": "Get active customer profile by customer_id. Required: phone_number. Returns customer details.",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"phone_number\":\"+91 9831305667\"\r\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/customers/{{customer_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"{{customer_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update_customer",
+					"description": "Update customer profile. Required: name, email. Returns updated customer info.",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\":\"Ayan\",\r\n    \"email\":\"ayan@gmail.com\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/customers/{{customer_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"{{customer_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login-initiate",
+					"description": "Initiate login for a customer. Required: phone_number. Triggers OTP send.",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"phone_number\":\"+91 9831305667\"\r\n     \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/auth/login/initiate",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"auth",
+								"login",
+								"initiate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login",
+					"description": "Login with phone_number and OTP. Returns authentication token.",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"phone_number\":\"+919831305667\",\r\n    \"otp\":\"2802\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/auth/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "logout",
+					"description": "Logout the current customer. Requires authentication.",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/customers/logout",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "email-verification-initiate",
+					"description": "Initiate email verification for customer. Sends verification email.",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/customers/{{customer_id}}/self-service/initiate-email-verification",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"{{customer_id}}",
+								"self-service",
+								"initiate-email-verification"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verify-email",
+					"description": "Verify customer email using token. Required: customer_id, token. Returns verification status.",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/customers/self-service/verify-email?id={{customer_id}}&token=XQtOwA7mmmWfc2jQDi7Nxg",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"self-service",
+								"verify-email"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{customer_id}}"
+								},
+								{
+									"key": "token",
+									"value": "XQtOwA7mmmWfc2jQDi7Nxg"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "upload-profile-picture",
+					"description": "Upload profile picture for customer. Required: file. Returns upload status.",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/C:/Users/ayanc/OneDrive/Desktop/paypal.png"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://localhost:8000/customers/{{customer_id}}/upload/profile-picture",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"{{customer_id}}",
+								"upload",
+								"profile-picture"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "remove-profile-picture",
+					"description": "Remove profile picture for customer. Returns removal status.",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "http://localhost:8000/customers/{{customer_id}}/remove/profile-picture",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"customers",
+								"{{customer_id}}",
+								"remove",
+								"profile-picture"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "seeding",
+			"description": "Endpoints for generating and managing seed data for development and testing.",
+			"item": [
+				{
+					"name": "generate-seed-data",
+					"description": "Generate seed data for testing. Requires authentication. Returns seed status.",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjYWJibyIsImlhdCI6MTc0ODYzNjk2NSwic3ViIjoiMDZkNmUzMDEtMmY0Yi00MTA5LTkxODUtNWFiZmJiYzAwNDFiIiwiZXhwIjoxNzQ5MDY4OTY1LCJpZGVudGl0eSI6Iis5MTk4MzEzMDU2NjcifQ.omH-x2Nh34AJvooy93zdohtO1pQJ6kMftHrJiJQgNTE",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"phone_number\":\"+91 9831305667\",\r\n    \"otp\":\"6768\"\r\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/seed/data",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"seed",
+								"data"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "trip",
+			"description": "Trip search, booking, and payment endpoints. Organized by trip type and workflow.",
+			"item": [
+				{
+					"name": "search",
+					"description": "Endpoints for searching available trips by type (outstation, local, airport). Each request returns available options and pricing.",
+					"item": [
+						{
+							"name": "outstation",
+							"item": [
+								{
+									"name": "outstation-suv-diesel-with-single-hop",
+									"description": "Search for outstation trip (SUV, diesel) with a single hop. Returns available options and pricing.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"outstation\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Chennai, TN\",\r\n        \"lat\": 13.0827,\r\n        \"lng\": 80.2707,\r\n        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r\n        \"address\": \"Chennai, Tamil Nadu, India\"\r\n    },\r\n    \"start_date\": \"2025-07-15T07:00:00\",\r\n    \"end_date\": \"2025-07-17T20:00:00\",\r\n    \"num_adults\": 4,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 3,\r\n    \"num_carryons\": 2,\r\n    \"preferred_car_type\": \"SUV\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"hops\": [\r\n        {\r\n            \"display_name\": \"Vellore, TN\",\r\n            \"lat\": 12.9165,\r\n            \"lng\": 79.1325,\r\n            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r\n            \"address\": \"Vellore, Tamil Nadu, India\"\r\n        }\r\n    ]\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "outstation-suv-diesel-unserviceable",
+									"description": "Search for outstation trip (SUV, diesel) to an unserviceable destination. Returns error or empty options.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"outstation\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Pune, MH\",\r\n        \"lat\": 18.5204,\r\n        \"lng\": 73.8567,\r\n        \"place_id\": \"ChIJARFGZy6_wjsR6h8lh0U7b3w\",\r\n        \"address\": \"Pune, Maharashtra, India\"\r\n    },\r\n    \"start_date\": \"2025-07-15T07:00:00\",\r\n    \"end_date\": \"2025-07-18T20:00:00\",\r\n    \"num_adults\": 4,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 3,\r\n    \"num_carryons\": 2,\r\n    \"preferred_car_type\": \"SUV\",\r\n    \"preferred_fuel_type\": \"diesel\"\r\n}\r\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "outstation-sedan-petrol-with-multi-hop",
+									"description": "Search for outstation trip (Sedan, petrol) with multiple hops. Returns available options and pricing.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"outstation\",\r\n    \"origin\": {\r\n        \"display_name\": \"MG Road, Kochi, KL\",\r\n        \"lat\": 9.9816,\r\n        \"lng\": 76.2852,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"MG Road, Kochi, Kerala, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Munnar, KL\",\r\n        \"lat\": 10.0889,\r\n        \"lng\": 77.0595,\r\n        \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r\n        \"address\": \"Munnar, Kerala, India\"\r\n    },\r\n    \"start_date\": \"2025-07-18T06:00:00\",\r\n    \"end_date\": \"2025-07-21T21:00:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"hops\": [\r\n        {\r\n            \"display_name\": \"Kothamangalam, KL\",\r\n            \"lat\": 10.0607,\r\n            \"lng\": 76.6238,\r\n            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r\n            \"address\": \"Kothamangalam, Kerala, India\"\r\n        },\r\n        {\r\n            \"display_name\": \"Adimali, KL\",\r\n            \"lat\": 10.0066,\r\n            \"lng\": 76.9553,\r\n            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r\n            \"address\": \"Adimali, Kerala, India\"\r\n        }\r\n    ]\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "outstation-sedan-petrol-past-date",
+									"description": "Search for outstation trip (Sedan, petrol) with a past date. Returns error or empty options.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"outstation\",\r\n    \"origin\": {\r\n        \"display_name\": \"Chennai, TN\",\r\n        \"lat\": 13.0827,\r\n        \"lng\": 80.2707,\r\n        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r\n        \"address\": \"Chennai, Tamil Nadu, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.5946,\r\n        \"place_id\": \"ChIJbU60yXAWrjsR4E9-UejD3_g\",\r\n        \"address\": \"Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-25T06:00:00\",\r\n    \"end_date\": \"2025-07-28T21:00:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\"\r\n}\r\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "outstation-sedan-petrol-with-multi-hop-unserviceable",
+									"description": "Search for outstation trip (Sedan, petrol) with multiple hops to an unserviceable destination. Returns error or empty options.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"outstation\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Chennai, TN\",\r\n        \"lat\": 13.0827,\r\n        \"lng\": 80.2707,\r\n        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r\n        \"address\": \"Chennai, Tamil Nadu, India\"\r\n    },\r\n    \"start_date\": \"2025-07-23T07:00:00\",\r\n    \"end_date\": \"2025-07-24T20:00:00\",\r\n    \"num_adults\": 4,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 3,\r\n    \"num_carryons\": 2,\r\n    \"preferred_car_type\": \"SUV\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"hops\": [\r\n        {\r\n            \"display_name\": \"Pune, MH\",\r\n            \"lat\": 18.5204,\r\n            \"lng\": 73.8567,\r\n            \"place_id\": \"ChIJARFGZy6_wjsR6h8lh0U7b3w\",\r\n            \"address\": \"Pune, Maharashtra, India\"\r\n        },\r\n        {\r\n            \"display_name\": \"Vellore, TN\",\r\n            \"lat\": 12.9165,\r\n            \"lng\": 79.1325,\r\n            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r\n            \"address\": \"Vellore, Tamil Nadu, India\"\r\n        }\r\n    ]\r\n}\r\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "outstation-suv-plus-diesel",
+									"description": "Search for outstation trip (SUV+, diesel). Returns available options and pricing.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"outstation\",\r\n    \"origin\": {\r\n        \"display_name\": \"Koramangala, Bengaluru, KA\",\r\n        \"lat\": 12.9352,\r\n        \"lng\": 77.6245,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Koramangala, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Hyderabad, Telegana\",\r\n        \"lat\": 17.385,\r\n        \"lng\": 78.4867,\r\n        \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r\n        \"address\": \"Hyderabad, Telengana, India\"\r\n    },\r\n    \"start_date\": \"2025-07-26T06:00:00\",\r\n    \"end_date\": \"2025-07-29T21:00:00\",\r\n    \"num_adults\": 5,\r\n    \"num_children\": 2,\r\n    \"num_large_suitcases\": 4,\r\n    \"num_carryons\": 3,\r\n    \"preferred_car_type\": \"SUV+\",\r\n    \"preferred_fuel_type\": \"diesel\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "hourly-local-rental",
+							"item": [
+								{
+									"name": "local-sedan-petrol",
+									"description": "Search for local hourly rental (Sedan, petrol). Returns available options and pricing.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"local\",\r\n    \"origin\": {\r\n        \"display_name\": \"T Nagar, Chennai, TN\",\r\n        \"lat\": 13.0418,\r\n        \"lng\": 80.2337,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"T Nagar, Chennai, Tamil Nadu, India\"\r\n    },\r\n    \"start_date\": \"2025-07-24T09:00:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 1,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"package_id\": \"{{hourly_package_id}}\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "local-sedan-petrol-unserviceable",
+									"description": "Search for local hourly rental (Sedan, petrol) to an unserviceable area. Returns error or empty options.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"local\",\r\n    \"origin\": {\r\n        \"display_name\": \"MG Road, Chennai, TN\",\r\n        \"lat\": 13.0648,\r\n        \"lng\": 80.2498,\r\n        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r\n        \"address\": \"MG Road, Chennai, Tamil Nadu, India\"\r\n    },\r\n    \"start_date\": \"2025-07-12T09:00:00\",\r\n    \"end_date\": \"2025-07-01T13:00:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 1,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"package_id\": \"{{hourly_package_id}}\"\r\n}\r\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "local-hatchback-petrol",
+									"description": "Search for local hourly rental (Hatchback, petrol). Returns available options and pricing.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"local\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-22T14:00:00\",\r\n    \r\n    \"num_adults\": 1,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 0,\r\n    \"num_carryons\": 2,\r\n    \"preferred_car_type\": \"Hatchback\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"package_id\": \"{{hourly_package_id}}\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "local-suv-plus-diesel",
+									"description": "Search for local hourly rental (SUV+, diesel). Returns available options and pricing.",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"trip_type\": \"local\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-10T09:00:00\",\r\n    \"num_adults\": 3,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"SUV+\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"package_id\": {{hourly_package_id}}\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/search",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"search"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "airport",
+							"item": [
+								{
+									"name": "airport-pickup",
+									"description": "Endpoints for airport pickup trip search. Organized by car type and serviceability.",
+									"item": [
+										{
+											"name": "search_airport_pickup_sedan_diesel",
+											"description": "Search for airport pickup (Sedan, diesel). Returns available options and pricing.",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_pickup\",\r\n    \"destination\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-14T10:30:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Sedan\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"flight_number\": \"AI123\",\r\n    \"terminal_number\": \"T1\",\r\n    \"toll_road_preferred\": true,\r\n    \"placard_required\": true,\r\n    \"placard_name\": \"John Doe\",\r\n    \"passenger\":{\r\n        \"id\":\"{{passenger_id}}\"\r\n    }\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "search_airport_pickup_hatchback_petrol",
+											"description": "Search for airport pickup (Hatchback, petrol). Returns available options and pricing.",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_pickup\",\r\n    \"destination\": {\r\n        \"display_name\": \"Koramangala, Bengaluru, KA\",\r\n        \"lat\": 12.9352,\r\n        \"lng\": 77.6245,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Koramangala, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-18T08:00:00\",\r\n    \"num_adults\": 1,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 1,\r\n    \"num_carryons\": 2,\r\n    \"preferred_car_type\": \"Hatchback\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"flight_number\": \"6E456\",\r\n    \"terminal_number\": \"T3\"\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "search_airport_pickup_premium_sedan_petrol",
+											"description": "Search for airport pickup (Premium Sedan, petrol). Returns available options and pricing.",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_pickup\",\r\n    \r\n    \"destination\": {\r\n        \"display_name\": \"MG Road, Bengaluru, KA\",\r\n        \"lat\": 12.9740,\r\n        \"lng\": 77.6122,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"MG Road, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-15T11:00:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 2,\r\n    \"num_large_suitcases\": 3,\r\n    \"num_carryons\": 2,\r\n    \"preferred_car_type\": \"Premium Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"flight_number\": \"AI555\",\r\n    \"terminal_number\": \"T2\",\r\n    \"toll_road_preferred\": true\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "search_airport_pickup_premium_sedan_petrol_unserviceable",
+											"description": "Search for airport pickup (Premium Sedan, petrol) to an unserviceable area. Returns error or empty options.",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_pickup\",\r\n    \r\n    \"destination\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-14T10:30:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Sedan\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"flight_number\": \"AI123\",\r\n    \"terminal_number\": \"T1\",\r\n    \"toll_road_preferred\": true,\r\n    \"placard_required\": true,\r\n    \"placard_name\": \"John Doe\"\r\n}\r\n",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										}
+									]
+								},
+								{
+									"name": "airport-drop",
+									"description": "Endpoints for airport drop trip search. Organized by car type and serviceability.",
+									"item": [
+										{
+											"name": "search_airport_drop_sedan_petrol",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_drop\",\r\n    \"origin\": {\r\n        \"display_name\": \"MG Road, Bengaluru, KA\",\r\n        \"lat\": 12.9740,\r\n        \"lng\": 77.6122,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"MG Road, Bengaluru, Karnataka, India\"\r\n    },\r\n    \r\n    \"start_date\": \"2025-07-13T15:30:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Premium Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"flight_number\": \"6E789\",\r\n    \"terminal_number\": \"T1\",\r\n    \"toll_road_preferred\": false\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "search_airport_drop_premium_sedan_petrol-unserviceable",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_drop\",\r\n    \"origin\": {\r\n        \"display_name\": \"Salt Lake, Kolkata, WB\",\r\n        \"lat\": 22.5867,\r\n        \"lng\": 88.4172,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Salt Lake, Kolkata, West Bengal, India\"\r\n    },\r\n    \"destination\": {\r\n        \"display_name\": \"Netaji Subhas Chandra Bose International Airport, Kolkata, WB\",\r\n        \"lat\": 22.6547,\r\n        \"lng\": 88.4467,\r\n        \"place_id\": \"ChIJLwPMoJmVrjsR4E9-UejD3_g\",\r\n        \"address\": \"Netaji Subhas Chandra Bose International Airport, Kolkata, West Bengal, India\"\r\n    },\r\n    \"start_date\": \"2025-07-13T15:30:00\",\r\n    \"num_adults\": 2,\r\n    \"num_children\": 1,\r\n    \"num_large_suitcases\": 2,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"Premium Sedan\",\r\n    \"preferred_fuel_type\": \"petrol\",\r\n    \"flight_number\": \"6E789\",\r\n    \"terminal_number\": \"T1\",\r\n    \"toll_road_preferred\": false\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "search_airport_drop_suv_diesel",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_drop\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-12T18:00:00\",\r\n    \"num_adults\": 3,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 3,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"SUV\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"toll_road_preferred\": true\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "search_airport_drop_suv_diesel",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"trip_type\": \"airport_drop\",\r\n    \"origin\": {\r\n        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n        \"lat\": 12.9716,\r\n        \"lng\": 77.6412,\r\n        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n    },\r\n    \"start_date\": \"2025-07-15T18:00:00\",\r\n    \"num_adults\": 3,\r\n    \"num_children\": 0,\r\n    \"num_large_suitcases\": 3,\r\n    \"num_carryons\": 1,\r\n    \"preferred_car_type\": \"SUV\",\r\n    \"preferred_fuel_type\": \"diesel\",\r\n    \"toll_road_preferred\": true\r\n}\r\n",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/search",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"search"
+													]
+												}
+											},
+											"response": []
+										}
+									]
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "book",
+					"item": [
+						{
+							"name": "hourly-local-rental",
+							"item": [
+								{
+									"name": "initiate",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"option\": {\r\n        \"car_type\": \"Hatchback\",\r\n        \"fuel_type\": \"cng\",\r\n        \"total_price\": 1100.0,\r\n        \"price_breakdown\": {\r\n            \"base_fare\": 1000.0,\r\n            \"platform_fee\": 20.0,\r\n            \"driver_allowance\": 0.0,\r\n            \"minimum_parking_wallet\": 80.0,\r\n            \"quoted_price\": null\r\n        },\r\n        \"included_km\": 40.0,\r\n        \"included_hours\": 4,\r\n        \"package_short_label\": \"4Hours / 40KM\",\r\n        \"package\": \"4Hours / 40KM | AC Hatchback - (cng)\",\r\n        \"overages\": {\r\n            \"indicative_overage_warning\": false,\r\n            \"overage_amount_per_km\": null,\r\n            \"overage_estimate_amount\": null,\r\n            \"overage_amount_per_hour\": null,\r\n            \"disclaimer\": \"Extra charges may apply: \\n - If you exceed the included hours and/or kilometers in your selected package (4Hours / 40KM), ₹250.0 per additional hour and/or ₹15.0 per additional km will be charged.\\n - If any tolls are incurred during your trip, they will be billed based on actual usage.\\n - If parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.\\n - All extra charges are based on actual usage and will be transparently shown in your invoice.\",\r\n            \"extra_charges_disclaimers\": [\r\n                \"If you exceed the included hours and/or kilometers in your selected package (4Hours / 40KM), ₹250.0 per additional hour and/or ₹15.0 per additional km will be charged.\",\r\n                \"If any tolls are incurred during your trip, they will be billed based on actual usage.\",\r\n                \"If parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.\",\r\n                \"All extra charges are based on actual usage and will be transparently shown in your invoice.\"\r\n            ]\r\n        },\r\n        \"hash\": \"98641ac7603006bf66620d205c7e6456c9c46ab5c18821ce0da34d041d57645b\"\r\n    },\r\n    \"preferences\": {\r\n        \"trip_type\": \"local\",\r\n        \"origin\": {\r\n            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n            \"lat\": 12.9716,\r\n            \"lng\": 77.6412,\r\n            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n        },\r\n        \"hops\": null,\r\n        \"destination\": {\r\n            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n            \"lat\": 12.9716,\r\n            \"lng\": 77.6412,\r\n            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n        },\r\n        \"start_date\": \"2025-07-22T14:00:00\",\r\n        \"end_date\": null,\r\n        \"expected_end_date\": \"2025-07-22 18:00:00\",\r\n        \"num_adults\": 1,\r\n        \"num_children\": 1,\r\n        \"num_large_suitcases\": 0,\r\n        \"num_carryons\": 2,\r\n        \"num_backpacks\": 0,\r\n        \"num_other_bags\": 0,\r\n        \"preferred_car_type\": \"Hatchback\",\r\n        \"preferred_fuel_type\": \"petrol\",\r\n        \"package_id\": \"9993e623-a9df-4688-8c9b-e285a16c9728\",\r\n        \"flight_number\": null,\r\n        \"terminal_number\": null,\r\n        \"toll_road_preferred\": false,\r\n        \"placard_required\": false,\r\n        \"placard_name\": null,\r\n        \"passenger\": \"self\"\r\n    },\r\n    \"metadata\": {\r\n        \"inclusions\": [\r\n            \"Base fare\",\r\n            \"Minimum parking allowance\",\r\n            \"Water bottles and tissues\",\r\n            \"Platform fee\",\r\n            \"Premium AC cab with professional driver\"\r\n        ],\r\n        \"exclusions\": [\r\n            \"Personal expenses\",\r\n            \"Self sponsored driver meals\",\r\n            \"Tolls(if applicable)\",\r\n            \"Extra parking(if any)\"\r\n        ],\r\n        \"in_car_amenities\": {\r\n            \"ac\": true,\r\n            \"music_system\": true,\r\n            \"water_bottle\": true,\r\n            \"tissues\": true,\r\n            \"candies\": false,\r\n            \"snacks\": false,\r\n            \"phone_charger\": true,\r\n            \"aux_cable\": true,\r\n            \"bluetooth\": false,\r\n            \"wifi\": false\r\n        },\r\n        \"total_trip_days\": null,\r\n        \"estimated_km\": null,\r\n        \"choices\": 10,\r\n        \"is_interstate\": false,\r\n        \"total_unique_states\": 0,\r\n        \"unique_states\": null,\r\n        \"is_round_trip\": true\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/initiate-booking",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"initiate-booking"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "confirm",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"booking_id\":\"20e3a93c-c73c-4dac-986c-69bb98bb4f52\",\r\n    \"payment_info\":{\r\n        \"razorpay_order_id\":\"\",\r\n        \"razorpay_payment_id\":\"\",\r\n        \"razorpay_signature\":\"\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/confirm-booking",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"confirm-booking"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "outstation",
+							"item": [
+								{
+									"name": "initiate",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"option\": {\r\n            \"car_type\": \"SUV+\",\r\n            \"fuel_type\": \"diesel\",\r\n            \"total_price\": 29100.0,\r\n            \"price_breakdown\": {\r\n                \"base_fare\": 24000.0,\r\n                \"platform_fee\": 1650.0,\r\n                \"driver_allowance\": 1600.0,\r\n                \"minimum_toll_wallet\": 500.0,\r\n                \"minimum_parking_wallet\": 150.0,\r\n                \"permit_fee\": 1200.0,\r\n                \"quoted_price\": null\r\n            },\r\n            \"included_km\": 1200.0,\r\n            \"included_hours\": null,\r\n            \"package_short_label\": \"1200 km | Round trip | (4 days)\",\r\n            \"package\": \"1200 km | Round trip | (4 days) - AC SUV+ - (diesel)\",\r\n            \"overages\": {\r\n                \"indicative_overage_warning\": false,\r\n                \"overage_amount_per_km\": 0.0,\r\n                \"overage_estimate_amount\": 0.0,\r\n                \"overage_amount_per_hour\": null,\r\n                \"disclaimer\": \"Extra charges may apply:\\n - If the driver drives during night hours (8 PM to 6 AM), a nightly hourly surcharge of ₹100.0 will be applied.\\n - If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.\\n - All extra charges are based on actual usage and will be transparently shown in your invoice.\",\r\n                \"extra_charges_disclaimers\": [\r\n                    \"If the driver drives during night hours (8 PM to 6 AM), a nightly hourly surcharge of ₹100.0 will be applied.\",\r\n                    \"If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.\",\r\n                    \"All extra charges are based on actual usage and will be transparently shown in your invoice.\"\r\n                ]\r\n            },\r\n            \"hash\": \"aa0bfc97fd8f8b53ea8b7c1592f216f5d087efac54efc5ac717dd4d6b61eba2b\"\r\n        },\r\n   \"preferences\": {\r\n        \"trip_type\": \"outstation\",\r\n        \"origin\": {\r\n            \"display_name\": \"Chennai, TN\",\r\n            \"lat\": 13.0827,\r\n            \"lng\": 80.2707,\r\n            \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r\n            \"address\": \"Chennai, Tamil Nadu, India\"\r\n        },\r\n        \"hops\": null,\r\n        \"destination\": {\r\n            \"display_name\": \"Bengaluru, KA\",\r\n            \"lat\": 12.9716,\r\n            \"lng\": 77.5946,\r\n            \"place_id\": \"ChIJbU60yXAWrjsR4E9-UejD3_g\",\r\n            \"address\": \"Bengaluru, Karnataka, India\"\r\n        },\r\n        \"start_date\": \"2025-07-25T06:00:00\",\r\n        \"end_date\": \"2025-07-28T21:00:00\",\r\n        \"expected_end_date\": \"2025-07-28T21:00:00\",\r\n        \"num_adults\": 2,\r\n        \"num_children\": 0,\r\n        \"num_large_suitcases\": 2,\r\n        \"num_carryons\": 1,\r\n        \"num_backpacks\": 0,\r\n        \"num_other_bags\": 0,\r\n        \"preferred_car_type\": \"Sedan\",\r\n        \"preferred_fuel_type\": \"petrol\",\r\n        \"package_id\": null,\r\n        \"flight_number\": null,\r\n        \"terminal_number\": null,\r\n        \"toll_road_preferred\": false,\r\n        \"placard_required\": false,\r\n        \"placard_name\": null,\r\n        \"passenger\": \"self\"\r\n    },\r\n    \"metadata\": {\r\n        \"inclusions\": [\r\n            \"Base fare\",\r\n            \"Driver allowance\",\r\n            \"Minimum parking and toll allowance\",\r\n            \"State entry taxes\",\r\n            \"Water bottles, candies, and tissues\",\r\n            \"Platform fee\",\r\n            \"Premium AC cab with professional driver\"\r\n        ],\r\n        \"exclusions\": [\r\n            \"Personal expenses\",\r\n            \"Self sponsored driver meals and/or accomodation\",\r\n            \"Night surcharges(if applicable)\",\r\n            \"Extra tolls(if any)\",\r\n            \"Extra parking(if any)\"\r\n        ],\r\n        \"in_car_amenities\": {\r\n            \"ac\": true,\r\n            \"music_system\": true,\r\n            \"water_bottle\": true,\r\n            \"tissues\": true,\r\n            \"candies\": true,\r\n            \"snacks\": false,\r\n            \"phone_charger\": true,\r\n            \"aux_cable\": true,\r\n            \"bluetooth\": true,\r\n            \"wifi\": false\r\n        },\r\n        \"total_trip_days\": 4,\r\n        \"estimated_km\": 694.92,\r\n        \"choices\": 9,\r\n        \"is_interstate\": true,\r\n        \"total_unique_states\": 2,\r\n        \"unique_states\": [\r\n            \"Tamil Nadu\",\r\n            \"karnataka\"\r\n        ],\r\n        \"is_round_trip\": true\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/initiate-booking",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"initiate-booking"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "confirm",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"booking_id\":\"20e3a93c-c73c-4dac-986c-69bb98bb4f52\",\r\n    \"payment_info\":{\r\n        \"razorpay_order_id\":\"\",\r\n        \"razorpay_payment_id\":\"\",\r\n        \"razorpay_signature\":\"\"\r\n    }\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "http://localhost:8000/trip/confirm-booking",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8000",
+											"path": [
+												"trip",
+												"confirm-booking"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "airport",
+							"item": [
+								{
+									"name": "airport-pickup",
+									"item": [
+										{
+											"name": "initiate",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"option\": {\r\n        \"car_type\": \"Sedan\",\r\n        \"fuel_type\": \"diesel\",\r\n        \"total_price\": 1228.0,\r\n        \"price_breakdown\": {\r\n            \"base_fare\": 948.0,\r\n            \"platform_fee\": 10.0,\r\n            \"placard_charge\": 50.0,\r\n            \"toll\": 120.0,\r\n            \"parking\": 100.0,\r\n            \"quoted_price\": null\r\n        },\r\n        \"included_km\": null,\r\n        \"included_hours\": null,\r\n        \"package_short_label\": \"Airport Pickup\",\r\n        \"package\": \"Airport Pickup | AC Sedan(4+1) - (diesel)\",\r\n        \"overages\": {\r\n            \"indicative_overage_warning\": false,\r\n            \"overage_amount_per_km\": 0.0,\r\n            \"overage_estimate_amount\": 0.0,\r\n            \"overage_amount_per_hour\": null,\r\n            \"disclaimer\": [\r\n                \"If you exceed the included kilometers(42) in your airport transfer, ₹19.0 per additional kilometer will be charged.\",\r\n                \"All extra charges are based on actual usage and will be transparently shown in your invoice.\"\r\n            ],\r\n            \"extra_charges_disclaimers\": [\r\n                \"If you exceed the included kilometers(42) in your airport transfer, ₹19.0 per additional kilometer will be charged.\",\r\n                \"All extra charges are based on actual usage and will be transparently shown in your invoice.\"\r\n            ]\r\n        },\r\n        \"hash\": \"5b114d7a87a7f2348d7cd94609d4e16cda57d0c1fd9ab050781cee6f709c286e\"\r\n    },\r\n    \"preferences\": {\r\n        \"trip_type\": \"airport_pickup\",\r\n        \"origin\": {\r\n            \"display_name\": \"Kempegowda International Airport, Bengaluru\",\r\n            \"lat\": 13.1986,\r\n            \"lng\": 77.7066,\r\n            \"place_id\": \"ChIJL_P_CXMEDTkRw0ZdG-0GVvw\",\r\n            \"address\": \"Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India\"\r\n        },\r\n        \"hops\": null,\r\n        \"destination\": {\r\n            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n            \"lat\": 12.9716,\r\n            \"lng\": 77.6412,\r\n            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n        },\r\n        \"start_date\": \"2025-07-14T10:30:00\",\r\n        \"end_date\": null,\r\n        \"expected_end_date\": null,\r\n        \"num_adults\": 2,\r\n        \"num_children\": 1,\r\n        \"num_large_suitcases\": 2,\r\n        \"num_carryons\": 1,\r\n        \"num_backpacks\": 0,\r\n        \"num_other_bags\": 0,\r\n        \"preferred_car_type\": \"Sedan\",\r\n        \"preferred_fuel_type\": \"diesel\",\r\n        \"package_id\": null,\r\n        \"flight_number\": \"AI123\",\r\n        \"terminal_number\": \"T1\",\r\n        \"toll_road_preferred\": true,\r\n        \"placard_required\": true,\r\n        \"placard_name\": \"John Doe\",\r\n        \"passenger\": {\r\n            \"id\": \"76c2534b-1ae8-4d94-a628-d4ad8b193ecd\",\r\n            \"name\": \"Ram\",\r\n            \"phone_number\": \"+919908109901\"\r\n        }\r\n    },\r\n    \"metadata\": {\r\n        \"inclusions\": [\r\n            \"Base fare\",\r\n            \"Toll\",\r\n            \"Parking\",\r\n            \"Platform fee\",\r\n            \"Premium AC cab with professional driver\",\r\n            \"Water bottles and tissues\",\r\n            \"Placard charges\"\r\n        ],\r\n        \"exclusions\": [\r\n            \"Personal expenses\",\r\n            \"Self sponsored driver meals\"\r\n        ],\r\n        \"in_car_amenities\": {\r\n            \"ac\": true,\r\n            \"music_system\": true,\r\n            \"water_bottle\": true,\r\n            \"tissues\": true,\r\n            \"candies\": false,\r\n            \"snacks\": false,\r\n            \"phone_charger\": false,\r\n            \"aux_cable\": false,\r\n            \"bluetooth\": false,\r\n            \"wifi\": false\r\n        },\r\n        \"total_trip_days\": null,\r\n        \"estimated_km\": 39.48,\r\n        \"choices\": 11,\r\n        \"is_interstate\": false,\r\n        \"total_unique_states\": 0,\r\n        \"unique_states\": null,\r\n        \"is_round_trip\": true\r\n    }\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/initiate-booking",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"initiate-booking"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "confirm",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"booking_id\":\"20e3a93c-c73c-4dac-986c-69bb98bb4f52\",\r\n    \"payment_info\":{\r\n        \"razorpay_order_id\":\"\",\r\n        \"razorpay_payment_id\":\"\",\r\n        \"razorpay_signature\":\"\"\r\n    }\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/confirm-booking",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"confirm-booking"
+													]
+												}
+											},
+											"response": []
+										}
+									]
+								},
+								{
+									"name": "airport-drop",
+									"item": [
+										{
+											"name": "initiate",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"option\":\r\n    {\r\n            \"car_type\": \"SUV\",\r\n            \"fuel_type\": \"petrol\",\r\n            \"total_price\": 1654.0,\r\n            \"price_breakdown\": {\r\n                \"base_fare\": 1514.0,\r\n                \"platform_fee\": 20.0,\r\n                \"placard_charge\": null,\r\n                \"toll\": 120.0,\r\n                \"parking\": null,\r\n                \"quoted_price\": null\r\n            },\r\n            \"included_km\": null,\r\n            \"included_hours\": null,\r\n            \"package_short_label\": \"Airport Drop\",\r\n            \"package\": \"Airport Drop | AC SUV - (petrol)\",\r\n            \"overages\": {\r\n                \"indicative_overage_warning\": false,\r\n                \"overage_amount_per_km\": 0.0,\r\n                \"overage_estimate_amount\": 0.0,\r\n                \"overage_amount_per_hour\": null,\r\n                \"disclaimer\": [\r\n                    \"If you exceed the included kilometers(42) in your airport transfer, ₹38.0 per additional kilometer will be charged.\",\r\n                    \"All extra charges are based on actual usage and will be transparently shown in your invoice.\"\r\n                ],\r\n                \"extra_charges_disclaimers\": [\r\n                    \"If you exceed the included kilometers(42) in your airport transfer, ₹38.0 per additional kilometer will be charged.\",\r\n                    \"All extra charges are based on actual usage and will be transparently shown in your invoice.\"\r\n                ]\r\n            },\r\n            \"hash\": \"f9b6cbf1312455062cc586844f48abd60b7660385fbfeb5ef2fa941175aa00f1\"\r\n        },\r\n        \"preferences\": {\r\n        \"trip_type\": \"airport_drop\",\r\n        \"origin\": {\r\n            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r\n            \"lat\": 12.9716,\r\n            \"lng\": 77.6412,\r\n            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r\n            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r\n        },\r\n        \"hops\": null,\r\n        \"destination\": {\r\n            \"display_name\": \"Kempegowda International Airport, Bengaluru\",\r\n            \"lat\": 13.1986,\r\n            \"lng\": 77.7066,\r\n            \"place_id\": \"ChIJL_P_CXMEDTkRw0ZdG-0GVvw\",\r\n            \"address\": \"Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India\"\r\n        },\r\n        \"start_date\": \"2025-07-15T18:00:00\",\r\n        \"end_date\": null,\r\n        \"expected_end_date\": null,\r\n        \"num_adults\": 3,\r\n        \"num_children\": 0,\r\n        \"num_large_suitcases\": 3,\r\n        \"num_carryons\": 1,\r\n        \"num_backpacks\": 0,\r\n        \"num_other_bags\": 0,\r\n        \"preferred_car_type\": \"SUV\",\r\n        \"preferred_fuel_type\": \"diesel\",\r\n        \"package_id\": null,\r\n        \"flight_number\": null,\r\n        \"terminal_number\": null,\r\n        \"toll_road_preferred\": true,\r\n        \"placard_required\": false,\r\n        \"placard_name\": null,\r\n        \"passenger\": {\r\n            \"id\":\"{{passenger_id}}\"\r\n        }\r\n    },\r\n    \"metadata\": {\r\n        \"inclusions\": [\r\n            \"Base fare\",\r\n            \"Toll\",\r\n            \"Water bottles and tissues\",\r\n            \"Platform fee\",\r\n            \"Premium AC cab with professional driver\"\r\n        ],\r\n        \"exclusions\": [\r\n            \"Personal expenses\",\r\n            \"Self sponsored driver meals\"\r\n        ],\r\n        \"in_car_amenities\": {\r\n            \"ac\": true,\r\n            \"music_system\": true,\r\n            \"water_bottle\": true,\r\n            \"tissues\": true,\r\n            \"candies\": false,\r\n            \"snacks\": false,\r\n            \"phone_charger\": false,\r\n            \"aux_cable\": false,\r\n            \"bluetooth\": false,\r\n            \"wifi\": false\r\n        },\r\n        \"total_trip_days\": null,\r\n        \"estimated_km\": 38.81,\r\n        \"choices\": 11,\r\n        \"is_interstate\": false,\r\n        \"total_unique_states\": 0,\r\n        \"unique_states\": null,\r\n        \"is_round_trip\": true\r\n    }\r\n\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/initiate-booking",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"initiate-booking"
+													]
+												}
+											},
+											"response": []
+										},
+										{
+											"name": "confirm",
+											"request": {
+												"method": "POST",
+												"header": [],
+												"body": {
+													"mode": "raw",
+													"raw": "{\r\n    \"booking_id\":\"20e3a93c-c73c-4dac-986c-69bb98bb4f52\",\r\n    \"payment_info\":{\r\n        \"razorpay_order_id\":\"\",\r\n        \"razorpay_payment_id\":\"\",\r\n        \"razorpay_signature\":\"\"\r\n    }\r\n}",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "http://localhost:8000/trip/confirm-booking",
+													"protocol": "http",
+													"host": [
+														"localhost"
+													],
+													"port": "8000",
+													"path": [
+														"trip",
+														"confirm-booking"
+													]
+												}
+											},
+											"response": []
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{bearer-token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

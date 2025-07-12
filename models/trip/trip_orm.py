@@ -36,7 +36,7 @@ class Trip(Base):
         index=True,
     )
     #  Creator information
-    creator_id = Column(Integer, nullable=False, index=True)
+    creator_id = Column(MySQL_CHAR(36), nullable=False, index=True)
     creator_type = Column(
         Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
         default=RoleEnum.customer,
@@ -68,7 +68,7 @@ class Trip(Base):
         Integer, nullable=True
     )  ##Applicable for outstation trips which are interstate
     unique_states = Column(
-        Text, nullable=True
+        JSON, nullable=True
     )  # comma separated list of unique states, applicable for outstation trips which are interstate
     is_round_trip = Column(Boolean, default=True, nullable=False)
     # Location information - END
@@ -92,7 +92,7 @@ class Trip(Base):
     expected_end_datetime = Column(
         DateTime, nullable=True
     )  # Nullable | for local trips, we set it by package chosen
-    end_datetime = Column(DateTime, nullable=False)
+    end_datetime = Column(DateTime, nullable=True)
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
@@ -110,6 +110,9 @@ class Trip(Base):
         Integer, nullable=True, default=0
     )  # Other bags, small items
     num_luggages = Column(Integer, nullable=True, default=0)  # Total luggage count
+    num_passengers = Column(
+        Integer, nullable=True, default=1) # Total passengers including adults and children
+    
     # Passenger and luggage information - END
 
     # Car and fuel preferences
@@ -165,6 +168,12 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
+    price_breakdown = Column(
+        JSON, nullable=True 
+    )  # JSON/text for detailed price breakdown (base fare, driver allowance, tolls, parking, etc.)
+    overages = Column(
+        JSON, nullable=True
+    )  # JSON/text for overages (e.g., overage amount per km, overage estimate amount, etc.)
 
     # Inclusions and exclusions
     inclusions = Column(

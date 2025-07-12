@@ -29,6 +29,7 @@ class CabType(Base):
     )
     name = Column(SAEnum(CarTypeEnum), unique=True, nullable=False)
     description = Column(String(255), nullable=True)  # Description of cab type
+    capacity = Column(String(20), nullable=True)  # Passenger capacity e.g, "4+1",
     cab_names = Column(
         String(255), nullable=True
     )  # Comma-separated example cab model names

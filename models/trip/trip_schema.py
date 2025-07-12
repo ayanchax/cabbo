@@ -9,6 +9,7 @@ from models.cab.pricing_schema import (
     OveragesSchema,
 )
 from models.customer.passenger_schema import PassengerOut, PassengerRequest
+from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -81,6 +82,9 @@ class TripBase(BaseModel):
                 ],
             )
         )
+    @property
+    def num_passengers(self) -> int:
+        return self.num_adults + self.num_children
 
     @field_validator("alternate_customer_phone", mode="before")
     @classmethod
@@ -116,6 +120,12 @@ class TripOut(TripBase):
     class Config:
         from_attributes = True
 
+class TripBookingOut(BaseModel):
+    booking_id: str  # Unique booking ID for the trip
+    payment_info: Union[dict,RazorPayPaymentResponse]  # Payment details is mandatory as we do not confirm trips without an advance payment
+    
+    class Config:
+        from_attributes = True
 
 class TripStatusAuditOut(BaseModel):
     id: int
@@ -284,7 +294,7 @@ class TripSearchAdditionalData(BaseModel):
     total_unique_states: Optional[int] = (
         None  # Applicable for outstation trips which are interstate
     )
-    unique_states: Optional[str] = (
+    unique_states: Optional[List[str]] = (
         None  # Comma-separated list of unique states, applicable for outstation trips which are interstate
     )
 
@@ -292,6 +302,9 @@ class TripSearchAdditionalData(BaseModel):
         True  # Indicates if the trip is a round trip, mainly applicable for outstation trips
     )  # This is used to calculate the total price for outstation trips which are round trips
 
+    class Config:
+        extra = "allow"  # Allow extra fields not defined in the model
+    
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
     preferences: Optional[TripSearchRequest] = None  # User preferences used for search
