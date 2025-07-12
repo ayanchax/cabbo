@@ -42,10 +42,11 @@ from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from core.constants import APP_HOME_STATE
 from datetime import datetime, timezone, timedelta
 import math
-from services.passenger_service import get_passenger_by_id
+from services.passenger_service import get_passenger_by_id, get_passenger_id_from_preferences
 from services.pricing_service import (
     get_airport_toll,
     get_airport_trips_disclaimer_lines,
+    get_driver_allowance,
     get_local_trips_disclaimer_lines,
     get_outstation_trips_disclaimer_lines,
     get_preauthorized_minimum_wallet_amount,
@@ -154,7 +155,49 @@ def _validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Ses
 
         search_in.passenger = "self"  # Use a string to indicate self-booking
 
+def _generate_trip_field_dictionary(search_in: TripSearchRequest, car_type: str, fuel_type: str, option: TripSearchOption):
+    """Generates a dictionary of trip fields for the booking option and preferences.
+    This method creates a dictionary representation of the trip option and preferences
+    for use in generating a hash to verify the integrity of the booking data.
 
+    Args:
+        search_in (TripSearchRequest): The trip search request containing user preferences.
+        car_type (str): The car type selected for the trip.
+        fuel_type (str): The fuel type selected for the trip.
+        option (TripSearchOption): The trip search option containing pricing and breakdown details.
+
+    Returns:
+        tuple: A tuple containing two dictionaries:
+            - option_dict: Dictionary of trip option fields.
+            - preference_dict: Dictionary of user preferences for the trip.
+    """
+    option_dict ={
+                "car_type": car_type,  # Use display name from schema
+                "fuel_type": fuel_type,  # Use display name from schema
+                "total_price": option.total_price,
+                }
+    preference_dict={
+                "trip_type": search_in.trip_type,
+                "origin": search_in.origin.model_dump() if search_in.origin else None,
+                "start_date": search_in.start_date,
+                }
+    if search_in.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+         preference_dict["destination"]= search_in.destination.model_dump() if search_in.destination else None
+        
+    elif search_in.trip_type == TripTypeEnum.local:
+        option_dict["package"] = option.package
+        option_dict["package_short_label"] = option.package_short_label
+        option_dict["included_hours"] = option.included_hours
+        option_dict["included_km"] = option.included_km
+    elif search_in.trip_type == TripTypeEnum.outstation:
+        preference_dict["destination"]= search_in.destination.model_dump() if search_in.destination else None
+        preference_dict["start_date"] = search_in.end_date
+    else:
+        # For other trip types, we can set additional fields if needed
+        pass
+    
+    return option_dict, preference_dict
+    
 def get_trip_search_options(
     search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
@@ -291,8 +334,10 @@ def get_trip_search_options(
                         )
                     ),
                 )
-            
-            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option_dict, preference_dict=_generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option)
+             
+            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(
                 option
@@ -369,7 +414,10 @@ def get_trip_search_options(
                             extra_charges_disclaimers=disclaimer_lines,
                         )
                     ))
-            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option_dict, preference_dict=_generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option)
+             
+            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(option)
             
@@ -394,13 +442,13 @@ def get_trip_search_options(
         )
 
         package_short_label = package.package_label
-        package_label = f"{package_short_label} | AC {search_in.preferred_car_type} - ({search_in.preferred_fuel_type})"
         package_included_hours = package.included_hours
         package_included_km = package.included_km
         
-        search_in.expected_end_date = validate_date_time(search_in.start_date) + timedelta(
+        expected_end_date =validate_date_time(search_in.start_date) + timedelta(
             hours=package_included_hours
         )
+        search_in.expected_end_date = str(expected_end_date)  # Ensure expected end date is set for local trips
         local_pricings = (
             db.query(LocalCabPricing, CabType, FuelType)
             .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
@@ -450,6 +498,7 @@ def get_trip_search_options(
             disclaimer_message = (
                 "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
             )
+            package_label = f"{package_short_label} | AC {cab_type_schema.name} - ({fuel_type_schema.name})"
             option= TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
                     fuel_type=fuel_type_schema.name,  # Use display name from schema
@@ -468,7 +517,10 @@ def get_trip_search_options(
                         )
                     ),
                 )
-            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option_dict, preference_dict=_generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option)
+             
+            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(option)
              
@@ -606,8 +658,10 @@ def get_trip_search_options(
                     ),
                 )
             
-            
-            hash = generate_trip_hash(option.model_dump(), search_in.model_dump())  # Generate hash for the option
+            option_dict, preference_dict=_generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option)
+             
+            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(option)
            
@@ -690,6 +744,7 @@ def get_trip_search_options(
         total_unique_states=total_unique_states,
         unique_states=unique_states if is_interstate else None,
         )
+    
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
@@ -710,7 +765,7 @@ def _get_local_inclusions_exclusions():
         "Minimum parking allowance",
         "Water bottles and tissues",
         "Platform fee",
-        "Premium AC cab experience with professional driver",
+        "Premium AC cab with professional driver",
     ]
     exclusions = [
         "Personal expenses",
@@ -746,7 +801,7 @@ def _get_outstation_inclusions_exclusions(is_interstate: bool):
         "Minimum parking and toll allowance",
         "Water bottles, candies, and tissues",
         "Platform fee",
-        "Premium AC cab experience with professional driver",
+        "Premium AC cab with professional driver",
     ]
     exclusions = [
         "Personal expenses",
@@ -763,7 +818,7 @@ def _get_outstation_inclusions_exclusions(is_interstate: bool):
             "State entry taxes",
             "Water bottles, candies, and tissues",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
         ]
     return inclusions, exclusions
 
@@ -782,7 +837,7 @@ def _get_airport_drop_inclusions_exclusions(toll_road_preferred: bool = False):
             "Toll",
             "Water bottles and tissues",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
         ]
     else:
         # If toll road is not preferred, we don't include toll charges
@@ -791,7 +846,7 @@ def _get_airport_drop_inclusions_exclusions(toll_road_preferred: bool = False):
             "Base fare",
             "Water bottles and tissues",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
         ]
 
     exclusions = ["Personal expenses", "Self sponsored driver meals"]
@@ -814,7 +869,7 @@ def _get_airport_pickup_inclusions_exclusions(
             "Toll",
             "Parking",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
             "Water bottles and tissues",
             "Placard charges",
         ]
@@ -825,14 +880,14 @@ def _get_airport_pickup_inclusions_exclusions(
             "Parking",
             "Water bottles and tissues",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
         ]
     elif not toll_road_preferred and placard_required:
         inclusions = [
             "Base fare",
             "Parking",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
             "Water bottles and tissues",
             "Placard charges",
         ]
@@ -844,7 +899,7 @@ def _get_airport_pickup_inclusions_exclusions(
             "Parking",
             "Water bottles and tissues",
             "Platform fee",
-            "Premium AC cab experience with professional driver",
+            "Premium AC cab with professional driver",
         ]
     exclusions = ["Personal expenses", "Self sponsored driver meals"]
     return inclusions, exclusions
@@ -1268,19 +1323,23 @@ def _validate_serviceable_area(search_in: TripSearchRequest, db: Session):
     print(f"Trip search request is within serviceable area for trip type: {trip_type}")
 
 def _verify_trip_hash(booking_request: TripBookRequest):
-    if not booking_request.option or not booking_request.option.hash:
+    if not hasattr(booking_request, 'option'):
+        raise CabboException("Invalid booking request, option is required", status_code=400)
+    
+    if not booking_request.option or not hasattr(booking_request.option, 'hash'):
         raise CabboException("Invalid booking request, option hash is required", status_code=400)
     if not booking_request.preferences:
         raise CabboException("Invalid booking request, preferences are required", status_code=400)
     # Validate the trip option hash
-    if not verify_trip_hash(option=booking_request.option.model_dump(), preferences=booking_request.preferences.model_dump(), client_hash=booking_request.option.hash):
+    option_dict, preference_dict =_generate_trip_field_dictionary(search_in = booking_request.preferences, car_type=booking_request.option.car_type, fuel_type=booking_request.option.fuel_type, option=booking_request.option)
+    if not verify_trip_hash(option=option_dict, preferences=preference_dict, client_hash=booking_request.option.hash):
         raise CabboException("Invalid booking request, option hash is not valid", status_code=400)
 
-def _validate_duplicate_local_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 24):
+def _validate_duplicate_local_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 12):
         start_date = validate_date_time(date_time=booking_request.preferences.start_date)
         if start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=timezone.utc)
-        end_date = start_date + timedelta(hours=overlap_hours)  # Check for bookings within the next 24 hours
+        end_date = start_date + timedelta(hours=overlap_hours)  # Check for bookings within the next 12 hours
         existing_bookings = db.query(Trip).join(TripTypeMaster).filter(
             Trip.trip_type_id == TripTypeMaster.id,
             Trip.creator_id == requestor,
@@ -1305,15 +1364,15 @@ def _validate_duplicate_outstation_bookings(booking_request: TripBookRequest, re
                 Trip.trip_type_id == TripTypeMaster.id,
                 Trip.creator_id == requestor,
                 Trip.status != TripStatusEnum.cancelled,
-                Trip.start_datetime < end_date,
-                Trip.end_datetime > start_date,
+                Trip.start_datetime <= end_date,
+                Trip.end_datetime >= start_date,
             )
             .all()
         )
         if existing_bookings:
             raise CabboException("You already have a booking for this time slot", status_code=400)
 
-def _validate_airport_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 6):
+def _validate_airport_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 4):
         start_date = validate_date_time(date_time=booking_request.preferences.start_date)
         if start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=timezone.utc)
@@ -1500,7 +1559,7 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         is_interstate=booking_request.metadata.is_interstate if booking_request.preferences.trip_type == TripTypeEnum.outstation else False,
         total_unique_states=booking_request.metadata.total_unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
         unique_states=booking_request.metadata.unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
-        package_id=booking_request.preferences.package_id if booking_request.preferences.package_id else None,
+        package_id=booking_request.preferences.package_id if booking_request.preferences.trip_type == TripTypeEnum.local  and booking_request.preferences.package_id else None,
         package_label=booking_request.option.package if booking_request.option.package else None,
         package_label_short=booking_request.option.package_short_label if booking_request.option.package_short_label else None,
         start_datetime=validated_start_date,
@@ -1520,7 +1579,7 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         price_breakdown=booking_request.option.price_breakdown.model_dump() if booking_request.option.price_breakdown else None,
         overages=booking_request.option.overages.model_dump() if booking_request.option.overages else None,
         base_fare=booking_request.option.price_breakdown.base_fare,
-        driver_allowance=booking_request.option.price_breakdown.driver_allowance if  booking_request.option.price_breakdown.driver_allowance else 0.0,
+        driver_allowance=get_driver_allowance(option=booking_request.option) if booking_request.preferences.trip_type in [TripTypeEnum.outstation, TripTypeEnum.local] else 0.0,
         tolls_estimate=_get_tolls_estimate(booking_request=booking_request),
         parking_estimate=_get_parking_estimate(booking_request=booking_request),
         permit_fee=booking_request.option.price_breakdown.permit_fee if booking_request.metadata.is_interstate and booking_request.option.price_breakdown.permit_fee else 0.0,
@@ -1537,7 +1596,7 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         estimated_km=booking_request.metadata.estimated_km if booking_request.metadata.estimated_km else 0.0,
         indicative_overage_warning=booking_request.option.overages.indicative_overage_warning if booking_request.option.overages.indicative_overage_warning else None,
         alternate_customer_phone=None,
-        passenger_id=booking_request.preferences.passenger.id if booking_request.preferences.passenger and booking_request.preferences.passenger.id else None,
+        passenger_id=get_passenger_id_from_preferences(preferences=booking_request.preferences),
     )
     try:
         db.add(temp_trip)

@@ -22,6 +22,7 @@ from models.cab.pricing_orm import (
 )
 from models.trip.trip_enums import TripTypeEnum
 from core.exceptions import CabboException
+from models.trip.trip_schema import TripSearchOption
 
 
 def retrieve_interstate_permit_fee(
@@ -269,3 +270,10 @@ def get_outstation_trips_disclaimer_lines(
         "If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.",
         "All extra charges are based on actual usage and will be transparently shown in your invoice.",
     ]
+
+def get_driver_allowance(option:TripSearchOption):
+    if not option or not hasattr(option, 'price_breakdown'):
+        return 0.0
+    if option.price_breakdown and hasattr(option.price_breakdown, 'driver_allowance'):
+        return option.price_breakdown.driver_allowance
+    return 0.0

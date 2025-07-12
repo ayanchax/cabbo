@@ -30,7 +30,7 @@ class TempTrip(Base):
         index=True,
     )
     #  Creator information
-    creator_id = Column(Integer, nullable=False, index=True)
+    creator_id = Column(MySQL_CHAR(36), nullable=False, index=True)
     creator_type = Column(
         Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
         default=RoleEnum.customer,
@@ -85,7 +85,7 @@ class TempTrip(Base):
     expected_end_datetime = Column(
         DateTime, nullable=True
     )  # Nullable | for local trips, we set it by package chosen
-    end_datetime = Column(DateTime, nullable=False)
+    end_datetime = Column(DateTime, nullable=True)
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips

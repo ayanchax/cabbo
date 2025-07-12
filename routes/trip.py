@@ -7,7 +7,7 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.trip_service import get_trip_search_options
+from services.trip_service import get_trip_search_options, initiate_booking
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/trip", tags=["Trip"])
@@ -26,7 +26,7 @@ def search_trip(
 
 
 @router.post("/initiate-booking", response_model=dict)
-def initiate_booking(
+def init_booking(
     trip_in: TripBookRequest,
     db: Session = Depends(get_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
@@ -36,8 +36,9 @@ def initiate_booking(
     # Store the booking data (option, preferences, user info, hash, etc.) in a `temp_trips` (or `pending_trips`) table with a unique temp ID.
     # Create a Razorpay order for the platform fee (amount from option's price breakdown).
     # Return to frontend: `{ razorpay_order_id, amount, currency, temp_trip_id }`.
-    
-    pass
+    initiate_booking(booking_request=trip_in, requestor=current_customer.id, db=db)
+    return {
+        "message": "Booking initiated successfully. Please complete the payment to confirm your booking."}
 
 
  

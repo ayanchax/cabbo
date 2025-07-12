@@ -284,7 +284,7 @@ class TripSearchAdditionalData(BaseModel):
     total_unique_states: Optional[int] = (
         None  # Applicable for outstation trips which are interstate
     )
-    unique_states: Optional[str] = (
+    unique_states: Optional[List[str]] = (
         None  # Comma-separated list of unique states, applicable for outstation trips which are interstate
     )
 
@@ -292,6 +292,9 @@ class TripSearchAdditionalData(BaseModel):
         True  # Indicates if the trip is a round trip, mainly applicable for outstation trips
     )  # This is used to calculate the total price for outstation trips which are round trips
 
+    class Config:
+        extra = "allow"  # Allow extra fields not defined in the model
+    
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
     preferences: Optional[TripSearchRequest] = None  # User preferences used for search

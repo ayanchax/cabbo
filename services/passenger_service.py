@@ -4,6 +4,8 @@ from models.customer.passenger_orm import Passenger
 from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
 from sqlalchemy.orm import Session
 
+from models.trip.trip_schema import TripSearchRequest
+
 
 def create_passenger(
     customer_id: str, payload: PassengerCreate, db: Session
@@ -179,3 +181,18 @@ def get_passenger_by_phone_number(phone_number: str, db: Session) -> Passenger:
         Passenger: The passenger object if found, otherwise None.
     """
     return db.query(Passenger).filter(Passenger.phone_number == phone_number).first()
+
+
+def get_passenger_id_from_preferences(preferences:TripSearchRequest):
+    """Extract passenger ID from trip search preferences.
+    Args:
+        preferences (TripSearchRequest): The trip search request containing passenger details.
+    Returns:
+        str: The passenger ID if found, otherwise None.
+    """
+    if not preferences or not preferences.passenger or isinstance(preferences.passenger, str):
+        return None
+    # If preferences.passenger is a PassengerRequest object, extract the ID
+    if preferences.passenger and preferences.passenger.id:
+        return preferences.passenger.id
+    return None
