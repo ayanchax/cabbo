@@ -4,10 +4,11 @@ from db.database import get_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_schema import (
     TripBookRequest,
+    TripBookingOut,
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.trip_service import get_trip_search_options, initiate_trip_booking
+from services.trip_service import confirm_trip_booking, get_trip_search_options, initiate_trip_booking
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/trip", tags=["Trip"])
@@ -40,4 +41,16 @@ def init_booking(
         "message": "Booking initiated successfully. Please complete the payment to confirm your booking."}
 
 
+@router.post("/confirm-booking", response_model=dict)
+def confirm_booking(
+    booking: TripBookingOut,
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    """
+    Confirm the trip booking after payment is successful.
+    """
+    
+    confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
+    return {"message": "Booking confirmed successfully", "booking_id": booking.booking_id}
  

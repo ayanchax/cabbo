@@ -36,3 +36,12 @@ class RazorpayOrderSchema(PaymentOrderSchema):
     class Config:
         from_attributes = True
         extra = "allow"  # Allow additional fields not defined in the schema
+
+class RazorPayPaymentResponse(BaseModel):
+    razorpay_order_id: str  # Razorpay order ID
+    razorpay_payment_id: str  # Razorpay payment ID
+    razorpay_signature: str  # Razorpay payment signature
+    
+    class Config:
+        from_attributes = True
+        extra = "allow"  # Allow additional fields not defined in the schema

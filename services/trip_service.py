@@ -14,10 +14,11 @@ from models.cab.pricing_schema import (
 )
 from models.customer.customer_orm import Customer
 from models.trip.temp_trip_orm import TempTrip
-from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
+from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
     TripBookRequest,
+    TripBookingOut,
     TripPackageConfigSchema,
     TripSearchAdditionalData,
     TripSearchRequest,
@@ -40,7 +41,7 @@ from core.constants import APP_HOME_STATE
 from datetime import datetime, timezone, timedelta
 import math
 from services.passenger_service import get_passenger_id_from_preferences, validate_passenger_id
-from services.payment_service import get_trip_payment_order
+from services.payment_service import get_trip_payment_order, verify_payment
 from services.pricing_service import (
     get_airport_toll,
     get_airport_trips_disclaimer_lines,
@@ -1183,6 +1184,25 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         db.rollback()
         raise CabboException(f"Failed to create temporary trip: {str(e)}", status_code=500)
 
+def _get_temp_trip_by_booking_id_and_requestor(booking_id: str, requestor: str, db: Session) -> TempTrip:
+    """
+    Retrieves a temporary trip record from the database based on the booking ID and requestor.
+    Args:
+        booking_id (str): The ID of the booking to retrieve.
+        requestor (str): The user or system requesting the trip details.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TempTrip: The retrieved temporary trip record.
+    Raises:
+        CabboException: If the trip is not found or if the requestor is not authorized to access it.
+    """
+    temp_trip = db.query(TempTrip).filter(
+        TempTrip.id == booking_id, TempTrip.creator_id == requestor
+    ).first()
+    if not temp_trip:
+        raise CabboException("Booking not found or you are not authorized to access this booking", status_code=404)
+    return temp_trip
+
 def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db:Session):
 
     """
@@ -1211,4 +1231,34 @@ def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db
 
     # Create razor pay order for the trip
     return get_trip_payment_order(booking_request=booking_request, customer=customer, temp_trip=temp_trip)
+
+def confirm_trip_booking(booking_request:TripBookingOut,customer:Customer, db:Session):
+    """
+    Confirms a trip booking based on the provided booking request.
+    Args:
+        booking_request (TripBookingOut): The trip booking request containing trip details.
+        customer (Customer): The user or system confirming the booking.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TripBookResponse: The response containing booking details.
+    Raises:
+        CabboException: If the booking request is invalid or if any error occurs during confirmation.
+
+    """
+    # Logic to confirm the booking based on booking_id
+    # This would typically involve checking payment status and updating trip status
+    # For now, we will just return a success message
+
+    if not booking_request.booking_id:
+        raise CabboException("Booking ID is required to confirm the booking", status_code=400)
     
+    #Check in database if the booking exists
+    temp_trip=_get_temp_trip_by_booking_id_and_requestor(booking_id=booking_request.booking_id, requestor=customer.id, db=db)
+
+    payment_verified=verify_payment(payment_detail=booking_request.payment_info)
+    if not payment_verified:
+        raise CabboException("Payment verification failed", status_code=400)
+    # If payment is verified, create a new Trip object from the TempTrip object
+ 
+     
+     

@@ -9,6 +9,7 @@ from models.cab.pricing_schema import (
     OveragesSchema,
 )
 from models.customer.passenger_schema import PassengerOut, PassengerRequest
+from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -119,6 +120,12 @@ class TripOut(TripBase):
     class Config:
         from_attributes = True
 
+class TripBookingOut(BaseModel):
+    booking_id: str  # Unique booking ID for the trip
+    payment_info: Union[dict,RazorPayPaymentResponse]  # Payment details is mandatory as we do not confirm trips without an advance payment
+    
+    class Config:
+        from_attributes = True
 
 class TripStatusAuditOut(BaseModel):
     id: int
