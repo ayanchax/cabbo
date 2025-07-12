@@ -12,6 +12,19 @@ class GenderEnum(str, Enum):
     prefer_not_to_disclose = "prefer_not_to_disclose"
 
 
+class CustomerPayment(BaseModel):
+    id: Optional[str] = None  # Customer ID, if available
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    contact: Optional[str] = None  # Contact number, can be phone or email
+
+    @field_validator("contact", mode="before")
+    @classmethod
+    def phone_validator(cls, v):
+        if v is None:
+            return v
+        return validate_and_sanitize_country_phone(v)
+
 class CustomerBase(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None

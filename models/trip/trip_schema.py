@@ -81,6 +81,9 @@ class TripBase(BaseModel):
                 ],
             )
         )
+    @property
+    def num_passengers(self) -> int:
+        return self.num_adults + self.num_children
 
     @field_validator("alternate_customer_phone", mode="before")
     @classmethod

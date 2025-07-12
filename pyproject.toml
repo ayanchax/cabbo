@@ -19,6 +19,8 @@ dependencies = [
   "python-multipart",
   "mapbox",
   "Jinja2",
+  "razorpay",
+  "setuptools"
 ]
 
 [tool.uv]

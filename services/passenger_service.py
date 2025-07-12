@@ -1,7 +1,7 @@
 from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.customer.passenger_orm import Passenger
-from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
+from models.customer.passenger_schema import PassengerCreate, PassengerRead, PassengerRequest, PassengerUpdate
 from sqlalchemy.orm import Session
 
 from models.trip.trip_schema import TripSearchRequest
@@ -196,3 +196,30 @@ def get_passenger_id_from_preferences(preferences:TripSearchRequest):
     if preferences.passenger and preferences.passenger.id:
         return preferences.passenger.id
     return None
+
+def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Session):
+    if (
+        search_in.passenger
+        and isinstance(search_in.passenger, PassengerRequest)
+        and search_in.passenger.id
+    ):
+        search_in.passenger.id = search_in.passenger.id.strip()
+        passenger = get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
+        if not passenger:
+            raise CabboException("Invalid passenger ID provided", status_code=400)
+        if passenger.customer_id != requestor:
+            raise CabboException(
+                "Passenger does not belong to the requesting customer", status_code=403
+            )
+        if not passenger.is_active:
+            raise CabboException("Passenger is not active", status_code=403)
+        passenger_read = PassengerRead.model_validate(
+            passenger
+        )  # Validate passenger schema
+        search_in.passenger.name = (
+            passenger_read.name
+        )  # Attach passenger details to request
+        search_in.passenger.phone_number = passenger_read.phone_number
+    else:
+
+        search_in.passenger = "self"  # Use a string to indicate self-booking

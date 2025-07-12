@@ -1,7 +1,8 @@
 from core.cabbo_logging import *
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION
 from core.config import settings
-
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi

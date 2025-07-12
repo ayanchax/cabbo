@@ -22,7 +22,7 @@ from models.cab.pricing_orm import (
 )
 from models.trip.trip_enums import TripTypeEnum
 from core.exceptions import CabboException
-from models.trip.trip_schema import TripSearchOption
+from models.trip.trip_schema import TripBookRequest, TripSearchOption
 
 
 def retrieve_interstate_permit_fee(
@@ -277,3 +277,44 @@ def get_driver_allowance(option:TripSearchOption):
     if option.price_breakdown and hasattr(option.price_breakdown, 'driver_allowance'):
         return option.price_breakdown.driver_allowance
     return 0.0
+
+def get_tolls_estimate(booking_request: TripBookRequest) -> float:
+    """
+    Calculates the estimated tolls for the trip based on the booking request.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing toll details.
+    Returns:
+        float: The estimated tolls for the trip.
+    """
+    if booking_request.preferences.trip_type == TripTypeEnum.local:
+        # For local trips, tolls are not applicable
+        return 0.0
+    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
+        # For outstation trips, use the tolls estimate from the request if available
+        return booking_request.option.price_breakdown.minimum_toll_wallet if booking_request.option.price_breakdown.minimum_toll_wallet  else 0.0
+    elif booking_request.preferences.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        # For airport trips, use the tolls estimate from the request if available
+        return booking_request.option.price_breakdown.toll if booking_request.preferences.toll_road_preferred and  booking_request.option.price_breakdown.toll else 0.0
+    else:
+        raise CabboException(f"Trip type {booking_request.preferences.trip_type} is not supported for tolls estimation", status_code=501)
+
+def get_parking_estimate(booking_request: TripBookRequest) -> float:
+    """
+    Calculates the estimated parking charges for the trip based on the booking request.
+    Args:
+        booking_request (TripBookRequest): The trip booking request containing parking details.
+    Returns:
+        float: The estimated parking charges for the trip.
+    """
+    if booking_request.preferences.trip_type == TripTypeEnum.local:
+        # For local trips, parking is not applicable
+        return booking_request.option.price_breakdown.minimum_parking_wallet if booking_request.option.price_breakdown.minimum_parking_wallet else 0.0
+    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
+        # For outstation trips, use the parking estimate from the request if available
+        return booking_request.option.price_breakdown.minimum_parking_wallet if booking_request.option.price_breakdown.minimum_parking_wallet else 0.0
+    elif booking_request.preferences.trip_type ==TripTypeEnum.airport_pickup:
+        # For airport pickup, use the parking estimate from the request if available
+        return booking_request.option.price_breakdown.parking if booking_request.option.price_breakdown.parking else 0.0
+    else:
+        return 0.0  # For airport drop, parking is not applicable
+

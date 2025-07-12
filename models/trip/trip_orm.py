@@ -110,6 +110,9 @@ class Trip(Base):
         Integer, nullable=True, default=0
     )  # Other bags, small items
     num_luggages = Column(Integer, nullable=True, default=0)  # Total luggage count
+    num_passengers = Column(
+        Integer, nullable=True, default=1) # Total passengers including adults and children
+    
     # Passenger and luggage information - END
 
     # Car and fuel preferences

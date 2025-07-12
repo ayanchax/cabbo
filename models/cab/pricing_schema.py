@@ -1,7 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, Union
-from models.trip.trip_enums import TripTypeEnum
 
 
 # Base schema for common trip pricing fields
@@ -50,6 +49,7 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
 class CabTypeSchema(BaseModel):
     id: Optional[str]
     name: str
+    capacity:Optional[str] = None  # e.g., "4+1", "6+1"
 
     class Config:
         from_attributes = True
