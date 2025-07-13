@@ -41,6 +41,12 @@ class PassengerRead(BaseModel):
     class Config:
         from_attributes = True
 
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def phone_validator(cls, v):
+        """Validate and sanitize phone number input."""
+        return validate_and_sanitize_country_phone(v)
+
 
 class PassengerRequest(BaseModel):
     id: str
@@ -54,3 +60,6 @@ class PassengerRequest(BaseModel):
         if v is None:
             return v
         return validate_and_sanitize_country_phone(v)
+    
+    class Config:
+        exclude_none = True  # Exclude fields with None values from the model dump

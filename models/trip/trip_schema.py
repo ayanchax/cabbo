@@ -22,107 +22,92 @@ from models.cab.pricing_orm import RoleEnum
 from utils.utility import validate_and_sanitize_country_phone
 
 
-class TripBase(BaseModel):
-    trip_type: TripTypeEnum
-    origin: LocationInfo
-    destination: LocationInfo
-    start_date: datetime
-    end_date: datetime
-    num_adults: int
-    num_children: int
-    num_large_suitcases: Optional[int] = None  # Trolley bags, large suitcases
+
+class TripDetails(BaseModel):
+    # Trip type and package
+    trip_type: Optional[TripTypeEnum] = None
+    package_id: Optional[str] = None
+    package_label: Optional[str] = None
+    package_label_short: Optional[str] = None
+
+    # Location info
+    origin: Optional[LocationInfo] = None
+    destination: Optional[LocationInfo] = None
+    hops: Optional[List[LocationInfo]] = None
+    is_interstate: Optional[bool] = None
+    total_unique_states: Optional[int] = None
+    unique_states: Optional[List[str]] = None
+    is_round_trip: Optional[bool] = None
+
+    # Date and time
+    start_datetime: Optional[datetime] = None
+    expected_end_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
+    total_days: Optional[int] = None
+
+    # Passenger and luggage
+    num_adults: Optional[int] = None
+    num_children: Optional[int] = None
+    num_passengers: Optional[int] = None
+    num_large_suitcases: Optional[int] = None
     num_carryons: Optional[int] = None
     num_backpacks: Optional[int] = None
     num_other_bags: Optional[int] = None
-    preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
-    preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
-    hops: Optional[List[str]] = None  # For outstation multi-hop
-    is_round_trip: Optional[bool] = True
-    is_interstate: Optional[bool] = False
-    total_unique_states: Optional[int] = (
-        None  # Applicable for outstation trips which are interstate
-    )
-    unique_states: Optional[str] = (
-        None  # Comma-separated list of unique states, applicable for outstation trips which are interstate
-    )
+    num_luggages: Optional[int] = None
+
+    # Car and fuel preferences
+    preferred_car_type: Optional[CarTypeEnum] = None
+    preferred_fuel_type: Optional[FuelTypeEnum] = None
+    in_car_amenities: Optional[dict] = None
+
+    # Financials
+    base_fare: Optional[float] = None
+    driver_allowance: Optional[float] = None
+    tolls_estimate: Optional[float] = None
+    parking_estimate: Optional[float] = None
     permit_fee: Optional[float] = None
-    # Driver assignment fields
-    driver_name: Optional[str] = None
-    driver_phone: Optional[str] = None
-    car_model: Optional[str] = None
-    car_registration_number: Optional[str] = None
-    payment_mode: Optional[str] = None
-    payment_number: Optional[str] = None
+    platform_fee: Optional[float] = None
+    final_price: Optional[float] = None
+    final_display_price: Optional[float] = None
+    advance_payment: Optional[float] = None
+    balance_payment: Optional[float] = None
+    price_breakdown: Optional[dict] = None
+    overages: Optional[dict] = None
+
+    # Inclusions and exclusions
+    inclusions: Optional[List[str]] = None
+    exclusions: Optional[List[str]] = None
+
+    # Airport/flight metadata
     flight_number: Optional[str] = None
     terminal_number: Optional[str] = None
-    final_display_price: Optional[float] = (
-        None  # Price shown to driver admin (original or quoted)
-    )
-    placard_required: Optional[bool] = False
+    toll_road_preferred: Optional[bool] = None
+    placard_required: Optional[bool] = None
     placard_name: Optional[str] = None
-    # If customer wants to provide an alternate phone number for contacting during the trip.
-    # This is optional and can be used for special cases like airport pickups
-    # where the customer may not be reachable on their primary number.
-    # However all invoices and receipts will still go to the primary phone number.
+
+    # Metadata
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    estimated_km: Optional[float] = None
+    indicative_overage_warning: Optional[bool] = None
     alternate_customer_phone: Optional[str] = None
-
-    # Optional: passenger info for 'book for someone else' feature
-    passenger: Optional[Union[str, PassengerRequest]] = None # If provided, trip is for someone else
-    # num_luggages is now computed as the sum of all above fields
-    @property
-    def num_luggages(self) -> int:
-        return sum(
-            filter(
-                None,
-                [
-                    self.num_large_suitcases,
-                    self.num_carryons,
-                    self.num_backpacks,
-                    self.num_other_bags,
-                ],
-            )
-        )
-    @property
-    def num_passengers(self) -> int:
-        return self.num_adults + self.num_children
-
-    @field_validator("alternate_customer_phone", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        v = v.strip()
-        if v == "":
-            return v
-        return validate_and_sanitize_country_phone(v)
-
-
-class TripCreate(TripBase):
-    pass
-
-
-class TripOut(TripBase):
-    id: str
-    creator_id: str
-    creator_type: RoleEnum = RoleEnum.customer
-    status: TripStatusEnum
-    base_fare: Optional[float]
-    driver_allowance: Optional[float]
-    tolls_estimate: Optional[float]
-    parking_estimate: Optional[float]
-    platform_fee: Optional[float]
-    quoted_price: Optional[float]
-    final_price: Optional[float]
-    created_at: datetime
-    updated_at: datetime
-    passenger_id: Optional[str] = None  # FK to passengers.id if not self
+    passenger: Optional[PassengerRequest] = None  # Passenger details
+ 
 
     class Config:
         from_attributes = True
+        extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True  # Exclude fields with None values from the model dump
 
-class TripBookingOut(BaseModel):
+class TripCreate(BaseModel):
+    booking_id: Optional[str] = None  # Unique booking ID for the trip
+    payment_info: Optional[RazorPayPaymentResponse]  # Payment details is mandatory
+    status: TripStatusEnum = TripStatusEnum.pending  # Initial status of the trip
+    trip_details:TripDetails
+ 
+class TripOut(BaseModel):
     booking_id: str  # Unique booking ID for the trip
-    payment_info: Union[dict,RazorPayPaymentResponse]  # Payment details is mandatory as we do not confirm trips without an advance payment
+    payment_info: RazorPayPaymentResponse  # Payment details is mandatory as we do not confirm trips without an advance payment
     
     class Config:
         from_attributes = True
@@ -226,9 +211,9 @@ class TripSearchRequest(BaseModel):
 class TripPackageConfigSchema(BaseModel):
     id: Optional[str] = None  # Optional ID for existing packages
     trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
-    included_hours: int  # e.g., 4, 6, 8, 10, 12
-    included_km: int  # e.g., 40, 60, 80, 100, 120
-    package_label: str  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    included_hours: Optional[int]  # e.g., 4, 6, 8, 10, 12
+    included_km: Optional[int]  # e.g., 40, 60, 80, 100, 120
+    package_label: Optional[str]  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
     driver_allowance: Optional[float] = (
         None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
     )
@@ -269,6 +254,7 @@ class TripSearchOption(BaseModel):
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True  # Exclude fields with None values from the model dump
     
 class TripSearchAdditionalData(BaseModel):
     inclusions: Optional[List[str]] = (
@@ -304,6 +290,7 @@ class TripSearchAdditionalData(BaseModel):
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True
     
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]

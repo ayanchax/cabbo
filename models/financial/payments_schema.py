@@ -8,8 +8,8 @@ class PaymentOrderSchema(BaseModel):
 
 class PaymentNotesSchema(BaseModel):
     reference_source_id: Optional[str] = None  # Reference ID for the order, if applicable
-    trip_type_id: str  # e.g., "local", "outstation", "airport"
-    requestor: str  # e.g., "customer", "driver"
+    trip_type_id: Optional[str] =None # e.g., "local", "outstation", "airport"
+    requestor: Optional[str]=None  # e.g., "customer", "driver"
     passenger_id: Optional[str] = None  # Optional passenger ID for trip-related payments
     additional_info: Optional[dict] = None  # Any additional information that might be needed
     metadata: Optional[dict] = None  # Additional metadata if required
@@ -18,6 +18,8 @@ class PaymentNotesSchema(BaseModel):
 
     class Config:
         from_attributes = True
+        extra = "allow"  # Allow additional fields not defined in the schema
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 class RazorpayOrderSchema(PaymentOrderSchema):
     reference_id: Optional[str] = None  # Reference ID for the order, if applicable
@@ -40,7 +42,7 @@ class RazorpayOrderSchema(PaymentOrderSchema):
 class RazorPayPaymentResponse(BaseModel):
     razorpay_order_id: str  # Razorpay order ID
     razorpay_payment_id: str  # Razorpay payment ID
-    razorpay_signature: str  # Razorpay payment signature
+    razorpay_signature: Optional[str]  # Razorpay payment signature
     
     class Config:
         from_attributes = True

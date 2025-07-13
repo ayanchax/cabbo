@@ -24,6 +24,7 @@ import enum
 class TripStatusEnum(str, enum.Enum):
     created = "created"
     quoted = "quoted"
+    pending= "pending"  # Trip is created but not yet confirmed or assigned
     pending_admin_review = "pending_admin_review"
     quote_accepted = "quote_accepted"
     confirmed = "confirmed"

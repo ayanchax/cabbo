@@ -39,3 +39,21 @@ def validate_date_time(date_time: Union[str, datetime]):
             "Invalid date_time format. Must be ISO datetime string.",
             status_code=400,
         )
+    
+def remove_none_recursive(obj):
+    if isinstance(obj, dict):
+        return {k: remove_none_recursive(v) for k, v in obj.items() if v is not None}
+    elif isinstance(obj, list):
+        return [remove_none_recursive(v) for v in obj if v is not None]
+    else:
+        return obj
+    
+def transform_datetime_to_str(obj):
+    if isinstance(obj, dict):
+        return {k: transform_datetime_to_str(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [transform_datetime_to_str(v) for v in obj]
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    else:
+        return obj

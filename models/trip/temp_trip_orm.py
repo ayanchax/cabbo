@@ -44,16 +44,8 @@ class TempTrip(Base):
     )  # FK to trip types master table
 
     # Location information
-    origin_display_name = Column(String(255), nullable=False)
-    origin_lat = Column(Float, nullable=False)
-    origin_lng = Column(Float, nullable=False)
-    origin_place_id = Column(String(128), nullable=True)
-    origin_address = Column(String(255), nullable=True)
-    destination_display_name = Column(String(255), nullable=False)
-    destination_lat = Column(Float, nullable=False)
-    destination_lng = Column(Float, nullable=False)
-    destination_place_id = Column(String(128), nullable=True)
-    destination_address = Column(String(255), nullable=True)
+    origin=Column(JSON, nullable=False)  # Origin city name
+    destination=Column(JSON, nullable=False)  # Destination city name
     hops = Column(
         JSON, nullable=True
     )  # JSON/text list of hops for outstation and hourly rental [Providing hops by customer helps us approximate the overages more efficiently]
@@ -188,6 +180,9 @@ class TempTrip(Base):
         MySQL_CHAR(36),
         nullable=True,
     )
+    hash= Column(
+        String(255), nullable=True, unique=True
+    )  # Hash for trip details to prevent duplicate bookings initiated by same user
     # Additional metadata - END
  
  

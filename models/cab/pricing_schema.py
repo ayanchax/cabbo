@@ -69,6 +69,7 @@ class PricingBreakdownBaseSchema(BaseModel):
 
     class Config:
         from_attributes = True
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 
 class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
@@ -111,6 +112,7 @@ class OveragesSchema(BaseModel):
 
     class Config:
         extra = "allow"
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 
 class FixedNightPricingSchema(BaseModel):

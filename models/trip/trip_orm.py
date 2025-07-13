@@ -50,16 +50,8 @@ class Trip(Base):
     )  # FK to trip types master table
 
     # Location information
-    origin_display_name = Column(String(255), nullable=False)
-    origin_lat = Column(Float, nullable=False)
-    origin_lng = Column(Float, nullable=False)
-    origin_place_id = Column(String(128), nullable=True)
-    origin_address = Column(String(255), nullable=True)
-    destination_display_name = Column(String(255), nullable=False)
-    destination_lat = Column(Float, nullable=False)
-    destination_lng = Column(Float, nullable=False)
-    destination_place_id = Column(String(128), nullable=True)
-    destination_address = Column(String(255), nullable=True)
+    origin=Column(JSON, nullable=False)  # Origin city name
+    destination=Column(JSON, nullable=False)  # Destination city name
     hops = Column(
         JSON, nullable=True
     )  # JSON/text list of hops for outstation and hourly rental [Providing hops by customer helps us approximate the overages more efficiently]
@@ -168,6 +160,9 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
+    payment_provider_metadata= Column(
+        JSON, nullable=True
+    )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
     price_breakdown = Column(
         JSON, nullable=True 
     )  # JSON/text for detailed price breakdown (base fare, driver allowance, tolls, parking, etc.)
@@ -226,8 +221,13 @@ class Trip(Base):
 
 class TripStatusAudit(Base):
     __tablename__ = "trip_status_audits"
-
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
     trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
     status = Column(Enum(TripStatusEnum), nullable=False)
     changed_by = Column(

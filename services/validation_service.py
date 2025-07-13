@@ -4,11 +4,12 @@ from datetime import datetime, timedelta, timezone
 import math
 from core.exceptions import CabboException
 from models.geography.service_area_orm import ServiceableGeographyOrm
+from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripTypeMaster
-from models.trip.trip_schema import TripBookRequest, TripSearchRequest
+from models.trip.trip_schema import TripBookRequest, TripDetails, TripSearchRequest
 from services.location_service import get_state_from_location
-from utils.utility import validate_date_time
+from utils.utility import remove_none_recursive, transform_datetime_to_str, validate_date_time
 from sqlalchemy.orm import Session
 
 
@@ -64,7 +65,28 @@ def _validate_airport_bookings(booking_request: TripBookRequest, requestor: str,
         if existing_bookings:
             raise CabboException("You already have a booking for this time slot", status_code=400)
 
+def _validate_booking_request_hash(booking_request: TripBookRequest, requestor: str, db: Session):
+    if not booking_request.option.hash:
+        raise CabboException("Booking request must have a unique hash", status_code=400)
+    
+    if booking_request.option.hash:
+        existing_temp_trip = db.query(TempTrip).filter(
+            TempTrip.hash == booking_request.option.hash,
+            TempTrip.creator_id == requestor,
+        ).first()
+        if existing_temp_trip:
+            trip_schema=TripDetails.model_validate(existing_temp_trip)
+            result= trip_schema.model_dump(exclude_none=True)  # Return the trip schema as a dictionary excluding None values
+            trip_details=remove_none_recursive(result)
+            trip_details = transform_datetime_to_str(trip_details)
+            raise CabboException({"message":"You already have made a similar booking which is incomplete. Please complete the previous booking to continue", "incomplete_trip_details":trip_details}, status_code=400)
+    
 def validate_booking_request(booking_request: TripBookRequest, requestor: str, db: Session):
+    #case 0: Check if the booking request is a valid request with an unique hash
+    _validate_booking_request_hash(booking_request=booking_request, requestor=requestor, db=db)
+    
+    #Check conflicting bookings on the same time range for the same customer based on trip type
+
     # case 1: If the trip is local, check for existing bookings for the same customer with the same start date within the next 24 hours
     
     if booking_request.preferences.trip_type == TripTypeEnum.local:
