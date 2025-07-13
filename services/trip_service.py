@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 from core.security import generate_trip_hash, verify_trip_hash
 from models.cab.pricing_schema import (
@@ -14,7 +14,7 @@ from models.cab.pricing_schema import (
 )
 from models.customer.customer_orm import Customer
 from models.customer.passenger_schema import PassengerRequest
-from models.financial.payments_schema import RazorPayPaymentResponse
+from models.financial.payments_schema import PaymentNotesSchema, RazorPayPaymentResponse
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
@@ -59,7 +59,7 @@ from services.pricing_service import (
     retrieve_trip_wise_pricing_config,
 )
 from services.validation_service import validate_airport_schedule, validate_booking_request, validate_local_trip_schedule, validate_outstation_trip_schedule, validate_placard_requirements, validate_serviceable_area
-from utils.utility import validate_date_time
+from utils.utility import remove_none_recursive, validate_date_time
 from models.trip.trip_enums import TripTypeEnum
 
 
@@ -1188,6 +1188,7 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         indicative_overage_warning=booking_request.option.overages.indicative_overage_warning if booking_request.option.overages.indicative_overage_warning else None,
         alternate_customer_phone=None,
         passenger_id=get_passenger_id_from_preferences(preferences=booking_request.preferences),
+        hash=booking_request.option.hash if hasattr(booking_request.option, 'hash') else None,
     )
     try:
         db.add(temp_trip)
@@ -1234,6 +1235,31 @@ def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> b
     if trip:
         return True
     return False
+
+def _populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetails:
+    trip_schema = TripDetails.model_validate(trip)  # Convert Trip object to TripDetail schema
+    trip_schema.trip_type=_get_trip_type_by_trip_type_id(trip_type_id=trip.trip_type_id, db=db)
+
+    passenger = populate_passenger_details(passenger_id=trip.passenger_id,  db=db)
+    if passenger:
+           trip_schema.passenger=passenger
+    result= trip_schema.model_dump(exclude_none=True)  # Return the trip schema as a dictionary excluding None values
+    return remove_none_recursive(result)
+
+def _attach_trip_details_to_order_notes(order:dict, trip_details: TripDetails):
+    """
+    This function is a placeholder for attaching trip details to order notes.
+    It can be implemented to add trip details to the order notes in the database or any other storage.
+    """
+    notes = order.get("notes", {})
+    notes= PaymentNotesSchema.model_validate(notes)  # Validate the notes structure
+    # Ensure that trip_details is set in notes
+    if not hasattr(notes, "trip_details"):
+        notes.trip_details = trip_details
+
+    order["notes"] = notes.model_dump(exclude_none=True)  # Update the order with the notes containing trip details
+    
+
 
 def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, booking_id:str, payment_info:RazorPayPaymentResponse, db:Session) -> TripCreate:
     """Creates a confirmed trip record from a temporary trip record.
@@ -1311,12 +1337,7 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         print(f"Trip confirmed for booking ID: {booking_id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
         _delete_temp_trip(requestor=requestor, db=db)  # Clean up temporary trip details for this customer.
-
-        trip_schema = TripDetails.model_validate(trip)  # Convert Trip object to TripCreate schema
-        trip_schema.trip_type=_get_trip_type_by_trip_type_id(trip_type_id=trip.trip_type_id, db=db)
-        passenger = populate_passenger_details(passenger_id=trip.passenger_id,  db=db)
-        if passenger:
-           trip_schema.passenger=passenger
+        trip_schema=_populate_trip_schema(trip=trip, db=db)  # Populate the trip schema with necessary details
         return TripCreate(
             booking_id=trip.id,
             payment_info=payment_info,
@@ -1356,7 +1377,14 @@ def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db
     temp_trip=_create_temporary_trip(booking_request=booking_request, requestor=customer.id, db=db)
 
     # Create razor pay order for the trip
-    return get_trip_payment_order(booking_request=booking_request, customer=customer, temp_trip=temp_trip)
+    booking_id, order=get_trip_payment_order(booking_request=booking_request, customer=customer, temp_trip=temp_trip)
+    
+    # Populate the trip schema with necessary details
+    trip_schema=_populate_trip_schema(trip=temp_trip, db=db)  # Populate the trip schema with necessary details
+    
+    _attach_trip_details_to_order_notes(order=order, trip_details=trip_schema)  # Attach trip details to order notes
+    
+    return booking_id, order
 
 def confirm_trip_booking(booking_request:TripOut,customer:Customer, db:Session):
     """

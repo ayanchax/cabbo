@@ -11,7 +11,6 @@ import razorpay
 from core.config import settings
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
-from services.passenger_service import get_passenger_id_from_preferences
 logger = logging.getLogger(__name__)
 
 RAZOR_PAY_CLIENT_DETAILS={
@@ -72,9 +71,7 @@ def get_trip_payment_order(booking_request:TripBookRequest, customer:Customer, t
         notes=PaymentNotesSchema(
             reference_source_id=temp_trip.id,
             customer=CustomerPayment(id=customer.id,name=customer.name, email=customer.email or None, contact=customer.phone_number),
-            trip_type_id=temp_trip.trip_type_id,
             requestor=temp_trip.creator_id,
-            passenger_id=get_passenger_id_from_preferences(preferences=booking_request.preferences),
             )
     )
     booking_id =temp_trip.id  # Use the temporary trip ID as the booking ID

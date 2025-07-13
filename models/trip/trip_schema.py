@@ -97,6 +97,7 @@ class TripDetails(BaseModel):
     class Config:
         from_attributes = True
         extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 class TripCreate(BaseModel):
     booking_id: Optional[str] = None  # Unique booking ID for the trip
@@ -210,9 +211,9 @@ class TripSearchRequest(BaseModel):
 class TripPackageConfigSchema(BaseModel):
     id: Optional[str] = None  # Optional ID for existing packages
     trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
-    included_hours: int  # e.g., 4, 6, 8, 10, 12
-    included_km: int  # e.g., 40, 60, 80, 100, 120
-    package_label: str  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    included_hours: Optional[int]  # e.g., 4, 6, 8, 10, 12
+    included_km: Optional[int]  # e.g., 40, 60, 80, 100, 120
+    package_label: Optional[str]  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
     driver_allowance: Optional[float] = (
         None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
     )
@@ -253,6 +254,7 @@ class TripSearchOption(BaseModel):
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True  # Exclude fields with None values from the model dump
     
 class TripSearchAdditionalData(BaseModel):
     inclusions: Optional[List[str]] = (
@@ -288,6 +290,7 @@ class TripSearchAdditionalData(BaseModel):
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True
     
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]

@@ -180,6 +180,9 @@ class TempTrip(Base):
         MySQL_CHAR(36),
         nullable=True,
     )
+    hash= Column(
+        String(255), nullable=True, unique=True
+    )  # Hash for trip details to prevent duplicate bookings initiated by same user
     # Additional metadata - END
  
  
