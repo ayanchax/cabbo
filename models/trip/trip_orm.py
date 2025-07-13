@@ -160,6 +160,9 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
+    payment_provider_metadata= Column(
+        JSON, nullable=True
+    )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
     price_breakdown = Column(
         JSON, nullable=True 
     )  # JSON/text for detailed price breakdown (base fare, driver allowance, tolls, parking, etc.)

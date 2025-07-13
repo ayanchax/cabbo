@@ -1328,7 +1328,8 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         estimated_km=temp_trip.estimated_km if temp_trip.estimated_km else 0.0,
         indicative_overage_warning=temp_trip.indicative_overage_warning if temp_trip.indicative_overage_warning else None,
         alternate_customer_phone=temp_trip.alternate_customer_phone if temp_trip.alternate_customer_phone else None,
-        passenger_id=temp_trip.passenger_id if temp_trip.passenger_id else None
+        passenger_id=temp_trip.passenger_id if temp_trip.passenger_id else None,
+        payment_provider_metadata=payment_info.model_dump(exclude_none=True) if payment_info else None,
     )
 
     try:
