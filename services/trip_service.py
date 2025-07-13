@@ -16,7 +16,7 @@ from models.customer.customer_orm import Customer
 from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import PaymentNotesSchema, RazorPayPaymentResponse
 from models.trip.temp_trip_orm import TempTrip
-from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
+from models.trip.trip_orm import Trip, TripPackageConfig, TripStatusAudit, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
     TripBookRequest,
@@ -39,6 +39,7 @@ from models.cab.pricing_orm import (
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, TripTypeEnum
 from core.exceptions import CabboException
+from services.audit_service import log_trip_audit
 from services.location_service import get_distance_km, get_state_from_location
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from core.constants import APP_HOME_STATE
@@ -1332,6 +1333,8 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
 
     try:
         db.add(trip)
+        #Here we will perform a trip status audit log entry
+        log_trip_audit(trip=trip, requestor=requestor, db=db, commit=False)  # Log the trip audit entry
         db.commit()
         db.refresh(trip)
         print(f"Trip confirmed for booking ID: {booking_id}")

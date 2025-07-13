@@ -218,8 +218,13 @@ class Trip(Base):
 
 class TripStatusAudit(Base):
     __tablename__ = "trip_status_audits"
-
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        MySQL_CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+    )
     trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
     status = Column(Enum(TripStatusEnum), nullable=False)
     changed_by = Column(
