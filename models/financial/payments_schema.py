@@ -40,7 +40,7 @@ class RazorpayOrderSchema(PaymentOrderSchema):
 class RazorPayPaymentResponse(BaseModel):
     razorpay_order_id: str  # Razorpay order ID
     razorpay_payment_id: str  # Razorpay payment ID
-    razorpay_signature: str  # Razorpay payment signature
+    razorpay_signature: Optional[str]  # Razorpay payment signature
     
     class Config:
         from_attributes = True

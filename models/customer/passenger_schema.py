@@ -41,6 +41,12 @@ class PassengerRead(BaseModel):
     class Config:
         from_attributes = True
 
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def phone_validator(cls, v):
+        """Validate and sanitize phone number input."""
+        return validate_and_sanitize_country_phone(v)
+
 
 class PassengerRequest(BaseModel):
     id: str

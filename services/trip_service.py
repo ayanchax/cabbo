@@ -13,12 +13,16 @@ from models.cab.pricing_schema import (
     OutstationPricingBreakdownSchema,
 )
 from models.customer.customer_orm import Customer
+from models.customer.passenger_schema import PassengerRequest
+from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
     TripBookRequest,
-    TripBookingOut,
+    TripCreate,
+    TripDetails,
+    TripOut,
     TripPackageConfigSchema,
     TripSearchAdditionalData,
     TripSearchRequest,
@@ -33,14 +37,14 @@ from models.cab.pricing_orm import (
     LocalCabPricing,
     OutstationCabPricing,
 )
-from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
+from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, TripTypeEnum
 from core.exceptions import CabboException
 from services.location_service import get_distance_km, get_state_from_location
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from core.constants import APP_HOME_STATE
 from datetime import datetime, timezone, timedelta
 import math
-from services.passenger_service import get_passenger_id_from_preferences, validate_passenger_id
+from services.passenger_service import _get_passenger_by_id, get_passenger_id_from_preferences, populate_passenger_details, validate_passenger_id
 from services.payment_service import get_trip_payment_order, verify_payment
 from services.pricing_service import (
     get_airport_toll,
@@ -102,7 +106,7 @@ def _set_default_trip_preferences(search_in: TripSearchRequest):
         search_in.num_adults = 1  # Ensure at least one adult is present
     if search_in.num_children < 0 or search_in.num_children is None:
         search_in.num_children = 0
- 
+
 def _generate_trip_field_dictionary(search_in: TripSearchRequest, car_type: str, fuel_type: str, option: TripSearchOption):
     """Generates a dictionary of trip fields for the booking option and preferences.
     This method creates a dictionary representation of the trip option and preferences
@@ -149,7 +153,7 @@ def _generate_trip_field_dictionary(search_in: TripSearchRequest, car_type: str,
         pass
     
     return option_dict, preference_dict
-    
+
 def get_trip_search_options(
     search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
@@ -1006,7 +1010,7 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
         )
 
     return search_in.origin, search_in.destination, est_km
- 
+
 def _verify_trip_hash(booking_request: TripBookRequest):
     if not hasattr(booking_request, 'option'):
         raise CabboException("Invalid booking request, option is required", status_code=400)
@@ -1019,7 +1023,7 @@ def _verify_trip_hash(booking_request: TripBookRequest):
     option_dict, preference_dict =_generate_trip_field_dictionary(search_in = booking_request.preferences, car_type=booking_request.option.car_type, fuel_type=booking_request.option.fuel_type, option=booking_request.option)
     if not verify_trip_hash(option=option_dict, preferences=preference_dict, client_hash=booking_request.option.hash):
         raise CabboException("Invalid booking request, option hash is not valid", status_code=400)
- 
+
 def _get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session) -> str:
     """
     Retrieves the trip type ID from the database based on the provided trip type.
@@ -1036,6 +1040,22 @@ def _get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session) -> str:
         raise CabboException(f"Trip type {trip_type} not found", status_code=404)
     return trip_type_obj.id
 
+def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
+    """
+    Retrieves the trip type from the database based on the provided trip type ID.
+    Args:
+        trip_type_id (str): The ID of the trip type to retrieve.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TripTypeEnum: The trip type corresponding to the provided ID.
+    Raises:
+        CabboException: If the trip type ID is not found in the database.
+    """
+    trip_type_obj = db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id).first()
+    if not trip_type_obj:
+        raise CabboException(f"Trip type with ID {trip_type_id} not found", status_code=404)
+    return TripTypeEnum(trip_type_obj.trip_type)
+
 def _delete_temp_trip(requestor: str, db: Session):
     """
     Deletes all temporary trip details for the given requestor.
@@ -1044,9 +1064,12 @@ def _delete_temp_trip(requestor: str, db: Session):
         db (Session): The database session for ORM operations.
     """
     try:
+        # Delete all temporary trip records for the requestor
         db.query(TempTrip).filter(TempTrip.creator_id == requestor).delete()
+        db.commit()
         print(f"Temporary trip details deleted for requestor: {requestor}")
     except Exception as e:
+        db.rollback()
         raise CabboException(f"Failed to delete temporary trip details: {str(e)}", status_code=500)
 
 def _calculate_expected_trip_end_datetime(trip_type: TripTypeEnum, start_date: datetime, end_date: datetime, db:Session, package_id: str = None) -> datetime:
@@ -1120,16 +1143,8 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
     temp_trip = TempTrip(
         creator_id=requestor,
         trip_type_id=trip_type_id,
-        origin_display_name=booking_request.preferences.origin.display_name,
-        origin_lat=booking_request.preferences.origin.lat,
-        origin_lng=booking_request.preferences.origin.lng,
-        origin_place_id=booking_request.preferences.origin.place_id,
-        origin_address=booking_request.preferences.origin.address,
-        destination_display_name=booking_request.preferences.destination.display_name,
-        destination_lat=booking_request.preferences.destination.lat,
-        destination_lng=booking_request.preferences.destination.lng,
-        destination_place_id=booking_request.preferences.destination.place_id,
-        destination_address=booking_request.preferences.destination.address,
+        origin=booking_request.preferences.origin.model_dump(),
+        destination=booking_request.preferences.destination.model_dump(),
         hops=booking_request.preferences.hops if booking_request.preferences.hops else None,
         is_interstate=booking_request.metadata.is_interstate if booking_request.preferences.trip_type == TripTypeEnum.outstation else False,
         total_unique_states=booking_request.metadata.total_unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
@@ -1203,6 +1218,117 @@ def _get_temp_trip_by_booking_id_and_requestor(booking_id: str, requestor: str, 
         raise CabboException("Booking not found or you are not authorized to access this booking", status_code=404)
     return temp_trip
 
+def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> bool:
+    """
+    Checks if a trip booking exists in the database for the given booking ID and requestor.
+    Args:
+        booking_id (str): The ID of the booking to retrieve.
+        requestor (str): The user or system requesting the trip details.
+        db (Session): The database session for ORM operations.
+    Returns:
+        bool: True if the trip booking exists, False otherwise.
+    """
+    trip = db.query(Trip).filter(
+        Trip.id == booking_id, Trip.creator_id == requestor
+    ).first()
+    if trip:
+        return True
+    return False
+
+def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, booking_id:str, payment_info:RazorPayPaymentResponse, db:Session) -> TripCreate:
+    """Creates a confirmed trip record from a temporary trip record.
+    This function takes a temporary trip record, validates it, and creates a confirmed trip record in the database.
+    Args:
+        temp_trip (TempTrip): The temporary trip record to convert.
+        requestor (str): The user or system requesting the trip creation.
+        booking_id (str): The ID of the booking to create.
+        payment_info (RazorPayPaymentResponse): The payment information for the trip.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TripCreate: The created confirmed trip record.
+    Raises:
+        CabboException: If the temporary trip is invalid or if any database operation fails.
+    """
+    trip = Trip(
+        id=temp_trip.id,
+        creator_id=temp_trip.creator_id,
+        creator_type=temp_trip.creator_type,
+        trip_type_id=temp_trip.trip_type_id,
+        origin=temp_trip.origin,
+        destination=temp_trip.destination,
+        hops=temp_trip.hops,
+        is_interstate=temp_trip.is_interstate,
+        total_unique_states=temp_trip.total_unique_states,
+        unique_states=temp_trip.unique_states,
+        package_id=temp_trip.package_id,
+        package_label=temp_trip.package_label,
+        package_label_short=temp_trip.package_label_short,
+        start_datetime=temp_trip.start_datetime,
+        end_datetime=temp_trip.end_datetime,
+        expected_end_datetime=temp_trip.expected_end_datetime,
+        total_days=temp_trip.total_days,
+        num_adults=temp_trip.num_adults,
+        num_children=temp_trip.num_children,
+        num_passengers=temp_trip.num_passengers,
+        num_large_suitcases=temp_trip.num_large_suitcases,
+        num_carryons=temp_trip.num_carryons,
+        num_backpacks=temp_trip.num_backpacks,
+        num_other_bags=temp_trip.num_other_bags,
+        num_luggages=temp_trip.num_luggages,
+        preferred_car_type=temp_trip.preferred_car_type,
+        preferred_fuel_type=temp_trip.preferred_fuel_type,
+        in_car_amenities=temp_trip.in_car_amenities if temp_trip.in_car_amenities else None,
+        price_breakdown=temp_trip.price_breakdown if temp_trip.price_breakdown else None,
+        overages=temp_trip.overages if temp_trip.overages else None,
+        base_fare=temp_trip.base_fare,
+        driver_allowance=temp_trip.driver_allowance,
+        tolls_estimate=temp_trip.tolls_estimate,
+        parking_estimate=temp_trip.parking_estimate,
+        permit_fee=temp_trip.permit_fee,
+        platform_fee=temp_trip.platform_fee,
+        final_price=temp_trip.final_price, 
+        final_display_price=temp_trip.final_display_price,
+        advance_payment=temp_trip.platform_fee,
+        balance_payment=temp_trip.final_price - temp_trip.platform_fee,
+        status=TripStatusEnum.confirmed,
+        inclusions=temp_trip.inclusions if temp_trip.inclusions else None,
+        exclusions=temp_trip.exclusions if temp_trip.exclusions else None,
+        flight_number=temp_trip.flight_number if temp_trip.flight_number else None,
+        terminal_number= temp_trip.terminal_number if temp_trip.terminal_number else None,
+        toll_road_preferred=temp_trip.toll_road_preferred if temp_trip.toll_road_preferred else False,
+        placard_required=temp_trip.placard_required if temp_trip.placard_required else False,
+        placard_name=temp_trip.placard_name if temp_trip.placard_name else None,
+        estimated_km=temp_trip.estimated_km if temp_trip.estimated_km else 0.0,
+        indicative_overage_warning=temp_trip.indicative_overage_warning if temp_trip.indicative_overage_warning else None,
+        alternate_customer_phone=temp_trip.alternate_customer_phone if temp_trip.alternate_customer_phone else None,
+        passenger_id=temp_trip.passenger_id if temp_trip.passenger_id else None
+    )
+
+    try:
+        db.add(trip)
+        db.commit()
+        db.refresh(trip)
+        print(f"Trip confirmed for booking ID: {booking_id}")
+        # After confirming the trip, delete the temporary(one or more) trip details for this customer
+        _delete_temp_trip(requestor=requestor, db=db)  # Clean up temporary trip details for this customer.
+
+        trip_schema = TripDetails.model_validate(trip)  # Convert Trip object to TripCreate schema
+        trip_schema.trip_type=_get_trip_type_by_trip_type_id(trip_type_id=trip.trip_type_id, db=db)
+        passenger = populate_passenger_details(passenger_id=trip.passenger_id,  db=db)
+        if passenger:
+           trip_schema.passenger=passenger
+        return TripCreate(
+            booking_id=trip.id,
+            payment_info=payment_info,
+            status=trip.status,
+            trip_details=trip_schema,
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise CabboException(f"Failed to confirm trip booking: {str(e)}", status_code=500)
+
+
 def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db:Session):
 
     """
@@ -1232,7 +1358,7 @@ def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db
     # Create razor pay order for the trip
     return get_trip_payment_order(booking_request=booking_request, customer=customer, temp_trip=temp_trip)
 
-def confirm_trip_booking(booking_request:TripBookingOut,customer:Customer, db:Session):
+def confirm_trip_booking(booking_request:TripOut,customer:Customer, db:Session):
     """
     Confirms a trip booking based on the provided booking request.
     Args:
@@ -1251,14 +1377,21 @@ def confirm_trip_booking(booking_request:TripBookingOut,customer:Customer, db:Se
 
     if not booking_request.booking_id:
         raise CabboException("Booking ID is required to confirm the booking", status_code=400)
-    
-    #Check in database if the booking exists
+
+    #Check if the booking request already exists in the main Trip table
+    existing_trip=_is_existing_trip_booking(booking_id=booking_request.booking_id, requestor=customer.id, db=db)
+    if existing_trip:
+        raise CabboException("Booking already exists", status_code=400)
+
+    # Check in database if the booking exists
     temp_trip=_get_temp_trip_by_booking_id_and_requestor(booking_id=booking_request.booking_id, requestor=customer.id, db=db)
 
+    # Verify the payment details in the booking request
     payment_verified=verify_payment(payment_detail=booking_request.payment_info)
     if not payment_verified:
         raise CabboException("Payment verification failed", status_code=400)
-    # If payment is verified, create a new Trip object from the TempTrip object
- 
-     
-     
+    
+    # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
+    return _create_confirmed_trip_from_temp_trip(
+        temp_trip=temp_trip, requestor=customer.id, booking_id=booking_request.booking_id, payment_info=booking_request.payment_info, db=db)
+   

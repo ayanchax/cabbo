@@ -4,7 +4,7 @@ from db.database import get_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_schema import (
     TripBookRequest,
-    TripBookingOut,
+    TripOut,
     TripSearchRequest,
     TripSearchResponse,
 )
@@ -43,7 +43,7 @@ def init_booking(
 
 @router.post("/confirm-booking", response_model=dict)
 def confirm_booking(
-    booking: TripBookingOut,
+    booking: TripOut,
     db: Session = Depends(get_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
@@ -51,6 +51,6 @@ def confirm_booking(
     Confirm the trip booking after payment is successful.
     """
     
-    confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
-    return {"message": "Booking confirmed successfully", "booking_id": booking.booking_id}
+    trip_create_response=confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
+    return {"message": "Booking confirmed successfully", "booking_id": booking.booking_id, **trip_create_response.model_dump()}
  
