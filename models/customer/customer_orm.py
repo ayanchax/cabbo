@@ -13,6 +13,8 @@ from db.database import Base
 import uuid
 from sqlalchemy.types import Enum as SqlEnum
 from models.customer.customer_schema import GenderEnum
+from sqlalchemy.orm import relationship
+
 
 
 class Customer(Base):
@@ -44,6 +46,10 @@ class Customer(Base):
     last_modified = Column(DateTime, default=func.utc_timestamp(), nullable=True)
     bearer_token = Column(Text, nullable=True)
     last_seen = Column(DateTime, nullable=True)
+    driver_ratings = relationship(
+        "DriverRating", back_populates="customer", cascade="all, delete-orphan",
+        passive_deletes=True
+    )  # Ratings given by customer to drivers
 
 
 class PreOnboardingCustomer(Base):

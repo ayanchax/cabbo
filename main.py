@@ -60,9 +60,13 @@ app.include_router(trip.router)
 # Ensure share/images directory exists relative to this file (project root)
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SHARE_IMAGES_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "images")
+SHARE_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "documents")
 os.makedirs(SHARE_IMAGES_DIR, exist_ok=True)
+os.makedirs(SHARE_DOCUMENTS_DIR, exist_ok=True)
 # Mount the static images directory
 app.mount("/images", StaticFiles(directory=SHARE_IMAGES_DIR), name="images")
+# Mount the static documents directory
+app.mount("/documents", StaticFiles(directory=SHARE_DOCUMENTS_DIR), name="documents")
 
 
 # Custom OpenAPI schema (optional, for branding or extensions)

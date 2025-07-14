@@ -120,12 +120,9 @@ class Trip(Base):
     # Car and fuel preferences - END
 
     # Driver assignment fields
-    driver_name = Column(String(255), nullable=True)
-    driver_phone = Column(String(32), nullable=True)
-    car_model = Column(String(64), nullable=True)
-    car_registration_number = Column(String(32), nullable=True)
-    payment_mode = Column(String(32), nullable=True)  # gpay, phonepe, paytm
-    payment_number = Column(String(32), nullable=True)  # UPI phone number
+    driver_id = Column(
+        MySQL_CHAR(36), ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # Nullable: Driver assigned to the trip, if any
     # Driver assignment fields -END
 
     status = Column(
@@ -215,6 +212,14 @@ class Trip(Base):
 
     #Audit fields
     status_audits = relationship("TripStatusAudit", back_populates="trip")
+    driver = relationship("Driver", back_populates="trips")
+    driver_earnings = relationship(
+        "DriverEarnings", back_populates="trip", cascade="all, delete-orphan", passive_deletes=True
+    )
+    driver_ratings = relationship(
+        "DriverRating", back_populates="trip", cascade="all, delete-orphan", passive_deletes=True
+    )
+
     #Audit fields - END
 
 
