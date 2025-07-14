@@ -25,7 +25,6 @@ def log_trip_audit(trip: Trip, requestor: str, db: Session, commit: bool = True)
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor,
-            reason="Trip confirmed for booking",
         )
         db.add(trip_audit_log)  # Add the trip audit log entry
         if commit:
