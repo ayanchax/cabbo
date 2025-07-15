@@ -20,16 +20,21 @@ JWT_EXPIRY_UNIT_TIME_FRAME = {
 }
 SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
+ 
+    
 
 class RoleEnum(str, Enum):
-    system_admin = "sys_admin"  # Super admin System administrator with full access
-    driver_admin = "driver_admin"  # Administrator for driver management
-    finance_admin = "fin_admin"  # Administrator for financial operations
-    customer_admin = "cust_admin"  # Administrator for customer management
+    #Admin roles for managing the application
+    super_admin = "super_admin"  # Super admin System administrator with full access to all features
+    driver_admin = "driver_admin"  # Administrator for driver management such as onboarding, verification etc.
+    finance_admin = "fin_admin"  # Administrator for financial operations such as payments etc.
+    customer_admin = "cust_admin"  # Administrator for customer management such as deactivation, reactivation etc.
 
+    #Internal roles for seeding or migrations
     system = (
         "system"  # System role for internal operations during seeding or migrations
     )
+    #Regular roles
     customer = "customer"  # Regular customer role
     driver = "driver"  # Regular driver role
 
@@ -114,3 +119,15 @@ def generate_trip_hash(option:dict,preferences:dict) -> str:
 def verify_trip_hash(option:dict, preferences:dict, client_hash: str) -> bool:
     expected_hash = generate_trip_hash(option, preferences)
     return hmac.compare_digest(expected_hash, client_hash)
+
+def generate_password_hash(password: str) -> str:
+    """
+    Generate a secure hash for the password.
+    """
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password_hash(password: str, hashed_password: str) -> bool:
+    """
+    Verify the password against the hashed password.
+    """
+    return generate_password_hash(password) == hashed_password

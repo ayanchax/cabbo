@@ -14,10 +14,12 @@ from sqlalchemy import (
     Float,
     DateTime,
     Boolean,
+    Text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
+from models.user.user_enum import GenderEnum, NationalityEnum, ReligionEnum
 
 
 class Driver(Base):
@@ -31,13 +33,25 @@ class Driver(Base):
         index=True,
     )
     name = Column(String(255), nullable=False)
-    phone = Column(String(32), nullable=False, unique=True)
+    phone = Column(String(32), nullable=False, unique=True) #When driver app is opened for drivers, we will use this as the primary phone number for OTP authentication as they login, just like we do for customers.
     email = Column(String(255), nullable=True, unique=True)
+    #Secondary data
+    gender = Column(Enum(GenderEnum, name="gender_enum"), nullable=False, default=GenderEnum.male)
+    dob = Column(DateTime, nullable=True)
+    emergency_contact_name = Column(String(255), nullable=True)
+    emergency_contact_number = Column(String(20), nullable=True)
+    #We are keeping the nationality and religion optional for now, we will use this information for KYC verification when we open the app for drivers
+    nationality = Column(Enum(NationalityEnum), nullable=True, default=NationalityEnum.indian)  # e.g., Indian, American
+    religion = Column(Enum(ReligionEnum), nullable=True)  # e.g., Hindu, Muslim, Christian
+    
+    #Car details
     car_type = Column(
         Enum(CarTypeEnum), nullable=False, default=CarTypeEnum.sedan
     )  # sedan, suv, hatchback, etc.
     car_model = Column(String(255), nullable=False) # Car model (e.g., Maruti Swift)
     car_registration_number = Column(String(32), nullable=False, unique=True) # e.g., KA-01-AB-1234
+    
+    #Payment intake details
     payment_mode = Column(Enum(PaymentModeEnum), nullable=False)  # gpay, phonepe, paytm
     payment_phone_number = Column(String(32), nullable=True)  # Alternate payment phone number for upi payments like gpay, phonepe, paytm, if not provided, use phone number
     bank_details= Column(
@@ -73,6 +87,7 @@ class Driver(Base):
     created_by = Column(
         Enum(RoleEnum), nullable=False, default=RoleEnum.driver_admin
     )  # Created by system, admin, or user
+    bearer_token = Column(Text, nullable=True) # Bearer token for authentication, this will be used to authenticate the driver in the driver app
     # Relationships
     trips = relationship(
         "Trip",

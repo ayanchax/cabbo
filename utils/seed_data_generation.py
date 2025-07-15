@@ -17,12 +17,15 @@ from models.documents.kyc_document_orm import KYCDocumentTypes
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
-from core.security import RoleEnum
-from core.constants import APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
+from core.security import RoleEnum, generate_password_hash
+from core.constants import APP_ADMIN_EMAIL, APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
 from models.cab.pricing_orm import PermitFeeConfiguration
+from models.user.user_orm import User
+from core.config import settings
+
 
 
 def seed_pricing_master(session: Session):
@@ -788,3 +791,18 @@ def seed_kyc_document_types(session: Session):
     ]
     session.add_all(kyc_document_types)
     session.commit()
+
+def seed_super_admin(session: Session):
+    # Create a super admin user with a secure password hash
+    super_admin = User(
+        id=str(uuid.uuid4()),
+        email=APP_ADMIN_EMAIL,
+        name="Super Admin",
+        username="superadmin",
+        phone_number="9999999999",
+        password_hash=generate_password_hash(settings.CABBO_SUPER_ADMIN_SECRET),  # Use a secure hash in production
+        is_active=True,)
+    session.add(super_admin)
+    session.commit()
+    
+    

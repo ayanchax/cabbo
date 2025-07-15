@@ -1,16 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
+from models.user.user_enum import GenderEnum
 from utils.utility import validate_and_sanitize_country_phone
-from enum import Enum
-
-
-class GenderEnum(str, Enum):
-    male = "male"
-    female = "female"
-    transgender = "transgender"
-    prefer_not_to_disclose = "prefer_not_to_disclose"
-
 
 class CustomerPayment(BaseModel):
     id: Optional[str] = None  # Customer ID, if available
@@ -32,8 +24,6 @@ class CustomerBase(BaseModel):
     email: Optional[EmailStr] = None
     phone_number: str  # Initially during onboarding we just need a phone number, hence no optional
     dob: Optional[datetime] = None
-    # age is not accepted directly, calculated from dob
-    age: Optional[int] = None
     gender: Optional[GenderEnum] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None

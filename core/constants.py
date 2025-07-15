@@ -6,6 +6,7 @@ APP_TIMEZONE = "UTC"
 APP_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 APP_DATE_FORMAT = "%Y-%m-%d"
 APP_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+APP_ADMIN_EMAIL = "admin@cabbo.co.in"
 
 ## Country-specific settings
 APP_COUNTRY = "India"
