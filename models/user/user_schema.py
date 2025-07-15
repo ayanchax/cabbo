@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
+from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.user.user_enum import GenderEnum
 from utils.utility import validate_and_sanitize_country_phone
+from core.config import settings
 
 class UserBaseSchema(BaseModel):
     id: str  # Unique identifier for the user
@@ -13,7 +15,7 @@ class UserCreateSchema(UserBaseSchema):
     username: str  # User's username
     email: Optional[EmailStr] = None  # User's email address
     phone_number: str  # User's phone number
-    password: str  # User's password
+    password: Optional[str]= settings.CABBO_USER_DEFAULT_PASSWORD  # User's password
     role: RoleEnum
     is_active: bool = True  # Active status of the user
     gender: Optional[GenderEnum] = None  # User's gender 
@@ -33,7 +35,17 @@ class UserCreateSchema(UserBaseSchema):
     @classmethod
     def password_validator(cls, v):
         if not v or len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+            raise CabboException("Password must be at least 8 characters long", status_code=400)
+        return v
+    
+    @field_validator("role", mode="before")
+    @classmethod
+    def role_validator(cls, v):
+        if v not in [role.value for role in RoleEnum]:
+            raise CabboException(
+                "Invalid role specified. Allowed roles are: " + ", ".join([role.value for role in RoleEnum]),
+                status_code=400
+            )
         return v
     
     class Config:
@@ -44,7 +56,6 @@ class UserUpdateSchema(UserBaseSchema):
     username: Optional[str] = None  # User's username
     email: Optional[EmailStr] = None  # User's email address
     phone_number: Optional[str] = None  # User's phone number
-    is_active: Optional[bool] = None  # Active status of the user
 
 
 class UserPasswordUpdateSchema(UserBaseSchema):

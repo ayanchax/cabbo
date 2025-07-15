@@ -8,6 +8,7 @@ APP_DATE_FORMAT = "%Y-%m-%d"
 APP_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 APP_ADMIN_EMAIL = "admin@cabbo.co.in"
 
+
 ## Country-specific settings
 APP_COUNTRY = "India"
 APP_COUNTRY_CODE = "IN"

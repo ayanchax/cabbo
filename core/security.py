@@ -68,6 +68,35 @@ def validate_customer_token(
         raise CabboException("Invalid token.", status_code=401)
 
 
+def validate_user_token(
+    authorization: str = Header(..., description="Bearer token for authentication"),
+    db: Session = Depends(get_mysql_session),
+) -> Customer:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise CabboException(
+            "Authorization header missing or invalid.", status_code=401
+        )
+    token = authorization.split(" ", 1)[1]
+    print(f"Token: {token}")
+    if not token:
+        raise CabboException("Token is missing.", status_code=401)
+    try:
+        payload = decode_jwt_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            raise CabboException("Invalid token: missing subject.", status_code=401)
+        from services.user_service import get_active_user_by_id_and_bearer_token
+
+        user = get_active_user_by_id_and_bearer_token(user_id, token, db)
+        if not user:
+            raise CabboException("Invalid or expired token.", status_code=401)
+        return user
+    except jwt.ExpiredSignatureError:
+        raise CabboException("Token has expired.", status_code=401)
+    except jwt.InvalidTokenError:
+        raise CabboException("Invalid token.", status_code=401)
+
+
 def generate_jwt_token(payload, secret=settings.JWT_SECRET, algorithm="HS256"):
     """
     Generate a JWT token with a secret key.

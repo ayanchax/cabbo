@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     RAZOR_PAY_KEY_SECRET: str
     CABBO_TRIP_BOOKING_SECRET_KEY: str
     CABBO_SUPER_ADMIN_SECRET: str
+    CABBO_USER_DEFAULT_PASSWORD:str
 
     class Config:
         env_file = ENV_FILE
