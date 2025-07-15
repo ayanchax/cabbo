@@ -8,7 +8,7 @@ from utils.utility import validate_and_sanitize_country_phone
 from core.config import settings
 
 class UserBaseSchema(BaseModel):
-    id: str  # Unique identifier for the user
+    id: Optional[str] =None # Unique identifier for the user
 
 class UserCreateSchema(UserBaseSchema):
     name: Optional[str] = None  # User's name
@@ -41,7 +41,7 @@ class UserCreateSchema(UserBaseSchema):
     @field_validator("role", mode="before")
     @classmethod
     def role_validator(cls, v):
-        if v not in [role.value for role in RoleEnum]:
+        if v not in [role.value for role in RoleEnum if role.value.endswith("_admin")]:
             raise CabboException(
                 "Invalid role specified. Allowed roles are: " + ", ".join([role.value for role in RoleEnum]),
                 status_code=400
@@ -67,13 +67,17 @@ class UserPasswordUpdateSchema(UserBaseSchema):
             raise ValueError("Password must be at least 8 characters long")
         return v
     
-class UserReadSchema(UserBaseSchema):
+class UserReadSchema(BaseModel):
     name: Optional[str] = None  # User's name
     username: str  # User's username
     email: Optional[EmailStr] = None  # User's email address
     phone_number: str  # User's phone number
     role: RoleEnum  # User's role
     is_active: bool  # Active status of the user
+
+    class Config:
+        from_attributes = True
+        extra= "allow"
 
 class UserLoginRequest(BaseModel):
     username: str   

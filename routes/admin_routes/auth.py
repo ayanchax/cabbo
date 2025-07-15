@@ -30,7 +30,7 @@ def login_admin_user(
         raise CabboException("User is not active.", status_code=403)
     if not user.role:
         raise CabboException("User role is not defined.", status_code=400)
-    if user.role not in [role.value for role in RoleEnum]:
+    if user.role not in [role.value for role in RoleEnum if role.value.endswith("_admin")]:
         raise CabboException("Invalid user role.", status_code=400)
 
     is_correct_password = verify_password_hash(

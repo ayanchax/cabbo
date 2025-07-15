@@ -1,4 +1,5 @@
 
+from operator import or_
 from core.exceptions import CabboException
 from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
@@ -97,6 +98,14 @@ def get_user_password_hash_by_username(username: str) -> str:
         raise CabboException("User not found or password not set.", status_code=404)
     
     return user.password_hash
+
+def is_user_exists(user: UserCreateSchema, db: Session) -> bool:
+    """Check if user exists in the database by username or (non-null) email."""
+    query = db.query(User).filter(User.username == user.username, User.phone_number == user.phone_number)
+    if user.email:
+        query = query.union(db.query(User).filter(User.email == user.email))
+    existing_user = query.first()
+    return existing_user is not None
    
 def activate_user(user: User, db: Session) -> User:
     """Activate a user."""

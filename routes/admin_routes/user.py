@@ -6,12 +6,12 @@ from core.security import RoleEnum, validate_user_token
 from db.database import get_mysql_session
 from models.user.user_orm import User
 from models.user.user_schema import UserCreateSchema, UserReadSchema
-from services.user_service import create_user, delete_bearer_token
+from services.user_service import create_user, delete_bearer_token, get_user_by_username, is_user_exists
 
 router = APIRouter(prefix="/admin/user", tags=["Admin: User"])
 
 # Create a new admin user
-@router.post("/create")
+@router.post("/create", response_model=UserReadSchema, status_code=201,)
 def create_admin_user(payload: UserCreateSchema = Body(...), db: Session = Depends(get_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Create a new administrative user."""
@@ -25,10 +25,12 @@ def create_admin_user(payload: UserCreateSchema = Body(...), db: Session = Depen
     
     #For similar roles or a super admin, allow creation
     if current_user_role==RoleEnum.super_admin or requested_role==current_user_role:
+        if is_user_exists(user=payload, db=db):
+            raise CabboException("User with this username or email already exists.", status_code=400)
         user = create_user(data=payload, db=db)
         user_schema =UserReadSchema.model_validate(user)
+        #Return the created user schema with 201 status code
         return user_schema
-
     raise CabboException("You do not have permission to create users with this role.", status_code=403)
 
 # Get admin user details by id
