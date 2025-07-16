@@ -12,7 +12,10 @@ from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
 import uuid
 from sqlalchemy.types import Enum as SqlEnum
-from models.customer.customer_schema import GenderEnum
+from sqlalchemy.orm import relationship
+
+from models.user.user_enum import GenderEnum
+
 
 
 class Customer(Base):
@@ -30,20 +33,29 @@ class Customer(Base):
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
     # Secondary data
     dob = Column(DateTime, nullable=True)
-    age = Column(Integer, nullable=True)  # auto-calculate on update
     gender = Column(SqlEnum(GenderEnum, name="gender_enum"), nullable=True)
     emergency_contact_name = Column(String(255), nullable=True)
     emergency_contact_number = Column(String(20), nullable=True)
     opt_in_updates = Column(
         Boolean, default=False, nullable=False
     )  # consent for offers/updates
-    created_at = Column(DateTime, server_default=func.utc_timestamp())
+    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    
     is_phone_verified = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
-    last_modified = Column(DateTime, default=func.utc_timestamp(), nullable=True)
+    last_modified = Column(
+        DateTime,
+        server_default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+        nullable=False,
+    )
     bearer_token = Column(Text, nullable=True)
     last_seen = Column(DateTime, nullable=True)
+    driver_ratings = relationship(
+        "DriverRating", back_populates="customer", cascade="all, delete-orphan",
+        passive_deletes=True
+    )  # Ratings given by customer to drivers
 
 
 class PreOnboardingCustomer(Base):

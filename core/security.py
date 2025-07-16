@@ -20,16 +20,21 @@ JWT_EXPIRY_UNIT_TIME_FRAME = {
 }
 SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
+ 
+    
 
 class RoleEnum(str, Enum):
-    system_admin = "sys_admin"  # Super admin System administrator with full access
-    driver_admin = "driver_admin"  # Administrator for driver management
-    finance_admin = "fin_admin"  # Administrator for financial operations
-    customer_admin = "cust_admin"  # Administrator for customer management
+    #Admin roles for managing the application
+    super_admin = "super_admin"  # Super admin System administrator with full access to all features
+    driver_admin = "driver_admin"  # Administrator for driver management such as onboarding, verification etc.
+    finance_admin = "fin_admin"  # Administrator for financial operations such as payments etc.
+    customer_admin = "cust_admin"  # Administrator for customer management such as deactivation, reactivation etc.
 
+    #Internal roles for seeding or migrations
     system = (
         "system"  # System role for internal operations during seeding or migrations
     )
+    #Regular roles
     customer = "customer"  # Regular customer role
     driver = "driver"  # Regular driver role
 
@@ -57,6 +62,35 @@ def validate_customer_token(
         if not customer:
             raise CabboException("Invalid or expired token.", status_code=401)
         return customer
+    except jwt.ExpiredSignatureError:
+        raise CabboException("Token has expired.", status_code=401)
+    except jwt.InvalidTokenError:
+        raise CabboException("Invalid token.", status_code=401)
+
+
+def validate_user_token(
+    authorization: str = Header(..., description="Bearer token for authentication"),
+    db: Session = Depends(get_mysql_session),
+) -> Customer:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise CabboException(
+            "Authorization header missing or invalid.", status_code=401
+        )
+    token = authorization.split(" ", 1)[1]
+    print(f"Token: {token}")
+    if not token:
+        raise CabboException("Token is missing.", status_code=401)
+    try:
+        payload = decode_jwt_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            raise CabboException("Invalid token: missing subject.", status_code=401)
+        from services.user_service import get_active_user_by_id_and_bearer_token
+
+        user = get_active_user_by_id_and_bearer_token(user_id, token, db)
+        if not user:
+            raise CabboException("Invalid or expired token.", status_code=401)
+        return user
     except jwt.ExpiredSignatureError:
         raise CabboException("Token has expired.", status_code=401)
     except jwt.InvalidTokenError:
@@ -114,3 +148,15 @@ def generate_trip_hash(option:dict,preferences:dict) -> str:
 def verify_trip_hash(option:dict, preferences:dict, client_hash: str) -> bool:
     expected_hash = generate_trip_hash(option, preferences)
     return hmac.compare_digest(expected_hash, client_hash)
+
+def generate_password_hash(password: str) -> str:
+    """
+    Generate a secure hash for the password.
+    """
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password_hash(password: str, hashed_password: str) -> bool:
+    """
+    Verify the password against the hashed password.
+    """
+    return generate_password_hash(password) == hashed_password

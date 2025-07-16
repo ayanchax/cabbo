@@ -12,15 +12,20 @@ from models.cab.pricing_orm import (
     FixedNightPricing,
     FixedPlatformPricing,
 )
+from models.documents.kyc_document_enum import KYCDocumentTypeEnum
+from models.documents.kyc_document_orm import KYCDocumentTypes
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
-from core.security import RoleEnum
-from core.constants import APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
+from core.security import RoleEnum, generate_password_hash
+from core.constants import APP_ADMIN_EMAIL, APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
 from models.cab.pricing_orm import PermitFeeConfiguration
+from models.user.user_orm import User
+from core.config import settings
+
 
 
 def seed_pricing_master(session: Session):
@@ -696,10 +701,10 @@ def seed_states(session: Session):
 
 
 def seed_serviceable_geography(session: Session):
-    #First get trip type master so that we can use their ids in the ServiceableGeographyOrm
+    # First get trip type master so that we can use their ids in the ServiceableGeographyOrm
     trip_type_master_objs = session.query(TripTypeMaster).all()
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
-    #Now get all states so that we can have their state code in the ServiceableGeographyOrm state_codes json for outstation trips
+    # Now get all states so that we can have their state code in the ServiceableGeographyOrm state_codes json for outstation trips
     states = session.query(GeoStateModel).all()
     state_codes = [state.state_code for state in states]
     serviceable_geography=[
@@ -728,3 +733,76 @@ def seed_serviceable_geography(session: Session):
     ]
     session.add_all(serviceable_geography)
     session.commit()
+
+
+def seed_kyc_document_types(session: Session):
+
+    kyc_document_types = [
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.aadhar_card,
+            document_alias="Aadhar Card",
+            document_description="Government-issued identity card with a unique 12-digit number.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.pan_card,
+            document_alias="PAN Card",
+            document_description="Permanent Account Number card issued by the Income Tax Department.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.driving_license,
+            document_alias="Driving License",
+            document_description="Official document permitting an individual to operate one or more motorized vehicles.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.vehicle_registration_certificate,
+            document_alias="Vehicle Registration Certificate",
+            document_description="Official document proving ownership and registration of a vehicle.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.vehicle_insurance,
+            document_alias="Vehicle Insurance",
+            document_description="Insurance policy document covering damages and liabilities related to a vehicle.",
+                 ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.pollution_certificate,
+            document_alias="Pollution Certificate",
+            document_description="Certificate proving that a vehicle meets pollution control standards.",
+                    ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.passport,
+            document_alias="Passport",
+            document_description="Official government document that certifies the holder's identity and citizenship.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.voter_id,
+            document_alias="Voter ID",
+            document_description="Identification card issued by the Election Commission of India to eligible voters.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.bank_statement,
+            document_alias="Bank Statement",
+            document_description="Official statement from a bank detailing account activity over a specified period.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.utility_bill,
+            document_alias="Utility Bill",
+            document_description="Recent bill from a utility provider (electricity, water, gas) showing the customer's name and address.",
+        ),
+    ]
+    session.add_all(kyc_document_types)
+    session.commit()
+
+def seed_super_admin(session: Session):
+    # Create a super admin user with a secure password hash
+    super_admin = User(
+        id=str(uuid.uuid4()),
+        email=APP_ADMIN_EMAIL,
+        name="Super Admin",
+        username="superadmin",
+        phone_number="9999999999",
+        password_hash=generate_password_hash(settings.CABBO_SUPER_ADMIN_SECRET),  # Use a secure hash in production
+        is_active=True,)
+    session.add(super_admin)
+    session.commit()
+    
+    
