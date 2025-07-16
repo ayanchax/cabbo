@@ -1,12 +1,14 @@
 
-from operator import or_
+from sqlalchemy import or_
 from core.exceptions import CabboException
 from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 
 from models.user.user_schema import UserCreateSchema, UserPasswordUpdateSchema, UserUpdateSchema
+import logging
 
+logger = logging.getLogger(__name__)
 
 def persist_bearer_token(user: User, token: str, db: Session) -> str:
     try:
@@ -70,11 +72,13 @@ def get_user_by_username(username: str,db: Session ):
     """Get user by username."""
     return db.query(User).filter(User.username == username).first()
 
-def get_user_by_id(user_id: str, db: Session) -> User:
+def get_user_by_id(user_id: str, db: Session, active: bool = False) -> User:
     """Get user by ID."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise CabboException("User not found.", status_code=404)
+    if active and not user.is_active:
+        raise CabboException("User is inactive.", status_code=404)
     return user
 
 def get_user_by_email(email: str, db: Session) -> User:
@@ -100,11 +104,14 @@ def get_user_password_hash_by_username(username: str) -> str:
     return user.password_hash
 
 def is_user_exists(user: UserCreateSchema, db: Session) -> bool:
-    """Check if user exists in the database by username or (non-null) email."""
-    query = db.query(User).filter(User.username == user.username, User.phone_number == user.phone_number)
+    """Check if user exists in the database by username, phone number, or (non-null) email."""
+    filters = [
+        User.username == user.username,
+        User.phone_number == user.phone_number
+    ]
     if user.email:
-        query = query.union(db.query(User).filter(User.email == user.email))
-    existing_user = query.first()
+        filters.append(User.email == user.email)
+    existing_user = db.query(User).filter(or_(*filters)).first()
     return existing_user is not None
    
 def activate_user(user: User, db: Session) -> User:
@@ -158,20 +165,57 @@ def get_users_by_role(role: RoleEnum, db: Session) -> list[User]:
 
 def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
     """Update user details."""
-    if data.name is not None:
-        user.name = data.name
-    if data.email is not None:
-        user.email = data.email
-    if data.phone_number is not None:
-        user.phone_number = data.phone_number
-    
-    db.commit()
-    db.refresh(user)
-    return user
+    try:
+        print(user.username)
+        print(data.username)
+        if data.name is not None:
+            if user.name != data.name:
+                user.name = data.name.strip()
+        if data.username is not None:
+            if user.username != data.username:
+                existing_user = db.query(User).filter(
+                    User.username == data.username.strip(),
+                    User.id != user.id
+                ).first()
+                if existing_user:
+                    raise CabboException("Username already exists.", status_code=400)
+                user.username = data.username.strip()
 
-def change_user_password(user: User, new_password: UserPasswordUpdateSchema, db: Session) -> User:
+        if data.email is not None:
+            if user.email != data.email:
+                existing_user = db.query(User).filter(
+                    User.email == data.email.strip(),
+                    User.id != user.id
+                ).first()
+                if existing_user:
+                    raise CabboException("Email already exists.", status_code=400)
+                user.email = data.email.strip()
+
+        if data.phone_number is not None:
+            if user.phone_number != data.phone_number:
+                existing_user = db.query(User).filter(
+                    User.phone_number == data.phone_number.strip(),
+                    User.id != user.id
+                ).first()
+                if existing_user:
+                    raise CabboException("Phone number already exists.", status_code=400)
+                user.phone_number = data.phone_number.strip()
+
+        db.commit()
+        db.refresh(user)
+        return user
+    except Exception as e:
+        db.rollback()
+        raise CabboException(
+            f"Error updating user: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+        )
+    
+
+def change_user_password(user: User, new_password: str, db: Session) -> User:
     """Change user password."""
-    user.password_hash = generate_password_hash(new_password.password)
+    user.password_hash = generate_password_hash(new_password)
     db.commit()
     db.refresh(user)
     return user
@@ -179,12 +223,12 @@ def change_user_password(user: User, new_password: UserPasswordUpdateSchema, db:
 def create_user(data:UserCreateSchema, db: Session) -> User:
     """Create a new user."""
     user = User(
-        name=data.name or "",  # Default to empty string if name is None
-        username=data.username,
-        email=data.email,
-        phone_number=data.phone_number,
+        name=data.name.strip() or "",  # Default to empty string if name is None
+        username=data.username.strip(),
+        email=data.email.strip() if data.email else None,  # Default to None if email is not provided
+        phone_number=data.phone_number.strip(),
         password_hash=generate_password_hash(data.password) if data.password else None,  # Assuming password is hashed before passing
-        role=data.role,
+        role=data.role.strip(),
     )
     db.add(user)
     db.commit()
@@ -201,3 +245,15 @@ def is_user_logged_in(user: User) -> bool:
         return True
     except Exception:
         return False
+
+def auto_logoff_user_after_password_change(user: User, db: Session) -> bool:
+    """
+    Automatically log off the user by deleting their bearer token after password change.
+    """
+    try:
+        if user.bearer_token:
+            delete_bearer_token(user=user, db=db)
+        return True
+    except Exception as e:
+        logger.error(f"Error logging off user after password change: {str(e)}")
+         

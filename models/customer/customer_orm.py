@@ -39,11 +39,17 @@ class Customer(Base):
     opt_in_updates = Column(
         Boolean, default=False, nullable=False
     )  # consent for offers/updates
-    created_at = Column(DateTime, server_default=func.utc_timestamp())
+    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    
     is_phone_verified = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
-    last_modified = Column(DateTime, default=func.utc_timestamp(), nullable=True)
+    last_modified = Column(
+        DateTime,
+        server_default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+        nullable=False,
+    )
     bearer_token = Column(Text, nullable=True)
     last_seen = Column(DateTime, nullable=True)
     driver_ratings = relationship(

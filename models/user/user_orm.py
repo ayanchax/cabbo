@@ -43,8 +43,13 @@ class User(Base):
     emergency_contact_name = Column(String(255), nullable=True)
     emergency_contact_number = Column(String(20), nullable=True)
     bearer_token = Column(Text, nullable=True) # Bearer token for authentication
-    created_at = Column(DateTime, server_default=func.utc_timestamp())
-    last_modified = Column(DateTime, default=func.utc_timestamp(), nullable=True)
+    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    last_modified = Column(
+        DateTime,
+        server_default=func.utc_timestamp(),
+        onupdate=func.utc_timestamp(),
+        nullable=False,
+    )
     created_by = Column(
         SqlEnum(RoleEnum, name="created_by_role_enum"),
         nullable=False,

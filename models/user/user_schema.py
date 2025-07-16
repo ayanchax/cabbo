@@ -57,16 +57,49 @@ class UserUpdateSchema(UserBaseSchema):
     email: Optional[EmailStr] = None  # User's email address
     phone_number: Optional[str] = None  # User's phone number
 
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def phone_validator(cls, v):
+        if v is None:
+            return v
+        return validate_and_sanitize_country_phone(v)
+
 
 class UserPasswordUpdateSchema(UserBaseSchema):
+    old_password: str  # Old password for the user      
     password: str  # New password for the user
+    confirm_password: str  # Confirm new password
+    @field_validator("password", "old_password", mode="before")
+    @classmethod
+    def password_length_validator(cls, v):
+        if not v or len(v) < 8:
+            raise CabboException("Password must be at least 8 characters long", status_code=400)
+        return v
+    # Custom validation to ensure old password is not the same as new password
     @field_validator("password", mode="before")
     @classmethod
-    def password_validator(cls, v):
-        if not v or len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+    def validate_password(cls, v, info):
+        if "old_password" in info.data and v == info.data["old_password"]:
+            raise CabboException("New password cannot be the same as old password", status_code=400)
         return v
-    
+
+    @field_validator("confirm_password", mode="before")
+    @classmethod
+    def validate_confirm_password(cls, v, info):
+        if "password" in info.data and v != info.data["password"]:
+            raise CabboException("Passwords do not match", status_code=400)
+        return v
+
+class UserPasswordResetSchema(UserBaseSchema):
+    password: str  # New password for the user
+
+    @field_validator("password", mode="before")
+    @classmethod
+    def password_length_validator(cls, v):
+        if not v or len(v) < 8:
+            raise CabboException("Password must be at least 8 characters long", status_code=400)
+        return v
+
 class UserReadSchema(BaseModel):
     name: Optional[str] = None  # User's name
     username: str  # User's username
