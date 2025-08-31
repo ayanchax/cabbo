@@ -87,7 +87,7 @@ class Driver(Base):
     created_by = Column(
         Enum(RoleEnum), nullable=False, default=RoleEnum.driver_admin
     )  # Created by system, admin, or user
-    bearer_token = Column(Text, nullable=True) # Bearer token for authentication, this will be used to authenticate the driver in the driver app
+    bearer_token = Column(Text, nullable=True) # Bearer token for authentication, this will be used to authenticate the driver in the driver app when the driver app is released to the drivers.
     # Relationships
     trips = relationship(
         "Trip",

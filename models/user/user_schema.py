@@ -43,7 +43,7 @@ class UserCreateSchema(UserBaseSchema):
     def role_validator(cls, v):
         if v not in [role.value for role in RoleEnum if role.value.endswith("_admin")]:
             raise CabboException(
-                "Invalid role specified. Allowed roles are: " + ", ".join([role.value for role in RoleEnum]),
+                "Invalid role specified. Allowed roles are: " + ", ".join([role.value for role in RoleEnum if role.value.endswith("_admin")]),
                 status_code=400
             )
         return v

@@ -38,7 +38,13 @@ def init_booking(
         "booking_id": booking_id,
         "order_id": order.get("id"),
         "order": order,
-        "message": "Booking initiated successfully. Please complete the payment to confirm your booking."}
+        "messages": {
+            "status": "Your booking has been started!",
+            "advance_payment_instruction": "To confirm your cab booking, please pay the advance amount now.",
+            "advance_payment_reason": "This advance payment is our platform fee that helps us guarantee your booking.",
+            "post_trip_payment_instruction": "You can pay the rest of your fare after your trip ends, once you receive your invoice."
+        },
+    }
 
 
 @router.post("/confirm-booking", response_model=dict)

@@ -272,6 +272,10 @@ class TripSearchAdditionalData(BaseModel):
     estimated_km: Optional[float] = (
         None  # Estimated kilometers for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
+
+    included_hours: Optional[float] = None  # Included hours for the trip, mainly applicable for local trips
+
+    included_km: Optional[float] = None  # Included kilometers for the trip, mainly applicable for outstation and local trips
     choices:Optional[int] = None  # Number of choices available for the user to book from
     
     is_interstate: Optional[bool] = (
@@ -287,6 +291,7 @@ class TripSearchAdditionalData(BaseModel):
     is_round_trip: Optional[bool] = (
         True  # Indicates if the trip is a round trip, mainly applicable for outstation trips
     )  # This is used to calculate the total price for outstation trips which are round trips
+
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
