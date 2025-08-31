@@ -23,11 +23,6 @@ def create_customer(
             is_phone_verified=phone_verified,  # True
             is_active=activate,  # True
             dob=data.dob if hasattr(data, "dob") else None,
-            age=(
-                calculate_customer_age(data)
-                if hasattr(data, "dob") and data.dob
-                else None
-            ),
             gender=(
                 data.gender.value
                 if hasattr(data, "gender") and data.gender is not None
@@ -188,8 +183,6 @@ def update_customer_dob(payload: CustomerUpdate, customer: Customer):
     if payload.dob is not None:
         if customer.dob != payload.dob:
             customer.dob = payload.dob
-            # Auto-calculate age if dob is provided
-            customer.age = calculate_customer_age(payload)
             return True
 
     return False

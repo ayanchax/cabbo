@@ -456,7 +456,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            dynamic_platform_fee_percent=1.0,  # platform fee
+            dynamic_platform_fee_percent=0.5,  # platform fee
             max_included_km=42,  # 42 km included for airport trips is a standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
             toll=120,  # toll for airport drop set to 120 if customer opts for it
@@ -466,7 +466,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            dynamic_platform_fee_percent=1.5,  # platform fee
+            dynamic_platform_fee_percent=1,  # platform fee
             min_included_hours=4,  # Minimum 4 hours for local trips
             max_included_hours=12,  # Maximum 12 hours for local trips
             min_included_km=40,  # Minimum 40 km included for local trips
@@ -477,7 +477,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            dynamic_platform_fee_percent=6.0,  # 6% platform fee
+            dynamic_platform_fee_percent=3,  # 3% platform fee
             overage_warning_km_threshold=50,  # Warning threshold for overages
             minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
             minimum_parking_wallet=150,  # minimum parking 150 for outstation trips

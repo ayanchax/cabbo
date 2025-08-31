@@ -65,25 +65,25 @@ from models.trip.trip_enums import TripTypeEnum
 
 
 def _retrieve_trip_package_by_id(
-    package_id: str, db: Session, fallback_duration: int=4, fallback_km: int=40
+    package_id: str, db: Session, fallback_duration: int=4, fallback_km: int=40, fallback_label: str="4Hours / 40KM"
 ):
     if not package_id:
         return TripPackageConfigSchema(
-            included_hours=fallback_duration, included_km=fallback_km
+            included_hours=fallback_duration, included_km=fallback_km, package_label=fallback_label
         )
     package = (
         db.query(TripPackageConfig).filter(TripPackageConfig.id == package_id).first()
     )
     if not package:
         return TripPackageConfigSchema(
-            included_hours=fallback_duration, included_km=fallback_km
+            included_hours=fallback_duration, included_km=fallback_km, package_label=fallback_label
         )
     package_schema = TripPackageConfigSchema.model_validate(package)
     return (
         package_schema
         if package_schema.included_hours and package_schema.included_hours > 0
         else TripPackageConfigSchema(
-            included_hours=fallback_duration, included_km=fallback_km
+            included_hours=fallback_duration, included_km=fallback_km, package_label=fallback_label
         )
     )
 
@@ -223,13 +223,14 @@ def get_trip_search_options(
             .all()
         )
         package_short_label = "Airport Pickup"
-
+        max_included_km = configs.max_included_km
+        warning_km_threshold = configs.overage_warning_km_threshold
         for pricing, cab_type, fuel_type in airport_pricings:
             pricing_schema = AirportCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             base_fare_per_km = pricing_schema.airport_fare_per_km
-            max_included_km = configs.max_included_km
+            
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             placard_charge = (
                 configs.placard_charge
@@ -245,7 +246,7 @@ def get_trip_search_options(
             total_price_before_platform_fee = math.ceil(
                 base_price + toll + parking + placard_charge
             )
-            warning_km_threshold = configs.overage_warning_km_threshold
+            
             margin = max_included_km - est_km  # Allow negative values for overage
             indicative_overage_warning = margin <= warning_km_threshold
             # Platform fee is a sum of a fixed cost to service fee and a percentage of the total price calculated before adding platform fee
@@ -264,12 +265,16 @@ def get_trip_search_options(
             disclaimer_lines = get_airport_trips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
+            disclaimer_message = (
+                "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
+            )
             option = TripSearchOption(
                     car_type=cab_type_schema.name,  # Use display name from schema
                     fuel_type=fuel_type_schema.name,  # Use display name from schema
                     total_price=math.ceil(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
+                    included_km=max_included_km,
                     price_breakdown=price_breakdown,
                     package=package_label,  # Use package string for display
                     package_short_label=package_short_label,
@@ -287,7 +292,7 @@ def get_trip_search_options(
                                 else 0.0
                             ),
                             disclaimer=disclaimer_lines,
-                            extra_charges_disclaimers=disclaimer_lines,
+                            extra_charges_disclaimers=disclaimer_message,
                         )
                     ),
                 )
@@ -315,12 +320,13 @@ def get_trip_search_options(
             .all()
         )
         package_short_label = "Airport Drop"
+        max_included_km = configs.max_included_km
+        warning_km_threshold = configs.overage_warning_km_threshold
         for pricing, cab_type, fuel_type in airport_pricings:
             pricing_schema = AirportCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             base_fare_per_km = pricing_schema.airport_fare_per_km
-            max_included_km = configs.max_included_km
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             base_price = base_fare_per_km * min(est_km, max_included_km)
             overage_amount = max(0, est_km - max_included_km) * overage_amount_per_km
@@ -329,7 +335,6 @@ def get_trip_search_options(
             # Overages will apply if at the end of the trip the actual distance is more than the estimated distance
             # This indicator is to ensure that the customer is aware that overage charges may apply for this route
             total_price_before_platform_fee = math.ceil(base_price + toll + parking)
-            warning_km_threshold = configs.overage_warning_km_threshold
             margin = max_included_km - est_km  # Allow negative values for overage
             indicative_overage_warning = margin <= warning_km_threshold
             # Platform fee is a sum of a fixed cost to service fee and a percentage of the total price calculated before adding platform fee
@@ -345,6 +350,9 @@ def get_trip_search_options(
             disclaimer_lines = get_airport_trips_disclaimer_lines(
                 overage_amount_per_km, max_included_km
             )
+            disclaimer_message = (
+                "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
+            )
             option=TripSearchOption(
                 car_type=cab_type_schema.name,  # Use display name
                     fuel_type=fuel_type_schema.name,  # Use display name
@@ -352,6 +360,7 @@ def get_trip_search_options(
                         total_price_before_platform_fee + price_breakdown.platform_fee
                     ),
                     price_breakdown=price_breakdown,
+                    included_km=max_included_km,
                     package=package_label,
                     package_short_label=package_short_label,
                     overages=(
@@ -368,7 +377,7 @@ def get_trip_search_options(
                                 else 0.0
                             ),
                             disclaimer=disclaimer_lines,
-                            extra_charges_disclaimers=disclaimer_lines,
+                            extra_charges_disclaimers=disclaimer_message,
                         )
                     ))
             option_dict, preference_dict=_generate_trip_field_dictionary(
@@ -468,8 +477,8 @@ def get_trip_search_options(
                     package_short_label=package_short_label,
                     overages=(
                         OveragesSchema(
-                            disclaimer=disclaimer_message,
-                            extra_charges_disclaimers=disclaimer_lines,
+                            disclaimer=disclaimer_lines,
+                            extra_charges_disclaimers=disclaimer_message,
                         )
                     ),
                 )
@@ -580,7 +589,7 @@ def get_trip_search_options(
                 night_hours_display_label=night_hours_display_label,
                 night_surcharge_per_hour=night_surcharge_per_hour,
             )
-            disclaimer = "Extra charges may apply:\n - " + "\n - ".join(
+            disclaimer_message = "Extra charges may apply:\n - " + "\n - ".join(
                 disclaimer_lines
             )
             option =  TripSearchOption(
@@ -606,12 +615,13 @@ def get_trip_search_options(
                                 if indicative_overage_warning
                                 else 0.0
                             ),
-                            disclaimer=disclaimer,
-                            extra_charges_disclaimers=disclaimer_lines,
+                            disclaimer=disclaimer_lines,
+                            extra_charges_disclaimers=disclaimer_message,
                         )
                     ),
                 )
             
+           
             option_dict, preference_dict=_generate_trip_field_dictionary(
                 search_in, cab_type_schema.name, fuel_type_schema.name, option)
              
@@ -692,13 +702,15 @@ def get_trip_search_options(
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
         estimated_km=est_km,
+        included_hours=_options[0].included_hours if search_in.trip_type in[TripTypeEnum.local] and _options and len(_options)> 0 and _options[0].included_hours else None,
+        included_km=_options[0].included_km if _options and len(_options)> 0 and _options[0].included_km else None,
         choices=len(_options),  # Total number of options returned
-        is_round_trip=True,
+        is_round_trip=True if search_in.trip_type in[ TripTypeEnum.outstation, TripTypeEnum.local] else False,
         is_interstate=is_interstate,
         total_unique_states=total_unique_states,
         unique_states=unique_states if is_interstate else None,
         )
-    
+
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
@@ -1141,12 +1153,13 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         if validated_end_date.tzinfo is None:
             validated_end_date = validated_end_date.replace(tzinfo=timezone.utc)
     
+    json_hops = [hop.model_dump() for hop in booking_request.preferences.hops] if booking_request.preferences.hops else None
     temp_trip = TempTrip(
         creator_id=requestor,
         trip_type_id=trip_type_id,
         origin=booking_request.preferences.origin.model_dump(),
         destination=booking_request.preferences.destination.model_dump(),
-        hops=booking_request.preferences.hops if booking_request.preferences.hops else None,
+        hops=json_hops, #booking_request.preferences.hops if booking_request.preferences.hops else None,
         is_interstate=booking_request.metadata.is_interstate if booking_request.preferences.trip_type == TripTypeEnum.outstation else False,
         total_unique_states=booking_request.metadata.total_unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
         unique_states=booking_request.metadata.unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
