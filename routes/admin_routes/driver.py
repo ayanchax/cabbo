@@ -6,9 +6,6 @@ from models.driver.driver_schema import DriverBaseSchema, DriverCreateSchema, Dr
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from core.constants import APP_NAME
-from core.config import settings
-
-
 from services.driver_service import create_driver, update_driver
 from services.message_service import WELCOME_EMAIL_FILE, send_email
 
@@ -32,8 +29,7 @@ def add_driver(background_tasks: BackgroundTasks,payload: DriverCreateSchema = B
             WELCOME_EMAIL_FILE,
             for_driver=True,
             name=driver.name,
-            app_name=APP_NAME.capitalize(),
-            app_url=settings.APP_URL,
+            app_name=APP_NAME.capitalize()
         )
         background_tasks.add_task(send_email, driver.email, subject, html_content)
 
@@ -68,23 +64,56 @@ def view_driver_profile(driver_id: str):
     """View driver details/profile."""
     return {"message": f"Profile for driver {driver_id}"}
 
-# Upload driver documents
+# Upload driver kyc documents
 @router.post("/{driver_id}/documents")
 def upload_driver_documents(driver_id: str):
-    """Upload driver documents."""
+    """Upload driver kyc documents."""
     return {"message": f"Documents uploaded for driver {driver_id}"}
 
-# Remove driver document
+# Remove driver kyc document
 @router.delete("/{driver_id}/documents/{document_id}")
 def remove_driver_document(driver_id: str, document_id: str):
     """Remove a specific driver document."""
     return {"message": f"Document {document_id} removed for driver {driver_id}"}
 
-# View driver documents
+# View driver kyc documents
 @router.get("/{driver_id}/documents")
 def view_driver_documents(driver_id: str):
-    """View all documents for a driver."""
-    return {"message": f"Documents for driver {driver_id}"}
+    """View all kyc documents for a driver."""
+    return {"message": f"KYC documents for driver {driver_id}"}
+
+#mark kyc verified
+@router.post("/{driver_id}/documents/{document_id}/verify")
+def mark_kyc_verified(driver_id: str, document_id: str):
+    """Mark a specific driver document as verified."""
+    return {"message": f"Document {document_id} verified for driver {driver_id}"}
+
+# Mark kyc unverified
+@router.post("/{driver_id}/documents/{document_id}/unverify")
+def mark_kyc_unverified(driver_id: str, document_id: str):
+    """Mark a specific driver document as unverified."""
+    return {"message": f"Document {document_id} unverified for driver {driver_id}"}
+
+# mark all kyc documents verified
+@router.post("/{driver_id}/documents/verify-all")
+def mark_all_kyc_verified(driver_id: str):
+    """Mark all kyc documents for a driver as verified."""
+    #This will automatically set overall kyc status to verified as well
+    return {"message": f"All documents verified for driver {driver_id}"}
+
+# mark all kyc documents unverified
+@router.post("/{driver_id}/documents/unverify-all")
+def mark_all_kyc_unverified(driver_id: str):
+    """Mark all kyc documents for a driver as unverified."""
+    #This will automatically set overall kyc status to unverified as well
+    return {"message": f"All documents unverified for driver {driver_id}"}
+
+# Update overall kyc status
+# (Usually this will be auto managed based on individual document statuses, but in case admin wants to override)
+@router.post("/{driver_id}/documents/kyc-status/{status}")
+def update_kyc_status(driver_id: str, status: bool):
+    """Update overall kyc status for a driver."""
+    return {"message": f"KYC status for driver {driver_id} updated to {status}"}
 
 # Remove driver
 @router.delete("/{driver_id}")
