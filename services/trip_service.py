@@ -13,10 +13,9 @@ from models.cab.pricing_schema import (
     OutstationPricingBreakdownSchema,
 )
 from models.customer.customer_orm import Customer
-from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import PaymentNotesSchema, RazorPayPaymentResponse
 from models.trip.temp_trip_orm import TempTrip
-from models.trip.trip_orm import Trip, TripPackageConfig, TripStatusAudit, TripTypeMaster
+from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AmenitiesSchema,
     TripBookRequest,
@@ -42,10 +41,10 @@ from core.exceptions import CabboException
 from services.audit_trail_service import log_trip_audit
 from services.location_service import get_distance_km, get_state_from_location
 from models.geography.geo_enums import APP_AIRPORT_LOCATION
-from core.constants import APP_HOME_STATE
+from core.constants import APP_HOME_STATE, APP_NAME
 from datetime import datetime, timezone, timedelta
 import math
-from services.passenger_service import _get_passenger_by_id, get_passenger_id_from_preferences, populate_passenger_details, validate_passenger_id
+from services.passenger_service import get_passenger_id_from_preferences, populate_passenger_details, validate_passenger_id
 from services.payment_service import get_trip_payment_order, verify_payment
 from services.pricing_service import (
     get_airport_toll,
@@ -62,6 +61,83 @@ from services.pricing_service import (
 from services.validation_service import validate_airport_schedule, validate_booking_request, validate_local_trip_schedule, validate_outstation_trip_schedule, validate_placard_requirements, validate_serviceable_area
 from utils.utility import remove_none_recursive, validate_date_time
 from models.trip.trip_enums import TripTypeEnum
+
+
+TRIP_MESSAGES = {
+    TripStatusEnum.created.value: {
+        "messages": {
+            "status": TripStatusEnum.created,
+            "status_text": "Your trip has been created!",
+            "next_steps": [
+                {
+                    "id": "COMPLETE_ADVANCE_PAYMENT",
+                    "step": "Complete Advance Payment",
+                    "instruction": "Please complete the advance payment to confirm your trip.",
+                    "reason": "This advance payment is our platform fee that helps us guarantee your trip."
+                },
+                {
+                    "id": "AWAIT_CONFIRMATION",
+                    "step": "Await Confirmation",
+                    "instruction": "You will receive a confirmation once the payment is successful."
+                }
+            ]
+        }
+    },
+    TripStatusEnum.confirmed.value: {
+        "messages": {
+            "status": TripStatusEnum.confirmed,
+            "status_text": "Your booking has been confirmed!",
+            "next_steps": [
+                {
+                    "id": "AWAIT_TRIP_DETAILS",
+                    "step": "Await trip details",
+                    "instruction": "You will receive the trip and driver details shortly."
+                },
+                {
+                    "id": "PAY_REMAINING_FARE",
+                    "step": "Pay remaining fare after trip completion",
+                    "instruction": "You will receive an invoice after your trip ends, and you should pay the rest of your fare only through the app or provided payment link in the invoice."
+                }
+            ],
+            "advisory": [
+                {
+                    "id": "DO_NOT_PAY_FOR_DRIVER_ACCOMMODATION",
+                    "instruction": "You are not required or liable to arrange or pay for any driver accommodation.",
+                    "additional_info": f"If you are willing to provide driver accommodation during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements."
+                },
+                {
+                    "id": "DO_NOT_PAY_FOR_DRIVER_FOOD",
+                    "instruction": "You are not required or liable to arrange or pay for any driver food or meals.",
+                    "additional_info": f"If you are willing to provide driver food or meals during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements."
+                },
+               {
+                    "id": "DO_NOT_PAY_TO_DRIVER",
+                    "instruction": "Please do not make any trip related payments to the driver directly.",
+                    "additional_info": "All trip related payments should be made through the app for your safety."
+                },
+                {
+                    "id":"DO_NOT_ENTERTAIN_PAYMENT_REQUESTS_FROM_DRIVER",
+                    "instruction": "Please do not entertain any kind of payment requests from the driver.",
+                    "additional_info": "All payment requests should be directed through the app for your safety. If the driver insists, please report it to our support team."
+                },
+                {
+                    "id": "OPTIONAL_TIPPING",
+                    "instruction": "You are free to tip your driver directly in cash/UPI, at your own discretion.",
+                    "additional_info": "Tipping is not mandatory but greatly appreciated."
+                },
+                {
+                    "id": "CONTACT_SUPPORT_GENERAL",
+                    "instruction": f"If you face any issues or have concerns during your trip, please contact {APP_NAME.capitalize()} support immediately.",
+                    "additional_info": "Your comfort and safety are our priority. Our support team is always here to help you."
+                }
+            ]
+        }
+    }
+}
+
+def get_trip_messages(status: Union[str, TripStatusEnum]):
+    status = status.value if isinstance(status, TripStatusEnum) else status
+    return TRIP_MESSAGES.get(status, {})
 
 
 def _retrieve_trip_package_by_id(
@@ -886,7 +962,8 @@ def _track_state_transitions(search_in: TripSearchRequest):
     unique_states = set[str]()
     state_borders_crossed = 0
     prev_state = get_state_from_location(all_locations[0])  # Origin location state
-    unique_states.add(prev_state)
+    if prev_state:
+        unique_states.add(prev_state.lower())
     for loc in all_locations[
         1:
     ]:  # Iterate through all locations including hops and destination except the first one
@@ -1159,8 +1236,9 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         trip_type_id=trip_type_id,
         origin=booking_request.preferences.origin.model_dump(),
         destination=booking_request.preferences.destination.model_dump(),
-        hops=json_hops, #booking_request.preferences.hops if booking_request.preferences.hops else None,
+        hops=json_hops,
         is_interstate=booking_request.metadata.is_interstate if booking_request.preferences.trip_type == TripTypeEnum.outstation else False,
+        is_round_trip=booking_request.metadata.is_round_trip or False,
         total_unique_states=booking_request.metadata.total_unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
         unique_states=booking_request.metadata.unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
         package_id=booking_request.preferences.package_id if booking_request.preferences.trip_type == TripTypeEnum.local  and booking_request.preferences.package_id else None,
@@ -1253,6 +1331,7 @@ def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> b
 def _populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetails:
     trip_schema = TripDetails.model_validate(trip)  # Convert Trip object to TripDetail schema
     trip_schema.trip_type=_get_trip_type_by_trip_type_id(trip_type_id=trip.trip_type_id, db=db)
+    
 
     passenger = populate_passenger_details(passenger_id=trip.passenger_id,  db=db)
     if passenger:
@@ -1261,10 +1340,7 @@ def _populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetai
     return remove_none_recursive(result)
 
 def _attach_trip_details_to_order_notes(order:dict, trip_details: TripDetails):
-    """
-    This function is a placeholder for attaching trip details to order notes.
-    It can be implemented to add trip details to the order notes in the database or any other storage.
-    """
+     
     notes = order.get("notes", {})
     notes= PaymentNotesSchema.model_validate(notes)  # Validate the notes structure
     # Ensure that trip_details is set in notes
@@ -1298,6 +1374,7 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         destination=temp_trip.destination,
         hops=temp_trip.hops,
         is_interstate=temp_trip.is_interstate,
+        is_round_trip=temp_trip.is_round_trip,
         total_unique_states=temp_trip.total_unique_states,
         unique_states=temp_trip.unique_states,
         package_id=temp_trip.package_id,
@@ -1347,10 +1424,10 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
 
     try:
         db.add(trip)
-        #Here we will perform a trip status audit log entry
-        log_trip_audit(trip_id=trip.id, status=trip.status, committer_id=requestor, reason="Trip confirmed", db=db, commit=False)  # Log the trip status audit entry
         db.commit()
         db.refresh(trip)
+        #Here we will perform a trip status audit log entry
+        log_trip_audit(trip_id=trip.id, status=trip.status, committer_id=requestor, reason="Trip confirmed", db=db)  # Log the trip status audit entry
         print(f"Trip confirmed for booking ID: {booking_id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
         _delete_temp_trip(requestor=requestor, db=db)  # Clean up temporary trip details for this customer.
@@ -1364,6 +1441,7 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
 
     except Exception as e:
         db.rollback()
+        print(e)
         raise CabboException(f"Failed to confirm trip booking: {str(e)}", status_code=500)
 
 
@@ -1439,4 +1517,28 @@ def confirm_trip_booking(booking_request:TripOut,customer:Customer, db:Session):
     # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
     return _create_confirmed_trip_from_temp_trip(
         temp_trip=temp_trip, requestor=customer.id, booking_id=booking_request.booking_id, payment_info=booking_request.payment_info, db=db)
-   
+
+
+def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session):
+    """
+    Deletes a temporary trip record from the database based on the booking ID and requestor.
+    Args:
+        booking_id (str): The ID of the booking to delete.
+        requestor (str): The user or system requesting the deletion.
+        db (Session): The database session for ORM operations.
+    Raises:
+        CabboException: If the trip is not found or if the requestor is not authorized to delete it.
+    """
+    temp_trip = db.query(TempTrip).filter(
+        TempTrip.id == booking_id, TempTrip.creator_id == requestor
+    ).first()
+    if not temp_trip:
+        raise CabboException("Booking not found or you are not authorized to delete this booking", status_code=404)
+    try:
+        db.delete(temp_trip)
+        db.commit()
+        print(f"Temporary trip deleted for booking ID: {booking_id}")
+        return True
+    except Exception as e:
+        db.rollback()
+        return False

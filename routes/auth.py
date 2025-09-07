@@ -82,6 +82,7 @@ def register(
 
         html_content = render_email_template(
             WELCOME_EMAIL_FILE,
+            for_customer=True,
             name=customer.name,
             app_name=APP_NAME.capitalize(),
             app_url=settings.APP_URL,

@@ -289,7 +289,7 @@ class TripSearchAdditionalData(BaseModel):
     )
 
     is_round_trip: Optional[bool] = (
-        True  # Indicates if the trip is a round trip, mainly applicable for outstation trips
+        False  # Indicates if the trip is a round trip, mainly applicable for outstation trips and local trips
     )  # This is used to calculate the total price for outstation trips which are round trips
 
 

@@ -56,7 +56,7 @@ class TempTrip(Base):
     unique_states = Column(
         JSON, nullable=True
     )  # comma separated list of unique states, applicable for outstation trips which are interstate
-    is_round_trip = Column(Boolean, default=True, nullable=False)
+    is_round_trip = Column(Boolean, default=False, nullable=False)
     # Location information - END
 
     # Package information selected by customer

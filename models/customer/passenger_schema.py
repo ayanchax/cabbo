@@ -62,4 +62,5 @@ class PassengerRequest(BaseModel):
         return validate_and_sanitize_country_phone(v)
     
     class Config:
+        from_attributes = True
         exclude_none = True  # Exclude fields with None values from the model dump

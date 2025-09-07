@@ -82,12 +82,15 @@ def send_email(
         return False
 
 
-def render_email_template(template_name: str, for_customer=True, **kwargs) -> str:
+def render_email_template(template_name: str, for_customer=False, for_driver=False, **kwargs) -> str:
     """
     Render an email template with the given context.
     """
     if for_customer:
         template_name = f"customer/{template_name}"
+    elif for_driver:
+        template_name = f"driver/{template_name}"
+    
 
     template = jinja_templates_env.get_template(template_name)
     return template.render(**kwargs)

@@ -5,7 +5,7 @@ from core.config import settings
 provider = settings.LOCATION_SERVICE_PROVIDER
 
 
-def get_state_from_location(location: Union[LocationInfo, dict, str], state_code=False) -> str:
+def get_state_from_location(location: Union[LocationInfo, dict, str], state_code=False) -> Union[str, None]:
     if provider == "mapbox":
         from services.mapbox_service import get_state_from_location as mapbox_get_state
 

@@ -1,4 +1,3 @@
-from typing import Union
 from fastapi import (
     APIRouter,
     Depends,
@@ -12,7 +11,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from models.customer.customer_orm import Customer
-from models.customer.passenger_schema import PassengerCreate, PassengerOut
+from models.customer.passenger_schema import PassengerCreate, PassengerOut, PassengerUpdate
 from services.customer_service import (
     get_active_customer_by_id,
     update_customer_profile,
@@ -48,7 +47,7 @@ from services.message_service import (
     EMAIL_VERIFICATION_FILE,
 )
 from core.constants import APP_NAME
-from services.passenger_service import create_passenger
+from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_any_trip, is_passenger_belongs_to_customer, update_passenger
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -166,6 +165,7 @@ def trigger_email_verification(
 
     html_content = render_email_template(
         EMAIL_VERIFICATION_FILE,
+        for_customer=True,
         name=customer.name or "User",
         verification_link=customer_email_verification.verification_url,
         expiry_hours=str(EMAIL_VERIFY_EXPIRY_UNIT),
@@ -220,4 +220,84 @@ def add_passenger(
     passenger = create_passenger(customer_id, payload, db)
     if passenger is None:
         raise CabboException("Failed to create passenger", status_code=500)
+    return PassengerOut.model_validate(passenger)
+
+@router.delete("/{customer_id}/passenger/{passenger_id}/remove")
+def remove_passenger(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    passenger_id: str = Path(..., description="UUID of the passenger to remove"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    # Only allow self-service
+    if str(current_customer.id) != customer_id:
+        raise CabboException("Unauthorized", status_code=403)
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer is None:
+        raise CabboException("Customer not found", status_code=404)
+    if is_passenger_belongs_to_any_trip(passenger_id, db):
+        raise CabboException("Cannot delete passenger associated with existing trips", status_code=400)
+    delete_passenger(passenger_id, db)
+    return {"message": "Passenger removed successfully."}
+
+@router.put("/{customer_id}/passenger/{passenger_id}/update", response_model=PassengerOut)
+def update_passenger_details(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    passenger_id: str = Path(..., description="UUID of the passenger to update"),
+    payload: PassengerUpdate = Body(..., description="Passenger update payload"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    # Only allow self-service
+    if str(current_customer.id) != customer_id:
+        raise CabboException("Unauthorized", status_code=403)
+
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer is None:
+        raise CabboException("Customer not found", status_code=404)
+    passenger = update_passenger(passenger_id, payload, db)
+    
+    if passenger is None:
+        raise CabboException("Failed to update passenger", status_code=500)
+    return PassengerOut.model_validate(passenger)
+
+
+@router.get("/{customer_id}/passengers", response_model=list[PassengerOut])
+def list_passengers(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    # Only allow self-service
+    if str(current_customer.id) != customer_id:
+        raise CabboException("Unauthorized", status_code=403)
+
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer is None:
+        raise CabboException("Customer not found", status_code=404)
+    from services.passenger_service import get_all_passengers_by_customer_id
+
+    passengers = get_all_passengers_by_customer_id(customer_id, db)
+    return [PassengerOut.model_validate(passenger) for passenger in passengers]
+
+
+@router.get("/{customer_id}/passengers/{passenger_id}", response_model=PassengerOut)
+def get_passenger(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    passenger_id: str = Path(..., description="UUID of the passenger"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    # Only allow self-service
+    if str(current_customer.id) != customer_id:
+        raise CabboException("Unauthorized", status_code=403)
+
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer is None:
+        raise CabboException("Customer not found", status_code=404)
+
+    passenger = is_passenger_belongs_to_customer(passenger_id, customer_id, db)
+    if not passenger and isinstance(passenger, bool):
+        raise CabboException("Passenger not found for this customer", status_code=404)
+
     return PassengerOut.model_validate(passenger)
