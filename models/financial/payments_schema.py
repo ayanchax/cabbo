@@ -49,7 +49,7 @@ class RazorPayPaymentResponse(BaseModel):
         extra = "allow"  # Allow additional fields not defined in the schema
 
 class BankDetailsSchema(BaseModel):
-    account_name: str  # Name of the bank account holder
+    account_holder_name: str  # Name of the bank account holder
     account_number: str  # Bank account number
     ifsc_code: str  # IFSC code for the bank branch
     bank_name: Optional[str] = None  # Name of the bank (optional)

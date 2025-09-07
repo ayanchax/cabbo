@@ -141,6 +141,7 @@ class DriverEarnings(Base):
     trip = relationship("Trip", back_populates="driver_earnings")
 
 #Create a orm for the driver ratings per customer per trip
+#This will be populated when the customer rates the driver after the trip is completed
 class DriverRating(Base):
     __tablename__ = "driver_ratings"
     id = Column(

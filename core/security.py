@@ -12,6 +12,7 @@ import hmac
 import hashlib
 import json
 
+
 JWT_EXPIRY_UNIT = 5
 JWT_EXPIRY_UNIT_TIME_FRAME = {
     "DAYS": "days",
@@ -71,7 +72,7 @@ def validate_customer_token(
 def validate_user_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
     db: Session = Depends(get_mysql_session),
-) -> Customer:
+):
     if not authorization or not authorization.lower().startswith("bearer "):
         raise CabboException(
             "Authorization header missing or invalid.", status_code=401

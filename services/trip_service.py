@@ -1518,3 +1518,27 @@ def confirm_trip_booking(booking_request:TripOut,customer:Customer, db:Session):
     return _create_confirmed_trip_from_temp_trip(
         temp_trip=temp_trip, requestor=customer.id, booking_id=booking_request.booking_id, payment_info=booking_request.payment_info, db=db)
 
+
+def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session):
+    """
+    Deletes a temporary trip record from the database based on the booking ID and requestor.
+    Args:
+        booking_id (str): The ID of the booking to delete.
+        requestor (str): The user or system requesting the deletion.
+        db (Session): The database session for ORM operations.
+    Raises:
+        CabboException: If the trip is not found or if the requestor is not authorized to delete it.
+    """
+    temp_trip = db.query(TempTrip).filter(
+        TempTrip.id == booking_id, TempTrip.creator_id == requestor
+    ).first()
+    if not temp_trip:
+        raise CabboException("Booking not found or you are not authorized to delete this booking", status_code=404)
+    try:
+        db.delete(temp_trip)
+        db.commit()
+        print(f"Temporary trip deleted for booking ID: {booking_id}")
+        return True
+    except Exception as e:
+        db.rollback()
+        return False

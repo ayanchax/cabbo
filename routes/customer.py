@@ -1,4 +1,3 @@
-from typing import Union
 from fastapi import (
     APIRouter,
     Depends,
@@ -48,7 +47,7 @@ from services.message_service import (
     EMAIL_VERIFICATION_FILE,
 )
 from core.constants import APP_NAME
-from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_any_trip, is_passenger_belongs_to_customer, populate_passenger_details, update_passenger
+from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_any_trip, is_passenger_belongs_to_customer, update_passenger
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -166,6 +165,7 @@ def trigger_email_verification(
 
     html_content = render_email_template(
         EMAIL_VERIFICATION_FILE,
+        for_customer=True,
         name=customer.name or "User",
         verification_link=customer_email_verification.verification_url,
         expiry_hours=str(EMAIL_VERIFY_EXPIRY_UNIT),

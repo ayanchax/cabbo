@@ -11,6 +11,7 @@ from models.trip.trip_schema import (
 )
 from services.trip_service import (
     confirm_trip_booking,
+    delete_temp_trip_by_booking_id,
     get_trip_messages,
     get_trip_search_options,
     initiate_trip_booking,
@@ -67,3 +68,18 @@ def confirm_booking(
         **trip_create_response.model_dump(),
         **get_trip_messages(status=TripStatusEnum.confirmed),
     }
+
+@router.delete("/cleanup/{booking_id}", response_model=dict)
+def cleanup_temp_trip_booking(
+    booking_id: str,
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    """
+    Cleanup trip data for the customer.
+    This event happens when the customer abandons the payment page midway or payment fails.
+    """ 
+    is_deleted = delete_temp_trip_by_booking_id(booking_id=booking_id, requestor=current_customer.id, db=db)
+    if is_deleted:
+        return {"message": "Trip data cleaned up successfully."}
+    return {"message": "Failed to clean up trip data."}
