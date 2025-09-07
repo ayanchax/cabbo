@@ -212,7 +212,7 @@ def validate_serviceable_area(search_in: TripSearchRequest, db: Session):
             for hop in search_in.hops:
                 hop_state = get_state_from_location(location=hop, state_code=True)
                 if not hop_state:
-                    continue
+                    continue # Skip if state cannot be determined
                 if hop_state not in allowed_states:
                     invalid_hops.append(hop_state)
             if invalid_hops:

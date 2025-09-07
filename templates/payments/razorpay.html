@@ -16,7 +16,7 @@
             currency: "INR",
             name: "Cabbo Trip Booking",
             description: "Trip booking for local trip",
-            order_id: "order_QsgpOKlIBFBnBJ", // Replace with actual order ID
+            order_id: "order_REZHDn9SN1wp1u", // Replace with actual order ID
             prefill: {
                 name: "Ayan",
                 email: "ayan@gmail.com",
@@ -25,8 +25,8 @@
             handler: function (response) {
                 console.log("Payment successful:", response);
                 // Callback after payment
-                // Send payment details to backend for verification
-                // fetch('/trip/book', {
+                // Send payment details to backend for verification and trip confirmation
+                // fetch('/trip/confirm-booking', {
                 //     method: 'POST',
                 //     headers: {
                 //         'Content-Type': 'application/json'
@@ -44,6 +44,7 @@
                 //     // Optionally redirect or show confirmation
                 // })
                 // .catch(err => {
+                // Send error signal to backend and delete temp trip
                 //     alert('Payment verification failed.');
                 // });
             }

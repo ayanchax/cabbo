@@ -1,3 +1,4 @@
+from typing import Union
 from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.customer.passenger_orm import Passenger
@@ -99,7 +100,7 @@ def get_all_active_passengers(db: Session):
 
 def update_passenger(
     passenger_id: str, payload: PassengerUpdate, db: Session
-) -> Passenger:
+) -> Union[Passenger, None]:
     """Update an existing passenger's details.
     Args:
         passenger_id (str): The UUID of the passenger to update.
@@ -108,15 +109,19 @@ def update_passenger(
     Returns:
         Passenger: The updated passenger object.
     """
-    passenger = _get_passenger_by_id(passenger_id, db)
-    if not passenger:
-        raise CabboException("Passenger not found", status_code=404)
+    try:
+        passenger = _get_passenger_by_id(passenger_id, db)
+        if not passenger:
+            raise CabboException("Passenger not found", status_code=404)
 
-    passenger.name = payload.name
-    passenger.phone_number = payload.phone_number
-    db.commit()
-    db.refresh(passenger)
-    return passenger
+        passenger.name = payload.name
+        passenger.phone_number = payload.phone_number
+        db.commit()
+        db.refresh(passenger)
+        return passenger
+    except Exception as e:
+        db.rollback()
+    return None
 
 
 def delete_passenger(passenger_id: str, db: Session) -> bool:
@@ -127,12 +132,15 @@ def delete_passenger(passenger_id: str, db: Session) -> bool:
     Returns:
         bool: True if deletion was successful, False otherwise.
     """
-    passenger = _get_passenger_by_id(passenger_id, db)
-    if not passenger:
-        raise CabboException("Passenger not found", status_code=404)
-
-    db.delete(passenger)
-    db.commit()
+    try:
+        passenger = _get_passenger_by_id(passenger_id, db)
+        if not passenger:
+            raise CabboException("Passenger not found", status_code=404)
+        db.delete(passenger)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise CabboException("Failed to delete passenger", status_code=500)
     return True
 
 
@@ -245,3 +253,34 @@ def populate_passenger_details(passenger_id:str, db:Session):
             if passenger:
                 return PassengerRequest.model_validate(passenger)
     return None
+
+def is_passenger_belongs_to_any_trip(passenger_id:str, db:Session):
+    """Check if a passenger is associated with any trip.
+    Args:
+        passenger_id (str): The UUID of the passenger.
+        db (Session): The database session.
+    Returns:
+        bool: True if the passenger is associated with any other trip, False otherwise.
+    """
+    from models.trip.trip_orm import Trip
+
+    trip = (
+        db.query(Trip)
+        .filter(Trip.passenger_id == passenger_id)
+        .first()
+    )
+    return trip is not None
+
+def is_passenger_belongs_to_customer(passenger_id:str, customer_id:str, db:Session):
+    """Check if a passenger belongs to a specific customer.
+    Args:
+        passenger_id (str): The UUID of the passenger.
+        customer_id (str): The UUID of the customer.
+        db (Session): The database session.
+    Returns:
+        Union[Passenger, bool]: The passenger object if they belong to the customer, False otherwise.
+    """
+    passenger = _get_passenger_by_id(passenger_id=passenger_id, db=db)
+    if not passenger:
+        return False
+    return passenger if passenger.customer_id == customer_id else False

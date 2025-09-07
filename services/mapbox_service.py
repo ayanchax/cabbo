@@ -6,7 +6,7 @@ from core.config import settings
 MAPBOX_TOKEN = settings.MAPBOX_TOKEN
 
 
-def get_state_from_location(location: Union[LocationInfo, dict, str], state_code: bool = False) -> str:
+def get_state_from_location(location: Union[LocationInfo, dict, str], state_code: bool = False) -> Union[str,None]:
     """
     Given a location (LocationInfo, dict, or string), return the state name or state code using Mapbox geocoding.
     If a string is provided, geocode to get lat/lng, then reverse geocode to get state.
