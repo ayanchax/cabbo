@@ -1,6 +1,6 @@
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from core.exceptions import CabboException
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
@@ -106,4 +106,13 @@ class DriverUpdateSchema(DriverBaseSchema):
         extra="forbid"
         exclude_none = True  # Exclude fields with None values from the model dump
 
+
+class DriverReadProfilePictureAfterUpdate(BaseModel):
+    image_url: str = Field(None, description="URL to the driver's profile picture")
+    last_modified: datetime = Field(
+        None, description="Last modified date of the driver's profile"
+    )
+
+class DriverReadSchema(DriverCreateSchema):
+    pass
 

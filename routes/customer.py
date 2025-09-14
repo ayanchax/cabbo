@@ -235,8 +235,11 @@ def remove_passenger(
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
         raise CabboException("Customer not found", status_code=404)
-    if is_passenger_belongs_to_any_trip(passenger_id, db):
-        raise CabboException("Cannot delete passenger associated with existing trips", status_code=400)
+    
+    # ?We do not need this condition check because if a passenger is deleted and they are associated with one or more trip, then in trip.passenger_id it will automatically be nullified because of the foreign key constraint with ondelete set to null
+    # ?Hence removing the passenger is safe even if they are associated with trips as the trip anyway belongs to the customer and is not dependent on the passenger.
+    # if is_passenger_belongs_to_any_trip(passenger_id, db):
+    #     pass
     delete_passenger(passenger_id, db)
     return {"message": "Passenger removed successfully."}
 
@@ -301,3 +304,16 @@ def get_passenger(
         raise CabboException("Passenger not found for this customer", status_code=404)
 
     return PassengerOut.model_validate(passenger)
+
+#Route for providing driver rating and feedback for a trip by a customer
+@router.post("/{customer_id}/trips/{trip_id}/{driver_id}/rate-driver", response_model=dict)
+def rate_driver_for_trip(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    trip_id: str = Path(..., description="UUID of the trip"),
+    driver_id: str = Path(..., description="UUID of the driver"),
+    rating: int = Body(..., description="Rating for the driver (1-5)"),
+    feedback: str = Body(None, description="Optional feedback for the driver"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    pass

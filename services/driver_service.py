@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from models.driver.driver_orm import Driver
@@ -102,3 +103,12 @@ def deactivate_driver(driver_id: str, db: Session) -> Driver:
 	db.commit()
 	db.refresh(driver)
 	return driver
+
+def update_driver_last_modified(driver: Driver, db: Session):
+    try:
+        driver.last_modified = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(driver)
+    except Exception as e:
+        db.rollback()
+    return driver

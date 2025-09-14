@@ -49,9 +49,7 @@ def get_active_user_by_id_and_bearer_token(
         User.is_active.is_(True),
     ).first()
     
-    if not user:
-        raise CabboException("User not found or inactive.", status_code=404)
-    
+     
     return user
 
 def delete_bearer_token(user: User, db: Session) -> bool:
