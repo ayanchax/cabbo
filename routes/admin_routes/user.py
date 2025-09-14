@@ -52,7 +52,7 @@ def update_admin_user(user_id: str, payload: UserUpdateSchema = Body(...), db: S
     """Update an administrative user."""
     current_user_role = current_user.role
     user = get_user_by_id(user_id=user_id, db=db, active=True) # Ensure the user is active so we can update them
-    if current_user_role==RoleEnum.super_admin or user.role==current_user_role:
+    if current_user_role==RoleEnum.super_admin or user.role==current_user_role or user.id==current_user.id:
         user = update_user(user=user, data=payload, db=db)
         return UserReadSchema.model_validate(user)
     raise CabboException("You do not have permission to update this user.", status_code=403)
