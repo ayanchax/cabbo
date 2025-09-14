@@ -304,3 +304,16 @@ def get_passenger(
         raise CabboException("Passenger not found for this customer", status_code=404)
 
     return PassengerOut.model_validate(passenger)
+
+#Route for providing driver rating and feedback for a trip by a customer
+@router.post("/{customer_id}/trips/{trip_id}/{driver_id}/rate-driver", response_model=dict)
+def rate_driver_for_trip(
+    customer_id: str = Path(..., description="UUID of the customer"),
+    trip_id: str = Path(..., description="UUID of the trip"),
+    driver_id: str = Path(..., description="UUID of the driver"),
+    rating: int = Body(..., description="Rating for the driver (1-5)"),
+    feedback: str = Body(None, description="Optional feedback for the driver"),
+    db: Session = Depends(get_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    pass

@@ -256,19 +256,19 @@ def unassign_driver_from_trip(trip_id: str):
     """Unassign driver from a trip."""
     return {"message": f"Driver unassigned from trip {trip_id}"}
 
-# View driver trips history
+# View driver lifetime trips
 @router.get("/{driver_id}/trips")
 def view_driver_trips_history(driver_id: str):
-    """View trip history for a driver."""
+    """LIST View trip history for a driver."""
     return {"message": f"Trip history for driver {driver_id}"}
 
-# View driver ratings/feedback
+# View driver ratings/feedback for a driver against all trips by all customers
 @router.get("/{driver_id}/ratings")
 def view_driver_ratings(driver_id: str):
     """LIST View ratings and feedback for a driver."""
     return {"message": f"Ratings/feedback for driver {driver_id}"}
 
-# View driver ratings for a specific customer
+# View driver ratings by a specific customer for a driver against all trips
 @router.get("/{driver_id}/ratings/customer/{customer_id}")
 def view_driver_ratings_by_customer(driver_id: str, customer_id: str):
     """LIST View ratings given by customers for a driver."""
@@ -280,14 +280,14 @@ def view_driver_ratings_by_trip(driver_id: str, trip_id: str):
     """Object View ratings for a specific trip for a driver."""
     return {"message": f"Ratings for driver {driver_id} on trip {trip_id}"}
 
-# View driver earnings
+# View overall driver earnings for a driver for all trips
 @router.get("/{driver_id}/earnings")
 def view_driver_earnings(driver_id: str):
-    """View earnings for a driver."""
+    """LIST View earnings for a driver."""
     return {"message": f"Earnings for driver {driver_id}"}
 
-# View driver earnings for a trip
+# View driver earnings for a specific trip
 @router.get("/{driver_id}/earnings/trip/{trip_id}")
 def view_driver_earnings_for_trip(driver_id: str, trip_id: str):
-    """View earnings for a specific trip for a driver."""
+    """Object View earnings for a specific trip for a driver."""
     return {"message": f"Earnings for driver {driver_id} on trip {trip_id}"}
