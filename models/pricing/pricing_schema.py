@@ -45,24 +45,6 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None
 
-
-class CabTypeSchema(BaseModel):
-    id: Optional[str]
-    name: str
-    capacity:Optional[str] = None  # e.g., "4+1", "6+1"
-
-    class Config:
-        from_attributes = True
-
-
-class FuelTypeSchema(BaseModel):
-    id: Optional[str]
-    name: str
-
-    class Config:
-        from_attributes = True
-
-
 class PricingBreakdownBaseSchema(BaseModel):
     base_fare: float
     platform_fee: float

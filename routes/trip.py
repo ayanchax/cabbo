@@ -77,7 +77,7 @@ def cleanup_temp_trip_booking(
 ):
     """
     Cleanup trip data for the customer.
-    This event happens when the customer abandons the payment page midway or payment fails.
+    This endpoint is invoked when the customer abandons the trip search or payment page midway or payment fails.
     """ 
     is_deleted = delete_temp_trip_by_booking_id(booking_id=booking_id, requestor=current_customer.id, db=db)
     if is_deleted:

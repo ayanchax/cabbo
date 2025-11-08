@@ -1,15 +1,14 @@
 from typing import List, Union
 
 from core.security import generate_trip_hash, verify_trip_hash
-from models.cab.pricing_schema import (
+from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
     AirportPricingBreakdownSchema,
     LocalCabPricingSchema,
     LocalPricingBreakdownSchema,
     OutstationCabPricingSchema,
     OveragesSchema,
-    CabTypeSchema,
-    FuelTypeSchema,
     OutstationPricingBreakdownSchema,
 )
 from models.customer.customer_orm import Customer
@@ -29,9 +28,8 @@ from models.trip.trip_schema import (
     TripSearchResponse,
 )
 from sqlalchemy.orm import Session
-from models.cab.pricing_orm import (
-    CabType,
-    FuelType,
+from models.cab.cab_orm import CabType, FuelType
+from models.pricing.pricing_orm import (
     AirportCabPricing,
     LocalCabPricing,
     OutstationCabPricing,
@@ -815,6 +813,7 @@ def _get_inclusions_exclusions_for_local_trip():
         "Water bottles and tissues",
         "Platform fee",
         "Premium AC cab with professional driver",
+        "Doorstep pickup and drop",
     ]
     exclusions = [
         "Personal expenses",
@@ -841,6 +840,7 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
         "Water bottles, candies, and tissues",
         "Platform fee",
         "Premium AC cab with professional driver",
+        "Doorstep pickup and drop",
     ]
     exclusions = [
         "Personal expenses",
@@ -858,6 +858,7 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
             "Water bottles, candies, and tissues",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
         ]
     return inclusions, exclusions
 
@@ -876,6 +877,7 @@ def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = Fals
             "Water bottles and tissues",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
         ]
     else:
         # If toll road is not preferred, we don't include toll charges
@@ -885,6 +887,7 @@ def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = Fals
             "Water bottles and tissues",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
         ]
 
     exclusions = ["Personal expenses", "Self sponsored driver meals"]
@@ -907,6 +910,7 @@ def _get_inclusions_exclusions_for_airort_pickup(
             "Parking",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
             "Water bottles and tissues",
             "Placard charges",
         ]
@@ -918,6 +922,8 @@ def _get_inclusions_exclusions_for_airort_pickup(
             "Water bottles and tissues",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
+
         ]
     elif not toll_road_preferred and placard_required:
         inclusions = [
@@ -925,6 +931,7 @@ def _get_inclusions_exclusions_for_airort_pickup(
             "Parking",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
             "Water bottles and tissues",
             "Placard charges",
         ]
@@ -937,6 +944,8 @@ def _get_inclusions_exclusions_for_airort_pickup(
             "Water bottles and tissues",
             "Platform fee",
             "Premium AC cab with professional driver",
+            "Doorstep pickup and drop",
+
         ]
     exclusions = ["Personal expenses", "Self sponsored driver meals"]
     return inclusions, exclusions
@@ -1149,6 +1158,7 @@ def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEn
 def _delete_temp_trip(requestor: str, db: Session):
     """
     Deletes all temporary trip details for the given requestor.
+    We delete all temporary trip records for the requestor to ensure no stale temporary data remains in the system.
     Args:
         requestor (str): The user or system initiating the deletion.
         db (Session): The database session for ORM operations.
@@ -1430,7 +1440,7 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         log_trip_audit(trip_id=trip.id, status=trip.status, committer_id=requestor, reason="Trip confirmed", db=db)  # Log the trip status audit entry
         print(f"Trip confirmed for booking ID: {booking_id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
-        _delete_temp_trip(requestor=requestor, db=db)  # Clean up temporary trip details for this customer.
+        _delete_temp_trip(requestor=requestor, db=db)  # Clean up all temporary trip details for this customer.
         trip_schema=_populate_trip_schema(trip=trip, db=db)  # Populate the trip schema with necessary details
         return TripCreate(
             booking_id=trip.id,

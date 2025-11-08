@@ -59,7 +59,7 @@ app.include_router(trip.router)
 for router in admin_routes.routers:
     app.include_router(router)
 
-# Ensure share/images directory exists relative to this file (project root)
+# Ensure share/images and share/documents directory exists relative to this file (project root)
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SHARE_IMAGES_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "images")
 SHARE_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "documents")

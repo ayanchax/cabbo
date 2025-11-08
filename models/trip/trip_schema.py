@@ -2,7 +2,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
-from models.cab.pricing_schema import (
+from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
@@ -18,8 +18,7 @@ from models.trip.trip_enums import (
     CancellationSubStatusEnum,
 )
 from models.geography.geo_enums import LocationInfo
-from models.cab.pricing_orm import RoleEnum
-from utils.utility import validate_and_sanitize_country_phone
+from models.pricing.pricing_orm import RoleEnum
 
 
 

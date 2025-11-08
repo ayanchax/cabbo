@@ -1,11 +1,10 @@
 from typing import List
 import uuid
 from sqlalchemy.orm import Session
-from models.cab.pricing_orm import (
-    CabType,
+from models.cab.cab_orm import CabType, FuelType
+from models.pricing.pricing_orm import (
     CommonPricingConfiguration,
     FixedPlatformPricing,
-    FuelType,
     OutstationCabPricing,
     LocalCabPricing,
     AirportCabPricing,
@@ -22,7 +21,7 @@ from core.constants import APP_ADMIN_EMAIL, APP_HOME_CITY, APP_HOME_CITY_ALT, AP
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
-from models.cab.pricing_orm import PermitFeeConfiguration
+from models.pricing.pricing_orm import PermitFeeConfiguration
 from models.user.user_orm import User
 from core.config import settings
 

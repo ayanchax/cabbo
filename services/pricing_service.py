@@ -3,7 +3,8 @@ from typing import List
 from aiohttp_retry import Union
 from sqlalchemy import func
 from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
-from models.cab.pricing_schema import (
+from models.cab.cab_orm import CabType, FuelType
+from models.pricing.pricing_schema import (
     CommonPricingConfigSchema,
     FixedNightPricingSchema,
     PermitFeeSchema,
@@ -11,12 +12,10 @@ from models.cab.pricing_schema import (
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripTypeMaster
 from sqlalchemy.orm import Session
-from models.cab.pricing_orm import (
-    CabType,
+from models.pricing.pricing_orm import (
     CommonPricingConfiguration,
     FixedNightPricing,
     FixedPlatformPricing,
-    FuelType,
     FixedPlatformPricing,
     PermitFeeConfiguration,
 )

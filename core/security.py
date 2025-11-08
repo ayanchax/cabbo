@@ -73,6 +73,10 @@ def validate_user_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
     db: Session = Depends(get_mysql_session),
 ):
+    
+    # Query db using async session
+    
+
     if not authorization or not authorization.lower().startswith("bearer "):
         raise CabboException(
             "Authorization header missing or invalid.", status_code=401

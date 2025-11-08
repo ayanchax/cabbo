@@ -306,6 +306,7 @@ def get_passenger(
     return PassengerOut.model_validate(passenger)
 
 #Route for providing driver rating and feedback for a trip by a customer
+# Driver rating can be provided only once per trip by a customer    
 @router.post("/{customer_id}/trips/{trip_id}/{driver_id}/rate-driver", response_model=dict)
 def rate_driver_for_trip(
     customer_id: str = Path(..., description="UUID of the customer"),
