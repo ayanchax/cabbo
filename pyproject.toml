@@ -20,7 +20,9 @@ dependencies = [
   "mapbox",
   "Jinja2",
   "razorpay",
-  "setuptools"
+  "setuptools",
+  "tzdata>=2025.2",
+  "python-dateutil>=2.9.0.post0",
 ]
 
 [tool.uv]

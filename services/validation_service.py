@@ -15,8 +15,7 @@ from sqlalchemy.orm import Session
 
 def _validate_duplicate_local_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 12):
         start_date = validate_date_time(date_time=booking_request.preferences.start_date)
-        if start_date.tzinfo is None:
-            start_date = start_date.replace(tzinfo=timezone.utc)
+       
         end_date = start_date + timedelta(hours=overlap_hours)  # Check for bookings within the next 12 hours
         existing_bookings = db.query(Trip).join(TripTypeMaster).filter(
             Trip.trip_type_id == TripTypeMaster.id,
@@ -30,11 +29,9 @@ def _validate_duplicate_local_bookings(booking_request: TripBookRequest, request
 
 def _validate_duplicate_outstation_bookings(booking_request: TripBookRequest, requestor: str, db: Session):
         start_date = validate_date_time(date_time=booking_request.preferences.start_date)
-        if start_date.tzinfo is None:
-            start_date = start_date.replace(tzinfo=timezone.utc)
+        
         end_date = validate_date_time(date_time=booking_request.preferences.end_date)
-        if end_date.tzinfo is None:
-            end_date = end_date.replace(tzinfo=timezone.utc)
+        
         existing_bookings = (
             db.query(Trip)
             .join(TripTypeMaster)
@@ -52,8 +49,7 @@ def _validate_duplicate_outstation_bookings(booking_request: TripBookRequest, re
 
 def _validate_airport_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 4):
         start_date = validate_date_time(date_time=booking_request.preferences.start_date)
-        if start_date.tzinfo is None:
-            start_date = start_date.replace(tzinfo=timezone.utc)
+        
         end_date = start_date + timedelta(hours=overlap_hours)  # Check for bookings within the next 6 hours
         existing_bookings = db.query(Trip).join(TripTypeMaster).filter(
             Trip.trip_type_id == TripTypeMaster.id,
@@ -276,8 +272,7 @@ def validate_local_trip_schedule(search_in: TripSearchRequest):
     start_date = validate_date_time(date_time=search_in.start_date)
 
     now = datetime.now(timezone.utc)
-    if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+    
 
     # Check for past dates
     if start_date < now:
@@ -315,15 +310,12 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
         )
     # Parse and validate start_date
     start_date = validate_date_time(date_time=search_in.start_date)
-    if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+    
     end_date = validate_date_time(date_time=search_in.end_date)
-    if end_date.tzinfo is None:
-        end_date = end_date.replace(tzinfo=timezone.utc)
+    
 
     now = datetime.now(timezone.utc)
-    if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+    
 
     # Check for past dates
     if start_date < now or end_date < now:
@@ -363,8 +355,11 @@ def validate_airport_schedule(search_in: TripSearchRequest):
     start_date = validate_date_time(date_time=search_in.start_date)
 
     now = datetime.now(timezone.utc)
-    if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+    
+    
+    print(f"Current time (UTC): {now}")
+    print(f"Start date (UTC): {start_date}")
+    
 
     # Check for past dates
     if start_date < now:
@@ -376,6 +371,6 @@ def validate_airport_schedule(search_in: TripSearchRequest):
     min_start = now + timedelta(hours=3)
     if start_date < min_start:
         raise CabboException(
-            "Start date for outstation trip must be at least 3 hours from now.",
+            "Start date for airport trip must be at least 3 hours from now.",
             status_code=400,
         )

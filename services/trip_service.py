@@ -133,6 +133,23 @@ TRIP_MESSAGES = {
     }
 }
 
+
+COMMON_INCLUSIONS = [
+    "Base fare",
+    "Premium AC cab with professional driver",
+    "Doorstep pickup and drop",
+    "Platform/Convenience fee",
+    "Well-maintained and sanitized vehicle",
+    "24/7 customer support",
+]
+
+COMMON_EXCLUSIONS = [
+    "Personal expenses",
+    "Self sponsored driver meals",
+    "Tolls(if applicable)",
+    "Extra parking(if any)",
+]
+
 def get_trip_messages(status: Union[str, TripStatusEnum]):
     status = status.value if isinstance(status, TripStatusEnum) else status
     return TRIP_MESSAGES.get(status, {})
@@ -807,20 +824,15 @@ def _get_inclusions_exclusions_for_local_trip():
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = [
-        "Base fare",
-        "Minimum parking allowance",
-        "Water bottles and tissues",
-        "Platform fee",
-        "Premium AC cab with professional driver",
-        "Doorstep pickup and drop",
-    ]
-    exclusions = [
-        "Personal expenses",
-        "Self sponsored driver meals",
-        "Tolls(if applicable)",
-        "Extra parking(if any)",
-    ]
+    inclusions = COMMON_INCLUSIONS[:]  # base set
+    inclusions.extend(
+        [
+            "Minimum parking allowance",
+            "Water bottles and tissues",
+        ]
+    )
+    exclusions = COMMON_EXCLUSIONS[:]
+    
     return inclusions, exclusions
 
 def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
@@ -833,33 +845,30 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = [
-        "Base fare",
-        "Driver allowance",
-        "Minimum parking and toll allowance",
-        "Water bottles, candies, and tissues",
-        "Platform fee",
-        "Premium AC cab with professional driver",
-        "Doorstep pickup and drop",
-    ]
-    exclusions = [
-        "Personal expenses",
-        "Self sponsored driver meals and/or accomodation",
-        "Night surcharges(if applicable)",
-        "Extra tolls(if any)",
-        "Extra parking(if any)",
-    ]
-    if is_interstate:
-        inclusions = [
-            "Base fare",
+    inclusions = COMMON_INCLUSIONS[:]  # base set
+    inclusions.extend(
+        [
             "Driver allowance",
             "Minimum parking and toll allowance",
-            "State entry taxes",
             "Water bottles, candies, and tissues",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
         ]
+    )
+    
+    
+    exclusions = COMMON_EXCLUSIONS[:]  # base set
+    exclusions.extend(
+        [
+            "Self sponsored driver accomodation",
+            "Night surcharges(if applicable)",
+            "Extra tolls(if any)",
+        ]
+    )
+    if is_interstate:
+        inclusions.extend(
+            [
+                "State entry taxes",
+            ]
+        )
     return inclusions, exclusions
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
@@ -870,27 +879,12 @@ def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = Fals
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
+    inclusions = COMMON_INCLUSIONS[:] # base set
     if toll_road_preferred:
-        inclusions = [
-            "Base fare",
-            "Toll",
-            "Water bottles and tissues",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
-        ]
-    else:
-        # If toll road is not preferred, we don't include toll charges
-        # and hence we don't include it in the inclusions list
-        inclusions = [
-            "Base fare",
-            "Water bottles and tissues",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
-        ]
-
-    exclusions = ["Personal expenses", "Self sponsored driver meals"]
+        inclusions.insert(1, "Toll")  # keep Toll early in the list
+    inclusions.extend(["Water bottles and tissues"])
+   
+    exclusions = COMMON_EXCLUSIONS[:] 
     return inclusions, exclusions
 
 def _get_inclusions_exclusions_for_airort_pickup(
@@ -903,51 +897,14 @@ def _get_inclusions_exclusions_for_airort_pickup(
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    if toll_road_preferred and placard_required:
-        inclusions = [
-            "Base fare",
-            "Toll",
-            "Parking",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
-            "Water bottles and tissues",
-            "Placard charges",
-        ]
-    elif toll_road_preferred and not placard_required:
-        inclusions = [
-            "Base fare",
-            "Toll",
-            "Parking",
-            "Water bottles and tissues",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
-
-        ]
-    elif not toll_road_preferred and placard_required:
-        inclusions = [
-            "Base fare",
-            "Parking",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
-            "Water bottles and tissues",
-            "Placard charges",
-        ]
-    else:
-        # If neither toll road preferred nor placard required
-        # then we don't include toll and placard charges
-        inclusions = [
-            "Base fare",
-            "Parking",
-            "Water bottles and tissues",
-            "Platform fee",
-            "Premium AC cab with professional driver",
-            "Doorstep pickup and drop",
-
-        ]
-    exclusions = ["Personal expenses", "Self sponsored driver meals"]
+    inclusions = COMMON_INCLUSIONS[:]  # base set
+    if toll_road_preferred:
+        inclusions.append("Toll")
+    inclusions.append("Parking")
+    if placard_required:
+        inclusions.append("Placard charges")
+    inclusions.append("Water bottles and tissues")
+    exclusions = COMMON_EXCLUSIONS[:]  # base set
     return inclusions, exclusions
 
 def _track_state_transitions(search_in: TripSearchRequest):
@@ -1232,13 +1189,11 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
     """
     trip_type_id = _get_trip_type_id_by_trip_type(booking_request.preferences.trip_type, db=db)
     validated_start_date = validate_date_time(date_time=booking_request.preferences.start_date)
-    if validated_start_date.tzinfo is None:
-        validated_start_date = validated_start_date.replace(tzinfo=timezone.utc)
+    
     validated_end_date = None
     if booking_request.preferences.end_date:
         validated_end_date = validate_date_time(date_time=booking_request.preferences.end_date)
-        if validated_end_date.tzinfo is None:
-            validated_end_date = validated_end_date.replace(tzinfo=timezone.utc)
+        
     
     json_hops = [hop.model_dump() for hop in booking_request.preferences.hops] if booking_request.preferences.hops else None
     temp_trip = TempTrip(

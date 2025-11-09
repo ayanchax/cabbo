@@ -1,4 +1,3 @@
-from datetime import datetime
 import re
 from typing import Union
 from core.constants import (
@@ -7,6 +6,10 @@ from core.constants import (
     APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR,
 )
 from core.exceptions import CabboException
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+from dateutil.parser import isoparse
+from core.config import settings
 
 
 def validate_and_sanitize_country_phone(v):
@@ -22,23 +25,33 @@ def validate_and_sanitize_country_phone(v):
 
 def validate_date_time(date_time: Union[str, datetime]):
     """
-    Validates and sanitizes a date-time string to ensure it is in ISO 8601 format.
-    If the input is already in the correct format, it returns the string unchanged.
-    If not, it raises a ValueError.
+    Parse input (str or datetime). If naive, assume settings.CABBO_DEFAULT_TIMEZONE
+    (fallback to UTC). Always return an aware datetime in UTC.
     """
     try:
-        output = (
-            date_time
-            if isinstance(date_time, datetime)
-            else datetime.fromisoformat(str(date_time))
-        )
-        return output
+        if isinstance(date_time, str):
+            try:
+                dt = isoparse(date_time)
+            except Exception as e:
+                raise CabboException("Invalid datetime format", status_code=400) from e
+        elif isinstance(date_time, datetime):
+            dt = date_time
+        else:
+            raise CabboException("Invalid datetime type", status_code=400)
 
-    except Exception:
-        raise CabboException(
-            "Invalid date_time format. Must be ISO datetime string.",
-            status_code=400,
-        )
+        # If naive, attach configured default tz (e.g., "Asia/Kolkata"), then convert to UTC
+        if dt.tzinfo is None:
+            tz_name = getattr(settings, "CABBO_DEFAULT_TIMEZONE", "UTC")
+            try:
+                local_tz = ZoneInfo(tz_name)
+            except Exception:
+                local_tz = timezone.utc
+            dt = dt.replace(tzinfo=local_tz)
+        # Always convert to UTC
+        return dt.astimezone(timezone.utc)
+    except Exception as e:
+        raise CabboException("Error processing datetime", status_code=400) from e
+        
     
 def remove_none_recursive(obj):
     if isinstance(obj, dict):

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     CABBO_TRIP_BOOKING_SECRET_KEY: str
     CABBO_SUPER_ADMIN_SECRET: str
     CABBO_USER_DEFAULT_PASSWORD:str
+    CABBO_DEFAULT_TIMEZONE: str 
 
     class Config:
         env_file = ENV_FILE
