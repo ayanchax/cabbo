@@ -49,7 +49,7 @@ from services.message_service import (
 from core.constants import APP_NAME
 from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_any_trip, is_passenger_belongs_to_customer, update_passenger
 
-router = APIRouter(prefix="/customers", tags=["customers"])
+router = APIRouter()
 
 
 @router.get("/{customer_id}", response_model=CustomerReadWithProfilePicture)

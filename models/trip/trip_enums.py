@@ -13,28 +13,21 @@ import enum
 # created -> cancelled(by customer)
 # created -> confirmed -> no_show(by customer)
 # created -> confirmed -> assigned -> ongoing -> completed -> dispute(by customer)
-# quoted -> cancelled(by driver)
-# quoted -> cancelled(by customer)
-# quoted -> quote_accepted -> confirmed -> assigned -> ongoing -> completed -> dispute(by customer)
-# quoted -> quote_accepted -> cancelled(by customer)
+ 
 
 
 # Trip Status Enum stores the various states a trip can be in during its lifecycle.
 # We do not need to store the status in the database, as it is derived from the trip status audit logs.
 class TripStatusEnum(str, enum.Enum):
     created = "created"
-    quoted = "quoted"
     pending= "pending"  # Trip is created but not yet confirmed or assigned
-    pending_admin_review = "pending_admin_review"
-    quote_accepted = "quote_accepted"
     confirmed = "confirmed"
     assigned = "assigned"  # Driver assigned to the trip
     ongoing = "ongoing"
     completed = "completed"  # Trip completed successfully
-    closed = "closed"  # Trip closed after completion with all dues settled
-    no_show = "no_show"  # Customer did not show up for the trip
-    cancelled = "cancelled"
-    dispute = "dispute"
+    closed = "closed"  # Trip closed after completion with all dues settled between cabbo, customer and driver
+    cancelled = "cancelled" # Trip cancelled by customer or admin due to various reasons
+    dispute = "dispute" # Customer fled without paying on completion of trip
 
 
 # Cancellation Sub-status Enum stores the various sub-states a cancellation can have.
@@ -42,16 +35,13 @@ class TripStatusEnum(str, enum.Enum):
 class CancellationSubStatusEnum(str, enum.Enum):
     none = "none"
     customer_cancelled = "customer_cancelled"
-    system_cancelled = "system_cancelled"
-    sys_admin_cancelled = "sys_admin_cancelled"
+    customer_no_show = "customer_no_show"
+    super_admin_cancelled = "super_admin_cancelled"
     driver_admin_cancelled = "driver_admin_cancelled"
-    finance_admin_cancelled = "finance_admin_cancelled"
     driver_cancelled = "driver_cancelled"
     driver_unavailable = "driver_unavailable"
     driver_no_show = "driver_no_show"
-    customer_no_show = "customer_no_show"
-    payment_failed = "payment_failed"
-    technical_issue = "technical_issue"
+    finance_admin_cancelled = "finance_admin_cancelled"
     customer_preferences_not_met = (
         "customer_preferences_not_met"  # e.g., car type, fuel type, etc.
     )

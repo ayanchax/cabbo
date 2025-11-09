@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query
 from typing import Union
 from services.location_service import get_state_from_location, get_distance_km
 
-router = APIRouter(prefix="/location", tags=["Location"])
+router = APIRouter()
 
 
 @router.get("/state")

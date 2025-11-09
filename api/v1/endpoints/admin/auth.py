@@ -6,7 +6,7 @@ from db.database import get_mysql_session
 from models.user.user_schema import UserLoginRequest, UserLoginResponse
 from services.user_service import generate_user_jwt, get_user_by_username, is_user_logged_in, persist_bearer_token
 
-router = APIRouter(prefix="/admin/auth", tags=["Admin: Authentication"])
+router = APIRouter()
 
 
 # Login as admin user

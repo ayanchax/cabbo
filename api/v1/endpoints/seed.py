@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from db.database import get_mysql_session
 from utils.seed_data_generation import seed_kyc_document_types, seed_pricing_master, seed_serviceable_geography, seed_states, seed_super_admin
 
-router = APIRouter(prefix="/seed", tags=["seed"])
+router = APIRouter()
 
 
 @router.get("/data")

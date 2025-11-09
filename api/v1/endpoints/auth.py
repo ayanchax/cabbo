@@ -30,7 +30,7 @@ from core.config import settings
 from core.exceptions import CabboException
 from core.constants import APP_NAME
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter()
 
 
 @router.post("/onboard/initiate")

@@ -10,7 +10,7 @@ from services.driver_service import activate_driver, create_driver, deactivate_d
 from services.file_service import remove_driver_profile_picture, save_driver_profile_picture
 from services.message_service import WELCOME_EMAIL_FILE, send_email
 
-router = APIRouter(prefix="/admin/driver", tags=["Admin: Driver"])
+router = APIRouter()
 
 # Add driver
 @router.post("/create", response_model=DriverBaseSchema, status_code=201)
@@ -274,7 +274,7 @@ def view_driver_ratings_by_customer(driver_id: str, customer_id: str):
     """LIST View ratings given by customers for a driver."""
     return {"message": f"Customer ratings for driver {driver_id} by customer {customer_id}"}
 
-# View driver ratings for a specific trip
+# View driver rating for a specific trip
 @router.get("/{driver_id}/ratings/trip/{trip_id}")
 def view_driver_ratings_by_trip(driver_id: str, trip_id: str):
     """Object View ratings for a specific trip for a driver."""
@@ -286,7 +286,7 @@ def view_driver_earnings(driver_id: str):
     """LIST View earnings for a driver."""
     return {"message": f"Earnings for driver {driver_id}"}
 
-# View driver earnings for a specific trip
+# View driver earning for a specific trip
 @router.get("/{driver_id}/earnings/trip/{trip_id}")
 def view_driver_earnings_for_trip(driver_id: str, trip_id: str):
     """Object View earnings for a specific trip for a driver."""

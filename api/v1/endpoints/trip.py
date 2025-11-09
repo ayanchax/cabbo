@@ -18,7 +18,7 @@ from services.trip_service import (
 )
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/trip", tags=["Trip"])
+router = APIRouter()
 
 
 @router.post("/search", response_model=TripSearchResponse)

@@ -8,7 +8,6 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from routes import admin_routes, auth, customer, location, trip, seed  # Import your routers here
 from db.database import init_db
 from contextlib import asynccontextmanager
 from core.exceptions import CabboException
@@ -17,6 +16,8 @@ from fastapi import HTTPException as FastAPIHTTPException
 import os
 from datetime import datetime, timezone
 from fastapi.staticfiles import StaticFiles
+from api.v1.routes import router as v1_router
+
 
 
 @asynccontextmanager
@@ -51,13 +52,7 @@ def read_root():
 
 
 # Include routers
-app.include_router(auth.router)
-app.include_router(customer.router)
-app.include_router(seed.router)
-app.include_router(location.router)
-app.include_router(trip.router)
-for router in admin_routes.routers:
-    app.include_router(router)
+app.include_router(v1_router, prefix="/api/v1")
 
 # Ensure share/images and share/documents directory exists relative to this file (project root)
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))

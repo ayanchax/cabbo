@@ -8,7 +8,7 @@ from models.user.user_orm import User
 from models.user.user_schema import UserCreateSchema, UserPasswordResetSchema, UserPasswordUpdateSchema, UserReadSchema, UserUpdateSchema
 from services.user_service import activate_user, auto_logoff_user_after_password_change, change_user_password, create_user, deactivate_user, delete_bearer_token, get_all_users, get_user_by_id, get_user_by_username, get_users_by_role, is_user_exists, update_user
 
-router = APIRouter(prefix="/admin/user", tags=["Admin: User"])
+router = APIRouter()
 
 # Create a new admin user
 @router.post("/create", response_model=UserReadSchema, status_code=201,)
