@@ -92,7 +92,7 @@ def deactivate_admin_user(user_id: str, db: Session = Depends(get_mysql_session)
     raise CabboException("You do not have permission to deactivate this user.", status_code=403)
 
 # List all admin users
-@router.get("/users/all", response_model=list[UserReadSchema])
+@router.get("/list/all", response_model=list[UserReadSchema])
 def list_admin_users(db: Session = Depends(get_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """List all administrative users."""
@@ -105,7 +105,7 @@ def list_admin_users(db: Session = Depends(get_mysql_session),
 
 
 # List admin users by role
-@router.get("/users/role/{role}")
+@router.get("/role/{role}")
 def list_admin_users_by_role(role: RoleEnum,db: Session = Depends(get_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """List all admin users by role."""
