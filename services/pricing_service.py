@@ -9,7 +9,7 @@ from models.pricing.pricing_schema import (
     FixedNightPricingSchema,
     PermitFeeSchema,
 )
-from models.geography.state_orm import GeoStateModel
+from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripTypeMaster
 from sqlalchemy.orm import Session
 from models.pricing.pricing_orm import (
@@ -63,15 +63,15 @@ def retrieve_interstate_permit_fee(
     permit_fee = 0.0
 
     all_states = (
-        db.query(GeoStateModel, PermitFeeConfiguration, CabType, FuelType)
+        db.query(RegionModel, PermitFeeConfiguration, CabType, FuelType)
         .join(
             PermitFeeConfiguration,
-            PermitFeeConfiguration.state_id == GeoStateModel.id,
+            PermitFeeConfiguration.state_id == RegionModel.id,
         )
         .join(CabType, PermitFeeConfiguration.cab_type_id == CabType.id)
         .join(FuelType, PermitFeeConfiguration.fuel_type_id == FuelType.id)
         .filter(
-            func.lower(GeoStateModel.state_name).in_(unique_states_lower),
+            func.lower(RegionModel.region_name).in_(unique_states_lower),
             PermitFeeConfiguration.permit_fee != None,
             PermitFeeConfiguration.permit_fee > 0,
             PermitFeeConfiguration.cab_type_id == cab_type_id,

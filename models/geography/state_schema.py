@@ -1,24 +1,15 @@
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
-from core.security import RoleEnum
+#Pydantic schema for states/provinces
+from typing import List, Optional
+from pydantic import BaseModel, Field   
+from models.geography.country_schema import CountrySchema
+from models.geography.region_schema import RegionSchema
 
+class StateSchema(BaseModel):
+    state_name: str = Field(..., description="Full name of the state") # e.g. Karnataka
+    state_code: str = Field(..., description="ISO state code, e.g., 'KA' for Karnataka") # e.g. KA
+    country_code: str = Field(..., description="ISO country code the state belongs to, e.g., 'IN' for India") # e.g. IN
+    regions: Optional[List[RegionSchema]] = Field(None, description="List of regions within the state") # List of regions
 
-class GeoStateBase(BaseModel):
-    state_name: str
-    state_code: str
-    is_home_state: int = 0
-
-
-class GeoStateCreate(GeoStateBase):
-    pass
-
-
-class GeoStateOut(GeoStateBase):
-    id: str
-    created_by: RoleEnum
-    created_at: Optional[datetime]
-    last_modified: Optional[datetime]
 
     class Config:
         from_attributes = True

@@ -115,7 +115,7 @@ def validate_serviceable_area(search_in: TripSearchRequest, db: Session):
 
     # For local and airport trips, check city/airport
     if trip_type in [TripTypeEnum.local, TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-        city_names = service_area.service_area_cities or []
+        city_names = service_area.service_area_region_names or []
         
         if not city_names:
             raise CabboException(

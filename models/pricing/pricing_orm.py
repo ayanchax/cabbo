@@ -10,7 +10,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
-from core.constants import APP_COUNTRY_CURRENCY, APP_COUNTRY_CURRENCY_SYMBOL
 from db.database import Base
 from sqlalchemy.sql import func
 from core.security import RoleEnum
@@ -44,9 +43,9 @@ class OutstationCabPricing(Base):
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for high-demand outstation trips
     overage_amount_per_km = Column(Float, nullable=False)
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    region_id = Column(
+        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -79,9 +78,9 @@ class LocalCabPricing(Base):
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for local trips
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    region_id = Column(
+        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -113,9 +112,9 @@ class AirportCabPricing(Base):
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for airport trips
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    region_id = Column(
+        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -147,9 +146,9 @@ class FixedNightPricing(Base):
     night_block_hours = Column(
         Integer, nullable=False, default=1
     )  # Applies to all trip types, but now mostly used for outstation
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    region_id = Column(
+        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -173,6 +172,7 @@ class CommonPricingConfiguration(Base):
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
     )  # FK to TripTypeMaster.id
     dynamic_platform_fee_percent = Column(Float, nullable=False)  # e.g., 5.0 for 5%
+    
     min_included_hours = Column(
         Integer, nullable=True, default=None
     )  # Local cab minimum included hours
@@ -198,9 +198,9 @@ class CommonPricingConfiguration(Base):
     parking = Column(Float, nullable=True)  # For airport pickup
     minimum_toll_wallet = Column(Float, nullable=True)  # For local/outstation
     minimum_parking_wallet = Column(Float, nullable=True)  # For local/outstation
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    region_id = Column(
+        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True  
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -222,9 +222,9 @@ class FixedPlatformPricing(Base):
         index=True,
     )
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    region_id = Column(
+        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -235,6 +235,7 @@ class FixedPlatformPricing(Base):
     )
 
 
+# Since Permit fee varies by state, so we have the state_id foreign key here instead of region_id
 class PermitFeeConfiguration(Base):
     __tablename__ = "permit_fee_config"
     id = Column(
@@ -253,11 +254,10 @@ class PermitFeeConfiguration(Base):
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
     )  # FK to GeoStateModel.id
+    
 
     permit_fee = Column(Float, nullable=False)  # Permit fee amount
-    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
-    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
-
+    
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

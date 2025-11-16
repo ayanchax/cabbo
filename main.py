@@ -2,6 +2,8 @@ from core.cabbo_logging import *
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION
 from core.config import settings
 import warnings
+
+from core.geography import load_geographies
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI, Request
@@ -23,6 +25,13 @@ from api.v1.routes import router as v1_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()  # Call synchronously, do not await
+    # Load country/region configs and attach to app.state
+    try:
+        geography = load_geographies()
+        app.state.geography = geography
+    except Exception as e:
+        # If config load fails at startup, raise so service doesn't start with invalid config
+        raise
     yield
 
 

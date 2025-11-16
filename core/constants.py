@@ -1,4 +1,4 @@
-from models.geography.geo_schema import LocationInfo
+from models.geography.location_schema import LocationInfo
 
 
 APP_NAME = "cabbo"

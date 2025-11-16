@@ -1,0 +1,124 @@
+from sqlalchemy import (
+    JSON,
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    DateTime,
+    func,
+    Enum as SAEnum,
+)
+from core.security import RoleEnum
+from db.database import Base
+import uuid
+from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
+
+
+# Region or Metro Area City ORM model
+class RegionModel(Base):
+    # Region is a city or metro area within a state or province within a country
+    # Region is the smallest geography unit for trip operations, all other geographies (State, Country) are linked via foreign keys
+    # Any kind of granular service area definition (trip wise service availability, 'trip-cab-fuel' wise pricing, airport boundaries, fuel type support, cab type availability etc.) are mapped at the lowest level i.e, regions
+
+    __tablename__ = "regions_master"
+    id = Column(
+        String(36),  # Use String for UUID in MySQL
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    region_name = Column(
+        String(64), unique=True, nullable=False
+    )  # e.g. Bangalore, Chennai
+    region_display_name = Column(String(64), nullable=False)  # e.g. Bengaluru, Chennai
+    region_code = Column(String(8), unique=True, nullable=False)  # e.g. BLR
+    # new normalized relation to StateModel
+    state_id = Column(
+        String(36),
+        ForeignKey("states_master.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # 1 Region has 1 State
+    state = relationship("StateModel", back_populates="regions", lazy="joined")
+
+    supported_trip_types = Column(
+        JSON, nullable=True
+    )  # Comma-separated list of trip types validated by TripTypeEnum
+    supported_fuel_types = Column(
+        JSON, nullable=True
+    )  # Comma-separated list of fuel types validated by FuelTypeEnum
+    supported_car_types = Column(
+        JSON, nullable=True
+    )  # Comma-separated list of car types validated by CarTypeEnum
+    airport_locations = Column(
+        JSON, nullable=True
+    )  # JSON string of airport locations validated by LocationInfo schema
+    is_home_state = Column(
+        Integer, nullable=False, default=0
+    )  # 1 for home state (e.g. KA), 0 for others
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+
+    # foreign key + relationship to CountryModel (one country per region)
+    country_id = Column(
+        String(36),
+        ForeignKey("countries_master.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # 1 Region has 1 Country
+    country = relationship("CountryModel", back_populates="regions")
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    last_modified = Column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class ServiceableRegionModel(Base):
+    """
+    Serviceable Geography ORM model for managing service areas and boundaries per trip type.
+    """
+
+    __tablename__ = "serviceable_regions"
+
+    id = Column(
+        String(36),  # Use String for UUID in MySQL
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    trip_type_id = Column(
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
+    )  # Foreign key to trip type master
+
+    serviceable_regions = Column(
+        JSON, nullable=True
+    )  # List of regions for the service area validated by RegionSchema
+    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    last_modified = Column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+        nullable=False,
+    )

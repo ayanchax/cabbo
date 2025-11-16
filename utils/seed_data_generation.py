@@ -13,11 +13,10 @@ from models.pricing.pricing_orm import (
 )
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_orm import KYCDocumentTypes
-from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum, generate_password_hash
 from core.constants import APP_ADMIN_EMAIL, APP_AIRPORT_LOCATION, APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
-from models.geography.state_orm import GeoStateModel
+from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
 from models.pricing.pricing_orm import PermitFeeConfiguration
@@ -629,7 +628,7 @@ def seed_pricing_master(session: Session):
         },
         # Add more states as needed
     }
-    states = session.query(GeoStateModel).filter(GeoStateModel.is_home_state != 1).all()
+    states = session.query(RegionModel).filter(RegionModel.is_home_state != 1).all()
     permit_fee_configs = []
     for state in states:
         state_code = getattr(state, "state_code", None)
@@ -675,22 +674,22 @@ def seed_pricing_master(session: Session):
 
 def seed_states(session: Session):
     states = [
-        GeoStateModel(
+        RegionModel(
             state_name=APP_HOME_STATE,
             state_code=APP_HOME_STATE_CODE,
             is_home_state=1,
         ),
-        GeoStateModel(
+        RegionModel(
             state_name="Tamil Nadu",
             state_code="TN",
             is_home_state=0,
         ),
-        GeoStateModel(
+        RegionModel(
             state_name="Kerala",
             state_code="KL",
             is_home_state=0,
         ),
-        GeoStateModel(
+        RegionModel(
             state_name="Andhra Pradesh",
             state_code="AP",
             is_home_state=0,
@@ -705,7 +704,7 @@ def seed_serviceable_geography(session: Session):
     trip_type_master_objs = session.query(TripTypeMaster).all()
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
     # Now get all states so that we can have their state code in the ServiceableGeographyOrm state_codes json for outstation trips
-    states = session.query(GeoStateModel).all()
+    states = session.query(RegionModel).all()
     state_codes = [state.state_code for state in states]
     serviceable_geography=[
         ServiceableGeographyOrm(
