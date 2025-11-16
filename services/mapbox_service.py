@@ -1,6 +1,6 @@
 from typing import Union
 from mapbox import Geocoder, Directions
-from models.geography.geo_enums import LocationInfo
+from models.geography.geo_schema import LocationInfo
 from core.config import settings
 
 MAPBOX_TOKEN = settings.MAPBOX_TOKEN

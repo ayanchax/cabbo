@@ -10,6 +10,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
+from core.constants import APP_COUNTRY_CURRENCY, APP_COUNTRY_CURRENCY_SYMBOL
 from db.database import Base
 from sqlalchemy.sql import func
 from core.security import RoleEnum
@@ -43,6 +44,9 @@ class OutstationCabPricing(Base):
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for high-demand outstation trips
     overage_amount_per_km = Column(Float, nullable=False)
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -74,7 +78,10 @@ class LocalCabPricing(Base):
     overage_amount_per_km = Column(Float, nullable=False)
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
-    ) # Indicates if this cab type is available for local trips
+    )  # Indicates if this cab type is available for local trips
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -105,7 +112,10 @@ class AirportCabPricing(Base):
     overage_amount_per_km = Column(Float, nullable=False)
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
-    ) # Indicates if this cab type is available for airport trips
+    )  # Indicates if this cab type is available for airport trips
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -137,6 +147,8 @@ class FixedNightPricing(Base):
     night_block_hours = Column(
         Integer, nullable=False, default=1
     )  # Applies to all trip types, but now mostly used for outstation
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
 
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
@@ -186,6 +198,8 @@ class CommonPricingConfiguration(Base):
     parking = Column(Float, nullable=True)  # For airport pickup
     minimum_toll_wallet = Column(Float, nullable=True)  # For local/outstation
     minimum_parking_wallet = Column(Float, nullable=True)  # For local/outstation
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
 
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
@@ -208,6 +222,9 @@ class FixedPlatformPricing(Base):
         index=True,
     )
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -236,7 +253,11 @@ class PermitFeeConfiguration(Base):
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
     )  # FK to GeoStateModel.id
+
     permit_fee = Column(Float, nullable=False)  # Permit fee amount
+    currency = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY)
+    currency_symbol = Column(String(8), nullable=True, default=APP_COUNTRY_CURRENCY_SYMBOL)
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

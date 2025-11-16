@@ -106,7 +106,7 @@ def retrieve_trip_wise_pricing_config(
     Fetches and returns all common pricing and configuration objects for a given trip type.
 
     This method retrieves the configuration for overage warnings, toll and parking charges,
-    platform fee, and fixed platform fee for the specified trip type from the database. These
+    platform fee/convenience fee, and fixed platform fee/infrastructure fee for the specified trip type from the database. These
     configurations are used throughout the pricing logic to ensure that all calculations are
     consistent, admin-editable, and type-safe. The returned TripTypeWiseConfig object is used
     to drive downstream pricing, warnings, and fee breakdowns for all trip workflows.
@@ -117,7 +117,7 @@ def retrieve_trip_wise_pricing_config(
 
     Returns:
         TripTypeConfig: An object containing all pricing and config data for the given trip type.
-            - config: CommonPricingConfigSchema (includes warning config, toll/parking, platform fee, fixed platform fee, etc.)
+            - config: CommonPricingConfigSchema (includes warning config, toll/parking, platform fee/convenience fee, fixed platform fee/infrastructure fee, etc.)
 
     Raises:
         CabboException: If the trip type is invalid or not found in the database, or if required config is missing.
@@ -147,7 +147,7 @@ def retrieve_trip_wise_pricing_config(
     )
     if not fixed_platform_fee:
         raise CabboException(
-            "No fixed platform fee configuration found", status_code=404
+            "No fixed platform fee or infrastructure fee configuration found", status_code=404
         )
 
     fixed_night_pricing_orm = db.query(FixedNightPricing).first()
@@ -181,11 +181,11 @@ def retrieve_trip_wise_pricing_config(
             status_code=404,
         )
 
-    # Merge the fixed platform fee into the common pricing config
+    # Merge the fixed platform fee/infrastructure fee into the common pricing config
     common_pricing_config.fixed_platform_fee = fixed_platform_fee
     common_pricing_config.fixed_night_pricing = fixed_night_pricing
     return (
-        common_pricing_config  # CommonPricingConfigSchema including fixed platform fee
+        common_pricing_config  # CommonPricingConfigSchema including fixed platform fee/infrastructure fee
     )
 
 
@@ -266,7 +266,7 @@ def get_outstation_trips_disclaimer_lines(
 
     return [
         f"If the driver drives during night hours ({night_hours_display_label}), a nightly hourly surcharge of {APP_COUNTRY_CURRENCY_SYMBOL}{night_surcharge_per_hour} will be applied.",
-        "If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip.",
+        "If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip by adjusting the final fare.",
         "All extra charges are based on actual usage and will be transparently shown in your invoice.",
     ]
 

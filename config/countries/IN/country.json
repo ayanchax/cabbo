@@ -1,0 +1,12 @@
+{
+    "country_name": "India",
+    "country_code": "IN",
+    "currency": "INR",
+    "currency_symbol": "₹",
+    "flag": "🇮🇳",
+    "time_zone": "Asia/Kolkata",
+    "locale": "en_IN",
+    "supported_regions": [
+        "BLR"
+    ]
+}

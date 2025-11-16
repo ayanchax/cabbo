@@ -17,7 +17,7 @@ from models.trip.trip_enums import (
     CarTypeEnum,
     CancellationSubStatusEnum,
 )
-from models.geography.geo_enums import LocationInfo
+from models.geography.geo_schema import LocationInfo
 from models.pricing.pricing_orm import RoleEnum
 
 

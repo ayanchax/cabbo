@@ -67,7 +67,7 @@ def _create_razorpay_order(
 def get_trip_payment_order(booking_request:TripBookRequest, customer:Customer, temp_trip:TempTrip) -> tuple:
     razorpay_schema = RazorpayOrderSchema(
         description=f"Trip booking for {booking_request.preferences.trip_type} trip by {customer.name}",
-        amount=temp_trip.platform_fee, #Collect platform fee from the customer as part of the trip booking so that system is not abused
+        amount=temp_trip.platform_fee, #Collect platform fee/convenience fee from the customer as part of the trip booking so that system is not abused
         currency=APP_COUNTRY_CURRENCY,
         receipt=f"id#{temp_trip.id}",
         notes=PaymentNotesSchema(

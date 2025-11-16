@@ -1,5 +1,5 @@
 from typing import Union
-from models.geography.geo_enums import LocationInfo
+from models.geography.geo_schema import LocationInfo
 from core.config import settings
 
 provider = settings.LOCATION_SERVICE_PROVIDER

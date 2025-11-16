@@ -38,8 +38,7 @@ from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, Tr
 from core.exceptions import CabboException
 from services.audit_trail_service import log_trip_audit
 from services.location_service import get_distance_km, get_state_from_location
-from models.geography.geo_enums import APP_AIRPORT_LOCATION
-from core.constants import APP_HOME_STATE, APP_NAME
+from core.constants import APP_AIRPORT_LOCATION, APP_HOME_STATE, APP_NAME
 from datetime import datetime, timezone, timedelta
 import math
 from services.passenger_service import get_passenger_id_from_preferences, populate_passenger_details, validate_passenger_id
@@ -71,7 +70,7 @@ TRIP_MESSAGES = {
                     "id": "COMPLETE_ADVANCE_PAYMENT",
                     "step": "Complete Advance Payment",
                     "instruction": "Please complete the advance payment to confirm your trip.",
-                    "reason": "This advance payment is our platform fee that helps us guarantee your trip."
+                    "reason": "This advance payment is our platform/convenience fee that helps us guarantee your trip."
                 },
                 {
                     "id": "AWAIT_CONFIRMATION",
@@ -340,7 +339,7 @@ def get_trip_search_options(
             
             margin = max_included_km - est_km  # Allow negative values for overage
             indicative_overage_warning = margin <= warning_km_threshold
-            # Platform fee is a sum of a fixed cost to service fee and a percentage of the total price calculated before adding platform fee
+            # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
             platform_fee_amount = configs.fixed_platform_fee + (
                 platform_fee_percent * total_price_before_platform_fee / 100
             )
@@ -525,7 +524,7 @@ def get_trip_search_options(
             # No tolls are added for local trips as for local trips toll cannot be estimated or walleted in advance, if any tolls are incurred, they will be charged accordingly to the customer once the trip is completed
             total_price_before_platform_fee = base_fare + minimum_parking_wallet
 
-            # Platform fee is a sum of a fixed cost to service and a percentage of the total price calculated before adding platform fee
+            # Platform fee is a sum of a fixed cost(infra cost) to service and a percentage of the total price calculated before adding platform fee/convenience fee
             platform_fee_amount = configs.fixed_platform_fee + (
                 platform_fee_percent * total_price_before_platform_fee / 100
             )
@@ -655,7 +654,7 @@ def get_trip_search_options(
             )
             package_label = f"{package_short_label} - AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
 
-            # Total before platform fee
+            # Total before platform fee/convenience fee
             total_price_before_platform_fee = (
                 base_price
                 + driver_allowance_amount
@@ -664,7 +663,7 @@ def get_trip_search_options(
                 + permit_fee
                 + overage_amount
             )
-            # Platform fee is a sum of a fixed cost to service fee and a percentage of the total price calculated before adding platform fee
+            # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
             platform_fee_amount = configs.fixed_platform_fee + (
                 platform_fee_percent * total_price_before_platform_fee / 100
             )

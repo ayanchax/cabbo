@@ -1,3 +1,6 @@
+from models.geography.geo_schema import LocationInfo
+
+
 APP_NAME = "cabbo"
 APP_VERSION = "1.0.0"
 APP_DESCRIPTION = "Backend API for cab booking platform."
@@ -39,4 +42,9 @@ APP_HOME_CITY_AIRPORT={
         "place_id":"ChIJL_P_CXMEDTkRw0ZdG-0GVvw", #official Mapbox place ID for the airport in Bengaluru
         "address":"Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India",
    
+}
+APP_AIRPORT_LOCATION = {
+    APP_HOME_STATE: LocationInfo(
+        **APP_HOME_CITY_AIRPORT
+          )
 }

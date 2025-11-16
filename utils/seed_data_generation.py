@@ -13,11 +13,10 @@ from models.pricing.pricing_orm import (
 )
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_orm import KYCDocumentTypes
-from models.geography.geo_enums import APP_AIRPORT_LOCATION
 from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from core.security import RoleEnum, generate_password_hash
-from core.constants import APP_ADMIN_EMAIL, APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
+from core.constants import APP_ADMIN_EMAIL, APP_AIRPORT_LOCATION, APP_HOME_CITY, APP_HOME_CITY_ALT, APP_HOME_STATE, APP_HOME_STATE_CODE
 from models.geography.state_orm import GeoStateModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
@@ -444,7 +443,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            dynamic_platform_fee_percent=0.5,  # platform fee
+            dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
             placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
             max_included_km=42,  # 42 km included for airport trips is a common standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
@@ -455,7 +454,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            dynamic_platform_fee_percent=0.5,  # platform fee
+            dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
             max_included_km=42,  # 42 km included for airport trips is a standard
             overage_warning_km_threshold=2,  # Warning threshold for overages
             toll=120,  # toll for airport drop set to 120 if customer opts for it
@@ -465,7 +464,7 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            dynamic_platform_fee_percent=1,  # platform fee
+            dynamic_platform_fee_percent=1,  # platform fee/convenience fee
             min_included_hours=4,  # Minimum 4 hours for local trips
             max_included_hours=12,  # Maximum 12 hours for local trips
             min_included_km=40,  # Minimum 40 km included for local trips
@@ -476,13 +475,15 @@ def seed_pricing_master(session: Session):
         CommonPricingConfiguration(
             id=str(uuid.uuid4()),
             trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            dynamic_platform_fee_percent=3,  # 3% platform fee
+            dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
             overage_warning_km_threshold=50,  # Warning threshold for overages
             minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
             minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
             created_by=RoleEnum.system,
         ),
     ]
+
+    #cancellation_fee_configs = [
     # Maintain a collection for duration and included km for local packages
 
     hourly_rental_packages = [
@@ -530,7 +531,7 @@ def seed_pricing_master(session: Session):
             )
         )
 
-    # Fixed platform fee for all trips
+    # Fixed platform fee/infrastructure fee for all trips
     fixed_platform_fee_config = FixedPlatformPricing(
         id=str(uuid.uuid4()), fixed_platform_fee=3.0
     )

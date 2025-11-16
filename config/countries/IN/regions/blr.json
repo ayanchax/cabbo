@@ -1,0 +1,37 @@
+{
+    "region_name": "Bangalore",
+    "region_display_name": "Bengaluru",
+    "region_state": "Karnataka",
+    "region_state_code": "KA",
+    "region_code": "BLR",
+    "airport_codes": [
+        "BLR",
+        "VOBG"
+    ],
+    "supported_trip_types": [
+        "local",
+        "outstation",
+        "airport_pickup",
+        "airport_drop"
+    ],
+    "supported_fuel_types": [
+        "petrol",
+        "diesel",
+        "cng"
+    ],
+    "supported_car_types": [
+        "Sedan+",
+        "Sedan",
+        "SUV",
+        "SUV+"
+    ],
+    "airport_locations": {
+        "Kempegowda International Airport": {
+            "display_name": "Kempegowda International Airport, Bengaluru, KA",
+            "lat": 13.1986,
+            "lng": 77.7066,
+            "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",
+            "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India"
+        }
+    }
+}

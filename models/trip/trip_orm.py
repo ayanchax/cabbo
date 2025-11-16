@@ -150,10 +150,10 @@ class Trip(Base):
     final_price = Column(Float, nullable=True, default=0.0)  # System-calculated
     final_display_price = Column(
         Float, nullable=True, default=0.0
-    )  # Price shown to driver admin (final or quoted) w/o platform fee
+    )  # Price shown to driver admin (final or quoted) w/o platform fee/convenience fee
     advance_payment = Column(
         Float, nullable=True, default=0.0
-    )  # Advance payment made by customer(generally the platform fee), if any
+    )  # Advance payment made by customer(generally the platform fee/convenience fee), if any
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
