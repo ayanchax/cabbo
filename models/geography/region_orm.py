@@ -33,7 +33,7 @@ class RegionModel(Base):
     region_name = Column(
         String(64), unique=True, nullable=False
     )  # e.g. Bangalore, Chennai
-    region_display_name = Column(String(64), nullable=False)  # e.g. Bengaluru, Chennai
+    region_alt_names=Column(JSON, nullable=True)  # e.g. ["Bengaluru", "Bangalore City"]
     region_code = Column(String(8), unique=True, nullable=False)  # e.g. BLR
     # new normalized relation to StateModel
     state_id = Column(
@@ -58,9 +58,6 @@ class RegionModel(Base):
     airport_locations = Column(
         JSON, nullable=True
     )  # JSON string of airport locations validated by LocationInfo schema
-    is_home_state = Column(
-        Integer, nullable=False, default=0
-    )  # 1 for home state (e.g. KA), 0 for others
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     # foreign key + relationship to CountryModel (one country per region)

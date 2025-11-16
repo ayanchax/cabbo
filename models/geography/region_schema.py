@@ -30,8 +30,10 @@ class RegionOut(RegionBase):
 class RegionSchema(BaseModel):
     # Region is a city or metro area within a state or province within a country
     region_name: str = Field(..., description="Name of the region/city") # e.g. Bangalore, Chennai
-    region_display_name: str = Field(..., description="Display name of the region/city") # e.g. Bengaluru, Chennai
     region_code: str = Field(..., description="Region code, e.g., 'BLR' for Bangalore") # e.g. BLR, MAA
+    region_alt_names: Optional[List[str]] = Field(
+        None, description="List of alternative names for the region"
+    )  # e.g. ["Bengaluru", "Bangalore City"]
     state_code: str = Field(..., description="ISO state code the region belongs to, e.g., 'KA' for Karnataka") # e.g. KA
     country_code: str = Field(..., description="ISO country code the region belongs to, e.g., 'IN' for India") # e.g. IN
     supported_trip_types: Optional[List[TripTypeEnum]] = Field(

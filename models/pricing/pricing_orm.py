@@ -43,9 +43,10 @@ class OutstationCabPricing(Base):
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for high-demand outstation trips
     overage_amount_per_km = Column(Float, nullable=False)
-    region_id = Column(
-        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
-    )
+    # Since Outstation pricing may vary by state, we have the state_id foreign key here instead of region_id
+    state_id = Column(
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
+    )  # FK to GeoStateModel.id
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -107,7 +108,7 @@ class AirportCabPricing(Base):
     fuel_type_id = Column(
         MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
-    airport_fare_per_km = Column(Float, nullable=False)
+    fare_per_km = Column(Float, nullable=False)
     overage_amount_per_km = Column(Float, nullable=False)
     is_available_in_network = Column(
         Boolean, nullable=False, default=True

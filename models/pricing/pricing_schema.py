@@ -21,6 +21,7 @@ class OutstationCabPricingSchema(CabPricingBaseSchema):
     driver_allowance_per_day: float
     min_included_km_per_day: int
     overage_amount_per_km: float
+    state_id: Optional[Union[str, int]] = None  # FK to GeoState.id
 
     # Outstation-specific: daily allotted km, permit fee, etc. can be added here
 
@@ -30,6 +31,7 @@ class LocalCabPricingSchema(CabPricingBaseSchema):
     hourly_rate: float
     overage_amount_per_hour: float
     overage_amount_per_km: Optional[float] = None  # Optional for local trips
+    region_id: Optional[Union[str, int]] = None  # FK to GeoRegion.id
 
     # Local-specific: minimum rental duration, etc. can be added here
 
@@ -39,8 +41,9 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
     id: Optional[str]
     cab_type_id: Optional[str]
     fuel_type_id: Optional[str]
-    airport_fare_per_km: float
+    fare_per_km: float
     overage_amount_per_km: float
+    region_id: Optional[str] = None
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None
