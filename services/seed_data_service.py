@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.country_orm import CountryModel
+from models.geography.location_schema import LocationInfo
 from models.geography.state_orm import StateModel
 from models.pricing.pricing_orm import (
     CommonPricingConfiguration,
@@ -27,6 +28,14 @@ from models.trip.trip_schema import TripPackageConfigSchema
 from models.pricing.pricing_orm import PermitFeeConfiguration
 from models.user.user_orm import User
 from core.config import settings
+
+
+def _get_regional_airports(airports_in_region: List[dict]) -> List[LocationInfo]:
+    if airports_in_region is None:
+        airports_in_region = []
+    if airports_in_region and len(airports_in_region) > 0:
+        airports_in_region = [LocationInfo.model_validate(ap) for ap in airports_in_region]
+    return airports_in_region
 
 
 def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
@@ -404,14 +413,20 @@ def _get_seed_regions():
         ("Mysore", "MYS", ["Mysuru"], "KA"),
     ]
 
-def seed_geographical_data(session: Session):
+def init_seed_data(session: Session):
+    """Initialize seed data for the application."""
+    _seed_geographical_data(session)
+    _seed_core_app_data(session)
+    _seed_pricing_data(session)
+
+def _seed_geographical_data(session: Session):
     # Seed countries, states, regions
     _seed_countries(session)
     _seed_states(session)
     _seed_regions(session)
 
 
-def seed_core_data(session: Session):
+def _seed_core_app_data(session: Session):
     # Seed core data like trip types, cab types, fuel types
     _seed_super_admin(session)
     _seed_trip_types(session)
@@ -420,7 +435,7 @@ def seed_core_data(session: Session):
     _seed_kyc_document_types(session)
 
 
-def seed_pricing_data(session: Session):
+def _seed_pricing_data(session: Session):
     # Seed pricing data
     _seed_local_cab_pricing(session)
     _seed_outstation_cab_pricing(session)
@@ -507,6 +522,8 @@ def _seed_regions(session: Session):
         )
         if not state:
             continue
+        airports_in_region = _get_regional_airports(AIRPORTS.get(code, None))
+        
         region = RegionModel(
             region_name=name,
             region_code=code,
@@ -516,7 +533,7 @@ def _seed_regions(session: Session):
             supported_trip_types=supported_trip_types,
             supported_fuel_types=supported_fuel_types,
             supported_car_types=supported_car_types,
-            airport_locations=AIRPORTS.get(code, None),
+            airport_locations=airports_in_region,
         )
         session.add(region)
     session.commit()
