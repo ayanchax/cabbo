@@ -1,3 +1,4 @@
+import json
 from typing import List
 import uuid
 from sqlalchemy.orm import Session
@@ -404,7 +405,14 @@ def _get_weekly_permit_fee_per_state():
         # Add more states as needed
     }
     return weekly_permit_fees_mapping
-
+def _get_seed_states():
+    return [
+            ("Karnataka", "KA"),
+            ("Tamil Nadu", "TN"),
+            ("Kerala", "KL"),
+            ("Andhra Pradesh", "AP"),
+        ]
+    
 def _get_seed_regions():
     # Return list of seed regions with (name, code, alt_names, state_code)
     # This is seed data and can be updated later via admin interface
@@ -424,6 +432,7 @@ def _seed_geographical_data(session: Session):
     _seed_countries(session)
     _seed_states(session)
     _seed_regions(session)
+    _seed_serviceable_areas(session)
 
 
 def _seed_core_app_data(session: Session):
@@ -468,12 +477,7 @@ def _seed_countries(session: Session):
 def _seed_states(session: Session):
     # Seed states
     country_states = {
-        "IN": [
-            ("Karnataka", "KA"),
-            ("Tamil Nadu", "TN"),
-            ("Kerala", "KL"),
-            ("Andhra Pradesh", "AP"),
-        ]
+        "IN": _get_seed_states()
     }
     countries = session.query(CountryModel).all()
     for country in countries:
@@ -530,14 +534,25 @@ def _seed_regions(session: Session):
             region_alt_names=alt_names,
             country_id=state.country_id,
             state_id=state.id,
-            supported_trip_types=supported_trip_types,
-            supported_fuel_types=supported_fuel_types,
-            supported_car_types=supported_car_types,
-            airport_locations=airports_in_region,
+            trip_types=json.dumps(supported_trip_types) if supported_trip_types else None,
+            fuel_types=json.dumps(supported_fuel_types) if supported_fuel_types else None,
+            car_types=json.dumps(supported_car_types) if supported_car_types else None,
+            airport_locations=json.dumps(airports_in_region) if airports_in_region else None,
         )
         session.add(region)
     session.commit()
 
+def _seed_serviceable_areas(session: Session):
+    # Seed serviceable areas for trip types
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+    serviceable_areas_data = {
+        TripTypeEnum.local: ["BLR"],
+        TripTypeEnum.outstation: ["KA", "TN", "KL", "AP"],
+        TripTypeEnum.airport_pickup: ["BLR"],
+        TripTypeEnum.airport_drop: ["BLR"],
+    }
+    
 
 def _seed_trip_types(session: Session):
     # Seed trip types master data

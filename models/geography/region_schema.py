@@ -36,16 +36,16 @@ class RegionSchema(BaseModel):
     )  # e.g. ["Bengaluru", "Bangalore City"]
     state_code: str = Field(..., description="ISO state code the region belongs to, e.g., 'KA' for Karnataka") # e.g. KA
     country_code: str = Field(..., description="ISO country code the region belongs to, e.g., 'IN' for India") # e.g. IN
-    supported_trip_types: Optional[List[TripTypeEnum]] = Field(
+    trip_types: Optional[List[TripTypeEnum]] = Field(
         None, description="List of supported trip types in the region"
     ) # Comma-separated list of trip types validated by TripTypeEnum
-    supported_fuel_types: Optional[List[FuelTypeEnum]] = Field(
+    fuel_types: Optional[List[FuelTypeEnum]] = Field(
         None, description="List of supported fuel types in the region"
     ) # Comma-separated list of fuel types validated by FuelTypeEnum
-    supported_car_types: Optional[List[CarTypeEnum]] = Field(
+    car_types: Optional[List[CarTypeEnum]] = Field(
         None, description="List of supported car types in the region"
     ) # Comma-separated list of car types validated by CarTypeEnum
-    airport_locations: Optional[dict[str, LocationInfo]] = Field(
+    airport_locations: Optional[List[LocationInfo]] = Field(
         None,
         description="Dictionary of airport locations with details like display name, lat, lng, place_id, address",
     ) # JSON string of airport locations validated by LocationInfo schema
@@ -53,13 +53,10 @@ class RegionSchema(BaseModel):
     class Config:
         from_attributes = True
 
-class ServiceableRegionSchema(BaseModel):
-    id: Optional[str] = None
-    trip_type_id: str
-    regions: Optional[List[RegionSchema]] = None
-    created_by: Optional[RoleEnum] = None
-    created_at: Optional[str] = None
-    last_modified: Optional[str] = None
-
+class RegionUpdate(BaseModel):
+    region_name: Optional[str] = Field(None, description="Name of the region/city") # e.g. Bangalore, Chennai
+    region_alt_names: Optional[List[str]] = Field(
+        None, description="List of alternative names for the region"
+    )
     class Config:
         from_attributes = True

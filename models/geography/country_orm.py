@@ -17,6 +17,7 @@ class CountryModel(Base):
     )
     country_name = Column(String(64), unique=True, nullable=False) # e.g. India
     country_code = Column(String(8), unique=True, nullable=False)  # e.g. IN
+    phone_code = Column(String(8), unique=True, nullable=False)  # e.g. +91
     currency = Column(String(8), nullable=False, unique=True)  # e.g. INR
     currency_symbol = Column(String(8), nullable=False, unique=True)  # e.g. ₹
     flag = Column(String(8), nullable=False, unique=True)  # e.g. 🇮🇳

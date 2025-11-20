@@ -107,6 +107,7 @@ def validate_serviceable_area(search_in: TripSearchRequest, db: Session):
     """
     trip_type = search_in.trip_type
     # Query the serviceable area config for this trip type
+    #service_area = 
     service_area = db.query(ServiceableGeographyOrm).join(
         TripTypeMaster, ServiceableGeographyOrm.trip_type_id == TripTypeMaster.id
     ).filter(ServiceableGeographyOrm.trip_type_id == TripTypeMaster.id, TripTypeMaster.trip_type==trip_type).first()
