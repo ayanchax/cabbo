@@ -16,6 +16,8 @@ class CountrySchema(BaseModel):
     locale: str = Field(..., description="Locale code, e.g., 'en_IN'") # e.g. en_IN
     states: Optional[List["StateSchema"]] = Field(None, description="List of states within the country") # List of states
     regions: Optional[List["RegionSchema"]] = Field(None, description="List of regions within the country") # List of regions
-    
+    enabled: Optional[bool] = Field(
+        True, description="Indicates if the country is enabled for operations"
+    )
     class Config:
         from_attributes = True

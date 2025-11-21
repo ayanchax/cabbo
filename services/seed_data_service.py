@@ -5,14 +5,15 @@ from sqlalchemy.orm import Session
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.country_orm import CountryModel
 from models.geography.location_schema import LocationInfo
+from models.geography.serviceable_area_orm import ServiceableAreaModel
 from models.geography.state_orm import StateModel
 from models.pricing.pricing_orm import (
-    CommonPricingConfiguration,
+    TripwisePricingConfiguration,
     FixedPlatformPricing,
     OutstationCabPricing,
     LocalCabPricing,
     AirportCabPricing,
-    FixedNightPricing,
+    NightPricingConfiguration,
     FixedPlatformPricing,
 )
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
@@ -35,7 +36,9 @@ def _get_regional_airports(airports_in_region: List[dict]) -> List[LocationInfo]
     if airports_in_region is None:
         airports_in_region = []
     if airports_in_region and len(airports_in_region) > 0:
-        airports_in_region = [LocationInfo.model_validate(ap) for ap in airports_in_region]
+        airports_in_region = [
+            LocationInfo.model_validate(ap) for ap in airports_in_region
+        ]
     return airports_in_region
 
 
@@ -129,7 +132,90 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
                         FuelTypeEnum.cng: 20,
                     },
                 },
-            }
+            },
+            "MYS": {
+                "hourly_rates": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 250,
+                        FuelTypeEnum.diesel: 250,
+                        FuelTypeEnum.cng: 250,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 300,
+                        FuelTypeEnum.diesel: 280,
+                        FuelTypeEnum.cng: 270,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 350,
+                        FuelTypeEnum.diesel: 340,
+                        FuelTypeEnum.cng: 330,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 380,
+                        FuelTypeEnum.cng: 360,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 450,
+                        FuelTypeEnum.diesel: 420,
+                        FuelTypeEnum.cng: 400,
+                    },
+                },
+                "overage_amount_per_hour": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 250,
+                        FuelTypeEnum.diesel: 250,
+                        FuelTypeEnum.cng: 250,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 300,
+                        FuelTypeEnum.diesel: 280,
+                        FuelTypeEnum.cng: 280,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 350,
+                        FuelTypeEnum.diesel: 340,
+                        FuelTypeEnum.cng: 330,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 380,
+                        FuelTypeEnum.cng: 360,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 450,
+                        FuelTypeEnum.diesel: 420,
+                        FuelTypeEnum.cng: 400,
+                    },
+                },
+                "overage_amount_per_km": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 15,
+                        FuelTypeEnum.diesel: 15,
+                        FuelTypeEnum.cng: 15,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 16,
+                        FuelTypeEnum.diesel: 15,
+                        FuelTypeEnum.cng: 14,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 18,
+                        FuelTypeEnum.diesel: 17,
+                        FuelTypeEnum.cng: 16,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 20,
+                        FuelTypeEnum.diesel: 19,
+                        FuelTypeEnum.cng: 18,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 21,
+                        FuelTypeEnum.cng: 20,
+                    },
+                },
+            },
         }
         return region_wise_price_map
 
@@ -196,6 +282,276 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
     if trip_type == TripTypeEnum.outstation:
         region_wise_price_map = {
             "KA": {
+                "base_fare": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 11,
+                        FuelTypeEnum.diesel: 10,
+                        FuelTypeEnum.cng: 9,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 13,
+                        FuelTypeEnum.diesel: 12,
+                        FuelTypeEnum.cng: 11,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 15,
+                        FuelTypeEnum.diesel: 14,
+                        FuelTypeEnum.cng: 13,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 18,
+                        FuelTypeEnum.diesel: 17,
+                        FuelTypeEnum.cng: 16,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 18,
+                    },
+                },
+                "driver_allowance_per_day": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                },
+                "min_km_per_day": {
+                    CarTypeEnum.hatchback: 300,
+                    CarTypeEnum.sedan: 300,
+                    CarTypeEnum.sedan_plus: 300,
+                    CarTypeEnum.suv: 300,
+                    CarTypeEnum.suv_plus: 300,
+                },
+                "overage_amount_per_km": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 10,
+                        FuelTypeEnum.diesel: 9,
+                        FuelTypeEnum.cng: 8,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 13,
+                        FuelTypeEnum.diesel: 12,
+                        FuelTypeEnum.cng: 11,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 14,
+                        FuelTypeEnum.diesel: 13,
+                        FuelTypeEnum.cng: 12,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 18,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 17,
+                    },
+                },
+            },
+            "TN": {
+                "base_fare": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 11,
+                        FuelTypeEnum.diesel: 10,
+                        FuelTypeEnum.cng: 9,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 13,
+                        FuelTypeEnum.diesel: 12,
+                        FuelTypeEnum.cng: 11,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 15,
+                        FuelTypeEnum.diesel: 14,
+                        FuelTypeEnum.cng: 13,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 18,
+                        FuelTypeEnum.diesel: 17,
+                        FuelTypeEnum.cng: 16,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 18,
+                    },
+                },
+                "driver_allowance_per_day": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                },
+                "min_km_per_day": {
+                    CarTypeEnum.hatchback: 300,
+                    CarTypeEnum.sedan: 300,
+                    CarTypeEnum.sedan_plus: 300,
+                    CarTypeEnum.suv: 300,
+                    CarTypeEnum.suv_plus: 300,
+                },
+                "overage_amount_per_km": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 10,
+                        FuelTypeEnum.diesel: 9,
+                        FuelTypeEnum.cng: 8,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 13,
+                        FuelTypeEnum.diesel: 12,
+                        FuelTypeEnum.cng: 11,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 14,
+                        FuelTypeEnum.diesel: 13,
+                        FuelTypeEnum.cng: 12,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 18,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 17,
+                    },
+                },
+            },
+            "KL": {
+                "base_fare": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 11,
+                        FuelTypeEnum.diesel: 10,
+                        FuelTypeEnum.cng: 9,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 13,
+                        FuelTypeEnum.diesel: 12,
+                        FuelTypeEnum.cng: 11,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 15,
+                        FuelTypeEnum.diesel: 14,
+                        FuelTypeEnum.cng: 13,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 18,
+                        FuelTypeEnum.diesel: 17,
+                        FuelTypeEnum.cng: 16,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 18,
+                    },
+                },
+                "driver_allowance_per_day": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 400,
+                        FuelTypeEnum.diesel: 400,
+                        FuelTypeEnum.cng: 400,
+                    },
+                },
+                "min_km_per_day": {
+                    CarTypeEnum.hatchback: 300,
+                    CarTypeEnum.sedan: 300,
+                    CarTypeEnum.sedan_plus: 300,
+                    CarTypeEnum.suv: 300,
+                    CarTypeEnum.suv_plus: 300,
+                },
+                "overage_amount_per_km": {
+                    CarTypeEnum.hatchback: {
+                        FuelTypeEnum.petrol: 10,
+                        FuelTypeEnum.diesel: 9,
+                        FuelTypeEnum.cng: 8,
+                    },
+                    CarTypeEnum.sedan: {
+                        FuelTypeEnum.petrol: 13,
+                        FuelTypeEnum.diesel: 12,
+                        FuelTypeEnum.cng: 11,
+                    },
+                    CarTypeEnum.sedan_plus: {
+                        FuelTypeEnum.petrol: 14,
+                        FuelTypeEnum.diesel: 13,
+                        FuelTypeEnum.cng: 12,
+                    },
+                    CarTypeEnum.suv: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 18,
+                    },
+                    CarTypeEnum.suv_plus: {
+                        FuelTypeEnum.petrol: 22,
+                        FuelTypeEnum.diesel: 20,
+                        FuelTypeEnum.cng: 17,
+                    },
+                },
+            },
+            "AP": {
                 "base_fare": {
                     CarTypeEnum.hatchback: {
                         FuelTypeEnum.petrol: 11,
@@ -405,14 +761,17 @@ def _get_weekly_permit_fee_per_state():
         # Add more states as needed
     }
     return weekly_permit_fees_mapping
+
+
 def _get_seed_states():
     return [
-            ("Karnataka", "KA"),
-            ("Tamil Nadu", "TN"),
-            ("Kerala", "KL"),
-            ("Andhra Pradesh", "AP"),
-        ]
-    
+        ("Karnataka", "KA"),
+        ("Tamil Nadu", "TN"),
+        ("Kerala", "KL"),
+        ("Andhra Pradesh", "AP"),
+    ]
+
+
 def _get_seed_regions():
     # Return list of seed regions with (name, code, alt_names, state_code)
     # This is seed data and can be updated later via admin interface
@@ -421,11 +780,13 @@ def _get_seed_regions():
         ("Mysore", "MYS", ["Mysuru"], "KA"),
     ]
 
+
 def init_seed_data(session: Session):
     """Initialize seed data for the application."""
+    _seed_master_data(session)
     _seed_geographical_data(session)
-    _seed_core_app_data(session)
     _seed_pricing_data(session)
+
 
 def _seed_geographical_data(session: Session):
     # Seed countries, states, regions
@@ -435,7 +796,7 @@ def _seed_geographical_data(session: Session):
     _seed_serviceable_areas(session)
 
 
-def _seed_core_app_data(session: Session):
+def _seed_master_data(session: Session):
     # Seed core data like trip types, cab types, fuel types
     _seed_super_admin(session)
     _seed_trip_types(session)
@@ -449,9 +810,8 @@ def _seed_pricing_data(session: Session):
     _seed_local_cab_pricing(session)
     _seed_outstation_cab_pricing(session)
     _seed_airport_cab_pricing(session)
-    _seed_common_pricing_configuration(session)
     _seed_fixed_platform_pricing(session)
-    _seed_fixed_night_pricing(session)
+    _seed_night_pricing(session)
     _seed_permit_fee_pricing(session)
 
 
@@ -476,9 +836,7 @@ def _seed_countries(session: Session):
 
 def _seed_states(session: Session):
     # Seed states
-    country_states = {
-        "IN": _get_seed_states()
-    }
+    country_states = {"IN": _get_seed_states()}
     countries = session.query(CountryModel).all()
     for country in countries:
         code = (country.country_code or "").upper()
@@ -527,32 +885,64 @@ def _seed_regions(session: Session):
         if not state:
             continue
         airports_in_region = _get_regional_airports(AIRPORTS.get(code, None))
-        
+
         region = RegionModel(
             region_name=name,
             region_code=code,
             region_alt_names=alt_names,
             country_id=state.country_id,
             state_id=state.id,
-            trip_types=json.dumps(supported_trip_types) if supported_trip_types else None,
-            fuel_types=json.dumps(supported_fuel_types) if supported_fuel_types else None,
+            trip_types=(
+                json.dumps(supported_trip_types) if supported_trip_types else None
+            ),
+            fuel_types=(
+                json.dumps(supported_fuel_types) if supported_fuel_types else None
+            ),
             car_types=json.dumps(supported_car_types) if supported_car_types else None,
-            airport_locations=json.dumps(airports_in_region) if airports_in_region else None,
+            airport_locations=(
+                json.dumps(airports_in_region) if airports_in_region else None
+            ),
         )
         session.add(region)
     session.commit()
+
 
 def _seed_serviceable_areas(session: Session):
     # Seed serviceable areas for trip types
     trip_type_master_objs = session.query(TripTypeMaster).all()
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+
+    regions = session.query(RegionModel).all()
+    region_id_map = {obj.region_code: obj.id for obj in regions}
     serviceable_areas_data = {
-        TripTypeEnum.local: ["BLR"],
-        TripTypeEnum.outstation: ["KA", "TN", "KL", "AP"],
-        TripTypeEnum.airport_pickup: ["BLR"],
-        TripTypeEnum.airport_drop: ["BLR"],
+        TripTypeEnum.local: list(region_id_map.values()),  # All regions for local trips
+        TripTypeEnum.airport_pickup: list(
+            region_id_map.values()
+        ),  # All regions for airport pickup
+        TripTypeEnum.airport_drop: list(
+            region_id_map.values()
+        ),  # All regions for airport drop
     }
-    
+    for trip_type, area_ids in serviceable_areas_data.items():
+        trip_type_id = trip_type_id_map.get(trip_type)
+        if not trip_type_id:
+            continue
+        serviceable_area = ServiceableAreaModel(
+            trip_type_id=trip_type_id,
+            serviceable_areas=area_ids,
+        )
+        session.add(serviceable_area)
+    states = session.query(StateModel).all()
+    state_id_map = {obj.state_code: obj.id for obj in states}
+    # Outstation trips serviceable areas are states
+    outstation_area_ids = list(state_id_map.values())
+    serviceable_area = ServiceableAreaModel(
+        trip_type_id=trip_type_id_map.get(TripTypeEnum.outstation),
+        serviceable_areas=outstation_area_ids,
+    )
+    session.add(serviceable_area)
+    session.commit()
+
 
 def _seed_trip_types(session: Session):
     # Seed trip types master data
@@ -666,14 +1056,20 @@ def _seed_local_cab_pricing(session: Session):
     # Seed local cab pricing data per cab type and fuel type and region
     price_map = _get_region_wise_price_map(TripTypeEnum.local)
     local_pricing = []
+    secondary_local_pricing = []
     cab_types = session.query(CabType).all()
     fuel_types = session.query(FuelType).all()
     is_available_in_network = True
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
 
     for region_code, region_data in price_map.items():
         region = (
             session.query(RegionModel)
-            .filter(RegionModel.region_code == region_code.upper())
+            .filter(
+                RegionModel.region_code == region_code.upper(),
+                RegionModel.enabled == True,
+            )
             .first()
         )
         if not region:
@@ -715,8 +1111,27 @@ def _seed_local_cab_pricing(session: Session):
                         created_by=RoleEnum.system,
                     )
                 )
+                # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
+                # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
+                # For seeding the data, we are assuming some standard values for local trips across regions
+                # These can be updated later via admin interface as needed
+                secondary_local_pricing.append(
+                    TripwisePricingConfiguration(
+                        id=str(uuid.uuid4()),
+                        trip_type_id=trip_type_id_map[TripTypeEnum.local],
+                        dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
+                        placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
+                        max_included_km=42,  # 42 km included for airport trips is a common standard
+                        overage_warning_km_threshold=2,  # Warning threshold for overages
+                        toll=120,  # toll for airport pickup set to 120 if customer opts for it
+                        parking=100,  # parking charge for airport pickup
+                        created_by=RoleEnum.system,
+                        region_id=region_id,
+                    )
+                )
 
     session.add_all(local_pricing)
+    session.add_all(secondary_local_pricing)
     session.commit()
     _seed_local_trip_packages(session)
 
@@ -725,13 +1140,19 @@ def _seed_outstation_cab_pricing(session: Session):
     # Seed outstation cab pricing data per cab type and fuel type
     price_map = _get_region_wise_price_map(TripTypeEnum.outstation)
     outstation_pricing = []
+    secondary_outstation_pricing = []
     cab_types = session.query(CabType).all()
     fuel_types = session.query(FuelType).all()
     is_available_in_network = True
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+
     for state_code, state_data in price_map.items():
         state = (
             session.query(StateModel)
-            .filter(StateModel.state_code == state_code.upper())
+            .filter(
+                StateModel.state_code == state_code.upper(), StateModel.enabled == True
+            )
             .first()
         )
         if not state:
@@ -775,7 +1196,24 @@ def _seed_outstation_cab_pricing(session: Session):
                         created_by=RoleEnum.system,
                     )
                 )
+                # Keeping a separate tripwise pricing configuration for outstation trips as these will be redundant if kept within OutstationCabPricing table.
+                # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
+                # For seeding the data, we are assuming some standard values for outstation trips across states
+                # These can be updated later via admin interface as needed
+                secondary_outstation_pricing.append(
+                    TripwisePricingConfiguration(
+                        id=str(uuid.uuid4()),
+                        trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
+                        dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
+                        overage_warning_km_threshold=50,  # Warning threshold for overages
+                        minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
+                        minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
+                        created_by=RoleEnum.system,
+                        state_id=state_id,
+                    )
+                )
     session.add_all(outstation_pricing)
+    session.add_all(secondary_outstation_pricing)
     session.commit()
 
 
@@ -783,14 +1221,20 @@ def _seed_airport_cab_pricing(session: Session):
     # Seed airport cab pricing data per cab type and fuel type
     price_map = _get_region_wise_price_map(TripTypeEnum.airport_pickup)
     airport_pricing = []
+    airport_secondary_pricing = []
 
     cab_types = session.query(CabType).all()
     fuel_types = session.query(FuelType).all()
     is_available_in_network = True
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
     for region_code, region_data in price_map.items():
         region = (
             session.query(RegionModel)
-            .filter(RegionModel.region_code == region_code.upper())
+            .filter(
+                RegionModel.region_code == region_code.upper(),
+                RegionModel.enabled == True,
+            )
             .first()
         )
         if not region:
@@ -829,58 +1273,38 @@ def _seed_airport_cab_pricing(session: Session):
                     )
                 )
 
+                # Keeping a separate tripwise pricing configuration for airport trips as these will be redundant if kept within AirportCabPricing table.
+                # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
+                airport_secondary_pricing.append(
+                    TripwisePricingConfiguration(
+                        id=str(uuid.uuid4()),
+                        trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
+                        dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
+                        placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
+                        max_included_km=42,  # 42 km included for airport trips is a common standard
+                        overage_warning_km_threshold=2,  # Warning threshold for overages
+                        toll=120,  # toll for airport pickup set to 120 if customer opts for it
+                        parking=100,  # parking charge for airport pickup
+                        created_by=RoleEnum.system,
+                        region_id=region_id,
+                    )
+                )
+                airport_secondary_pricing.append(
+                    TripwisePricingConfiguration(
+                        id=str(uuid.uuid4()),
+                        trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
+                        dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
+                        max_included_km=42,  # 42 km included for airport trips is a standard
+                        overage_warning_km_threshold=2,  # Warning threshold for overages
+                        toll=120,  # toll for airport drop set to 120 if customer opts for it
+                        parking=0,  # no parking charge for airport drop
+                        created_by=RoleEnum.system,
+                        region_id=region_id,
+                    )
+                )
+
     session.add_all(airport_pricing)
-    session.commit()
-
-
-def _seed_common_pricing_configuration(session: Session):
-    # Seed common pricing configuration data
-    trip_type_master_objs = session.query(TripTypeMaster).all()
-    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
-    common_pricing_configs = [
-        CommonPricingConfiguration(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-            dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
-            placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
-            max_included_km=42,  # 42 km included for airport trips is a common standard
-            overage_warning_km_threshold=2,  # Warning threshold for overages
-            toll=120,  # toll for airport pickup set to 120 if customer opts for it
-            parking=100,  # parking charge for airport pickup
-            created_by=RoleEnum.system,
-        ),
-        CommonPricingConfiguration(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-            dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
-            max_included_km=42,  # 42 km included for airport trips is a standard
-            overage_warning_km_threshold=2,  # Warning threshold for overages
-            toll=120,  # toll for airport drop set to 120 if customer opts for it
-            parking=0,  # no parking charge for airport drop
-            created_by=RoleEnum.system,
-        ),
-        CommonPricingConfiguration(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.local],
-            dynamic_platform_fee_percent=1,  # platform fee/convenience fee
-            min_included_hours=4,  # Minimum 4 hours for local trips
-            max_included_hours=12,  # Maximum 12 hours for local trips
-            min_included_km=40,  # Minimum 40 km included for local trips
-            max_included_km=120,  # Maximum 120 km included for local trips
-            minimum_parking_wallet=80,  #  minimum parking 80 for local trips
-            created_by=RoleEnum.system,
-        ),
-        CommonPricingConfiguration(
-            id=str(uuid.uuid4()),
-            trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-            dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
-            overage_warning_km_threshold=50,  # Warning threshold for overages
-            minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
-            minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
-            created_by=RoleEnum.system,
-        ),
-    ]
-    session.add_all(common_pricing_configs)
+    session.add_all(airport_secondary_pricing)
     session.commit()
 
 
@@ -946,15 +1370,29 @@ def _seed_fixed_platform_pricing(session: Session):
     session.commit()
 
 
-def _seed_fixed_night_pricing(session: Session):
-    # Night charge config seed
-    night_charge_config = FixedNightPricing(
-        id=str(uuid.uuid4()),
-        night_start_hour=20,  # 8PM
-        night_end_hour=6,  # 6AM
-        created_by=RoleEnum.system,
-    )
-    session.add(night_charge_config)
+def _seed_night_pricing(session: Session):
+    regions = session.query(RegionModel).filter(RegionModel.enabled == True).all()
+    states = session.query(StateModel).filter(StateModel.enabled == True).all()
+    night_charge_configs = []
+    for region in regions:
+        night_charge_config = NightPricingConfiguration(
+            id=str(uuid.uuid4()),
+            night_start_hour=20,  # 8PM
+            night_end_hour=6,  # 6AM
+            region_id=region.id,
+            created_by=RoleEnum.system,
+        )
+        night_charge_configs.append(night_charge_config)
+    for state in states:
+        night_charge_config = NightPricingConfiguration(
+            id=str(uuid.uuid4()),
+            night_start_hour=20,  # 8PM
+            night_end_hour=6,  # 6AM
+            state_id=state.id,
+            created_by=RoleEnum.system,
+        )
+        night_charge_configs.append(night_charge_config)
+    session.add_all(night_charge_configs)
     session.commit()
 
 
@@ -974,12 +1412,13 @@ def _seed_super_admin(session: Session):
     session.add(super_admin)
     session.commit()
 
+
 def _seed_permit_fee_pricing(session: Session):
     permit_fee_config_per_state = _get_weekly_permit_fee_per_state()
     states = session.query(StateModel).all()
     cab_types = session.query(CabType).all()
     fuel_types = session.query(FuelType).all()
-    permit_fee_pricings=[]
+    permit_fee_pricings = []
     for state in states:
         state_code = state.state_code.upper()
         fee_map = permit_fee_config_per_state.get(state_code, None)
@@ -990,16 +1429,19 @@ def _seed_permit_fee_pricing(session: Session):
                 weekly_fee = fee_map.get(cab.name, {}).get(fuel.name, None)
                 if not weekly_fee:
                     continue
-                permit_fee_pricings.append(PermitFeeConfiguration(
-                    id=str(uuid.uuid4()),
-                    state_id=state.id,
-                    cab_type_id=cab.id,
-                    fuel_type_id=fuel.id,
-                    permit_fee=weekly_fee,
-                    created_by=RoleEnum.system,
-                ))
+                permit_fee_pricings.append(
+                    PermitFeeConfiguration(
+                        id=str(uuid.uuid4()),
+                        state_id=state.id,
+                        cab_type_id=cab.id,
+                        fuel_type_id=fuel.id,
+                        permit_fee=weekly_fee,
+                        created_by=RoleEnum.system,
+                    )
+                )
     session.add_all(permit_fee_pricings)
     session.commit()
+
 
 def _seed_kyc_document_types(session: Session):
     # Seed KYC Document Types Master table for drivers' KYC verification

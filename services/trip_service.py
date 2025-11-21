@@ -609,9 +609,9 @@ def get_trip_search_options(
             2 * est_km
         )  # Always Round trip distance for outstation, therefore multiply by 2
         night_surcharge_per_hour = (
-            configs.fixed_night_pricing.night_overage_amount_per_block
+            configs.night_pricing.night_overage_amount_per_block
         )
-        night_hours_display_label = configs.fixed_night_pricing.night_hours_label
+        night_hours_display_label = configs.night_pricing.night_hours_label
         search_in.expected_end_date = search_in.end_date
         # Fetch all outstation cab pricings
         outstation_pricings = (

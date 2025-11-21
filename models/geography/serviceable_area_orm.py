@@ -35,11 +35,10 @@ class ServiceableAreaModel(Base):
 
     serviceable_areas = Column(
         JSON, nullable=True
-    )  # List of region codes for the trip type validated by ServiceableAreaSchema
-    # e.g [{
-    #        "country_code": "IN",
-    #        "state_code": "KA",
-    #        "region_code": "BLR"}]
+    )  # List of region IDs for the trip type such as [airport_pickup, airport_drop, hourly rental]
+    # OR
+    # List of state IDs for the trip type such as [outstation trips]
+
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     created_at = Column(

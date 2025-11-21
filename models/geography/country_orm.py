@@ -34,6 +34,7 @@ class CountryModel(Base):
         lazy="joined",
         cascade="all, delete-orphan",
     )
+    enabled = Column(bool, nullable=False, default=True)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     created_at = Column(

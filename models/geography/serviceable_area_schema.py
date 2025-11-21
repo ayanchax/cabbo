@@ -1,17 +1,12 @@
+from typing import List
 from pydantic import BaseModel, Field
 
 
 class ServiceableAreaSchema(BaseModel):
-    country_code: str = Field(
-        ..., description="ISO country code the region belongs to, e.g., 'IN' for India"
-    )  # e.g. IN
-    state_code: str = Field(
+    serviceable_areas: List[str] = Field(
         ...,
-        description="ISO state code the region belongs to, e.g., 'KA' for Karnataka",
-    )  # e.g. KA
-    region_code: str = Field(
-        ..., description="Region code, e.g., 'BLR' for Bangalore"
-    )  # e.g. BLR, MAA
-
+        description="List of region or state IDs for the trip type such as [airport_pickup, airport_drop, hourly rental] or [outstation trips]",
+    )  # List of region or state IDs for the trip type validated by ServiceableAreaSchema
+    trip_type_id: str  # FK to TripType.id
     class Config:
         from_attributes = True

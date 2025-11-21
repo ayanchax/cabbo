@@ -56,7 +56,7 @@ class RegionModel(Base):
     )  # Comma-separated list of car types validated by CarTypeEnum
     airport_locations = Column(
         JSON, nullable=True
-    )  # JSON string of airport locations validated by LocationInfo schema
+    )  # JSON string array of airport locations validated by LocationInfo schema
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     # foreign key + relationship to CountryModel (one country per region)
@@ -68,6 +68,8 @@ class RegionModel(Base):
     )
     # 1 Region has 1 Country
     country = relationship("CountryModel", back_populates="regions")
+
+    enabled = Column(bool, nullable=False, default=True)
 
     created_at = Column(
         DateTime(timezone=True),

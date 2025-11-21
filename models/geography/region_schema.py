@@ -49,6 +49,9 @@ class RegionSchema(BaseModel):
         None,
         description="Dictionary of airport locations with details like display name, lat, lng, place_id, address",
     ) # JSON string of airport locations validated by LocationInfo schema
+    enabled: Optional[bool] = Field(
+        True, description="Indicates if the region is enabled for operations"
+    )   
 
     class Config:
         from_attributes = True

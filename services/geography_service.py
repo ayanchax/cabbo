@@ -28,6 +28,9 @@ def get_region(
             CountryModel.country_code == country_code,
             StateModel.state_code == state_code,
             RegionModel.region_code == region_code,
+            RegionModel.enabled == True,
+            StateModel.enabled == True,
+            CountryModel.enabled == True,
         )
         .first()
     )
@@ -70,7 +73,11 @@ def get_region_by_id(region_id: str, db: Session) -> Optional["RegionSchema"]:
     """Fetch the RegionSchema for the given region ID.
     Returns None if not found.
     """
-    region_model = db.query(RegionModel).filter(RegionModel.id == region_id).first()
+    region_model = (
+        db.query(RegionModel)
+        .filter(RegionModel.id == region_id, RegionModel.enabled == True)
+        .first()
+    )
     if region_model:
         try:
             region_schema = RegionSchema(
@@ -111,7 +118,7 @@ def get_region_by_id(region_id: str, db: Session) -> Optional["RegionSchema"]:
 
 def get_all_regions(db: Session) -> list["RegionSchema"]:
     """Fetch all regions as a list of RegionSchema."""
-    region_models = db.query(RegionModel).all()
+    region_models = db.query(RegionModel).filter(RegionModel.enabled == True).all()
     region_schemas = []
     for r_model in region_models:
         try:
@@ -147,13 +154,17 @@ def get_all_regions(db: Session) -> list["RegionSchema"]:
 def get_regions_by_country(country_code: str, db: Session) -> list["RegionSchema"]:
     """Fetch all regions for a given country code as a list of RegionSchema."""
     country_model = (
-        db.query(CountryModel).filter(CountryModel.country_code == country_code).first()
+        db.query(CountryModel)
+        .filter(CountryModel.country_code == country_code, CountryModel.enabled == True)
+        .first()
     )
     if not country_model:
         return []
 
     region_models = (
-        db.query(RegionModel).filter(RegionModel.country_id == country_model.id).all()
+        db.query(RegionModel)
+        .filter(RegionModel.country_id == country_model.id, RegionModel.enabled == True)
+        .all()
     )
     region_schemas = []
     for r_model in region_models:
@@ -192,7 +203,9 @@ def get_regions_by_state(
 ) -> list["RegionSchema"]:
     """Fetch all regions for a given country code and state code as a list of RegionSchema."""
     country_model = (
-        db.query(CountryModel).filter(CountryModel.country_code == country_code).first()
+        db.query(CountryModel)
+        .filter(CountryModel.country_code == country_code, CountryModel.enabled == True)
+        .first()
     )
     if not country_model:
         return []
@@ -202,13 +215,16 @@ def get_regions_by_state(
         .filter(
             StateModel.state_code == state_code,
             StateModel.country_id == country_model.id,
+            StateModel.enabled == True,
         )
         .first()
     )
     if not state_model:
         return []
     region_models = (
-        db.query(RegionModel).filter(RegionModel.state_id == state_model.id).all()
+        db.query(RegionModel)
+        .filter(RegionModel.state_id == state_model.id, RegionModel.enabled == True)
+        .all()
     )
     region_schemas = []
     for r_model in region_models:
@@ -248,7 +264,10 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
         # Fetch country and state models
         country_model = (
             db.query(CountryModel)
-            .filter(CountryModel.country_code == payload.country_code)
+            .filter(
+                CountryModel.country_code == payload.country_code,
+                CountryModel.enabled == True,
+            )
             .first()
         )
         if not country_model:
@@ -259,6 +278,7 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
             .filter(
                 StateModel.state_code == payload.state_code,
                 StateModel.country_id == country_model.id,
+                StateModel.enabled == True,
             )
             .first()
         )
@@ -298,7 +318,11 @@ def update_region(
     region_id: str, payload: RegionUpdate, db: Session
 ) -> Optional[RegionSchema]:
     """Update an existing region in the database."""
-    region_model = db.query(RegionModel).filter(RegionModel.id == region_id).first()
+    region_model = (
+        db.query(RegionModel)
+        .filter(RegionModel.id == region_id, RegionModel.enabled == True)
+        .first()
+    )
     if not region_model:
         return None
     try:
@@ -316,7 +340,11 @@ def update_region(
 
 def delete_region(region_id: str, db: Session) -> bool:
     """Delete a region from the database."""
-    region_model = db.query(RegionModel).filter(RegionModel.id == region_id).first()
+    region_model = (
+        db.query(RegionModel)
+        .filter(RegionModel.id == region_id, RegionModel.enabled == True)
+        .first()
+    )
     if not region_model:
         return False
     try:
@@ -330,7 +358,7 @@ def delete_region(region_id: str, db: Session) -> bool:
 
 def get_all_countries(db: Session) -> list["CountrySchema"]:
     """Fetch all countries as a list of CountrySchema."""
-    country_models = db.query(CountryModel).all()
+    country_models = db.query(CountryModel).filter(CountryModel.enabled == True).all()
     country_schemas = []
     for c_model in country_models:
         try:
@@ -373,7 +401,11 @@ def update_country(
 
 def delete_country(country_id: str, db: Session) -> bool:
     """Delete a country from the database."""
-    country_model = db.query(CountryModel).filter(CountryModel.id == country_id).first()
+    country_model = (
+        db.query(CountryModel)
+        .filter(CountryModel.id == country_id, CountryModel.enabled == True)
+        .first()
+    )
     if not country_model:
         return False
     try:
@@ -391,7 +423,10 @@ def get_country_by_code(country_code: str, db: Session) -> Optional["CountrySche
     """
     country_model = (
         db.query(CountryModel)
-        .filter(CountryModel.country_code == country_code.upper())
+        .filter(
+            CountryModel.country_code == country_code.upper(),
+            CountryModel.enabled == True,
+        )
         .first()
     )
     if country_model:
@@ -404,7 +439,7 @@ def get_country_by_code(country_code: str, db: Session) -> Optional["CountrySche
 
 def get_all_states(db: Session) -> list["StateSchema"]:
     """Fetch all states as a list of StateSchema."""
-    state_models = db.query(StateModel).all()
+    state_models = db.query(StateModel).filter(StateModel.enabled == True).all()
     state_schemas = []
     for s_model in state_models:
         try:
@@ -418,13 +453,17 @@ def get_all_states(db: Session) -> list["StateSchema"]:
 def get_states_by_country(country_code: str, db: Session) -> list["StateSchema"]:
     """Fetch all states for a given country code as a list of StateSchema."""
     country_model = (
-        db.query(CountryModel).filter(CountryModel.country_code == country_code).first()
+        db.query(CountryModel)
+        .filter(CountryModel.country_code == country_code, CountryModel.enabled == True)
+        .first()
     )
     if not country_model:
         return []
 
     state_models = (
-        db.query(StateModel).filter(StateModel.country_id == country_model.id).all()
+        db.query(StateModel)
+        .filter(StateModel.country_id == country_model.id, StateModel.enabled == True)
+        .all()
     )
     state_schemas = []
     for s_model in state_models:
@@ -443,7 +482,9 @@ def get_state_by_code(
     Returns None if not found.
     """
     country_model = (
-        db.query(CountryModel).filter(CountryModel.country_code == country_code).first()
+        db.query(CountryModel)
+        .filter(CountryModel.country_code == country_code, CountryModel.enabled == True)
+        .first()
     )
     if not country_model:
         return None
@@ -453,6 +494,7 @@ def get_state_by_code(
         .filter(
             StateModel.state_code == state_code,
             StateModel.country_id == country_model.id,
+            StateModel.enabled == True,
         )
         .first()
     )
@@ -470,7 +512,10 @@ def add_state(payload: StateSchema, db: Session) -> StateSchema:
         # Fetch country model
         country_model = (
             db.query(CountryModel)
-            .filter(CountryModel.country_code == payload.country_code.upper())
+            .filter(
+                CountryModel.country_code == payload.country_code.upper(),
+                CountryModel.enabled == True,
+            )
             .first()
         )
         if not country_model:
@@ -500,11 +545,123 @@ def update_state(
 
 def delete_state(state_id: str, db: Session) -> bool:
     """Delete a state from the database."""
-    state_model = db.query(StateModel).filter(StateModel.id == state_id).first()
+    state_model = (
+        db.query(StateModel)
+        .filter(StateModel.id == state_id, StateModel.enabled == True)
+        .first()
+    )
     if not state_model:
         return False
     try:
         db.delete(state_model)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def disable_state(state_id: str, db: Session) -> bool:
+    """Disable a state in the database."""
+    state_model = (
+        db.query(StateModel)
+        .filter(StateModel.id == state_id, StateModel.enabled == True)
+        .first()
+    )
+    if not state_model:
+        return False
+    try:
+        state_model.enabled = False
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def enable_state(state_id: str, db: Session) -> bool:
+    """Enable a state in the database."""
+    state_model = (
+        db.query(StateModel)
+        .filter(StateModel.id == state_id, StateModel.enabled == False)
+        .first()
+    )
+    if not state_model:
+        return False
+    try:
+        state_model.enabled = True
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def disable_country(country_id: str, db: Session) -> bool:
+    """Disable a country in the database."""
+    country_model = (
+        db.query(CountryModel)
+        .filter(CountryModel.id == country_id, CountryModel.enabled == True)
+        .first()
+    )
+    if not country_model:
+        return False
+    try:
+        country_model.enabled = False
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def enable_country(country_id: str, db: Session) -> bool:
+    """Enable a country in the database."""
+    country_model = (
+        db.query(CountryModel)
+        .filter(CountryModel.id == country_id, CountryModel.enabled == False)
+        .first()
+    )
+    if not country_model:
+        return False
+    try:
+        country_model.enabled = True
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def disable_region(region_id: str, db: Session) -> bool:
+    """Disable a region in the database."""
+    region_model = (
+        db.query(RegionModel)
+        .filter(RegionModel.id == region_id, RegionModel.enabled == True)
+        .first()
+    )
+    if not region_model:
+        return False
+    try:
+        region_model.enabled = False
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def enable_region(region_id: str, db: Session) -> bool:
+    """Enable a region in the database."""
+    region_model = (
+        db.query(RegionModel)
+        .filter(RegionModel.id == region_id, RegionModel.enabled == False)
+        .first()
+    )
+    if not region_model:
+        return False
+    try:
+        region_model.enabled = True
         db.commit()
         return True
     except Exception as e:

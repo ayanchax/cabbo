@@ -8,7 +8,7 @@ from models.pricing.pricing_schema import (
     OutstationPricingBreakdownSchema,
     OveragesSchema,
 )
-from models.customer.passenger_schema import PassengerOut, PassengerRequest
+from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.trip_enums import (
     TripStatusEnum,

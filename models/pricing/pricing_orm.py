@@ -127,7 +127,7 @@ class AirportCabPricing(Base):
 
 
 # Night charge pricing configuration
-class FixedNightPricing(Base):
+class NightPricingConfiguration(Base):
     __tablename__ = "night_pricing_config"
     id = Column(
         MySQL_CHAR(36),
@@ -150,6 +150,10 @@ class FixedNightPricing(Base):
     region_id = Column(
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
     )
+
+    state_id = Column(
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -160,8 +164,8 @@ class FixedNightPricing(Base):
     )
 
 
-class CommonPricingConfiguration(Base):
-    __tablename__ = "common_pricing_config"
+class TripwisePricingConfiguration(Base):
+    __tablename__ = "tripwise_pricing_config"
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -202,6 +206,9 @@ class CommonPricingConfiguration(Base):
     region_id = Column(
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True  
     )
+    state_id = Column(
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
+    )
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -223,9 +230,7 @@ class FixedPlatformPricing(Base):
         index=True,
     )
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
-    region_id = Column(
-        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
-    )
+     
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(

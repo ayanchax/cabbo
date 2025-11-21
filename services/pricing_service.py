@@ -5,16 +5,16 @@ from sqlalchemy import func
 from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
 from models.cab.cab_orm import CabType, FuelType
 from models.pricing.pricing_schema import (
-    CommonPricingConfigSchema,
-    FixedNightPricingSchema,
+    TripwisePricingConfigSchema,
+    NightPricingSchema,
     PermitFeeSchema,
 )
 from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripTypeMaster
 from sqlalchemy.orm import Session
 from models.pricing.pricing_orm import (
-    CommonPricingConfiguration,
-    FixedNightPricing,
+    TripwisePricingConfiguration,
+    NightPricingConfiguration,
     FixedPlatformPricing,
     FixedPlatformPricing,
     PermitFeeConfiguration,
@@ -101,7 +101,7 @@ def retrieve_interstate_permit_fee(
 
 def retrieve_trip_wise_pricing_config(
     db: Session, trip_type: TripTypeEnum
-) -> CommonPricingConfigSchema:
+) -> TripwisePricingConfigSchema:
     """
     Fetches and returns all common pricing and configuration objects for a given trip type.
 
@@ -139,7 +139,7 @@ def retrieve_trip_wise_pricing_config(
 
     fixed_platform_fee_config_orm = db.query(FixedPlatformPricing).first()
     fixed_platform_fee = (
-        CommonPricingConfigSchema.model_validate(
+        TripwisePricingConfigSchema.model_validate(
             fixed_platform_fee_config_orm
         ).fixed_platform_fee
         if fixed_platform_fee_config_orm
@@ -150,9 +150,9 @@ def retrieve_trip_wise_pricing_config(
             "No fixed platform fee or infrastructure fee configuration found", status_code=404
         )
 
-    fixed_night_pricing_orm = db.query(FixedNightPricing).first()
+    fixed_night_pricing_orm = db.query(NightPricingConfiguration).first()
     fixed_night_pricing = (
-        FixedNightPricingSchema.model_validate(fixed_night_pricing_orm)
+        NightPricingSchema.model_validate(fixed_night_pricing_orm)
         if fixed_night_pricing_orm
         else None
     )
@@ -163,8 +163,8 @@ def retrieve_trip_wise_pricing_config(
 
     # Fetch all common pricing configurations for the trip type
     common_pricing_config_orm = (
-        db.query(CommonPricingConfiguration)
-        .filter(CommonPricingConfiguration.trip_type_id == trip_type_id)
+        db.query(TripwisePricingConfiguration)
+        .filter(TripwisePricingConfiguration.trip_type_id == trip_type_id)
         .first()
     )
     if not common_pricing_config_orm:
@@ -172,7 +172,7 @@ def retrieve_trip_wise_pricing_config(
             "No common pricing configuration found for the given trip type",
             status_code=404,
         )
-    common_pricing_config = CommonPricingConfigSchema.model_validate(
+    common_pricing_config = TripwisePricingConfigSchema.model_validate(
         common_pricing_config_orm
     )
     if not common_pricing_config:
@@ -183,7 +183,7 @@ def retrieve_trip_wise_pricing_config(
 
     # Merge the fixed platform fee/infrastructure fee into the common pricing config
     common_pricing_config.fixed_platform_fee = fixed_platform_fee
-    common_pricing_config.fixed_night_pricing = fixed_night_pricing
+    common_pricing_config.night_pricing = fixed_night_pricing
     return (
         common_pricing_config  # CommonPricingConfigSchema including fixed platform fee/infrastructure fee
     )
