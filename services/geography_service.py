@@ -505,6 +505,21 @@ def get_state_by_code(
         except ValidationError:
             return None
 
+def get_state_by_id(state_id: str, db: Session) -> Optional["StateSchema"]:
+    """Fetch the StateSchema for the given state ID.
+    Returns None if not found.
+    """
+    state_model = (
+        db.query(StateModel)
+        .filter(StateModel.id == state_id, StateModel.enabled == True)
+        .first()
+    )
+    if state_model:
+        try:
+            state_schema = StateSchema.model_validate(state_model)
+            return state_schema
+        except ValidationError:
+            return None
 
 def add_state(payload: StateSchema, db: Session) -> StateSchema:
     """Add a new state to the database."""
