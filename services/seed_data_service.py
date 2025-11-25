@@ -5,16 +5,15 @@ from sqlalchemy.orm import Session
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.country_orm import CountryModel
 from models.geography.location_schema import LocationInfo
-from models.geography.serviceable_area_orm import ServiceableAreaModel
 from models.geography.state_orm import StateModel
 from models.pricing.pricing_orm import (
-    TripwisePricingConfiguration,
-    FixedPlatformPricing,
+    CommonPricingConfiguration,
+    FixedPlatformPricingConfiguration,
     OutstationCabPricing,
     LocalCabPricing,
     AirportCabPricing,
     NightPricingConfiguration,
-    FixedPlatformPricing,
+    FixedPlatformPricingConfiguration,
 )
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_orm import KYCDocumentTypes
@@ -793,7 +792,6 @@ def _seed_geographical_data(session: Session):
     _seed_countries(session)
     _seed_states(session)
     _seed_regions(session)
-    _seed_serviceable_areas(session)
 
 
 def _seed_master_data(session: Session):
@@ -907,41 +905,6 @@ def _seed_regions(session: Session):
     session.commit()
 
 
-def _seed_serviceable_areas(session: Session):
-    # Seed serviceable areas for trip types
-    trip_type_master_objs = session.query(TripTypeMaster).all()
-    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
-
-    regions = session.query(RegionModel).all()
-    region_id_map = {obj.region_code: obj.id for obj in regions}
-    serviceable_areas_data = {
-        TripTypeEnum.local: list(region_id_map.values()),  # All regions for local trips
-        TripTypeEnum.airport_pickup: list(
-            region_id_map.values()
-        ),  # All regions for airport pickup
-        TripTypeEnum.airport_drop: list(
-            region_id_map.values()
-        ),  # All regions for airport drop
-    }
-    for trip_type, area_ids in serviceable_areas_data.items():
-        trip_type_id = trip_type_id_map.get(trip_type)
-        if not trip_type_id:
-            continue
-        serviceable_area = ServiceableAreaModel(
-            trip_type_id=trip_type_id,
-            serviceable_areas=area_ids,
-        )
-        session.add(serviceable_area)
-    states = session.query(StateModel).all()
-    state_id_map = {obj.state_code: obj.id for obj in states}
-    # Outstation trips serviceable areas are states
-    outstation_area_ids = list(state_id_map.values())
-    serviceable_area = ServiceableAreaModel(
-        trip_type_id=trip_type_id_map.get(TripTypeEnum.outstation),
-        serviceable_areas=outstation_area_ids,
-    )
-    session.add(serviceable_area)
-    session.commit()
 
 
 def _seed_trip_types(session: Session):
@@ -1116,7 +1079,7 @@ def _seed_local_cab_pricing(session: Session):
                 # For seeding the data, we are assuming some standard values for local trips across regions
                 # These can be updated later via admin interface as needed
                 secondary_local_pricing.append(
-                    TripwisePricingConfiguration(
+                    CommonPricingConfiguration(
                         id=str(uuid.uuid4()),
                         trip_type_id=trip_type_id_map[TripTypeEnum.local],
                         dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
@@ -1201,7 +1164,7 @@ def _seed_outstation_cab_pricing(session: Session):
                 # For seeding the data, we are assuming some standard values for outstation trips across states
                 # These can be updated later via admin interface as needed
                 secondary_outstation_pricing.append(
-                    TripwisePricingConfiguration(
+                    CommonPricingConfiguration(
                         id=str(uuid.uuid4()),
                         trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
                         dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
@@ -1276,7 +1239,7 @@ def _seed_airport_cab_pricing(session: Session):
                 # Keeping a separate tripwise pricing configuration for airport trips as these will be redundant if kept within AirportCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
                 airport_secondary_pricing.append(
-                    TripwisePricingConfiguration(
+                    CommonPricingConfiguration(
                         id=str(uuid.uuid4()),
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
                         dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
@@ -1290,7 +1253,7 @@ def _seed_airport_cab_pricing(session: Session):
                     )
                 )
                 airport_secondary_pricing.append(
-                    TripwisePricingConfiguration(
+                    CommonPricingConfiguration(
                         id=str(uuid.uuid4()),
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
                         dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
@@ -1363,7 +1326,7 @@ def _seed_local_trip_packages(session: Session):
 def _seed_fixed_platform_pricing(session: Session):
     # Seed fixed platform pricing configurations
     # Fixed platform fee/infrastructure fee for all trips
-    fixed_platform_fee_config = FixedPlatformPricing(
+    fixed_platform_fee_config = FixedPlatformPricingConfiguration(
         id=str(uuid.uuid4()), fixed_platform_fee=3.0
     )
     session.add(fixed_platform_fee_config)

@@ -8,6 +8,7 @@ class CabTypeSchema(BaseModel):
 
     class Config:
         from_attributes = True
+        extra = "allow"
 
 
 class FuelTypeSchema(BaseModel):
@@ -16,3 +17,4 @@ class FuelTypeSchema(BaseModel):
 
     class Config:
         from_attributes = True
+        extra = "allow"

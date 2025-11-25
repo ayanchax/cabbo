@@ -5,18 +5,18 @@ from sqlalchemy import func
 from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
 from models.cab.cab_orm import CabType, FuelType
 from models.pricing.pricing_schema import (
-    TripwisePricingConfigSchema,
-    NightPricingSchema,
-    PermitFeeSchema,
+    CommonPricingConfigurationSchema,
+    NightPricingConfigurationSchema,
+    PermitFeeConfigurationSchema,
 )
 from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripTypeMaster
 from sqlalchemy.orm import Session
 from models.pricing.pricing_orm import (
-    TripwisePricingConfiguration,
+    CommonPricingConfiguration,
     NightPricingConfiguration,
-    FixedPlatformPricing,
-    FixedPlatformPricing,
+    FixedPlatformPricingConfiguration,
+    FixedPlatformPricingConfiguration,
     PermitFeeConfiguration,
 )
 from models.trip.trip_enums import TripTypeEnum
@@ -83,7 +83,9 @@ def retrieve_interstate_permit_fee(
         # If no states found with permit fees, return 0
         return 0.0
     for _, permit_fee_config, _, _ in all_states:
-        permit_fee_config_schema = PermitFeeSchema.model_validate(permit_fee_config)
+        permit_fee_config_schema = PermitFeeConfigurationSchema.model_validate(
+            permit_fee_config
+        )
         if (
             permit_fee_config_schema.permit_fee is not None
             and permit_fee_config_schema.permit_fee > 0
@@ -101,7 +103,7 @@ def retrieve_interstate_permit_fee(
 
 def retrieve_trip_wise_pricing_config(
     db: Session, trip_type: TripTypeEnum
-) -> TripwisePricingConfigSchema:
+) -> CommonPricingConfigurationSchema:
     """
     Fetches and returns all common pricing and configuration objects for a given trip type.
 
@@ -137,9 +139,9 @@ def retrieve_trip_wise_pricing_config(
             "Trip type ID not found for the given trip type", status_code=404
         )
 
-    fixed_platform_fee_config_orm = db.query(FixedPlatformPricing).first()
+    fixed_platform_fee_config_orm = db.query(FixedPlatformPricingConfiguration).first()
     fixed_platform_fee = (
-        TripwisePricingConfigSchema.model_validate(
+        CommonPricingConfigurationSchema.model_validate(
             fixed_platform_fee_config_orm
         ).fixed_platform_fee
         if fixed_platform_fee_config_orm
@@ -147,12 +149,13 @@ def retrieve_trip_wise_pricing_config(
     )
     if not fixed_platform_fee:
         raise CabboException(
-            "No fixed platform fee or infrastructure fee configuration found", status_code=404
+            "No fixed platform fee or infrastructure fee configuration found",
+            status_code=404,
         )
 
     fixed_night_pricing_orm = db.query(NightPricingConfiguration).first()
     fixed_night_pricing = (
-        NightPricingSchema.model_validate(fixed_night_pricing_orm)
+        NightPricingConfigurationSchema.model_validate(fixed_night_pricing_orm)
         if fixed_night_pricing_orm
         else None
     )
@@ -163,8 +166,8 @@ def retrieve_trip_wise_pricing_config(
 
     # Fetch all common pricing configurations for the trip type
     common_pricing_config_orm = (
-        db.query(TripwisePricingConfiguration)
-        .filter(TripwisePricingConfiguration.trip_type_id == trip_type_id)
+        db.query(CommonPricingConfiguration)
+        .filter(CommonPricingConfiguration.trip_type_id == trip_type_id)
         .first()
     )
     if not common_pricing_config_orm:
@@ -172,7 +175,7 @@ def retrieve_trip_wise_pricing_config(
             "No common pricing configuration found for the given trip type",
             status_code=404,
         )
-    common_pricing_config = TripwisePricingConfigSchema.model_validate(
+    common_pricing_config = CommonPricingConfigurationSchema.model_validate(
         common_pricing_config_orm
     )
     if not common_pricing_config:
@@ -183,10 +186,8 @@ def retrieve_trip_wise_pricing_config(
 
     # Merge the fixed platform fee/infrastructure fee into the common pricing config
     common_pricing_config.fixed_platform_fee = fixed_platform_fee
-    common_pricing_config.night_pricing = fixed_night_pricing
-    return (
-        common_pricing_config  # CommonPricingConfigSchema including fixed platform fee/infrastructure fee
-    )
+    common_pricing_config.night_pricing_configuration = fixed_night_pricing
+    return common_pricing_config  # CommonPricingConfigSchema including fixed platform fee/infrastructure fee
 
 
 def get_airport_toll(toll: float, toll_road_preferred: bool):
@@ -270,12 +271,14 @@ def get_outstation_trips_disclaimer_lines(
         "All extra charges are based on actual usage and will be transparently shown in your invoice.",
     ]
 
-def get_driver_allowance(option:TripSearchOption):
-    if not option or not hasattr(option, 'price_breakdown'):
+
+def get_driver_allowance(option: TripSearchOption):
+    if not option or not hasattr(option, "price_breakdown"):
         return 0.0
-    if option.price_breakdown and hasattr(option.price_breakdown, 'driver_allowance'):
+    if option.price_breakdown and hasattr(option.price_breakdown, "driver_allowance"):
         return option.price_breakdown.driver_allowance
     return 0.0
+
 
 def get_tolls_estimate(booking_request: TripBookRequest) -> float:
     """
@@ -290,12 +293,28 @@ def get_tolls_estimate(booking_request: TripBookRequest) -> float:
         return 0.0
     elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
         # For outstation trips, use the tolls estimate from the request if available
-        return booking_request.option.price_breakdown.minimum_toll_wallet if booking_request.option.price_breakdown.minimum_toll_wallet  else 0.0
-    elif booking_request.preferences.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        return (
+            booking_request.option.price_breakdown.minimum_toll_wallet
+            if booking_request.option.price_breakdown.minimum_toll_wallet
+            else 0.0
+        )
+    elif booking_request.preferences.trip_type in [
+        TripTypeEnum.airport_pickup,
+        TripTypeEnum.airport_drop,
+    ]:
         # For airport trips, use the tolls estimate from the request if available
-        return booking_request.option.price_breakdown.toll if booking_request.preferences.toll_road_preferred and  booking_request.option.price_breakdown.toll else 0.0
+        return (
+            booking_request.option.price_breakdown.toll
+            if booking_request.preferences.toll_road_preferred
+            and booking_request.option.price_breakdown.toll
+            else 0.0
+        )
     else:
-        raise CabboException(f"Trip type {booking_request.preferences.trip_type} is not supported for tolls estimation", status_code=501)
+        raise CabboException(
+            f"Trip type {booking_request.preferences.trip_type} is not supported for tolls estimation",
+            status_code=501,
+        )
+
 
 def get_parking_estimate(booking_request: TripBookRequest) -> float:
     """
@@ -307,13 +326,43 @@ def get_parking_estimate(booking_request: TripBookRequest) -> float:
     """
     if booking_request.preferences.trip_type == TripTypeEnum.local:
         # For local trips, parking is not applicable
-        return booking_request.option.price_breakdown.minimum_parking_wallet if booking_request.option.price_breakdown.minimum_parking_wallet else 0.0
+        return (
+            booking_request.option.price_breakdown.minimum_parking_wallet
+            if booking_request.option.price_breakdown.minimum_parking_wallet
+            else 0.0
+        )
     elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
         # For outstation trips, use the parking estimate from the request if available
-        return booking_request.option.price_breakdown.minimum_parking_wallet if booking_request.option.price_breakdown.minimum_parking_wallet else 0.0
-    elif booking_request.preferences.trip_type ==TripTypeEnum.airport_pickup:
+        return (
+            booking_request.option.price_breakdown.minimum_parking_wallet
+            if booking_request.option.price_breakdown.minimum_parking_wallet
+            else 0.0
+        )
+    elif booking_request.preferences.trip_type == TripTypeEnum.airport_pickup:
         # For airport pickup, use the parking estimate from the request if available
-        return booking_request.option.price_breakdown.parking if booking_request.option.price_breakdown.parking else 0.0
+        return (
+            booking_request.option.price_breakdown.parking
+            if booking_request.option.price_breakdown.parking
+            else 0.0
+        )
     else:
         return 0.0  # For airport drop, parking is not applicable
 
+
+def get_common_pricing_configurations_by_trip_type_id(
+    trip_type_id: str,
+    db: Session,
+) -> List[CommonPricingConfiguration]:
+    """
+    Fetches all common pricing configurations for a given trip type ID.
+    Args:
+        trip_type_id (str): The trip type ID for which to fetch configurations.
+        db (Session): SQLAlchemy database session for ORM queries.
+        Returns:
+        List[CommonPricingConfiguration]: A list of common pricing configuration ORM objects for the given trip type ID.
+    """
+    return (
+        db.query(CommonPricingConfiguration)
+        .filter(CommonPricingConfiguration.trip_type_id == trip_type_id)
+        .all()
+    )

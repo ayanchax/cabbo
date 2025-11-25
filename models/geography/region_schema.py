@@ -28,6 +28,7 @@ class RegionOut(RegionBase):
         from_attributes = True
 
 class RegionSchema(BaseModel):
+    id: Optional[str] = Field(None, description="Unique identifier for the region")  # UUID
     # Region is a city or metro area within a state or province within a country
     region_name: str = Field(..., description="Name of the region/city") # e.g. Bangalore, Chennai
     region_code: str = Field(..., description="Region code, e.g., 'BLR' for Bangalore") # e.g. BLR, MAA

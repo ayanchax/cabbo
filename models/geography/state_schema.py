@@ -5,6 +5,7 @@ from models.geography.country_schema import CountrySchema
 from models.geography.region_schema import RegionSchema
 
 class StateSchema(BaseModel):
+    id: Optional[str] = Field(None, description="Unique identifier for the state")  # UUID
     state_name: str = Field(..., description="Full name of the state") # e.g. Karnataka
     state_code: str = Field(..., description="ISO state code, e.g., 'KA' for Karnataka") # e.g. KA
     country_code: str = Field(..., description="ISO country code the state belongs to, e.g., 'IN' for India") # e.g. IN

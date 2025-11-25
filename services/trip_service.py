@@ -609,9 +609,9 @@ def get_trip_search_options(
             2 * est_km
         )  # Always Round trip distance for outstation, therefore multiply by 2
         night_surcharge_per_hour = (
-            configs.night_pricing.night_overage_amount_per_block
+            configs.night_pricing_configuration.night_overage_amount_per_block
         )
-        night_hours_display_label = configs.night_pricing.night_hours_label
+        night_hours_display_label = configs.night_pricing_configuration.night_hours_label
         search_in.expected_end_date = search_in.end_date
         # Fetch all outstation cab pricings
         outstation_pricings = (
@@ -1079,21 +1079,21 @@ def _verify_trip_hash(booking_request: TripBookRequest):
     if not verify_trip_hash(option=option_dict, preferences=preference_dict, client_hash=booking_request.option.hash):
         raise CabboException("Invalid booking request, option hash is not valid", status_code=400)
 
-def _get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session) -> str:
+def get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session, include_id_only=True) -> Union[str, TripTypeMaster]:
     """
     Retrieves the trip type ID from the database based on the provided trip type.
     Args:
         trip_type (TripTypeEnum): The trip type for which to retrieve the ID.
         db (Session): The database session for ORM operations.
     Returns:
-        str: The ID of the trip type.
+        Union[str, TripTypeMaster]: The trip type object if include_id_only is False.
     Raises:
         CabboException: If the trip type is not found in the database.
     """
     trip_type_obj = db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
     if not trip_type_obj:
         raise CabboException(f"Trip type {trip_type} not found", status_code=404)
-    return trip_type_obj.id
+    return trip_type_obj.id if include_id_only else trip_type_obj
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
     """
@@ -1186,7 +1186,7 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
     Raises:
         CabboException: If the booking request is invalid or if any database operation fails.
     """
-    trip_type_id = _get_trip_type_id_by_trip_type(booking_request.preferences.trip_type, db=db)
+    trip_type_id = get_trip_type_id_by_trip_type(booking_request.preferences.trip_type, db=db)
     validated_start_date = validate_date_time(date_time=booking_request.preferences.start_date)
     
     validated_end_date = None
@@ -1506,3 +1506,17 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
     except Exception as e:
         db.rollback()
         return False
+
+def get_all_trip_types(db: Session) -> List[TripTypeMaster]:
+    """
+    Retrieves all trips from the database.
+    Returns:
+        List[TripTypeMaster]: A list of all trip type master records.
+    """
+    
+    try:
+        trip_types = db.query(TripTypeMaster).all()
+        return trip_types
+    except Exception as e:
+        return []
+    

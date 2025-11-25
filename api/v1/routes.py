@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from api.v1.endpoints.admin.data import seed as seed_ep
+from api.v1.endpoints.admin import configuration as config_ep
 
 router = APIRouter()
 
@@ -24,3 +25,4 @@ router.include_router(admin_user_ep.router, prefix="/admin/users", tags=["admin-
 
 # Admin data endpoints
 router.include_router(seed_ep.router, prefix="/admin/data", tags=["admin-seed"])
+router.include_router(config_ep.router, prefix="/admin/appconfig", tags=["admin-configuration"])

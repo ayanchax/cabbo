@@ -126,7 +126,8 @@ class AirportCabPricing(Base):
     )
 
 
-# Night charge pricing configuration
+# Night charge pricing configuration, can be applied to all trip types but mostly used for outstation trips and local trips, hence we have state_id and region_id both optional
+# We are keeping this separate from CommonPricingConfiguration since night charges may vary by region/state
 class NightPricingConfiguration(Base):
     __tablename__ = "night_pricing_config"
     id = Column(
@@ -163,8 +164,12 @@ class NightPricingConfiguration(Base):
         onupdate=func.utc_timestamp(),
     )
 
-
-class TripwisePricingConfiguration(Base):
+# Trip type wise pricing configuration. These are common configurations applicable to all cab types, fuel types for a given trip type
+# and are referenced in the trip fare calculation logic
+# They are different from NightPricingConfiguration which is mainly for night surcharge related settings
+# They are different from FixedPlatformPricingConfiguration which is mainly for fixed platform fee per booking
+# They are different from PermitFeeConfiguration which is mainly for permit fee per state, cab type and fuel type
+class CommonPricingConfiguration(Base):
     __tablename__ = "tripwise_pricing_config"
     id = Column(
         MySQL_CHAR(36),
@@ -220,7 +225,7 @@ class TripwisePricingConfiguration(Base):
 
 
 # Fixed Platform fee for cost to serve per booking
-class FixedPlatformPricing(Base):
+class FixedPlatformPricingConfiguration(Base):
     __tablename__ = "fixed_platform_pricing"
     id = Column(
         MySQL_CHAR(36),
@@ -242,6 +247,7 @@ class FixedPlatformPricing(Base):
 
 
 # Since Permit fee varies by state, so we have the state_id foreign key here instead of region_id
+# Since Permit fee varies by state, cab type and fuel type, we have those foreign keys as well and hence we cannot keep these settings in the CommonPricingConfiguration table
 class PermitFeeConfiguration(Base):
     __tablename__ = "permit_fee_config"
     id = Column(

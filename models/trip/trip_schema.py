@@ -20,7 +20,15 @@ from models.trip.trip_enums import (
 from models.geography.location_schema import LocationInfo
 from models.pricing.pricing_orm import RoleEnum
 
+class TripTypeSchema(BaseModel):
+    id: Optional[str]
+    trip_type: TripTypeEnum
+    display_name: str
+    description: Optional[str]
 
+    class Config:
+        from_attributes = True
+        extra = "allow"
 
 class TripDetails(BaseModel):
     # Trip type and package
