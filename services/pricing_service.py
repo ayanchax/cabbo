@@ -6,6 +6,7 @@ from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
 from models.cab.cab_orm import CabType, FuelType
 from models.pricing.pricing_schema import (
     CommonPricingConfigurationSchema,
+    FixedPlatformFeeConfigurationSchema,
     NightPricingConfigurationSchema,
     PermitFeeConfigurationSchema,
 )
@@ -13,10 +14,12 @@ from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripTypeMaster
 from sqlalchemy.orm import Session
 from models.pricing.pricing_orm import (
+    AirportCabPricing,
     CommonPricingConfiguration,
+    LocalCabPricing,
     NightPricingConfiguration,
     FixedPlatformPricingConfiguration,
-    FixedPlatformPricingConfiguration,
+    OutstationCabPricing,
     PermitFeeConfiguration,
 )
 from models.trip.trip_enums import TripTypeEnum
@@ -352,17 +355,105 @@ def get_parking_estimate(booking_request: TripBookRequest) -> float:
 def get_common_pricing_configurations_by_trip_type_id(
     trip_type_id: str,
     db: Session,
-) -> List[CommonPricingConfiguration]:
+) -> List[CommonPricingConfigurationSchema]:
     """
     Fetches all common pricing configurations for a given trip type ID.
     Args:
         trip_type_id (str): The trip type ID for which to fetch configurations.
         db (Session): SQLAlchemy database session for ORM queries.
         Returns:
-        List[CommonPricingConfiguration]: A list of common pricing configuration ORM objects for the given trip type ID.
+        List[CommonPricingConfigurationSchema]: A list of common pricing configuration ORM objects for the given trip type ID.
     """
-    return (
+    common_pricings = (
         db.query(CommonPricingConfiguration)
         .filter(CommonPricingConfiguration.trip_type_id == trip_type_id)
         .all()
     )
+    # Model validate each pricing configuration by CommonPricingConfigurationSchema
+    return [
+        CommonPricingConfigurationSchema.model_validate(pricing)
+        for pricing in common_pricings
+    ]
+
+
+def get_base_pricings_outstation(db: Session):
+    return (
+        db.query(OutstationCabPricing, CabType, FuelType)
+        .join(CabType, OutstationCabPricing.cab_type_id == CabType.id)
+        .join(FuelType, OutstationCabPricing.fuel_type_id == FuelType.id)
+        .filter(
+            OutstationCabPricing.is_available_in_network == True,
+        )  # Ensure only available cabs are considered
+        .all()
+    )
+
+def get_base_pricings_airport(db: Session):
+    return (
+            db.query(AirportCabPricing, CabType, FuelType)
+            .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
+            .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+            .filter(
+                AirportCabPricing.is_available_in_network == True
+            )  # Ensure only available cabs are considered
+            .all()
+    )
+
+def get_base_pricings_local(db: Session):
+    base_pricings = (
+            db.query(LocalCabPricing, CabType, FuelType)
+            .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
+            .join(FuelType, LocalCabPricing.fuel_type_id == FuelType.id)
+            .filter(
+                LocalCabPricing.is_available_in_network == True,
+            )  # Ensure only available cabs are considered
+            .all()
+        )
+    return base_pricings
+
+
+def get_night_pricing_configuration(
+    db: Session, id: str, by_state: bool = False
+) -> NightPricingConfigurationSchema:
+    if by_state:
+        night_pricing = (
+            db.query(NightPricingConfiguration)
+            .filter(
+                NightPricingConfiguration.state_id == id,
+            )
+            .first()
+        )
+    else:
+        night_pricing = (
+            db.query(NightPricingConfiguration)
+            .filter(
+                NightPricingConfiguration.region_id == id,
+            )
+            .first()
+        )
+    if night_pricing:
+        return NightPricingConfigurationSchema.model_validate(night_pricing)
+    return None
+
+
+def get_permit_fee_configuration(
+    db: Session, state_id: str
+) -> PermitFeeConfigurationSchema:
+    permit_fee = (
+        db.query(PermitFeeConfiguration)
+        .filter(
+            PermitFeeConfiguration.state_id == state_id,
+        )
+        .first()
+    )
+    if permit_fee:
+        return PermitFeeConfigurationSchema.model_validate(permit_fee)
+    return None
+
+def get_fixed_platform_pricing_configuration(db:Session)->FixedPlatformFeeConfigurationSchema:
+    platform_fee_data = db.query(FixedPlatformPricingConfiguration).first()
+    if not platform_fee_data:
+            return None
+    platform_fee_data_schema = FixedPlatformFeeConfigurationSchema.model_validate(
+            platform_fee_data
+        )
+    return platform_fee_data_schema

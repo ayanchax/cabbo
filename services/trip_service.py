@@ -26,6 +26,7 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchOption,
     TripSearchResponse,
+    TripTypeSchema,
 )
 from sqlalchemy.orm import Session
 from models.cab.cab_orm import CabType, FuelType
@@ -1079,21 +1080,21 @@ def _verify_trip_hash(booking_request: TripBookRequest):
     if not verify_trip_hash(option=option_dict, preferences=preference_dict, client_hash=booking_request.option.hash):
         raise CabboException("Invalid booking request, option hash is not valid", status_code=400)
 
-def get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session, include_id_only=True) -> Union[str, TripTypeMaster]:
+def get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session, include_id_only=True) -> Union[str, TripTypeSchema]:
     """
     Retrieves the trip type ID from the database based on the provided trip type.
     Args:
         trip_type (TripTypeEnum): The trip type for which to retrieve the ID.
         db (Session): The database session for ORM operations.
     Returns:
-        Union[str, TripTypeMaster]: The trip type object if include_id_only is False.
+        Union[str, TripTypeSchema]: The trip type object if include_id_only is False.
     Raises:
         CabboException: If the trip type is not found in the database.
     """
     trip_type_obj = db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
     if not trip_type_obj:
         raise CabboException(f"Trip type {trip_type} not found", status_code=404)
-    return trip_type_obj.id if include_id_only else trip_type_obj
+    return trip_type_obj.id if include_id_only else TripTypeSchema.model_validate(trip_type_obj)
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
     """
@@ -1507,16 +1508,19 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
         db.rollback()
         return False
 
-def get_all_trip_types(db: Session) -> List[TripTypeMaster]:
+def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
     """
     Retrieves all trips from the database.
     Returns:
-        List[TripTypeMaster]: A list of all trip type master records.
+        List[TripTypeSchema]: A list of all trip type master records.
     """
     
     try:
         trip_types = db.query(TripTypeMaster).all()
-        return trip_types
+        trip_type_schemas = [
+            TripTypeSchema.model_validate(trip_type) for trip_type in trip_types
+        ]
+        return trip_type_schemas
     except Exception as e:
         return []
     
