@@ -46,8 +46,8 @@ from services.trip_service import get_all_trip_types, get_trip_type_id_by_trip_t
 class ConfigStore(BaseModel):
     """Thread-safe configuration store with TTL-based cache invalidation."""
     
-    # Cache TTL in seconds (default: 1 hour)
-    CACHE_TTL_SECONDS: int = Field(default=3600, description="Time-to-live for cached configurations in seconds")
+    # Cache TTL in seconds (default: 1 day)
+    CACHE_TTL_SECONDS: int = Field(default=86400, description="Time-to-live for cached configurations in seconds")
     
     outstation: dict[str, MasterPricingConfiguration] = (
         {}
@@ -98,6 +98,7 @@ class ConfigStore(BaseModel):
         self._lock = threading.Lock()
         self._last_loaded_at = None
         self._is_initialized = False
+        
     
     def initialize_config_store(self, db: Session = Depends(get_mysql_session)):
         """Initial load of all configurations from database."""
@@ -630,3 +631,4 @@ class ConfigStore(BaseModel):
 
     def _initialize_pricing_configuration(self):
         return MasterPricingConfiguration()
+

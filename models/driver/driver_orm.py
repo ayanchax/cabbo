@@ -43,12 +43,8 @@ class Driver(Base):
     #We are keeping the nationality and religion optional for now, we will use this information for KYC verification when we open the app for drivers
     nationality = Column(Enum(NationalityEnum), nullable=True, default=NationalityEnum.indian)  # e.g., Indian, American
     religion = Column(Enum(ReligionEnum), nullable=True)  # e.g., Hindu, Muslim, Christian
-    address_line1 = Column(String(255), nullable=True)
-    address_line2 = Column(String(255), nullable=True)
-    country_id = Column(String(100), ForeignKey("countries_master.id"), nullable=True)
-    region_id = Column(String(100), ForeignKey("regions_master.id"), nullable=True) #We will link this to the regions_master aka city table to know which region the driver is operating in
-    state_id = Column(String(100), ForeignKey("states_master.id"), nullable=True)
-    postal_code = Column(String(20), nullable=True)
+    address=Column(JSON, nullable=True) # We will store the address as a JSON object and validate with Address Schema 
+    # e.g., {"address_line1": "123 Main St", "address_line2": "Apt 4B", "region_id": "uuid from regions_master", "state_id": "uuid from states_master", "country_id": "uuid from countries_master", "postal_code": "560001"}
     #Car details
     car_type = Column(
         Enum(CarTypeEnum), nullable=False, default=CarTypeEnum.sedan

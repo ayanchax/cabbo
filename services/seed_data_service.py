@@ -825,7 +825,9 @@ def _seed_countries(session: Session):
             time_zone="Asia/Kolkata",
             locale="en_IN",
             phone_code="+91",
-            phone_number_regex="^[6-9]\d{9}$"
+            phone_number_regex="^[6-9]\d{9}$",
+            postal_code_regex="^\d{6}$",
+            is_default=True,
         )
     ]
     for country in countries:

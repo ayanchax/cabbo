@@ -9,6 +9,7 @@ import uuid
 def create_driver(payload: DriverCreateSchema, db: Session, created_by: RoleEnum = RoleEnum.driver_admin) -> Driver:
 	"""Create a new driver."""
 	try:
+		
 		driver = Driver(
 			id=str(uuid.uuid4()),
 			name=payload.name,
@@ -26,15 +27,11 @@ def create_driver(payload: DriverCreateSchema, db: Session, created_by: RoleEnum
 			payment_mode=payload.payment_mode,
 			payment_phone_number=payload.payment_phone_number,
 			bank_details=payload.bank_details.model_dump() if payload.bank_details else None,
+			address=payload.address.model_dump() if payload.address else None,
 			is_active=True,
 			is_available=True,
 			created_by=created_by,
-			address_line1=payload.address.address_line1 if payload.address else None,
-			address_line2=payload.address.address_line2 if payload.address else None,
-			country_id=payload.address.country_id if payload.address else None,
-			region_id=payload.address.region_id if payload.address else None,
-			state_id=payload.address.state_id if payload.address else None,
-			postal_code=payload.address.postal_code if payload.address else None,
+			
 		)
 		db.add(driver)
 		db.commit()
