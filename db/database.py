@@ -72,13 +72,31 @@ def _ensure_database_exists():
         raise
 
 
-def init_db():
+def init_db(seed: bool = True, preload_config: bool = False):
     logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
     Base.metadata.create_all(bind=engine)
 
     logger.info("Database initialization complete.")
+    if seed:
+        seed_now()
+    if preload_config:
+        preload_config_store()
+
+
+def preload_config_store():
+    from core.store import ConfigStore
+
+    ConfigStore.get_instance().initialize_config_store()
+
+
+def seed_now():
+    from services.seed_data_service import init_seed_data
+
+    with SessionLocal() as session:
+        init_seed_data(session)
+        
 
 
 def get_mysql_session():

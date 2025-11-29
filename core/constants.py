@@ -4,6 +4,7 @@ APP_DESCRIPTION = "Backend API for cab booking platform."
 APP_ADMIN_EMAIL = "admin@cabbo.co.in"
 
 AIRPORTS = {
+    #It can contain multiple airports for a city in a state in a country. Here state or country is not modelled for simplicity, because airports are all over the world.
     "BLR": [
         {
             "display_name": "Kempegowda International Airport, Bengaluru",
@@ -32,3 +33,4 @@ AIRPORTS = {
         }
     ],
 }
+SEED_DATA_COMPLETION_FILE = "seed_data_completed.chk"

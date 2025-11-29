@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+from typing import Union
 from core.exceptions import CabboException
 from core.config import settings
 
@@ -97,3 +99,20 @@ def remove_driver_profile_picture(driver_id: str) -> bool:
                 f"Failed to remove profile picture: {str(e)}", status_code=500
             )
     return False
+
+def save_file(path:Union[Path, str], content: str=""):
+    """
+    Save a file to the specified path.
+    """
+    try:
+        with open(path, "w") as f:
+            f.write(content)
+    except Exception as e:
+        return False
+    return True
+
+def is_file_exists(path:Union[Path, str]) -> bool:
+    """
+    Check if a file exists at the specified path.
+    """
+    return os.path.exists(path)

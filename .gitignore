@@ -50,3 +50,4 @@ share/
 application-requirements.txt
 notes/
 testdata/
+seed_data_completed.chk

@@ -3,7 +3,6 @@ import threading
 from typing import ClassVar, List, Optional, Union
 from pydantic import BaseModel, Field
 from db.database import get_mysql_session
-from models.cab.cab_orm import CabType
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
 from sqlalchemy.orm import Session
@@ -18,6 +17,7 @@ from models.pricing.pricing_schema import (
 )
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripTypeSchema
+from services.cab_service import get_all_cabs
 from services.fuel_service import get_all_fuel_types
 from services.geography_service import (
     get_all_countries,
@@ -152,6 +152,7 @@ class ConfigStore(BaseModel):
             if not self._db:
                 self._db = get_mysql_session()
             self._lazy_load(self._db)
+            print("ConfigStore initialization completed.")
         else:
             print(
                 "ConfigStore already initialized with valid cache. Skipping initialization."
@@ -380,20 +381,22 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_cabs(self, db: Session):
         """Load cab data into the store."""
-        cabs = db.query(CabType).all()
-        cab_schemas = [CabTypeSchema.model_validate(cab) for cab in cabs]
-        self._set_cabs(cab_schemas)
+        print("Loading cab data into ConfigStore...")
+        self._set_cabs(get_all_cabs(db))
 
     def _retrieve_and_set_fuel_types(self, db: Session):
         """Load fuel type data into the store."""
+        print("Loading fuel type data into ConfigStore...")
         self._set_fuel_types(get_all_fuel_types(db))
 
     def _retrieve_and_set_trip_types(self, db: Session):
         """Load trip type data into the store."""
+        print("Loading trip type data into ConfigStore...")
         self._set_trip_types(get_all_trip_types(db))
 
     def _retrieve_and_set_serviceable_geographies(self, db: Session):
         """Load country data from the database into the store."""
+        print("Loading geography data into ConfigStore...")
         countries = get_all_countries(db)
         country_dict = {country.code: country for country in countries}
         self.geographies.countries = country_dict
@@ -410,6 +413,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_outstation_pricing(self, db: Session):
         """Load outstation master data from the database into the store."""
+        print("Loading outstation pricing data into ConfigStore...")
         outstation_trip_type = self._retrieve_trip_type(
             trip_type=TripTypeEnum.outstation, db=db
         )
@@ -477,6 +481,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_local_pricing(self, db: Session):
         """Load local pricing data from the database into the store."""
+        print("Loading local pricing data into ConfigStore...")
         local_trip_type = self._retrieve_trip_type(trip_type=TripTypeEnum.local, db=db)
         if not local_trip_type:
             return
@@ -528,6 +533,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_airport_pricing(self, trip_type: TripTypeEnum, db: Session):
         """Load all airport pricing data from the database into the store."""
+        print("Loading airport pricing data into ConfigStore...")
         if trip_type not in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
             return
         airport_trip_type = self._retrieve_trip_type(trip_type=trip_type, db=db)
@@ -577,6 +583,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_platform_fee_info(self, db: Session):
         """Load fixed platform fee data from the database into the store."""
+        print("Loading platform fee data into ConfigStore...")
 
         platform_fee = get_fixed_platform_pricing_configuration(db=db)
         if not platform_fee:
@@ -586,11 +593,13 @@ class ConfigStore(BaseModel):
     def _retrieve_trip_configs(
         self, id: str, db: Session
     ) -> List[CommonPricingConfigurationSchema]:
+        print("Loading common pricing configurations into ConfigStore...")
         return get_common_pricing_configurations_by_trip_type_id(trip_type_id=id, db=db)
 
     def _retrieve_trip_type(
         self, trip_type: TripTypeEnum, db: Session
     ) -> TripTypeSchema:
+        print("Loading trip type data into ConfigStore...")
         return get_trip_type_id_by_trip_type(
             trip_type=trip_type, db=db, include_id_only=False
         )

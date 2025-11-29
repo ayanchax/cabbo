@@ -39,7 +39,7 @@ from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, Tr
 from core.exceptions import CabboException
 from services.audit_trail_service import log_trip_audit
 from services.location_service import get_distance_km, get_state_from_location
-from core.constants import APP_AIRPORT_LOCATION, APP_HOME_STATE, APP_NAME
+from core.constants import  APP_NAME
 from datetime import datetime, timezone, timedelta
 import math
 from services.passenger_service import get_passenger_id_from_preferences, populate_passenger_details, validate_passenger_id
@@ -956,7 +956,7 @@ def _get_trip_origin_destination_distance_airport_pickup(search_in: TripSearchRe
     """
 
     if not search_in.origin:
-        search_in.origin = APP_AIRPORT_LOCATION.get(APP_HOME_STATE, None)
+        search_in.origin = None
     if not search_in.origin:
         raise CabboException("Origin is required", status_code=400)
 
@@ -986,7 +986,7 @@ def _get_trip_origin_destination_distance_airport_drop(search_in: TripSearchRequ
         raise CabboException("Origin is required for airport drop", status_code=400)
 
     if not search_in.destination:
-        search_in.destination = APP_AIRPORT_LOCATION.get(APP_HOME_STATE, None)
+        search_in.destination = None
 
     if not search_in.destination:
         raise CabboException(

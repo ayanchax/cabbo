@@ -2,7 +2,6 @@ from typing import List
 
 from aiohttp_retry import Union
 from sqlalchemy import func
-from core.constants import APP_COUNTRY_CURRENCY_SYMBOL
 from models.cab.cab_orm import CabType, FuelType
 from models.pricing.pricing_schema import (
     CommonPricingConfigurationSchema,
@@ -26,7 +25,7 @@ from models.trip.trip_enums import TripTypeEnum
 from core.exceptions import CabboException
 from models.trip.trip_schema import TripBookRequest, TripSearchOption
 
-
+APP_COUNTRY_CURRENCY_SYMBOL = "₹"  # Placeholder for currency symbol, adjust as needed
 def retrieve_interstate_permit_fee(
     unique_states: List[str],
     trip_days: int,

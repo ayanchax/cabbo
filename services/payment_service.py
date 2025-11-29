@@ -1,7 +1,7 @@
 import logging
 
 import razorpay.errors
-from core.constants import APP_COUNTRY_CURRENCY, APP_NAME, APP_VERSION
+from core.constants import  APP_NAME, APP_VERSION
 from core.exceptions import CabboException
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerPayment
@@ -12,7 +12,7 @@ from core.config import settings
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
 logger = logging.getLogger(__name__)
-
+APP_COUNTRY_CURRENCY ="INR"  #Placeholder for country currency, adjust as needed
 RAZOR_PAY_CLIENT_DETAILS={
         "version": APP_VERSION,
         "name": f"{APP_NAME.capitalize()} Trip Booking Service",
@@ -68,7 +68,7 @@ def get_trip_payment_order(booking_request:TripBookRequest, customer:Customer, t
     razorpay_schema = RazorpayOrderSchema(
         description=f"Trip booking for {booking_request.preferences.trip_type} trip by {customer.name}",
         amount=temp_trip.platform_fee, #Collect platform fee/convenience fee from the customer as part of the trip booking so that system is not abused
-        currency=APP_COUNTRY_CURRENCY,
+        currency=APP_COUNTRY_CURRENCY , 
         receipt=f"id#{temp_trip.id}",
         notes=PaymentNotesSchema(
             reference_source_id=temp_trip.id,

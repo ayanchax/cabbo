@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 import math
 from core.exceptions import CabboException
-from models.geography.service_area_orm import ServiceableGeographyOrm
+# from models.geography.service_area_orm import ServiceableGeographyOrm
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripTypeMaster
@@ -105,6 +105,7 @@ def validate_serviceable_area(search_in: TripSearchRequest, db: Session):
     Validates if the trip search request is within the serviceable area for the given trip type.
     Raises CabboException if the request is outside the serviceable area.
     """
+    pass
     trip_type = search_in.trip_type
     # Query the serviceable area config for this trip type
     #service_area = 

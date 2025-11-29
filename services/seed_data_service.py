@@ -1,4 +1,5 @@
 import json
+import os
 from typing import List
 import uuid
 from sqlalchemy.orm import Session
@@ -22,6 +23,7 @@ from core.security import RoleEnum, generate_password_hash
 from core.constants import (
     AIRPORTS,
     APP_ADMIN_EMAIL,
+    SEED_DATA_COMPLETION_FILE,
 )
 from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
@@ -29,15 +31,22 @@ from models.trip.trip_schema import TripPackageConfigSchema
 from models.pricing.pricing_orm import PermitFeeConfiguration
 from models.user.user_orm import User
 from core.config import settings
+from services.file_service import is_file_exists, is_file_exists, save_file
 
 
-def _get_regional_airports(airports_in_region: List[dict]) -> List[LocationInfo]:
+def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
+    """Convert airport dicts to LocationInfo and back to dicts for JSON serialization."""
     if airports_in_region is None:
         airports_in_region = []
+    
     if airports_in_region and len(airports_in_region) > 0:
-        airports_in_region = [
+        # Validate with Pydantic to ensure data integrity
+        validated_airports = [
             LocationInfo.model_validate(ap) for ap in airports_in_region
         ]
+        # Convert back to dict for JSON serialization
+        airports_in_region = [ap.model_dump() for ap in validated_airports]
+    
     return airports_in_region
 
 
@@ -782,10 +791,28 @@ def _get_seed_regions():
 
 def init_seed_data(session: Session):
     """Initialize seed data for the application."""
-    _seed_master_data(session)
-    _seed_geographical_data(session)
-    _seed_pricing_data(session)
+    is_seeded= is_file_exists(SEED_DATA_COMPLETION_FILE)
+    if is_seeded:
+        print("Seed data already initialized. Skipping seeding.")
+        return
+    try:
 
+        _seed_master_data(session)
+
+        _seed_geographical_data(session)
+
+        _seed_pricing_data(session)
+
+        #Create a completion of seed data file at the root of the project Cabbo to indicate seeding is done and avoid re-seeding
+        save_file(SEED_DATA_COMPLETION_FILE, "Seed data initialization completed.")
+        print("Seed data initialization completed.")
+    except Exception as e:
+        session.rollback()
+        print(f"Error during seed data initialization: {e}")
+        raise e
+    finally:
+        session.close()
+    
 
 def _seed_geographical_data(session: Session):
     # Seed countries, states, regions
@@ -830,9 +857,11 @@ def _seed_countries(session: Session):
             is_default=True,
         )
     ]
+    _countries=[]
     for country in countries:
-        session.add(country)
+        _countries.append(country)
 
+    session.add_all(_countries)
     session.commit()
 
 
@@ -840,6 +869,7 @@ def _seed_states(session: Session):
     # Seed states
     country_states = {"IN": _get_seed_states()}
     countries = session.query(CountryModel).all()
+    states=[]
     for country in countries:
         code = (country.country_code or "").upper()
         states_list = country_states.get(code)
@@ -861,7 +891,10 @@ def _seed_states(session: Session):
                 state_code=scode.upper(),
                 country_id=country.id,
             )
-            session.add(state)
+            states.append(state)
+    
+    session.add_all(states)
+    session.commit()
 
 
 def _seed_regions(session: Session):
@@ -878,6 +911,7 @@ def _seed_regions(session: Session):
     for car_type in CarTypeEnum:
         supported_car_types.append(car_type.value)
     regions = _get_seed_regions()
+    _regions=[]
     for name, code, alt_names, state_code in regions:
         state = (
             session.query(StateModel)
@@ -905,7 +939,8 @@ def _seed_regions(session: Session):
                 json.dumps(airports_in_region) if airports_in_region else None
             ),
         )
-        session.add(region)
+        _regions.append(region)
+    session.add_all(_regions)
     session.commit()
 
 
