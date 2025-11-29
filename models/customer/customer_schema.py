@@ -2,7 +2,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from models.user.user_enum import GenderEnum
-from utils.utility import validate_and_sanitize_country_phone
 
 class CustomerPayment(BaseModel):
     id: Optional[str] = None  # Customer ID, if available
@@ -10,12 +9,7 @@ class CustomerPayment(BaseModel):
     email: Optional[EmailStr] = None
     contact: Optional[str] = None  # Contact number, can be phone or email
 
-    @field_validator("contact", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
+    
     class Config:
         exclude_none = True  # Exclude fields with None values from the model dump
 
@@ -29,17 +23,7 @@ class CustomerBase(BaseModel):
     emergency_contact_number: Optional[str] = None
     opt_in_updates: Optional[bool] = False
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        return validate_and_sanitize_country_phone(v)
-
-    @field_validator("emergency_contact_number", mode="before")
-    @classmethod
-    def emergency_contact_number_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
+    
 
 
 class CustomerCreate(CustomerBase):
@@ -74,12 +58,7 @@ class CustomerUpdate(BaseModel):
 
     # phone_number intentionally omitted to prevent updates
 
-    @field_validator("emergency_contact_number", mode="before")
-    @classmethod
-    def emergency_contact_number_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
+    
 
 
 class CustomerReadProfilePictureAfterUpdate(BaseModel):
@@ -99,21 +78,13 @@ class CustomerReadAfterUpdate(CustomerUpdate):
 class CustomerOnboardInitiationRequest(BaseModel):
     phone_number: str
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        return validate_and_sanitize_country_phone(v)
-
+    
 
 class CustomerLoginRequest(BaseModel):
     phone_number: str
     otp: str
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        return validate_and_sanitize_country_phone(v)
-
+    
 
 class CustomerLoginResponse(BaseModel):
     access_token: str

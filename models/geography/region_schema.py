@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from core.security import RoleEnum
-from models.geography.location_schema import LocationInfo
+from models.map.location_schema import LocationInfo
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 
 # Region is a city or metro area within a state or province within a country
@@ -50,7 +50,7 @@ class RegionSchema(BaseModel):
         None,
         description="Dictionary of airport locations with details like display name, lat, lng, place_id, address",
     ) # JSON string of airport locations validated by LocationInfo schema
-    enabled: Optional[bool] = Field(
+    is_serviceable: Optional[bool] = Field(
         True, description="Indicates if the region is enabled for operations"
     )   
 

@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy.orm import Session
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.country_orm import CountryModel
-from models.geography.location_schema import LocationInfo
+from models.map.location_schema import LocationInfo
 from models.geography.state_orm import StateModel
 from models.pricing.pricing_orm import (
     CommonPricingConfiguration,
@@ -824,6 +824,8 @@ def _seed_countries(session: Session):
             flag="🇮🇳",
             time_zone="Asia/Kolkata",
             locale="en_IN",
+            phone_code="+91",
+            phone_number_regex="^[6-9]\d{9}$"
         )
     ]
     for country in countries:
@@ -1031,7 +1033,7 @@ def _seed_local_cab_pricing(session: Session):
             session.query(RegionModel)
             .filter(
                 RegionModel.region_code == region_code.upper(),
-                RegionModel.enabled == True,
+                RegionModel.is_serviceable == True,
             )
             .first()
         )
@@ -1114,7 +1116,7 @@ def _seed_outstation_cab_pricing(session: Session):
         state = (
             session.query(StateModel)
             .filter(
-                StateModel.state_code == state_code.upper(), StateModel.enabled == True
+                StateModel.state_code == state_code.upper(), StateModel.is_serviceable == True
             )
             .first()
         )
@@ -1196,7 +1198,7 @@ def _seed_airport_cab_pricing(session: Session):
             session.query(RegionModel)
             .filter(
                 RegionModel.region_code == region_code.upper(),
-                RegionModel.enabled == True,
+                RegionModel.is_serviceable == True,
             )
             .first()
         )
@@ -1334,8 +1336,8 @@ def _seed_fixed_platform_pricing(session: Session):
 
 
 def _seed_night_pricing(session: Session):
-    regions = session.query(RegionModel).filter(RegionModel.enabled == True).all()
-    states = session.query(StateModel).filter(StateModel.enabled == True).all()
+    regions = session.query(RegionModel).filter(RegionModel.is_serviceable == True).all()
+    states = session.query(StateModel).filter(StateModel.is_serviceable == True).all()
     night_charge_configs = []
     for region in regions:
         night_charge_config = NightPricingConfiguration(

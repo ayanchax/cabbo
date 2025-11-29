@@ -1,8 +1,7 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-from utils.utility import validate_and_sanitize_country_phone
 
 
 class PassengerBase(BaseModel):
@@ -10,10 +9,7 @@ class PassengerBase(BaseModel):
     phone_number: str
     is_active: Optional[bool] = True
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        return validate_and_sanitize_country_phone(v)
+    
 
 
 class PassengerCreate(PassengerBase):
@@ -41,25 +37,14 @@ class PassengerRead(BaseModel):
     class Config:
         from_attributes = True
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        """Validate and sanitize phone number input."""
-        return validate_and_sanitize_country_phone(v)
-
+   
 
 class PassengerRequest(BaseModel):
     id: str
     name: Optional[str] = None
     phone_number: Optional[str] = None
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        """Validate and sanitize phone number input."""
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
+    
     
     class Config:
         from_attributes = True

@@ -1,5 +1,5 @@
 #State or Province ORM model
-from sqlalchemy import Column, String, DateTime, ForeignKey, func,Enum as SAEnum
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, func,Enum as SAEnum
 from sqlalchemy.orm import relationship
 from core.security import RoleEnum
 from db.database import Base
@@ -17,7 +17,7 @@ class StateModel(Base):
     country = relationship("CountryModel", back_populates="states")
     # 1 State has many Regions
     regions = relationship("RegionModel", back_populates="state", cascade="all, delete-orphan", lazy="selectin")
-    enabled = Column(bool, nullable=False, default=True)
+    is_serviceable = Column(Boolean, nullable=False, default=True)
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

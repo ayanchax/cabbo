@@ -1,5 +1,5 @@
 from typing import Union
-from models.geography.location_schema import LocationInfo
+from models.map.location_schema import LocationInfo
 from core.config import settings
 
 provider = settings.LOCATION_SERVICE_PROVIDER

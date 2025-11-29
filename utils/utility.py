@@ -1,26 +1,10 @@
 import re
 from typing import Union
-from core.constants import (
-    APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE,
-    APP_COUNTRY_PHONE_NUMBER_REGEX,
-    APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR,
-)
 from core.exceptions import CabboException
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
 from core.config import settings
-
-
-def validate_and_sanitize_country_phone(v):
-    v = v.replace(" ", "").replace("-", "")
-    if v.startswith(APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE):
-        num = v[3:]
-    else:
-        num = v
-    if not re.fullmatch(APP_COUNTRY_PHONE_NUMBER_REGEX, num):
-        raise CabboException(APP_COUNTRY_PHONE_NUMBER_VALIDATION_ERROR, status_code=422)
-    return APP_COUNTRY_PHONE_NUMBER_COUNTRY_CODE + num
 
 
 def validate_date_time(date_time: Union[str, datetime]):

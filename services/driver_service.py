@@ -29,6 +29,12 @@ def create_driver(payload: DriverCreateSchema, db: Session, created_by: RoleEnum
 			is_active=True,
 			is_available=True,
 			created_by=created_by,
+			address_line1=payload.address.address_line1 if payload.address else None,
+			address_line2=payload.address.address_line2 if payload.address else None,
+			country_id=payload.address.country_id if payload.address else None,
+			region_id=payload.address.region_id if payload.address else None,
+			state_id=payload.address.state_id if payload.address else None,
+			postal_code=payload.address.postal_code if payload.address else None,
 		)
 		db.add(driver)
 		db.commit()

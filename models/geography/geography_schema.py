@@ -1,16 +1,9 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
-
+from pydantic import BaseModel
 from models.geography.country_schema import CountrySchema
 from models.geography.region_schema import RegionSchema
 from models.geography.state_schema import StateSchema
 
-class LocationInfo(BaseModel):
-    display_name: str
-    lat: float
-    lng: float
-    place_id: Optional[str] = None
-    address: Optional[str] = None
+
 
 
 class Geographies(BaseModel):

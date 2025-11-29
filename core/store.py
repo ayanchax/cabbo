@@ -5,7 +5,7 @@ from fastapi import Depends
 from pydantic import BaseModel, Field
 from models.cab.cab_orm import CabType, FuelType
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
-from models.geography.location_schema import Geographies
+from models.geography.geography_schema import Geographies
 from models.pricing.pricing_orm import (
     AirportCabPricing,
     FixedPlatformPricingConfiguration,
@@ -99,6 +99,11 @@ class ConfigStore(BaseModel):
         self._last_loaded_at = None
         self._is_initialized = False
     
+    def initialize_config_store(self, db: Session = Depends(get_mysql_session)):
+        """Initial load of all configurations from database."""
+        self._lazy_load(db)
+            
+    
     def is_cache_valid(self) -> bool:
         """Check if cache is still valid based on TTL."""
         if not self.is_initialized() or self._last_loaded_at is None:
@@ -111,32 +116,36 @@ class ConfigStore(BaseModel):
         """Check if store has been initialized."""
         return self._is_initialized
 
-    def force_reload(self, db: Session = Depends(get_mysql_session)):
+    def force_reload_config_store(self, db: Session = Depends(get_mysql_session)):
         """Force reload all configurations from database, bypassing cache."""
         with self._lock:
             self._clear_all_data()
             self._load_all_configurations(db)
             self._last_loaded_at = datetime.now(timezone.utc)
             self._is_initialized = True
+            print("Configuration store force reloaded successfully.")
     
-    def lazy_load(self, db: Session = Depends(get_mysql_session)):
+    def _lazy_load(self, db: Session = Depends(get_mysql_session)):
         """
         Lazy load configurations on first request or when cache expires.
         Thread-safe and ensures only one load happens at a time.
         """
         # Fast path: cache is valid
         if self.is_cache_valid():
+            print("Cache is valid, no need to reload.")
             return
         
         # Slow path: need to reload
         with self._lock:
-            # Double-check after acquiring lock (another thread may have loaded)
+            # Double-check after acquiring lock (another thread may have loaded the force reload meanwhile)
             if self.is_cache_valid():
+                print("Cache is valid after acquiring lock, no need to reload.")
                 return
             
             self._load_all_configurations(db)
             self._last_loaded_at = datetime.now(timezone.utc)
             self._is_initialized = True
+            print("Configuration store loaded/reloaded successfully.")
 
     def _load_all_configurations(self, db: Session):
         """Load all configurations from database."""
@@ -153,7 +162,7 @@ class ConfigStore(BaseModel):
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_drop, db)
         
         # Load platform fee
-        self._retrieve_platform_fee_info(db)
+        self._retrieve_and_set_platform_fee_info(db)
     
     def _clear_all_data(self):
         """Clear all cached data."""
@@ -169,7 +178,6 @@ class ConfigStore(BaseModel):
         self._store.clear()
         self._is_initialized = False
         self._last_loaded_at = None
-
         
     def get_cache_metadata(self) -> dict:
         """Return cache metadata for monitoring/debugging."""
@@ -222,7 +230,10 @@ class ConfigStore(BaseModel):
 
     def get_outstation_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve outstation pricing data."""
-        return self.get(TripTypeEnum.outstation.value, self.outstation)
+        val=  self.get(TripTypeEnum.outstation.value, None)
+        if val is None:
+            self._retrieve_and_set_outstation_pricing()
+        return val or self.outstation
 
     def _set_local_pricing(self, local_data: dict[str, MasterPricingConfiguration]):
         """Set local pricing data for a specific region."""
@@ -231,7 +242,10 @@ class ConfigStore(BaseModel):
 
     def get_local_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve local pricing data."""
-        return self.get(TripTypeEnum.local.value, self.local)
+        val=  self.get(TripTypeEnum.local.value, None)
+        if val is None:
+            self._retrieve_and_set_local_pricing()
+        return val or self.local
 
     def _set_airport_pickup_pricing(
         self, airport_pickup_data: dict[str, MasterPricingConfiguration]
@@ -242,7 +256,10 @@ class ConfigStore(BaseModel):
 
     def get_airport_pickup_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve airport pickup pricing data."""
-        return self.get(TripTypeEnum.airport_pickup.value, self.airport_pickup)
+        val=  self.get(TripTypeEnum.airport_pickup.value, None)
+        if val is None:
+            self._retrieve_and_set_airport_pricing(trip_type=TripTypeEnum.airport_pickup)
+        return val or self.airport_pickup
 
     def _set_airport_drop_pricing(
         self, airport_drop_data: dict[str, MasterPricingConfiguration]
@@ -253,7 +270,10 @@ class ConfigStore(BaseModel):
 
     def get_airport_drop_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve airport drop pricing data."""
-        return self.get(TripTypeEnum.airport_drop.value, self.airport_drop)
+        val=  self.get(TripTypeEnum.airport_drop.value, None)
+        if val is None:
+            self._retrieve_and_set_airport_pricing(trip_type=TripTypeEnum.airport_drop)
+        return val or self.airport_drop
 
     def _set_geography(self, geography_data: Geographies):
         """Load geography configurations into the store."""
@@ -262,7 +282,10 @@ class ConfigStore(BaseModel):
 
     def get_geography(self) -> Geographies:
         """Retrieve geography configurations from the store."""
-        return self.get("geographies", self.geographies)
+        val=  self.get("geographies", None)
+        if val is None:
+            self._retrieve_and_set_serviceable_geographies()
+        return val or self.geographies
 
     def _set_cabs(self, cab_data: List[CabTypeSchema]):
         """Load cab configurations into the store."""
@@ -271,7 +294,10 @@ class ConfigStore(BaseModel):
 
     def get_cabs(self) -> List[CabTypeSchema]:
         """Retrieve cab configurations from the store."""
-        return self.get("cabs", self.cabs)
+        val=  self.get("cabs", None)
+        if val is None:
+            self._retrieve_and_set_cabs()
+        return val or self.cabs
 
     def _set_fuel_types(self, fuel_type_data: List[FuelTypeSchema]):
         """Load fuel type configurations into the store."""
@@ -280,7 +306,10 @@ class ConfigStore(BaseModel):
 
     def get_fuel_types(self) -> List[FuelTypeSchema]:
         """Retrieve fuel type configurations from the store."""
-        return self.get("fuel_types", self.fuel_types)
+        val=  self.get("fuel_types", None)
+        if val is None:
+            self._retrieve_and_set_fuel_types()
+        return val or self.fuel_types
 
     def _set_trip_types(self, trip_type_data: List[TripTypeSchema]):
         """Load trip type configurations into the store."""
@@ -289,8 +318,11 @@ class ConfigStore(BaseModel):
 
     def get_trip_types(self) -> List[TripTypeSchema]:
         """Retrieve trip type configurations from the store."""
-        return self.get("trip_types", self.trip_types)
-
+        val=  self.get("trip_types", None)
+        if val is None:
+            self._retrieve_and_set_trip_types()
+        return val or self.trip_types
+    
     def _set_platform_fee(self, platform_fee_data: FixedPlatformFeeConfigurationSchema):
         """Load fixed platform fee configurations into the store."""
         self.platform_fee = platform_fee_data
@@ -298,7 +330,10 @@ class ConfigStore(BaseModel):
 
     def get_platform_fee(self) -> FixedPlatformFeeConfigurationSchema:
         """Retrieve fixed platform fee configurations from the store."""
-        return self.get("platform_fee", self.platform_fee)
+        val=  self.get("platform_fee", None)
+        if val is None:
+            self._retrieve_and_set_platform_fee_info()
+        return val or self.platform_fee
 
     def _retrieve_and_set_cabs(self, db: Session = Depends(get_mysql_session)):
         """Load cab data into the store."""
@@ -571,7 +606,7 @@ class ConfigStore(BaseModel):
         elif trip_type == TripTypeEnum.airport_drop:
             self._set_airport_drop_pricing(airport_data)
 
-    def _retrieve_platform_fee_info(self, db: Session = Depends(get_mysql_session)):
+    def _retrieve_and_set_platform_fee_info(self, db: Session = Depends(get_mysql_session)):
         """Load fixed platform fee data from the database into the store."""
         platform_fee_data = db.query(FixedPlatformPricingConfiguration).first()
         if not platform_fee_data:

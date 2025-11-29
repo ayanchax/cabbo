@@ -4,7 +4,6 @@ from pydantic import BaseModel, EmailStr, field_validator
 from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.user.user_enum import GenderEnum
-from utils.utility import validate_and_sanitize_country_phone
 from core.config import settings
 
 class UserBaseSchema(BaseModel):
@@ -24,12 +23,6 @@ class UserCreateSchema(UserBaseSchema):
     emergency_contact_number: Optional[str] = None
 
 
-    @field_validator("phone_number","emergency_contact_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
     
     @field_validator("password", mode="before")
     @classmethod
@@ -57,12 +50,7 @@ class UserUpdateSchema(UserBaseSchema):
     email: Optional[EmailStr] = None  # User's email address
     phone_number: Optional[str] = None  # User's phone number
 
-    @field_validator("phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
+   
 
 
 class UserPasswordUpdateSchema(UserBaseSchema):

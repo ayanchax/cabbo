@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from core.config import Settings
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import get_mysql_session
@@ -12,13 +13,11 @@ router = APIRouter()
 
 @router.get("/data")
 def seed_data(
+    secret: str= Query(..., description="Secret key to authorize data seeding"),
     db: Session = Depends(get_mysql_session),
-    current_user: User = Depends(validate_user_token)
+    
 ):  
-    current_user_role = current_user.role
-    user = get_user_by_id(user_id=current_user.id, db=db, active=True)
-
-    if current_user_role!=user.role or current_user_role!=RoleEnum.super_admin or current_user.id!=user.id:
+    if secret != Settings.CABBO_SUPER_ADMIN_SECRET:
         raise CabboException("You do not have permission to seed data.", status_code=403)
     
     init_seed_data(db)

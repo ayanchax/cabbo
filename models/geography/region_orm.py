@@ -1,5 +1,6 @@
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     ForeignKey,
     String,
@@ -69,7 +70,7 @@ class RegionModel(Base):
     # 1 Region has 1 Country
     country = relationship("CountryModel", back_populates="regions")
 
-    enabled = Column(bool, nullable=False, default=True)
+    is_serviceable = Column(Boolean, nullable=False, default=True)
 
     created_at = Column(
         DateTime(timezone=True),

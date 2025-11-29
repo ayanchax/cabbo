@@ -1,12 +1,12 @@
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from core.exceptions import CabboException
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
+from models.map.location_schema import Address
 from models.trip.trip_enums import CarTypeEnum
 from models.user.user_enum import GenderEnum, NationalityEnum, ReligionEnum
-from utils.utility import validate_and_sanitize_country_phone
 from datetime import datetime
 
  
@@ -22,13 +22,8 @@ class DriverBaseSchema(BaseModel):
     emergency_contact_number: Optional[str] = None
     nationality: Optional[NationalityEnum] = NationalityEnum.indian  # e.g., Indian, American
     religion: Optional[ReligionEnum] = None  # e.g., Hindu, Muslim, Christian
+    address:Optional[Address]=None
 
-    @field_validator("phone", "emergency_contact_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
     
     class Config:
         from_attributes = True
@@ -59,12 +54,6 @@ class DriverCreateSchema(DriverBaseSchema):
 
         return self
 
-    @field_validator("payment_phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
     
     class Config:
         from_attributes = True
@@ -78,7 +67,7 @@ class DriverUpdateSchema(DriverBaseSchema):
     payment_mode: Optional[PaymentModeEnum] = None  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str] = None  # Alternate payment phone number for UPI payments
     bank_details: Optional[BankDetailsSchema] = None  # Bank details for bank transfer payments
-
+    
     @model_validator(mode="after")
     def payment_mode_validator(self):
         payment_mode = self.payment_mode
@@ -93,12 +82,7 @@ class DriverUpdateSchema(DriverBaseSchema):
 
         return self
 
-    @field_validator("payment_phone_number", mode="before")
-    @classmethod
-    def phone_validator(cls, v):
-        if v is None:
-            return v
-        return validate_and_sanitize_country_phone(v)
+    
 
     # All fields are optional for update
     class Config:
