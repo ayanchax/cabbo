@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from services.customer_service import create_customer
 from services.otp_service import (
     generate_otp,
@@ -36,7 +36,7 @@ router = APIRouter()
 @router.post("/onboard/initiate")
 def initiate_onboarding(
     payload: CustomerOnboardInitiationRequest = Body(...),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
     if not phone_number:
@@ -62,7 +62,7 @@ def initiate_onboarding(
 def register(
     background_tasks: BackgroundTasks,
     payload: CustomerCreate = Body(...),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
     otp = payload.otp
@@ -105,7 +105,7 @@ def register(
 @router.post("/login/initiate")
 def initiate_login(
     payload: CustomerOnboardInitiationRequest = Body(...),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
     if not phone_number:
@@ -125,7 +125,7 @@ def initiate_login(
 
 @router.post("/login", response_model=CustomerLoginResponse)
 def login(
-    payload: CustomerLoginRequest = Body(...), db: Session = Depends(get_mysql_session)
+    payload: CustomerLoginRequest = Body(...), db: Session = Depends(yield_mysql_session)
 ):
     phone_number = payload.phone_number
     otp = payload.otp

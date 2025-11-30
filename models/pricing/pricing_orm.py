@@ -179,7 +179,7 @@ class CommonPricingConfiguration(Base):
         index=True,
     )
     trip_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, unique=True
+        MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False
     )  # FK to TripTypeMaster.id
     dynamic_platform_fee_percent = Column(Float, nullable=False)  # e.g., 5.0 for 5%
     

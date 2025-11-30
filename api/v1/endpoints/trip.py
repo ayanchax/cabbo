@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from core.security import validate_customer_token
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_schema import (
@@ -24,7 +24,7 @@ router = APIRouter()
 @router.post("/search", response_model=TripSearchResponse)
 def search_trip(
     search_in: TripSearchRequest,
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
 
@@ -36,7 +36,7 @@ def search_trip(
 @router.post("/initiate-booking", response_model=dict)
 def init_booking(
     trip_in: TripBookRequest,
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     booking_id, order = initiate_trip_booking(
@@ -55,7 +55,7 @@ def init_booking(
 @router.post("/confirm-booking", response_model=dict)
 def confirm_booking(
     booking: TripOut,
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     """
@@ -72,7 +72,7 @@ def confirm_booking(
 @router.delete("/cleanup/{booking_id}", response_model=dict)
 def cleanup_temp_trip_booking(
     booking_id: str,
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     """

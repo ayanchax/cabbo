@@ -6,6 +6,7 @@ from models.geography.state_schema import StateSchema
 
 
 class CountrySchema(BaseModel):
+    id: Optional[str] = Field(None, description="Unique identifier for the country")
     country_name: str = Field(..., description="Full name of the country") # e.g. India
     country_code: str = Field(..., description="ISO country code, e.g., 'IN' for India") # e.g. IN
     phone_code: str = Field(..., description="International phone code, e.g., '+91' for India") # e.g. +91
@@ -31,5 +32,8 @@ class CountrySchema(BaseModel):
     max_age_for_customers: Optional[int] = Field(90, description="Maximum age limit to register as a customer in this country")
     min_age_for_system_users: Optional[int] = Field(18, description="Minimum age required to register as a system user in this country")
     max_age_for_system_users: Optional[int] = Field(90, description="Maximum age limit to register as a system user in this country")
+    is_default: Optional[bool] = Field(
+        False, description="Indicates if this country is the default country for the platform"
+    )
     class Config:
         from_attributes = True

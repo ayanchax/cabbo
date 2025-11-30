@@ -2,7 +2,7 @@ from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.security import JWT_EXPIRY_UNIT, RoleEnum, verify_password_hash
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from models.user.user_schema import UserLoginRequest, UserLoginResponse
 from services.user_service import generate_user_jwt, get_user_by_username, is_user_logged_in, persist_bearer_token
 
@@ -12,7 +12,7 @@ router = APIRouter()
 # Login as admin user
 @router.post("/login", response_model=UserLoginResponse)
 def login_admin_user(
-    payload: UserLoginRequest = Body(...), db: Session = Depends(get_mysql_session)
+    payload: UserLoginRequest = Body(...), db: Session = Depends(yield_mysql_session)
 ):
     """Login as an administrative user."""
     username = payload.username

@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from core.security import generate_trip_hash, verify_trip_hash
+from core.security import RoleEnum, generate_trip_hash, verify_trip_hash
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
@@ -320,7 +320,7 @@ def get_trip_search_options(
             pricing_schema = AirportCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
-            base_fare_per_km = pricing_schema.airport_fare_per_km
+            base_fare_per_km = pricing_schema.fare_per_km
             
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             placard_charge = (
@@ -417,7 +417,7 @@ def get_trip_search_options(
             pricing_schema = AirportCabPricingSchema.model_validate(pricing)
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
-            base_fare_per_km = pricing_schema.airport_fare_per_km
+            base_fare_per_km = pricing_schema.fare_per_km
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             base_price = base_fare_per_km * min(est_km, max_included_km)
             overage_amount = max(0, est_km - max_included_km) * overage_amount_per_km
@@ -1523,4 +1523,16 @@ def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
         return trip_type_schemas
     except Exception as e:
         return []
-    
+
+def create_trip_types(trip_types:list, db:Session):
+    trip_type_master_objs = [
+        TripTypeMaster(
+            trip_type=entry["trip_type"],
+            display_name=entry["display_name"],
+            description=entry["description"],
+            created_by=RoleEnum.system,
+        )
+        for entry in trip_types
+    ]
+    db.add_all(trip_type_master_objs)
+    db.commit()

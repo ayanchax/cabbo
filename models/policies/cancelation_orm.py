@@ -27,9 +27,13 @@ class CancellationPolicy(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
     )
-    # Since cancellation policies like cut off time, trip-wise cancelation amount may vary by region
+    # Since cancellation policies like cut off time, trip-wise cancelation amount may vary by region in local or airport trips
     region_id = Column(
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True, index=True
+    )
+    # Since cancellation policies like cut off time, trip-wise cancelation amount may vary by state of origin in intercity trips
+    state_id = Column(
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True, index=True
     )
     # free cancellation cutoff in minutes (e.g. 30, 120, 1440)
     free_cutoff_minutes = Column(Integer, nullable=False, default=0)

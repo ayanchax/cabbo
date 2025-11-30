@@ -1,12 +1,13 @@
 import json
-import os
 from typing import List
 import uuid
 from sqlalchemy.orm import Session
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.country_orm import CountryModel
+from models.geography.country_schema import CountrySchema
 from models.map.location_schema import LocationInfo
 from models.geography.state_orm import StateModel
+from models.policies.cancelation_orm import CancellationPolicy
 from models.pricing.pricing_orm import (
     CommonPricingConfiguration,
     FixedPlatformPricingConfiguration,
@@ -16,29 +17,138 @@ from models.pricing.pricing_orm import (
     NightPricingConfiguration,
     FixedPlatformPricingConfiguration,
 )
-from models.documents.kyc_document_enum import KYCDocumentTypeEnum
-from models.documents.kyc_document_orm import KYCDocumentTypes
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
-from core.security import RoleEnum, generate_password_hash
-from core.constants import (
-    AIRPORTS,
-    APP_ADMIN_EMAIL,
-    SEED_DATA_COMPLETION_FILE,
-)
+from core.security import RoleEnum
 from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
 from models.pricing.pricing_orm import PermitFeeConfiguration
-from models.user.user_orm import User
-from core.config import settings
+from services.cab_service import create_cabs
+from services.document_service import create_master_kyc_data
 from services.file_service import is_file_exists, is_file_exists, save_file
+from services.fuel_service import create_fuel_types
+from services.geography_service import create_countries, get_all_countries
+from services.trip_service import create_trip_types
+from services.user_service import create_super_admin_user
 
+SEED_DATA_COMPLETION_FILE = "seed_data_completed.chk"
 
+SEED_COUNTRIES=[
+    {
+        "country_name": "India",
+        "country_code": "IN",
+        "currency": "INR",
+        "currency_symbol": "₹",
+        "flag": "🇮🇳",
+        "time_zone": "Asia/Kolkata",
+        "locale": "en_IN",
+        "phone_code": "+91",
+        "phone_number_regex": r"^[6-9]\d{9}$",
+        "postal_code_regex": r"^\d{6}$",
+        "is_default": True,
+    },
+]
+
+# Airport data for seed data initialization
+SEED_AIRPORTS = {
+    # It can contain multiple airports for a city in a state in a country. Here state or country is not modelled for simplicity, because airports are all over the world regions and we are focusing on few regions/cities only for seed data.
+    # Admin can add more airports for a city/region via admin panel if needed.
+    # Admin can also add more regions/cities via admin panel if needed.
+    "BLR": [
+        {
+            "display_name": "Kempegowda International Airport, Bengaluru",
+            "lat": 13.1986,
+            "lng": 77.7066,
+            "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",  # official Mapbox place ID for the airport in Bengaluru
+            "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India",
+        }
+    ],
+    "MYS": [
+        {
+            "display_name": "Mysore Airport, Mysore",
+            "lat": 12.3052,
+            "lng": 76.6536,
+            "place_id": "ChIJX8f5gq6rDTkR6e-8K5J7hYzA",  # official Mapbox place ID for the airport in Mysore
+            "address": "Mysore Airport, Mandakalli, Mysore, Karnataka 570008, India",
+        }
+    ],
+    "MAA": [
+        {
+            "display_name": "Chennai International Airport, Chennai",
+            "lat": 12.9941,
+            "lng": 80.1709,
+            "place_id": "ChIJGZ0fW3KqDTkR6r1K5J7hYzA",  # official Mapbox place ID for the airport in Chennai
+            "address": "Chennai International Airport, Tirusulam, Chennai, Tamil Nadu 600027, India",
+        }
+    ],
+}
+
+TRIP_TYPE_SEED_DATA = [
+        {
+            "trip_type": TripTypeEnum.local,
+            "display_name": "Local City Ride",
+            "description": "Hourly rental for city travel. Flexible for errands, meetings, and sightseeing within city limits.",
+        },
+        {
+            "trip_type": TripTypeEnum.outstation,
+            "display_name": "Outstation Trip",
+            "description": "Multi-day intercity travel. Ideal for business, leisure, or family trips outside your city.",
+        },
+        {
+            "trip_type": TripTypeEnum.airport_pickup,
+            "display_name": "Airport Pickup",
+            "description": "Pickup from airport to your destination. Includes flight tracking and driver meet & greet.",
+        },
+        {
+            "trip_type": TripTypeEnum.airport_drop,
+            "display_name": "Airport Drop",
+            "description": "Drop to airport from your location. Timely service for stress-free departures.",
+        },
+    ]
+
+CAB_TYPES_SEED_DATA = {
+    CarTypeEnum.hatchback: {
+        "description": "Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
+        "cab_names": "WagonR, Celerio, Tiago, Santro, i10, Swift",
+        "inventory_cab_names": "WagonR",
+        "capacity": "4+1",
+    },
+    CarTypeEnum.sedan: {
+        "description": "Comfortable sedans, suitable for city and outstation travel.",
+        "cab_names": "Dzire, Amaze, Indigo",
+        "inventory_cab_names": "Dzire",
+        "capacity": "4+1",
+    },
+    CarTypeEnum.sedan_plus: {
+        "description": "Premium sedans for extra comfort and luxury.",
+        "cab_names": "Honda City, Etios, Dzire Plus, Aura, Xcent, Verna, Ciaz, Yaris, Slavia",
+        "inventory_cab_names": "Etios, Dzire Plus, Xcent, Aura",
+        "capacity": "4+1",
+    },
+    CarTypeEnum.suv: {
+        "description": "Spacious SUVs, good for family/group travel and rough roads.",
+        "cab_names": "Ertiga, Innova, Marazzo, XL6, Mobilio",
+        "inventory_cab_names": "Ertiga, Innova",
+        "capacity": "6+1",
+    },
+    CarTypeEnum.suv_plus: {
+        "description": "Premium SUVs with extra comfort and luggage space.",
+        "cab_names": "Innova Crysta, Hexa, Fortuner, XUV500, Alcazar",
+        "inventory_cab_names": "Innova Crysta",
+        "capacity": "7+1",
+    },
+}    
+
+FUEL_TYPES_SEED_DATA = [
+    FuelTypeEnum.petrol,
+    FuelTypeEnum.diesel,
+    FuelTypeEnum.cng,
+]
 def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
     """Convert airport dicts to LocationInfo and back to dicts for JSON serialization."""
     if airports_in_region is None:
         airports_in_region = []
-    
+
     if airports_in_region and len(airports_in_region) > 0:
         # Validate with Pydantic to ensure data integrity
         validated_airports = [
@@ -46,7 +156,7 @@ def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
         ]
         # Convert back to dict for JSON serialization
         airports_in_region = [ap.model_dump() for ap in validated_airports]
-    
+
     return airports_in_region
 
 
@@ -650,6 +760,7 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
                 },
             },
         }
+        return region_wise_price_map
     return {}
 
 
@@ -791,19 +902,21 @@ def _get_seed_regions():
 
 def init_seed_data(session: Session):
     """Initialize seed data for the application."""
-    is_seeded= is_file_exists(SEED_DATA_COMPLETION_FILE)
+    is_seeded = is_file_exists(SEED_DATA_COMPLETION_FILE)
     if is_seeded:
         print("Seed data already initialized. Skipping seeding.")
         return
     try:
+        session.begin()
 
         _seed_master_data(session)
 
         _seed_geographical_data(session)
 
         _seed_pricing_data(session)
+        session.commit()
 
-        #Create a completion of seed data file at the root of the project Cabbo to indicate seeding is done and avoid re-seeding
+        # Create a completion of seed data file at the root of the project Cabbo to indicate seeding is done and avoid re-seeding
         save_file(SEED_DATA_COMPLETION_FILE, "Seed data initialization completed.")
         print("Seed data initialization completed.")
     except Exception as e:
@@ -812,7 +925,7 @@ def init_seed_data(session: Session):
         raise e
     finally:
         session.close()
-    
+
 
 def _seed_geographical_data(session: Session):
     # Seed countries, states, regions
@@ -838,38 +951,20 @@ def _seed_pricing_data(session: Session):
     _seed_fixed_platform_pricing(session)
     _seed_night_pricing(session)
     _seed_permit_fee_pricing(session)
+    _seed_cancelation_policy_pricing(session)
 
 
 def _seed_countries(session: Session):
     # Seed countries
-    countries = [
-        CountryModel(
-            country_name="India",
-            country_code="IN",
-            currency="INR",
-            currency_symbol="₹",
-            flag="🇮🇳",
-            time_zone="Asia/Kolkata",
-            locale="en_IN",
-            phone_code="+91",
-            phone_number_regex="^[6-9]\d{9}$",
-            postal_code_regex="^\d{6}$",
-            is_default=True,
-        )
-    ]
-    _countries=[]
-    for country in countries:
-        _countries.append(country)
-
-    session.add_all(_countries)
-    session.commit()
+    countries_schema=[CountrySchema.model_validate(country) for country in SEED_COUNTRIES]
+    create_countries(countries_schema, session)
 
 
 def _seed_states(session: Session):
     # Seed states
     country_states = {"IN": _get_seed_states()}
-    countries = session.query(CountryModel).all()
-    states=[]
+    countries = get_all_countries(session)
+    states = []
     for country in countries:
         code = (country.country_code or "").upper()
         states_list = country_states.get(code)
@@ -892,7 +987,7 @@ def _seed_states(session: Session):
                 country_id=country.id,
             )
             states.append(state)
-    
+
     session.add_all(states)
     session.commit()
 
@@ -903,15 +998,18 @@ def _seed_regions(session: Session):
     supported_fuel_types = []
     supported_car_types = []
 
-    # Use the TripTypeEnum, FuelTypeEnum, CarTypeEnum to get all possible values
-    for trip_type in TripTypeEnum:
-        supported_trip_types.append(trip_type.value)
-    for fuel_type in FuelTypeEnum:
-        supported_fuel_types.append(fuel_type.value)
-    for car_type in CarTypeEnum:
-        supported_car_types.append(car_type.value)
+    # Use the TripTypeMaster, FuelType and CabType Models to get supported types
+    trip_types = session.query(TripTypeMaster).all()
+    for trip_type in trip_types:
+        supported_trip_types.append(trip_type.id)
+    fuel_types = session.query(FuelType).all()
+    for fuel_type in fuel_types:
+        supported_fuel_types.append(fuel_type.id)
+    car_types = session.query(CabType).all()
+    for car_type in car_types:
+        supported_car_types.append(car_type.id)
     regions = _get_seed_regions()
-    _regions=[]
+    _regions = []
     for name, code, alt_names, state_code in regions:
         state = (
             session.query(StateModel)
@@ -920,7 +1018,7 @@ def _seed_regions(session: Session):
         )
         if not state:
             continue
-        airports_in_region = _get_regional_airports(AIRPORTS.get(code, None))
+        airports_in_region = _get_regional_airports(SEED_AIRPORTS.get(code, None))
 
         region = RegionModel(
             region_name=name,
@@ -944,114 +1042,20 @@ def _seed_regions(session: Session):
     session.commit()
 
 
-
-
 def _seed_trip_types(session: Session):
     # Seed trip types master data
-    trip_type_master = [
-        {
-            "trip_type": TripTypeEnum.local,
-            "display_name": "Local City Ride",
-            "description": "Hourly rental for city travel. Flexible for errands, meetings, and sightseeing within city limits.",
-        },
-        {
-            "trip_type": TripTypeEnum.outstation,
-            "display_name": "Outstation Trip",
-            "description": "Multi-day intercity travel. Ideal for business, leisure, or family trips outside your city.",
-        },
-        {
-            "trip_type": TripTypeEnum.airport_pickup,
-            "display_name": "Airport Pickup",
-            "description": "Pickup from airport to your destination. Includes flight tracking and driver meet & greet.",
-        },
-        {
-            "trip_type": TripTypeEnum.airport_drop,
-            "display_name": "Airport Drop",
-            "description": "Drop to airport from your location. Timely service for stress-free departures.",
-        },
-    ]
-    trip_type_master_objs = [
-        TripTypeMaster(
-            id=str(uuid.uuid4()),
-            trip_type=entry["trip_type"],
-            display_name=entry["display_name"],
-            description=entry["description"],
-            created_by=RoleEnum.system,
-        )
-        for entry in trip_type_master
-    ]
-    session.add_all(trip_type_master_objs)
-    session.commit()
+    create_trip_types(TRIP_TYPE_SEED_DATA, session)
 
 
 def _seed_cab_types(session: Session):
     # Seed cab types master data
-    cab_types = [
-        CabType(
-            id=str(uuid.uuid4()),
-            name=CarTypeEnum.hatchback,
-            description="Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
-            cab_names="WagonR, Celerio, Tiago, Santro, i10, Swift",
-            inventory_cab_names="WagonR",
-            capacity="4+1",
-            created_by=RoleEnum.system,
-        ),
-        CabType(
-            id=str(uuid.uuid4()),
-            name=CarTypeEnum.sedan,
-            description="Comfortable sedans, suitable for city and outstation travel.",
-            cab_names="Dzire, Amaze, Indigo",
-            inventory_cab_names="Dzire",
-            capacity="4+1",
-            created_by=RoleEnum.system,
-        ),
-        CabType(
-            id=str(uuid.uuid4()),
-            name=CarTypeEnum.sedan_plus,
-            description="Premium sedans for extra comfort and luxury.",
-            cab_names="Honda City, Etios, Dzire Plus, Aura, Xcent, Verna, Ciaz, Yaris, Slavia",
-            inventory_cab_names="Etios, Dzire Plus, Xcent, Aura",
-            capacity="4+1",
-            created_by=RoleEnum.system,
-        ),
-        CabType(
-            id=str(uuid.uuid4()),
-            name=CarTypeEnum.suv,
-            description="Spacious SUVs, good for family/group travel and rough roads.",
-            cab_names="Ertiga, Innova, Marazzo, XL6, Mobilio",
-            inventory_cab_names="Ertiga, Innova",
-            capacity="6+1",
-            created_by=RoleEnum.system,
-        ),
-        CabType(
-            id=str(uuid.uuid4()),
-            name=CarTypeEnum.suv_plus,
-            description="Premium SUVs with extra comfort and luggage space.",
-            cab_names="Innova Crysta, Hexa, Fortuner, XUV500, Alcazar",
-            inventory_cab_names="Innova Crysta",
-            capacity="7+1",
-            created_by=RoleEnum.system,
-        ),
-    ]
-    session.add_all(cab_types)
-    session.commit()
+    create_cabs(CAB_TYPES_SEED_DATA, session)
 
 
 def _seed_fuel_types(session: Session):
     # Seed fuel types master data
-    fuel_types = [
-        FuelType(
-            id=str(uuid.uuid4()), name=FuelTypeEnum.petrol, created_by=RoleEnum.system
-        ),
-        FuelType(
-            id=str(uuid.uuid4()), name=FuelTypeEnum.diesel, created_by=RoleEnum.system
-        ),
-        FuelType(
-            id=str(uuid.uuid4()), name=FuelTypeEnum.cng, created_by=RoleEnum.system
-        ),
-    ]
-    session.add_all(fuel_types)
-    session.commit()
+    create_fuel_types(FUEL_TYPES_SEED_DATA, session)
+         
 
 
 def _seed_local_cab_pricing(session: Session):
@@ -1153,12 +1157,13 @@ def _seed_outstation_cab_pricing(session: Session):
         state = (
             session.query(StateModel)
             .filter(
-                StateModel.state_code == state_code.upper(), StateModel.is_serviceable == True
+                StateModel.state_code == state_code.upper(),
+                StateModel.is_serviceable == True,
             )
             .first()
         )
         if not state:
-            continue
+            continue  # if seed data for state is not found in StateModel, skip to next
         state_id = state.id
         for cab in cab_types:
             for fuel in fuel_types:
@@ -1264,9 +1269,7 @@ def _seed_airport_cab_pricing(session: Session):
                         is_available_in_network=is_available_in_network,
                         cab_type_id=cab.id,
                         fuel_type_id=fuel.id,
-                        airport_fare_per_km=region_data["fare_per_km"][cab.name][
-                            fuel.name
-                        ],
+                        fare_per_km=region_data["fare_per_km"][cab.name][fuel.name],
                         overage_amount_per_km=region_data["overage_amount_per_km"][
                             cab.name
                         ][fuel.name],
@@ -1362,6 +1365,66 @@ def _seed_local_trip_packages(session: Session):
     session.commit()
 
 
+def _seed_cancelation_policy_pricing(session: Session):
+    # Seed cancellation policy pricing configurations
+    # Insert into CancellationPolicy based on trip types and region for local and airport trips and state for outstation trips
+    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+    regions = (
+        session.query(RegionModel).filter(RegionModel.is_serviceable == True).all()
+    )
+    states = session.query(StateModel).filter(StateModel.is_serviceable == True).all()
+    cancelation_policies = []
+    for region in regions:
+        for trip_type in [
+            TripTypeEnum.local,
+            TripTypeEnum.airport_pickup,
+            TripTypeEnum.airport_drop,
+        ]:
+            # For seeding the data, we are assuming some standard values for cancellation policies across regions
+            # These can be updated later via admin interface as needed
+            if trip_type in [
+                TripTypeEnum.airport_pickup,
+                TripTypeEnum.airport_drop,
+            ]:
+                cancelation_policy = CancellationPolicy(
+                    id=str(uuid.uuid4()),
+                    trip_type_id=trip_type_id_map[trip_type],
+                    region_id=region.id,
+                    free_cutoff_minutes=30,  # Free cancellation within 30 minutes
+                    free_cutoff_time_label="30 minutes before trip start",
+                    cancelation_amount=20.0,  # Flat cancellation fee after free period
+                    created_by=RoleEnum.system,
+                )
+            elif trip_type == TripTypeEnum.local:
+                cancelation_policy = CancellationPolicy(
+                    id=str(uuid.uuid4()),
+                    trip_type_id=trip_type_id_map[trip_type],
+                    region_id=region.id,
+                    free_cutoff_minutes=60,  # Free cancellation within 60 minutes
+                    free_cutoff_time_label="1 hour before trip start",
+                    cancelation_amount=50.0,  # Flat cancellation fee after free period
+                    created_by=RoleEnum.system,
+                )
+            cancelation_policies.append(cancelation_policy)
+
+    for state in states:
+        # For seeding the data, we are assuming some standard values for cancellation policies across states
+        trip_type = TripTypeEnum.outstation
+        cancelation_policy = CancellationPolicy(
+            id=str(uuid.uuid4()),
+            trip_type_id=trip_type_id_map[trip_type],
+            state_id=state.id,
+            free_cutoff_minutes=1440,  # Free cancellation within 1440 minutes
+            free_cutoff_time_label="1 day before trip start",
+            cancelation_amount=100.0,  # Flat cancellation fee after free period
+            created_by=RoleEnum.system,
+        )
+        cancelation_policies.append(cancelation_policy)
+    session.add_all(cancelation_policies)
+    session.commit()
+
+
 def _seed_fixed_platform_pricing(session: Session):
     # Seed fixed platform pricing configurations
     # Fixed platform fee/infrastructure fee for all trips
@@ -1373,7 +1436,9 @@ def _seed_fixed_platform_pricing(session: Session):
 
 
 def _seed_night_pricing(session: Session):
-    regions = session.query(RegionModel).filter(RegionModel.is_serviceable == True).all()
+    regions = (
+        session.query(RegionModel).filter(RegionModel.is_serviceable == True).all()
+    )
     states = session.query(StateModel).filter(StateModel.is_serviceable == True).all()
     night_charge_configs = []
     for region in regions:
@@ -1400,19 +1465,7 @@ def _seed_night_pricing(session: Session):
 
 def _seed_super_admin(session: Session):
     # Create a super admin user with a secure password hash
-    super_admin = User(
-        id=str(uuid.uuid4()),
-        email=APP_ADMIN_EMAIL,
-        name="Super Admin",
-        username="superadmin",
-        phone_number="9999999999",
-        password_hash=generate_password_hash(
-            settings.CABBO_SUPER_ADMIN_SECRET
-        ),  # Use a secure hash in production
-        is_active=True,
-    )
-    session.add(super_admin)
-    session.commit()
+    create_super_admin_user(session)
 
 
 def _seed_permit_fee_pricing(session: Session):
@@ -1447,57 +1500,4 @@ def _seed_permit_fee_pricing(session: Session):
 
 def _seed_kyc_document_types(session: Session):
     # Seed KYC Document Types Master table for drivers' KYC verification
-    kyc_document_types = [
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.aadhar_card,
-            document_alias="Aadhar Card",
-            document_description="Government-issued identity card with a unique 12-digit number.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.pan_card,
-            document_alias="PAN Card",
-            document_description="Permanent Account Number card issued by the Income Tax Department.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.driving_license,
-            document_alias="Driving License",
-            document_description="Official document permitting an individual to operate one or more motorized vehicles.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.vehicle_registration_certificate,
-            document_alias="Vehicle Registration Certificate",
-            document_description="Official document proving ownership and registration of a vehicle.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.vehicle_insurance,
-            document_alias="Vehicle Insurance",
-            document_description="Insurance policy document covering damages and liabilities related to a vehicle.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.pollution_certificate,
-            document_alias="Pollution Certificate",
-            document_description="Certificate proving that a vehicle meets pollution control standards.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.passport,
-            document_alias="Passport",
-            document_description="Official government document that certifies the holder's identity and citizenship.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.voter_id,
-            document_alias="Voter ID",
-            document_description="Identification card issued by the Election Commission of India to eligible voters.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.bank_statement,
-            document_alias="Bank Statement",
-            document_description="Official statement from a bank detailing account activity over a specified period.",
-        ),
-        KYCDocumentTypes(
-            document_type=KYCDocumentTypeEnum.utility_bill,
-            document_alias="Utility Bill",
-            document_description="Recent bill from a utility provider (electricity, water, gas) showing the customer's name and address.",
-        ),
-    ]
-    session.add_all(kyc_document_types)
-    session.commit()
+    create_master_kyc_data(session)

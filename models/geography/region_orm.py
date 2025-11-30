@@ -12,7 +12,6 @@ from core.security import RoleEnum
 from db.database import Base
 import uuid
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 
 
 # Region or Metro Area City ORM model
@@ -48,16 +47,16 @@ class RegionModel(Base):
 
     trip_types = Column(
         JSON, nullable=True
-    )  # Comma-separated list of trip types validated by TripTypeEnum
+    )  # Comma-separated list of trip types IDs from trip_types_master
     fuel_types = Column(
         JSON, nullable=True
-    )  # Comma-separated list of fuel types validated by FuelTypeEnum
+    )  # Comma-separated list of fuel type IDs from fuel_types_master
     car_types = Column(
         JSON, nullable=True
-    )  # Comma-separated list of car types validated by CarTypeEnum
+    )  # Comma-separated list of car type IDs from car_types_master
     airport_locations = Column(
         JSON, nullable=True
-    )  # JSON string array of airport locations validated by LocationInfo schema
+    )  # JSON string array of airport locations validated by LocationInfo schema 
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     # foreign key + relationship to CountryModel (one country per region)

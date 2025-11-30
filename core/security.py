@@ -3,7 +3,7 @@ from core.exceptions import CabboException
 from core.config import settings
 import jwt
 from models.customer.customer_orm import Customer
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from sqlalchemy.orm import Session
 from core.constants import APP_NAME
 from datetime import datetime, timedelta, timezone
@@ -42,7 +42,7 @@ class RoleEnum(str, Enum):
 
 def validate_customer_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
 ) -> Customer:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise CabboException(
@@ -71,7 +71,7 @@ def validate_customer_token(
 
 def validate_user_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
 ):
     
     # Query db using async session

@@ -3,7 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token, verify_password_hash
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from models.user.user_orm import User
 from models.user.user_schema import UserCreateSchema, UserPasswordResetSchema, UserPasswordUpdateSchema, UserReadSchema, UserUpdateSchema
 from services.user_service import activate_user, auto_logoff_user_after_password_change, change_user_password, create_user, deactivate_user, delete_bearer_token, get_all_users, get_user_by_id, get_user_by_username, get_users_by_role, is_user_exists, update_user
@@ -12,7 +12,7 @@ router = APIRouter()
 
 # Create a new admin user
 @router.post("/create", response_model=UserReadSchema, status_code=201,)
-def create_admin_user(payload: UserCreateSchema = Body(...), db: Session = Depends(get_mysql_session),
+def create_admin_user(payload: UserCreateSchema = Body(...), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Create a new administrative user."""
     
@@ -35,7 +35,7 @@ def create_admin_user(payload: UserCreateSchema = Body(...), db: Session = Depen
 
 # Get admin user details by id
 @router.get("/{user_id}",response_model=UserReadSchema)
-def get_admin_user(user_id: str, db: Session = Depends(get_mysql_session),
+def get_admin_user(user_id: str, db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Get details of an administrative user."""
     current_user_role = current_user.role
@@ -47,7 +47,7 @@ def get_admin_user(user_id: str, db: Session = Depends(get_mysql_session),
 
 # Update admin user
 @router.put("/{user_id}")
-def update_admin_user(user_id: str, payload: UserUpdateSchema = Body(...), db: Session = Depends(get_mysql_session),
+def update_admin_user(user_id: str, payload: UserUpdateSchema = Body(...), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Update an administrative user."""
     current_user_role = current_user.role
@@ -60,7 +60,7 @@ def update_admin_user(user_id: str, payload: UserUpdateSchema = Body(...), db: S
 
 # Activate admin user
 @router.patch("/{user_id}/activate")
-def activate_admin_user(user_id: str, db: Session = Depends(get_mysql_session),
+def activate_admin_user(user_id: str, db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Activate an administrative user."""
     current_user_role = current_user.role
@@ -74,7 +74,7 @@ def activate_admin_user(user_id: str, db: Session = Depends(get_mysql_session),
 
 # Deactivate admin user
 @router.patch("/{user_id}/deactivate")
-def deactivate_admin_user(user_id: str, db: Session = Depends(get_mysql_session),
+def deactivate_admin_user(user_id: str, db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Deactivate an administrative user."""
     current_user_role = current_user.role
@@ -93,7 +93,7 @@ def deactivate_admin_user(user_id: str, db: Session = Depends(get_mysql_session)
 
 # List all admin users
 @router.get("/list/all", response_model=list[UserReadSchema])
-def list_admin_users(db: Session = Depends(get_mysql_session),
+def list_admin_users(db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """List all administrative users."""
     current_user_role = current_user.role
@@ -106,7 +106,7 @@ def list_admin_users(db: Session = Depends(get_mysql_session),
 
 # List admin users by role
 @router.get("/role/{role}")
-def list_admin_users_by_role(role: RoleEnum,db: Session = Depends(get_mysql_session),
+def list_admin_users_by_role(role: RoleEnum,db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """List all admin users by role."""
     #Role validation to check if role is any of the RoleEnum roles
@@ -124,7 +124,7 @@ def list_admin_users_by_role(role: RoleEnum,db: Session = Depends(get_mysql_sess
 
 # Change password for admin user
 @router.patch("/{user_id}/change-password")
-def change_admin_user_password(background_tasks: BackgroundTasks,user_id: str, payload: UserPasswordUpdateSchema, db: Session = Depends(get_mysql_session),
+def change_admin_user_password(background_tasks: BackgroundTasks,user_id: str, payload: UserPasswordUpdateSchema, db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Change password for an administrative user."""
     current_user_role = current_user.role
@@ -143,7 +143,7 @@ def change_admin_user_password(background_tasks: BackgroundTasks,user_id: str, p
 
 # Reset password for admin user
 @router.patch("/{user_id}/reset-password")
-def reset_admin_user_password(background_tasks: BackgroundTasks,user_id: str, payload: UserPasswordResetSchema, db: Session = Depends(get_mysql_session),
+def reset_admin_user_password(background_tasks: BackgroundTasks,user_id: str, payload: UserPasswordResetSchema, db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Reset password for an administrative user."""
     current_user_role = current_user.role
@@ -159,7 +159,7 @@ def reset_admin_user_password(background_tasks: BackgroundTasks,user_id: str, pa
 
 # Logout admin user
 @router.post("/logout")
-def logout_admin_user(db: Session = Depends(get_mysql_session),
+def logout_admin_user(db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Logout an administrative user."""
     if delete_bearer_token(user=current_user, db=db):

@@ -375,12 +375,15 @@ def add_country(payload: CountrySchema, db: Session) -> CountrySchema:
         country_model = CountryModel(
             country_name=payload.country_name,
             country_code=payload.country_code.upper(),
-            phone_code=payload.phone_code,
             currency=payload.currency,
             currency_symbol=payload.currency_symbol,
-            time_zone=payload.time_zone,
             flag=payload.flag,
+            time_zone=payload.time_zone,
             locale=payload.locale,
+            phone_code=payload.phone_code,
+            phone_number_regex=payload.phone_regex,
+            postal_code_regex=payload.postal_code_regex,
+            is_default=payload.is_default if payload.is_default else False,
         )
         db.add(country_model)
         db.commit()
@@ -682,3 +685,8 @@ def enable_region(region_id: str, db: Session) -> bool:
     except Exception as e:
         db.rollback()
         raise e
+    
+def create_countries(countries:list[CountrySchema], db:Session):
+    for country in countries:
+        add_country(country, db)
+        

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, UploadFile, File
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from models.driver.driver_schema import DriverBaseSchema, DriverCreateSchema, DriverReadProfilePictureAfterUpdate, DriverReadSchema, DriverUpdateSchema
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ router = APIRouter()
 
 # Add driver
 @router.post("/create", response_model=DriverBaseSchema, status_code=201)
-def add_driver(background_tasks: BackgroundTasks,payload: DriverCreateSchema = Body(...), db: Session = Depends(get_mysql_session),
+def add_driver(background_tasks: BackgroundTasks,payload: DriverCreateSchema = Body(...), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Add a new driver."""
     current_user_role = current_user.role
@@ -38,7 +38,7 @@ def add_driver(background_tasks: BackgroundTasks,payload: DriverCreateSchema = B
 
 # Edit driver
 @router.put("/{driver_id}", response_model=DriverBaseSchema, status_code=200)
-def edit_driver(driver_id: str, payload: DriverUpdateSchema = Body(...), db: Session = Depends(get_mysql_session),
+def edit_driver(driver_id: str, payload: DriverUpdateSchema = Body(...), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Edit driver details."""
     current_user_role = current_user.role
@@ -53,7 +53,7 @@ def edit_driver(driver_id: str, payload: DriverUpdateSchema = Body(...), db: Ses
 def upload_driver_profile_picture(
     driver_id: str = Path(..., description="ID of the driver"),
     file: UploadFile = File(..., description="Profile picture file"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """Upload driver profile picture."""
@@ -77,7 +77,7 @@ def upload_driver_profile_picture(
 # Remove driver profile picture
 @router.delete("/{driver_id}/profile-picture")
 def delete_driver_profile_picture(driver_id: str=Path(..., description="ID of the driver"),
-    db: Session = Depends(get_mysql_session), current_user: User = Depends(validate_user_token)):
+    db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """Remove driver profile picture."""
     
     driver = get_driver_by_id(driver_id, db)
@@ -98,7 +98,7 @@ def delete_driver_profile_picture(driver_id: str=Path(..., description="ID of th
 
 # View driver details/profile
 @router.get("/{driver_id}", response_model=DriverReadSchema)
-def view_driver_profile(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(get_mysql_session),
+def view_driver_profile(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """View driver details/profile."""
     driver = get_driver_by_id(driver_id, db)
@@ -164,7 +164,7 @@ def update_kyc_status(driver_id: str, status: bool):
 
 # Remove driver
 @router.delete("/{driver_id}")
-def remove_driver(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(get_mysql_session),
+def remove_driver(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Remove a driver from the system."""
 
@@ -189,7 +189,7 @@ def remove_driver(driver_id: str=Path(..., description="ID of the driver"), db: 
 
 # Activate driver
 @router.post("/{driver_id}/activate")
-def driver_activation(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(get_mysql_session),
+def driver_activation(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Activate a driver."""
     driver = get_driver_by_id(driver_id, db)
@@ -206,7 +206,7 @@ def driver_activation(driver_id: str=Path(..., description="ID of the driver"), 
 
 # Deactivate driver
 @router.post("/{driver_id}/deactivate")
-def driver_deactivation(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(get_mysql_session),
+def driver_deactivation(driver_id: str=Path(..., description="ID of the driver"), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Deactivate a driver."""
     driver = get_driver_by_id(driver_id, db)

@@ -8,6 +8,7 @@ import mysql.connector
 import contextlib
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = f"mysql+mysqlconnector://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
@@ -72,7 +73,7 @@ def _ensure_database_exists():
         raise
 
 
-def init_db(seed: bool = True, preload_config: bool = False):
+def init_db(seed: bool = True, preload_config: bool = True):
     logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
@@ -93,23 +94,28 @@ def preload_config_store():
 
 def seed_now():
     from services.seed_data_service import init_seed_data
-
     with SessionLocal() as session:
         init_seed_data(session)
-        
 
 
-def get_mysql_session():
+def yield_mysql_session():
     db = SessionLocal()
+    
     try:
         yield db
     finally:
         db.close()
 
+def get_mysql_local_session():
+    return SessionLocal()
 
-def get_mysql_async_session():
+
+
+
+def a_yield_mysql_session():
     async def _get_session():
         async with AsyncSessionLocal() as session:
             yield session
 
     return contextlib.asynccontextmanager(_get_session)()
+

@@ -9,7 +9,7 @@ from fastapi import (
     File,
 )
 from sqlalchemy.orm import Session
-from db.database import get_mysql_session
+from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.customer.passenger_schema import PassengerCreate, PassengerOut, PassengerUpdate
 from services.customer_service import (
@@ -55,7 +55,7 @@ router = APIRouter()
 @router.get("/{customer_id}", response_model=CustomerReadWithProfilePicture)
 def get_customer_profile(
     customer_id: str = Path(..., description="UUID of the customer"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if str(current_customer.id) != customer_id:
@@ -67,7 +67,7 @@ def get_customer_profile(
 def modify_customer_profile(
     customer_id: str,
     payload: CustomerUpdate = Body(...),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if str(current_customer.id) != customer_id:
@@ -82,7 +82,7 @@ def modify_customer_profile(
 def upload_profile_picture(
     customer_id: str = Path(..., description="UUID of the customer"),
     file: UploadFile = File(...),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -105,7 +105,7 @@ def upload_profile_picture(
 )
 def remove_profile_picture(
     customer_id: str = Path(..., description="UUID of the customer"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -125,7 +125,7 @@ def remove_profile_picture(
 
 @router.post("/logout")
 def logout_customer(
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if delete_bearer_token(customer=current_customer, db=db):
@@ -139,7 +139,7 @@ def logout_customer(
 def trigger_email_verification(
     background_tasks: BackgroundTasks,
     customer_id: str = Path(..., description="UUID of the customer"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -180,7 +180,7 @@ def trigger_email_verification(
 def verify_email(
     id: str = Query(..., description="Customer UUID"),
     token: str = Query(..., description="Verification token"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -207,7 +207,7 @@ def verify_email(
 def add_passenger(
     customer_id: str = Path(..., description="UUID of the customer"),
     payload: PassengerCreate = Body(..., description="Passenger create payload"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -226,7 +226,7 @@ def add_passenger(
 def remove_passenger(
     customer_id: str = Path(..., description="UUID of the customer"),
     passenger_id: str = Path(..., description="UUID of the passenger to remove"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -248,7 +248,7 @@ def update_passenger_details(
     customer_id: str = Path(..., description="UUID of the customer"),
     passenger_id: str = Path(..., description="UUID of the passenger to update"),
     payload: PassengerUpdate = Body(..., description="Passenger update payload"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -268,7 +268,7 @@ def update_passenger_details(
 @router.get("/{customer_id}/passengers", response_model=list[PassengerOut])
 def list_passengers(
     customer_id: str = Path(..., description="UUID of the customer"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -288,7 +288,7 @@ def list_passengers(
 def get_passenger(
     customer_id: str = Path(..., description="UUID of the customer"),
     passenger_id: str = Path(..., description="UUID of the passenger"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Only allow self-service
@@ -314,7 +314,7 @@ def rate_driver_for_trip(
     driver_id: str = Path(..., description="UUID of the driver"),
     rating: int = Body(..., description="Rating for the driver (1-5)"),
     feedback: str = Body(None, description="Optional feedback for the driver"),
-    db: Session = Depends(get_mysql_session),
+    db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     pass

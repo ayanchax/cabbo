@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import threading
 from typing import ClassVar, List, Optional, Union
 from pydantic import BaseModel, Field
-from db.database import get_mysql_session
+from db.database import get_mysql_local_session
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
 from sqlalchemy.orm import Session
@@ -125,7 +125,9 @@ class ConfigStore(BaseModel):
         if not hasattr(self, "_is_initialized"):
             self._is_initialized = False
         if not hasattr(self, "_db"):
-            self._db = get_mysql_session()
+            self._db = get_mysql_local_session()
+            
+            
 
     @classmethod
     def get_instance(cls) -> "ConfigStore":
@@ -150,7 +152,7 @@ class ConfigStore(BaseModel):
         # Only initialize if not already initialized or cache expired
         if not self._is_initialized or not self.is_cache_valid():
             if not self._db:
-                self._db = get_mysql_session()
+                self._db = get_mysql_local_session()
             self._lazy_load(self._db)
             print("ConfigStore initialization completed.")
         else:
