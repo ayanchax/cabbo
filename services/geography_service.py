@@ -88,8 +88,8 @@ def get_region_by_id(region_id: str, db: Session) -> Optional["RegionSchema"]:
                     if region_model.region_alt_names
                     else None
                 ),
-                state_code=None,  # State code not fetched here
-                country_code=None,  # Country code not fetched here
+                state_code=region_model.state_id,   
+                country_code=region_model.country_id,  
                 trip_types=(
                     json.loads(region_model.trip_types)
                     if region_model.trip_types
@@ -115,6 +115,53 @@ def get_region_by_id(region_id: str, db: Session) -> Optional["RegionSchema"]:
         except ValidationError:
             return None
 
+def get_region_by_code(region_code: str, db: Session) -> Optional["RegionSchema"]:
+    """Fetch the RegionSchema for the given region code.
+    Returns None if not found.
+    """
+    region_model = (
+        db.query(RegionModel)
+        .filter(RegionModel.region_code == region_code, RegionModel.is_serviceable == True)
+        .first()
+    )
+    if region_model:
+        try:
+            region_schema = RegionSchema(
+                id=region_model.id,
+                region_name=region_model.region_name,
+                region_code=region_model.region_code,
+                region_alt_names=(
+                    json.loads(region_model.region_alt_names)
+                    if region_model.region_alt_names
+                    else None
+                ),
+                state_code=region_model.state_id,   
+                country_code=region_model.country_id,  
+                trip_types=(
+                    json.loads(region_model.trip_types)
+                    if region_model.trip_types
+                    else None
+                ),
+                fuel_types=(
+                    json.loads(region_model.fuel_types)
+                    if region_model.fuel_types
+                    else None
+                ),
+                car_types=(
+                    json.loads(region_model.car_types)
+                    if region_model.car_types
+                    else None
+                ),
+                airport_locations=(
+                    json.loads(region_model.airport_locations)
+                    if region_model.airport_locations
+                    else None
+                ),
+            )
+            return region_schema
+        except ValidationError:
+            return None
+    return None
 
 def get_all_regions(db: Session) -> list["RegionSchema"]:
     """Fetch all regions as a list of RegionSchema."""
@@ -130,8 +177,9 @@ def get_all_regions(db: Session) -> list["RegionSchema"]:
                     if r_model.region_alt_names
                     else None
                 ),
-                state_code=None,  # State code not fetched here
-                country_code=None,  # Country code not fetched here
+                id=r_model.id,
+                state_id=r_model.state_id,
+                country_id=r_model.country_id,
                 trip_types=(
                     json.loads(r_model.trip_types) if r_model.trip_types else None
                 ),
@@ -265,7 +313,7 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
         country_model = (
             db.query(CountryModel)
             .filter(
-                CountryModel.country_code == payload.country_code,
+                (CountryModel.country_code == payload.country_code) | (CountryModel.id == payload.country_id),
                 CountryModel.is_serviceable == True,
             )
             .first()
@@ -284,7 +332,7 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
         )
         if not state_model:
             raise ValueError(
-                f"State with code {payload.state_code} not found in country {payload.country_code}."
+                f"State with code {payload.state_code} not found in country {payload.country_code or payload.country_id}."
             )
         region_model = RegionModel(
             region_name=payload.region_name,
@@ -299,11 +347,7 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
             trip_types=json.dumps(payload.trip_types) if payload.trip_types else None,
             fuel_types=json.dumps(payload.fuel_types) if payload.fuel_types else None,
             car_types=json.dumps(payload.car_types) if payload.car_types else None,
-            airport_locations=(
-                json.dumps(payload.airport_locations)
-                if payload.airport_locations
-                else None
-            ),
+            airport_locations=json.dumps(payload.airport_locations) if payload.airport_locations else None,
         )
         db.add(region_model)
         db.commit()
@@ -478,25 +522,18 @@ def get_states_by_country(country_code: str, db: Session) -> list["StateSchema"]
     return state_schemas
 
 
-def get_state_by_code(
-    country_code: str, state_code: str, db: Session
+def get_state_by_state_code(
+    state_code: str, db: Session
 ) -> Optional["StateSchema"]:
-    """Fetch the StateSchema for the given country code and state code.
+    """Fetch the StateSchema for the given state code.
     Returns None if not found.
     """
-    country_model = (
-        db.query(CountryModel)
-        .filter(CountryModel.country_code == country_code, CountryModel.is_serviceable == True)
-        .first()
-    )
-    if not country_model:
-        return None
+    
 
     state_model = (
         db.query(StateModel)
         .filter(
             StateModel.state_code == state_code,
-            StateModel.country_id == country_model.id,
             StateModel.is_serviceable == True,
         )
         .first()
@@ -507,6 +544,7 @@ def get_state_by_code(
             return state_schema
         except ValidationError:
             return None
+    return None
 
 def get_state_by_id(state_id: str, db: Session) -> Optional["StateSchema"]:
     """Fetch the StateSchema for the given state ID.
@@ -689,4 +727,25 @@ def enable_region(region_id: str, db: Session) -> bool:
 def create_countries(countries:list[CountrySchema], db:Session):
     for country in countries:
         add_country(country, db)
+
+def get_state_by_state_code_and_country_id(state_code:str, country_id:str, db:Session) -> Optional[StateSchema]:
+    """Fetch the StateSchema for the given state code and country ID.
+    Returns None if not found.
+    """
+    state_model = (
+        db.query(StateModel)
+        .filter(
+            StateModel.state_code == state_code.upper(),
+            StateModel.country_id == country_id,
+            StateModel.is_serviceable == True,  
+        )
+        .first()
+    )
+    if state_model:
+        try:
+            state_schema = StateSchema.model_validate(state_model)
+            return state_schema
+        except ValidationError:
+            return None
+    return None
         

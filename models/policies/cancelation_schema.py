@@ -13,5 +13,5 @@ class CancelationPolicySchema(BaseModel):
     is_active: bool = Field(True, description="Indicates if the cancelation policy is active")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
  

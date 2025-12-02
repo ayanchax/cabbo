@@ -3,14 +3,19 @@ from typing import List
 from aiohttp_retry import Union
 from sqlalchemy import func
 from models.cab.cab_orm import CabType, FuelType
+from models.policies.cancelation_orm import CancellationPolicy
+from models.policies.cancelation_schema import CancelationPolicySchema
 from models.pricing.pricing_schema import (
+    AirportCabPricingSchema,
     CommonPricingConfigurationSchema,
     FixedPlatformFeeConfigurationSchema,
+    LocalCabPricingSchema,
     NightPricingConfigurationSchema,
+    OutstationCabPricingSchema,
     PermitFeeConfigurationSchema,
 )
 from models.geography.region_orm import RegionModel
-from models.trip.trip_orm import TripTypeMaster
+from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from sqlalchemy.orm import Session
 from models.pricing.pricing_orm import (
     AirportCabPricing,
@@ -23,7 +28,7 @@ from models.pricing.pricing_orm import (
 )
 from models.trip.trip_enums import TripTypeEnum
 from core.exceptions import CabboException
-from models.trip.trip_schema import TripBookRequest, TripSearchOption
+from models.trip.trip_schema import TripBookRequest, TripPackageConfigSchema, TripSearchOption
 
 APP_COUNTRY_CURRENCY_SYMBOL = "₹"  # Placeholder for currency symbol, adjust as needed
 def retrieve_interstate_permit_fee(
@@ -456,3 +461,66 @@ def get_fixed_platform_pricing_configuration(db:Session)->FixedPlatformFeeConfig
             platform_fee_data
         )
     return platform_fee_data_schema
+
+def create_local_cab_pricing(payload:LocalCabPricingSchema,db:Session)->LocalCabPricingSchema:
+    local_cab_pricing_orm = LocalCabPricing(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(local_cab_pricing_orm)
+    db.commit()
+    db.refresh(local_cab_pricing_orm)
+    return LocalCabPricingSchema.model_validate(local_cab_pricing_orm)
+
+def create_outstation_cab_pricing(payload:OutstationCabPricingSchema,db:Session)->OutstationCabPricingSchema:
+    outstation_cab_pricing_orm = OutstationCabPricing(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(outstation_cab_pricing_orm)
+    db.commit()
+    db.refresh(outstation_cab_pricing_orm)
+    return OutstationCabPricingSchema.model_validate(outstation_cab_pricing_orm)
+
+def create_airport_cab_pricing(payload:AirportCabPricingSchema,db:Session)->AirportCabPricingSchema:
+    airport_cab_pricing_orm = AirportCabPricing(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(airport_cab_pricing_orm)
+    db.commit()
+    db.refresh(airport_cab_pricing_orm)
+    return AirportCabPricingSchema.model_validate(airport_cab_pricing_orm)
+
+def create_common_pricing_configuration(payload:CommonPricingConfigurationSchema,db:Session)->CommonPricingConfigurationSchema:
+    common_pricing_configuration_orm = CommonPricingConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(common_pricing_configuration_orm)
+    db.commit()
+    db.refresh(common_pricing_configuration_orm)
+    return CommonPricingConfigurationSchema.model_validate(common_pricing_configuration_orm)
+
+def create_trip_package_pricing_configuration(payload:TripPackageConfigSchema,db:Session)->TripPackageConfigSchema:
+    trip_package_pricing_configuration_orm = TripPackageConfig(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(trip_package_pricing_configuration_orm)
+    db.commit()
+    db.refresh(trip_package_pricing_configuration_orm)
+    return TripPackageConfigSchema.model_validate(trip_package_pricing_configuration_orm)
+
+def create_night_pricing_configuration(payload:NightPricingConfigurationSchema,db:Session)->NightPricingConfigurationSchema:
+    night_pricing_configuration_orm = NightPricingConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(night_pricing_configuration_orm)
+    db.commit()
+    db.refresh(night_pricing_configuration_orm)
+    return NightPricingConfigurationSchema.model_validate(night_pricing_configuration_orm)
+
+def create_permit_fee_configuration(payload:PermitFeeConfigurationSchema,db:Session)->PermitFeeConfigurationSchema:
+    permit_fee_configuration_orm = PermitFeeConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(permit_fee_configuration_orm)
+    db.commit()
+    db.refresh(permit_fee_configuration_orm)
+    return PermitFeeConfigurationSchema.model_validate(permit_fee_configuration_orm)
+
+def create_cancellation_policy_pricing(payload:CancelationPolicySchema,db:Session)->CancelationPolicySchema:
+    cancellation_policy_orm = CancellationPolicy(**payload.model_dump(exclude={"id"}, exclude_none=True))
+    db.add(cancellation_policy_orm)
+    db.commit()
+    db.refresh(cancellation_policy_orm)
+    return CancelationPolicySchema.model_validate(cancellation_policy_orm)
+
+def create_fixed_platform_fee(fee:float, db:Session):
+    fixed_platform_fee_config = FixedPlatformPricingConfiguration(fixed_platform_fee=fee)
+    db.add(fixed_platform_fee_config)
+    db.commit()
+    db.refresh(fixed_platform_fee_config)
+    return FixedPlatformFeeConfigurationSchema.model_validate(fixed_platform_fee_config)

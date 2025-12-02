@@ -73,7 +73,7 @@ def _ensure_database_exists():
         raise
 
 
-def init_db(seed: bool = True, preload_config: bool = True):
+def init_db(seed: bool = False, preload_config: bool = False):
     logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
@@ -88,7 +88,6 @@ def init_db(seed: bool = True, preload_config: bool = True):
 
 def preload_config_store():
     from core.store import ConfigStore
-
     ConfigStore.get_instance().initialize_config_store()
 
 

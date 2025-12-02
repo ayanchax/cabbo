@@ -40,7 +40,10 @@ from services.trip_service import get_all_trip_types, get_trip_type_id_by_trip_t
 
 
 class ConfigStore(BaseModel):
-    """Thread-safe singleton configuration store with TTL-based cache invalidation."""
+    """Thread-safe singleton configuration store with TTL-based cache invalidation.
+    Stores various configuration data of Cabbo like geography, cab types, fuel types, trip types, and pricing configurations loaded from the database for quick access.
+    Uses Pydantic for data validation and serialization.
+    """
 
     # Singleton instance
     _instance: ClassVar[Optional["ConfigStore"]] = None

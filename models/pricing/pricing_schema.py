@@ -8,11 +8,11 @@ from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 
 # Base schema for common trip pricing fields
 class CabPricingBaseSchema(BaseModel):
-    id: Optional[Union[int, str]]
-    cab_type_id: Union[str, int]  # Can be str (UUID) or int (DB ID)
-    fuel_type_id: Union[str, int]  # Can be str (UUID) or int (DB ID)
-    is_available_in_network: bool = (
-        True  # Indicates if this cab type is available in the network
+    id: Optional[Union[int, str]]=Field(None, description="Unique identifier for the cab pricing record")  # Can be str (UUID) or int (DB ID)
+    cab_type_id: Union[str, int] = Field(..., description="Identifier for the cab type")  # Can be str (UUID) or int (DB ID)
+    fuel_type_id: Union[str, int] = Field(..., description="Identifier for the fuel type")  # Can be str (UUID) or int (DB ID)
+    is_available_in_network: bool = Field(
+        True, description="Indicates if this cab and fuel type combination is available for network trips"
     )
 
     class Config:
@@ -53,7 +53,6 @@ class LocalCabPricingSchema(CabPricingBaseSchema):
 
 # Airport-specific pricing schema
 class AirportCabPricingSchema(CabPricingBaseSchema):
-    id: Optional[str]
     cab_type_id: Optional[str]
     fuel_type_id: Optional[str]
     fare_per_km: float
@@ -121,7 +120,7 @@ class OveragesSchema(BaseModel):
 
 
 class NightPricingConfigurationSchema(BaseModel):
-    id: Optional[str]
+    id: Optional[str]=None
     night_hours_label: Optional[str] = None  # e.g., "10 PM - 6 AM"
     night_overage_amount_per_block: Optional[float] = (
         None  # Amount charged for night trips
@@ -139,7 +138,7 @@ class NightPricingConfigurationSchema(BaseModel):
 
 
 class CommonPricingConfigurationSchema(BaseModel):
-    id: Optional[str]
+    id: Optional[str]= None
     trip_type_id: Optional[str] = None  # FK to TripType.id
     dynamic_platform_fee_percent: Optional[float] = None  # e.g., 5.0 for 5%
     min_included_hours: Optional[int] = None  # Local cab minimum included hours
@@ -170,7 +169,7 @@ class CommonPricingConfigurationSchema(BaseModel):
 
 # Permit fee configuration schema is used to define permit fees state wise for outstation trips
 class PermitFeeConfigurationSchema(BaseModel):
-    id: Optional[str]
+    id: Optional[str]= None
     state_id: str  # FK to State.id
     cab_type_id: str  # FK to CabType.id
     fuel_type_id: str  # FK to FuelType.id

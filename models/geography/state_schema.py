@@ -5,9 +5,10 @@ from models.geography.region_schema import RegionSchema
 
 class StateSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the state")  # UUID
-    state_name: str = Field(..., description="Full name of the state") # e.g. Karnataka
-    state_code: str = Field(..., description="ISO state code, e.g., 'KA' for Karnataka") # e.g. KA
-    country_code: str = Field(..., description="ISO country code the state belongs to, e.g., 'IN' for India") # e.g. IN
+    state_name: Optional[str] = Field(None, description="Full name of the state") # e.g. Karnataka
+    state_code: Optional[str] = Field(None, description="ISO state code, e.g., 'KA' for Karnataka") # e.g. KA
+    country_code: Optional[str] = Field(None, description="ISO country code the state belongs to, e.g., 'IN' for India") # e.g. IN
+    country_id: Optional[str] = Field(None, description="UUID of the country this state belongs to")  # UUID of the country
     regions: Optional[List[RegionSchema]] = Field(None, description="List of regions within the state") # List of regions
     is_serviceable: Optional[bool] = Field(
         True, description="Indicates if the state is serviceable for operations"

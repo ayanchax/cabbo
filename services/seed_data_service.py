@@ -1,39 +1,53 @@
-import json
 from typing import List
-import uuid
 from sqlalchemy.orm import Session
-from models.cab.cab_orm import CabType, FuelType
-from models.geography.country_orm import CountryModel
 from models.geography.country_schema import CountrySchema
+from models.geography.region_schema import RegionSchema
+from models.geography.state_schema import StateSchema
 from models.map.location_schema import LocationInfo
-from models.geography.state_orm import StateModel
-from models.policies.cancelation_orm import CancellationPolicy
-from models.pricing.pricing_orm import (
-    CommonPricingConfiguration,
-    FixedPlatformPricingConfiguration,
-    OutstationCabPricing,
-    LocalCabPricing,
-    AirportCabPricing,
-    NightPricingConfiguration,
-    FixedPlatformPricingConfiguration,
+from models.policies.cancelation_schema import CancelationPolicySchema
+from models.pricing.pricing_schema import (
+    AirportCabPricingSchema,
+    CommonPricingConfigurationSchema,
+    LocalCabPricingSchema,
+    NightPricingConfigurationSchema,
+    OutstationCabPricingSchema,
+    PermitFeeConfigurationSchema,
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
-from core.security import RoleEnum
-from models.geography.region_orm import RegionModel
-from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
+from models.trip.trip_orm import TripTypeMaster
 from models.trip.trip_schema import TripPackageConfigSchema
-from models.pricing.pricing_orm import PermitFeeConfiguration
-from services.cab_service import create_cabs
+from services.cab_service import create_cabs, get_all_cabs
 from services.document_service import create_master_kyc_data
 from services.file_service import is_file_exists, is_file_exists, save_file
-from services.fuel_service import create_fuel_types
-from services.geography_service import create_countries, get_all_countries
-from services.trip_service import create_trip_types
+from services.fuel_service import create_fuel_types, get_all_fuel_types
+from services.geography_service import (
+    add_region,
+    add_state,
+    create_countries,
+    get_all_countries,
+    get_all_regions,
+    get_all_states,
+    get_region_by_code,
+    get_state_by_state_code,
+    get_state_by_state_code_and_country_id,
+)
+from services.pricing_service import (
+    create_airport_cab_pricing,
+    create_cancellation_policy_pricing,
+    create_common_pricing_configuration,
+    create_fixed_platform_fee,
+    create_local_cab_pricing,
+    create_night_pricing_configuration,
+    create_outstation_cab_pricing,
+    create_permit_fee_configuration,
+    create_trip_package_pricing_configuration,
+)
+from services.trip_service import create_trip_types, get_all_trip_types
 from services.user_service import create_super_admin_user
 
 SEED_DATA_COMPLETION_FILE = "seed_data_completed.chk"
 
-SEED_COUNTRIES=[
+SEED_COUNTRIES = [
     {
         "country_name": "India",
         "country_code": "IN",
@@ -49,11 +63,26 @@ SEED_COUNTRIES=[
     },
 ]
 
+SEED_STATES = [
+    # Seeding states for India with (name, code)
+    # This is seed data and can be updated later via admin interface
+    # If we need to add more states under a country, we can do that via admin interface later
+    ("Karnataka", "KA"),
+    ("Tamil Nadu", "TN"),
+    ("Kerala", "KL"),
+    ("Andhra Pradesh", "AP"),
+]
+SEED_REGIONS=[
+    # Return list of seed regions with (name, code, alt_names, state_code)
+    # This is seed data and can be updated later via admin interface
+        ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], "KA"),
+        ("Mysore", "MYS", ["Mysuru"], "KA"),
+    ]
 # Airport data for seed data initialization
 SEED_AIRPORTS = {
     # It can contain multiple airports for a city in a state in a country. Here state or country is not modelled for simplicity, because airports are all over the world regions and we are focusing on few regions/cities only for seed data.
-    # Admin can add more airports for a city/region via admin panel if needed.
-    # Admin can also add more regions/cities via admin panel if needed.
+    # Admin can add more airports for a city/region inside a (state, country) via admin panel if needed.
+    # Admin can also add more regions/cities under a (state, country) via admin panel if needed.
     "BLR": [
         {
             "display_name": "Kempegowda International Airport, Bengaluru",
@@ -84,27 +113,27 @@ SEED_AIRPORTS = {
 }
 
 TRIP_TYPE_SEED_DATA = [
-        {
-            "trip_type": TripTypeEnum.local,
-            "display_name": "Local City Ride",
-            "description": "Hourly rental for city travel. Flexible for errands, meetings, and sightseeing within city limits.",
-        },
-        {
-            "trip_type": TripTypeEnum.outstation,
-            "display_name": "Outstation Trip",
-            "description": "Multi-day intercity travel. Ideal for business, leisure, or family trips outside your city.",
-        },
-        {
-            "trip_type": TripTypeEnum.airport_pickup,
-            "display_name": "Airport Pickup",
-            "description": "Pickup from airport to your destination. Includes flight tracking and driver meet & greet.",
-        },
-        {
-            "trip_type": TripTypeEnum.airport_drop,
-            "display_name": "Airport Drop",
-            "description": "Drop to airport from your location. Timely service for stress-free departures.",
-        },
-    ]
+    {
+        "trip_type": TripTypeEnum.local,
+        "display_name": "Local City Ride",
+        "description": "Hourly rental for city travel. Flexible for errands, meetings, and sightseeing within city limits.",
+    },
+    {
+        "trip_type": TripTypeEnum.outstation,
+        "display_name": "Outstation Trip",
+        "description": "Multi-day intercity travel. Ideal for business, leisure, or family trips outside your city.",
+    },
+    {
+        "trip_type": TripTypeEnum.airport_pickup,
+        "display_name": "Airport Pickup",
+        "description": "Pickup from airport to your destination. Includes flight tracking and driver meet & greet.",
+    },
+    {
+        "trip_type": TripTypeEnum.airport_drop,
+        "display_name": "Airport Drop",
+        "description": "Drop to airport from your location. Timely service for stress-free departures.",
+    },
+]
 
 CAB_TYPES_SEED_DATA = {
     CarTypeEnum.hatchback: {
@@ -137,13 +166,44 @@ CAB_TYPES_SEED_DATA = {
         "inventory_cab_names": "Innova Crysta",
         "capacity": "7+1",
     },
-}    
+}
 
 FUEL_TYPES_SEED_DATA = [
     FuelTypeEnum.petrol,
     FuelTypeEnum.diesel,
     FuelTypeEnum.cng,
 ]
+
+HOURLY_RENTAL_PACKAGES_SEED_DATA = [
+    TripPackageConfigSchema(
+        included_hours=4,
+        included_km=40,
+        package_label="4Hours / 40KM",
+    ),
+    TripPackageConfigSchema(
+        included_hours=6,
+        included_km=60,
+        package_label="6Hours / 60KM",
+    ),
+    TripPackageConfigSchema(
+        included_hours=8,
+        included_km=80,
+        package_label="8Hours / 80KM",
+    ),
+    TripPackageConfigSchema(
+        included_hours=10,
+        included_km=100,
+        package_label="10Hours / 100KM",
+    ),
+    TripPackageConfigSchema(
+        included_hours=12,
+        included_km=120,
+        package_label="12Hours / 120KM",
+        driver_allowance=400.0,  # Driver allowance applies for 12 hours
+    ),
+]
+
+
 def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
     """Convert airport dicts to LocationInfo and back to dicts for JSON serialization."""
     if airports_in_region is None:
@@ -882,30 +942,13 @@ def _get_weekly_permit_fee_per_state():
     return weekly_permit_fees_mapping
 
 
-def _get_seed_states():
-    return [
-        ("Karnataka", "KA"),
-        ("Tamil Nadu", "TN"),
-        ("Kerala", "KL"),
-        ("Andhra Pradesh", "AP"),
-    ]
-
-
-def _get_seed_regions():
-    # Return list of seed regions with (name, code, alt_names, state_code)
-    # This is seed data and can be updated later via admin interface
-    return [
-        ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], "KA"),
-        ("Mysore", "MYS", ["Mysuru"], "KA"),
-    ]
-
-
 def init_seed_data(session: Session):
     """Initialize seed data for the application."""
     is_seeded = is_file_exists(SEED_DATA_COMPLETION_FILE)
     if is_seeded:
-        print("Seed data already initialized. Skipping seeding.")
-        return
+        err="Seed data already initialized. Skipping seeding."
+        print(err)
+        return err
     try:
         session.begin()
 
@@ -917,8 +960,9 @@ def init_seed_data(session: Session):
         session.commit()
 
         # Create a completion of seed data file at the root of the project Cabbo to indicate seeding is done and avoid re-seeding
-        save_file(SEED_DATA_COMPLETION_FILE, "Seed data initialization completed.")
-        print("Seed data initialization completed.")
+        msg = "Seed data initialization completed."
+        save_file(SEED_DATA_COMPLETION_FILE, msg)
+        return  msg
     except Exception as e:
         session.rollback()
         print(f"Error during seed data initialization: {e}")
@@ -956,40 +1000,36 @@ def _seed_pricing_data(session: Session):
 
 def _seed_countries(session: Session):
     # Seed countries
-    countries_schema=[CountrySchema.model_validate(country) for country in SEED_COUNTRIES]
+    countries_schema = [
+        CountrySchema.model_validate(country) for country in SEED_COUNTRIES
+    ]
     create_countries(countries_schema, session)
 
 
 def _seed_states(session: Session):
     # Seed states
-    country_states = {"IN": _get_seed_states()}
+    country_states = {"IN": SEED_STATES}
     countries = get_all_countries(session)
-    states = []
     for country in countries:
         code = (country.country_code or "").upper()
         states_list = country_states.get(code)
         if not states_list:
             continue
         for name, scode in states_list:
-            exists = (
-                session.query(StateModel)
-                .filter(
-                    StateModel.country_id == country.id,
-                    StateModel.state_code == scode.upper(),
-                )
-                .first()
+            exists = get_state_by_state_code_and_country_id(
+                scode.upper(), country.id, session
             )
             if exists:
                 continue
-            state = StateModel(
-                state_name=name,
-                state_code=scode.upper(),
-                country_id=country.id,
+            payload: StateSchema = StateSchema.model_validate(
+                {
+                    "state_name": name,
+                    "state_code": scode.upper(),
+                    "country_id": country.id,
+                    "country_code": country.country_code,
+                }
             )
-            states.append(state)
-
-    session.add_all(states)
-    session.commit()
+            add_state(payload=payload, db=session)
 
 
 def _seed_regions(session: Session):
@@ -999,47 +1039,35 @@ def _seed_regions(session: Session):
     supported_car_types = []
 
     # Use the TripTypeMaster, FuelType and CabType Models to get supported types
-    trip_types = session.query(TripTypeMaster).all()
+    trip_types = get_all_trip_types(session)
     for trip_type in trip_types:
         supported_trip_types.append(trip_type.id)
-    fuel_types = session.query(FuelType).all()
+    fuel_types = get_all_fuel_types(session)
     for fuel_type in fuel_types:
         supported_fuel_types.append(fuel_type.id)
-    car_types = session.query(CabType).all()
+    car_types = get_all_cabs(session)
     for car_type in car_types:
         supported_car_types.append(car_type.id)
-    regions = _get_seed_regions()
-    _regions = []
+    regions = SEED_REGIONS
     for name, code, alt_names, state_code in regions:
-        state = (
-            session.query(StateModel)
-            .filter(StateModel.state_code == state_code.upper())
-            .first()
-        )
+        state = get_state_by_state_code(state_code.upper(), session)
         if not state:
             continue
         airports_in_region = _get_regional_airports(SEED_AIRPORTS.get(code, None))
-
-        region = RegionModel(
+        region_schema = RegionSchema(
             region_name=name,
             region_code=code,
             region_alt_names=alt_names,
             country_id=state.country_id,
+            country_code=state.country_code,
             state_id=state.id,
-            trip_types=(
-                json.dumps(supported_trip_types) if supported_trip_types else None
-            ),
-            fuel_types=(
-                json.dumps(supported_fuel_types) if supported_fuel_types else None
-            ),
-            car_types=json.dumps(supported_car_types) if supported_car_types else None,
-            airport_locations=(
-                json.dumps(airports_in_region) if airports_in_region else None
-            ),
+            state_code=state.state_code,
+            trip_types=supported_trip_types, 
+            fuel_types=supported_fuel_types,
+            car_types=supported_car_types,
+            airport_locations=airports_in_region,
         )
-        _regions.append(region)
-    session.add_all(_regions)
-    session.commit()
+        add_region(payload=region_schema, db=session)
 
 
 def _seed_trip_types(session: Session):
@@ -1055,33 +1083,23 @@ def _seed_cab_types(session: Session):
 def _seed_fuel_types(session: Session):
     # Seed fuel types master data
     create_fuel_types(FUEL_TYPES_SEED_DATA, session)
-         
 
 
 def _seed_local_cab_pricing(session: Session):
     # Seed local cab pricing data per cab type and fuel type and region
     price_map = _get_region_wise_price_map(TripTypeEnum.local)
-    local_pricing = []
-    secondary_local_pricing = []
-    cab_types = session.query(CabType).all()
-    fuel_types = session.query(FuelType).all()
+    cab_types = get_all_cabs(session)
+    fuel_types = get_all_fuel_types(session)
     is_available_in_network = True
-    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
 
     for region_code, region_data in price_map.items():
-        region = (
-            session.query(RegionModel)
-            .filter(
-                RegionModel.region_code == region_code.upper(),
-                RegionModel.is_serviceable == True,
-            )
-            .first()
-        )
+        region = get_region_by_code(region_code.upper(), session)
         if not region:
             continue
         region_id = region.id
-        for cab in cab_types:
+        for cab in cab_types: 
             for fuel in fuel_types:
                 # Local
                 if cab.name == CarTypeEnum.hatchback and fuel.name in [
@@ -1100,68 +1118,53 @@ def _seed_local_cab_pricing(session: Session):
                     is_available_in_network = False
                 else:
                     is_available_in_network = True
-                local_pricing.append(
-                    LocalCabPricing(
-                        id=str(uuid.uuid4()),
-                        is_available_in_network=is_available_in_network,
-                        cab_type_id=cab.id,
-                        fuel_type_id=fuel.id,
-                        hourly_rate=region_data["hourly_rates"][cab.name][fuel.name],
-                        overage_amount_per_hour=region_data["overage_amount_per_hour"][
-                            cab.name
-                        ][fuel.name],
-                        overage_amount_per_km=region_data["overage_amount_per_km"][
-                            cab.name
-                        ][fuel.name],
-                        region_id=region_id,
-                        created_by=RoleEnum.system,
-                    )
+                payload: LocalCabPricingSchema = LocalCabPricingSchema(
+                    is_available_in_network=is_available_in_network,
+                    cab_type_id=cab.id,
+                    fuel_type_id=fuel.id,
+                    hourly_rate=region_data["hourly_rates"][cab.name][fuel.name],
+                    overage_amount_per_hour=region_data["overage_amount_per_hour"][
+                        cab.name
+                    ][fuel.name],
+                    overage_amount_per_km=region_data["overage_amount_per_km"][
+                        cab.name
+                    ][fuel.name],
+                    region_id=region_id,
                 )
+                create_local_cab_pricing(payload, session)
+
                 # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
                 # For seeding the data, we are assuming some standard values for local trips across regions
                 # These can be updated later via admin interface as needed
-                secondary_local_pricing.append(
-                    CommonPricingConfiguration(
-                        id=str(uuid.uuid4()),
+                common_payload: CommonPricingConfigurationSchema = (
+                    CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.local],
-                        dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
-                        placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
-                        max_included_km=42,  # 42 km included for airport trips is a common standard
-                        overage_warning_km_threshold=2,  # Warning threshold for overages
-                        toll=120,  # toll for airport pickup set to 120 if customer opts for it
-                        parking=100,  # parking charge for airport pickup
-                        created_by=RoleEnum.system,
+                        dynamic_platform_fee_percent=1,  # platform fee
+                        min_included_hours=4,  # Minimum 4 hours for local trips
+                        max_included_hours=12,  # Maximum 12 hours for local trips
+                        min_included_km=40,  # Minimum 40 km included for local trips
+                        max_included_km=120,  # Maximum 120 km included for local trips
+                        minimum_parking_wallet=80,  #  minimum parking 80 for local trips
                         region_id=region_id,
                     )
                 )
+                create_common_pricing_configuration(common_payload, session)
 
-    session.add_all(local_pricing)
-    session.add_all(secondary_local_pricing)
-    session.commit()
     _seed_local_trip_packages(session)
 
 
 def _seed_outstation_cab_pricing(session: Session):
     # Seed outstation cab pricing data per cab type and fuel type
     price_map = _get_region_wise_price_map(TripTypeEnum.outstation)
-    outstation_pricing = []
-    secondary_outstation_pricing = []
-    cab_types = session.query(CabType).all()
-    fuel_types = session.query(FuelType).all()
+    cab_types = get_all_cabs(session)
+    fuel_types = get_all_fuel_types(session)
     is_available_in_network = True
-    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
 
     for state_code, state_data in price_map.items():
-        state = (
-            session.query(StateModel)
-            .filter(
-                StateModel.state_code == state_code.upper(),
-                StateModel.is_serviceable == True,
-            )
-            .first()
-        )
+        state = get_state_by_state_code(state_code.upper(), session)
         if not state:
             continue  # if seed data for state is not found in StateModel, skip to next
         state_id = state.id
@@ -1185,65 +1188,51 @@ def _seed_outstation_cab_pricing(session: Session):
                     is_available_in_network = False
                 else:
                     is_available_in_network = True
-                outstation_pricing.append(
-                    OutstationCabPricing(
-                        id=str(uuid.uuid4()),
-                        is_available_in_network=is_available_in_network,
-                        cab_type_id=cab.id,
-                        fuel_type_id=fuel.id,
-                        base_fare_per_km=state_data["base_fare"][cab.name][fuel.name],
-                        driver_allowance_per_day=state_data["driver_allowance_per_day"][
-                            cab.name
-                        ][fuel.name],
-                        min_included_km_per_day=state_data["min_km_per_day"][cab.name],
-                        overage_amount_per_km=state_data["overage_amount_per_km"][
-                            cab.name
-                        ][fuel.name],
-                        state_id=state_id,
-                        created_by=RoleEnum.system,
-                    )
+                payload: OutstationCabPricingSchema = OutstationCabPricingSchema(
+                    is_available_in_network=is_available_in_network,
+                    cab_type_id=cab.id,
+                    fuel_type_id=fuel.id,
+                    base_fare_per_km=state_data["base_fare"][cab.name][fuel.name],
+                    driver_allowance_per_day=state_data["driver_allowance_per_day"][
+                        cab.name
+                    ][fuel.name],
+                    min_included_km_per_day=state_data["min_km_per_day"][cab.name],
+                    overage_amount_per_km=state_data["overage_amount_per_km"][cab.name][
+                        fuel.name
+                    ],
+                    state_id=state_id,
                 )
+                create_outstation_cab_pricing(payload, session)
+
                 # Keeping a separate tripwise pricing configuration for outstation trips as these will be redundant if kept within OutstationCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
                 # For seeding the data, we are assuming some standard values for outstation trips across states
                 # These can be updated later via admin interface as needed
-                secondary_outstation_pricing.append(
-                    CommonPricingConfiguration(
-                        id=str(uuid.uuid4()),
+                common_payload: CommonPricingConfigurationSchema = (
+                    CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
                         dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
                         overage_warning_km_threshold=50,  # Warning threshold for overages
                         minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
                         minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
-                        created_by=RoleEnum.system,
                         state_id=state_id,
                     )
                 )
-    session.add_all(outstation_pricing)
-    session.add_all(secondary_outstation_pricing)
+                create_common_pricing_configuration(common_payload, session)
+
     session.commit()
 
 
 def _seed_airport_cab_pricing(session: Session):
     # Seed airport cab pricing data per cab type and fuel type
     price_map = _get_region_wise_price_map(TripTypeEnum.airport_pickup)
-    airport_pricing = []
-    airport_secondary_pricing = []
-
-    cab_types = session.query(CabType).all()
-    fuel_types = session.query(FuelType).all()
+    cab_types = get_all_cabs(session)
+    fuel_types = get_all_fuel_types(session)
     is_available_in_network = True
-    trip_type_master_objs = session.query(TripTypeMaster).all()
+    trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
     for region_code, region_data in price_map.items():
-        region = (
-            session.query(RegionModel)
-            .filter(
-                RegionModel.region_code == region_code.upper(),
-                RegionModel.is_serviceable == True,
-            )
-            .first()
-        )
+        region = get_region_by_code(region_code.upper(), session)
         if not region:
             continue
         region_id = region.id
@@ -1263,26 +1252,22 @@ def _seed_airport_cab_pricing(session: Session):
                     is_available_in_network = False
                 else:
                     is_available_in_network = True
-                airport_pricing.append(
-                    AirportCabPricing(
-                        id=str(uuid.uuid4()),
-                        is_available_in_network=is_available_in_network,
-                        cab_type_id=cab.id,
-                        fuel_type_id=fuel.id,
-                        fare_per_km=region_data["fare_per_km"][cab.name][fuel.name],
-                        overage_amount_per_km=region_data["overage_amount_per_km"][
-                            cab.name
-                        ][fuel.name],
-                        region_id=region_id,
-                        created_by=RoleEnum.system,
-                    )
+                payload: AirportCabPricingSchema = AirportCabPricingSchema(
+                    is_available_in_network=is_available_in_network,
+                    cab_type_id=cab.id,
+                    fuel_type_id=fuel.id,
+                    fare_per_km=region_data["fare_per_km"][cab.name][fuel.name],
+                    overage_amount_per_km=region_data["overage_amount_per_km"][
+                        cab.name
+                    ][fuel.name],
+                    region_id=region_id,
                 )
+                create_airport_cab_pricing(payload, session)
 
                 # Keeping a separate tripwise pricing configuration for airport trips as these will be redundant if kept within AirportCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
-                airport_secondary_pricing.append(
-                    CommonPricingConfiguration(
-                        id=str(uuid.uuid4()),
+                common_payload: List[CommonPricingConfigurationSchema] = [
+                    CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
                         dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
                         placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
@@ -1290,177 +1275,114 @@ def _seed_airport_cab_pricing(session: Session):
                         overage_warning_km_threshold=2,  # Warning threshold for overages
                         toll=120,  # toll for airport pickup set to 120 if customer opts for it
                         parking=100,  # parking charge for airport pickup
-                        created_by=RoleEnum.system,
                         region_id=region_id,
-                    )
-                )
-                airport_secondary_pricing.append(
-                    CommonPricingConfiguration(
-                        id=str(uuid.uuid4()),
+                    ),
+                    CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
                         dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
                         max_included_km=42,  # 42 km included for airport trips is a standard
                         overage_warning_km_threshold=2,  # Warning threshold for overages
                         toll=120,  # toll for airport drop set to 120 if customer opts for it
                         parking=0,  # no parking charge for airport drop
-                        created_by=RoleEnum.system,
                         region_id=region_id,
-                    )
-                )
-
-    session.add_all(airport_pricing)
-    session.add_all(airport_secondary_pricing)
-    session.commit()
+                    ),
+                ]
+                for common_payload in common_payload:
+                    create_common_pricing_configuration(common_payload, session)
 
 
 def _seed_local_trip_packages(session: Session):
     # Seed local rental package configurations
     trip_type_master_objs = session.query(TripTypeMaster).all()
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
-    hourly_rental_packages = [
-        TripPackageConfigSchema(
-            included_hours=4,
-            included_km=40,
-            package_label="4Hours / 40KM",
-        ),
-        TripPackageConfigSchema(
-            included_hours=6,
-            included_km=60,
-            package_label="6Hours / 60KM",
-        ),
-        TripPackageConfigSchema(
-            included_hours=8,
-            included_km=80,
-            package_label="8Hours / 80KM",
-        ),
-        TripPackageConfigSchema(
-            included_hours=10,
-            included_km=100,
-            package_label="10Hours / 100KM",
-        ),
-        TripPackageConfigSchema(
-            included_hours=12,
-            included_km=120,
-            package_label="12Hours / 120KM",
-            driver_allowance=400.0,  # Driver allowance for 12 hours
-        ),
-    ]
+
     trip_wise_packages: List[TripPackageConfigSchema] = []
-    trip_wise_packages.extend(hourly_rental_packages)
-    trip_package_configs = []
+    trip_wise_packages.extend(HOURLY_RENTAL_PACKAGES_SEED_DATA)
     for package in trip_wise_packages:
-        trip_package_configs.append(
-            TripPackageConfig(
-                id=str(uuid.uuid4()),
-                trip_type_id=trip_type_id_map[TripTypeEnum.local],
-                included_hours=package.included_hours,
-                included_km=package.included_km,
-                package_label=package.package_label,
-                driver_allowance=package.driver_allowance
-                or 0.0,  # Default to 0 if not set
-                created_by=RoleEnum.system,
-            )
-        )
-    session.add_all(trip_package_configs)
-    session.commit()
+        package.trip_type_id = trip_type_id_map[TripTypeEnum.local]
+        create_trip_package_pricing_configuration(package, session)
 
 
 def _seed_cancelation_policy_pricing(session: Session):
     # Seed cancellation policy pricing configurations
-    # Insert into CancellationPolicy based on trip types and region for local and airport trips and state for outstation trips
-    trip_type_master_objs = session.query(TripTypeMaster).all()
+    # Insert into CancellationPolicy based on region for local and airport trips and state for outstation trips
+    trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
-    regions = (
-        session.query(RegionModel).filter(RegionModel.is_serviceable == True).all()
-    )
-    states = session.query(StateModel).filter(StateModel.is_serviceable == True).all()
-    cancelation_policies = []
+    regions = get_all_regions(session)
+    states = get_all_states(session)
     for region in regions:
         for trip_type in [
             TripTypeEnum.local,
             TripTypeEnum.airport_pickup,
             TripTypeEnum.airport_drop,
         ]:
+            payload= None
             # For seeding the data, we are assuming some standard values for cancellation policies across regions
-            # These can be updated later via admin interface as needed
+            # These can be updated later via admin interface per region and trip type as needed
             if trip_type in [
                 TripTypeEnum.airport_pickup,
                 TripTypeEnum.airport_drop,
             ]:
-                cancelation_policy = CancellationPolicy(
-                    id=str(uuid.uuid4()),
+                payload: CancelationPolicySchema = CancelationPolicySchema(
                     trip_type_id=trip_type_id_map[trip_type],
                     region_id=region.id,
                     free_cutoff_minutes=30,  # Free cancellation within 30 minutes
                     free_cutoff_time_label="30 minutes before trip start",
                     cancelation_amount=20.0,  # Flat cancellation fee after free period
-                    created_by=RoleEnum.system,
                 )
+                
             elif trip_type == TripTypeEnum.local:
-                cancelation_policy = CancellationPolicy(
-                    id=str(uuid.uuid4()),
+                payload: CancelationPolicySchema = CancelationPolicySchema(
                     trip_type_id=trip_type_id_map[trip_type],
                     region_id=region.id,
-                    free_cutoff_minutes=60,  # Free cancellation within 60 minutes
+                    free_cutoff_minutes=60,  # Free cancellation within 60 minutes/1h
                     free_cutoff_time_label="1 hour before trip start",
                     cancelation_amount=50.0,  # Flat cancellation fee after free period
-                    created_by=RoleEnum.system,
                 )
-            cancelation_policies.append(cancelation_policy)
+            if payload:
+             create_cancellation_policy_pricing(payload, session)
 
     for state in states:
         # For seeding the data, we are assuming some standard values for cancellation policies across states
+        # This can be updated later via admin interface per state as needed
         trip_type = TripTypeEnum.outstation
-        cancelation_policy = CancellationPolicy(
-            id=str(uuid.uuid4()),
+        payload: CancelationPolicySchema = CancelationPolicySchema(
             trip_type_id=trip_type_id_map[trip_type],
             state_id=state.id,
-            free_cutoff_minutes=1440,  # Free cancellation within 1440 minutes
+            free_cutoff_minutes=1440,  # Free cancellation within 1440 minutes/24h
             free_cutoff_time_label="1 day before trip start",
             cancelation_amount=100.0,  # Flat cancellation fee after free period
-            created_by=RoleEnum.system,
         )
-        cancelation_policies.append(cancelation_policy)
-    session.add_all(cancelation_policies)
-    session.commit()
+        create_cancellation_policy_pricing(payload, session)
+       
 
 
 def _seed_fixed_platform_pricing(session: Session):
     # Seed fixed platform pricing configurations
     # Fixed platform fee/infrastructure fee for all trips
-    fixed_platform_fee_config = FixedPlatformPricingConfiguration(
-        id=str(uuid.uuid4()), fixed_platform_fee=3.0
-    )
-    session.add(fixed_platform_fee_config)
-    session.commit()
+    create_fixed_platform_fee(3.0, session)
 
 
 def _seed_night_pricing(session: Session):
-    regions = (
-        session.query(RegionModel).filter(RegionModel.is_serviceable == True).all()
-    )
-    states = session.query(StateModel).filter(StateModel.is_serviceable == True).all()
-    night_charge_configs = []
+    regions = get_all_regions(session)
+    states = get_all_states(session)
     for region in regions:
-        night_charge_config = NightPricingConfiguration(
-            id=str(uuid.uuid4()),
+        payload: NightPricingConfigurationSchema = NightPricingConfigurationSchema(
             night_start_hour=20,  # 8PM
             night_end_hour=6,  # 6AM
             region_id=region.id,
-            created_by=RoleEnum.system,
+            night_hours_label="8PM to 6AM",
         )
-        night_charge_configs.append(night_charge_config)
+        create_night_pricing_configuration(payload, session)
+
     for state in states:
-        night_charge_config = NightPricingConfiguration(
-            id=str(uuid.uuid4()),
+        payload: NightPricingConfigurationSchema = NightPricingConfigurationSchema(
             night_start_hour=20,  # 8PM
             night_end_hour=6,  # 6AM
             state_id=state.id,
-            created_by=RoleEnum.system,
+            night_hours_label="8PM to 6AM",
         )
-        night_charge_configs.append(night_charge_config)
-    session.add_all(night_charge_configs)
-    session.commit()
+        create_night_pricing_configuration(payload, session)
 
 
 def _seed_super_admin(session: Session):
@@ -1470,10 +1392,9 @@ def _seed_super_admin(session: Session):
 
 def _seed_permit_fee_pricing(session: Session):
     permit_fee_config_per_state = _get_weekly_permit_fee_per_state()
-    states = session.query(StateModel).all()
-    cab_types = session.query(CabType).all()
-    fuel_types = session.query(FuelType).all()
-    permit_fee_pricings = []
+    states = get_all_states(session)
+    cab_types = get_all_cabs(session)
+    fuel_types = get_all_fuel_types(session)
     for state in states:
         state_code = state.state_code.upper()
         fee_map = permit_fee_config_per_state.get(state_code, None)
@@ -1484,18 +1405,13 @@ def _seed_permit_fee_pricing(session: Session):
                 weekly_fee = fee_map.get(cab.name, {}).get(fuel.name, None)
                 if not weekly_fee:
                     continue
-                permit_fee_pricings.append(
-                    PermitFeeConfiguration(
-                        id=str(uuid.uuid4()),
-                        state_id=state.id,
-                        cab_type_id=cab.id,
-                        fuel_type_id=fuel.id,
-                        permit_fee=weekly_fee,
-                        created_by=RoleEnum.system,
-                    )
+                payload: PermitFeeConfigurationSchema = PermitFeeConfigurationSchema(
+                    state_id=state.id,
+                    cab_type_id=cab.id,
+                    fuel_type_id=fuel.id,
+                    permit_fee=weekly_fee,
                 )
-    session.add_all(permit_fee_pricings)
-    session.commit()
+                create_permit_fee_configuration(payload, session)
 
 
 def _seed_kyc_document_types(session: Session):

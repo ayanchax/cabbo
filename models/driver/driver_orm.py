@@ -162,7 +162,7 @@ class DriverRating(Base):
     customer_id = Column(
         MySQL_CHAR(36), ForeignKey("customers.id", ondelete="CASCADE"), nullable=False
     )
-    rating = Column(Float, nullable=False)  # Rating given by the customer
+    rating = Column(Float, nullable=False)  # Rating given by the customer out of 5
     feedback = Column(String(500), nullable=True)  # Optional feedback from the customer
     created_at = Column(
         DateTime(timezone=True),
