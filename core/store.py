@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import threading
 from typing import ClassVar, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from db.database import get_mysql_local_session
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
@@ -31,12 +31,14 @@ from services.pricing_service import (
     get_base_pricings_airport,
     get_base_pricings_local,
     get_base_pricings_outstation,
+    get_cancellation_policy_by_region_code,
+    get_cancellation_policy_by_state_code,
     get_common_pricing_configurations_by_trip_type_id,
     get_fixed_platform_pricing_configuration,
     get_night_pricing_configuration,
     get_permit_fee_configuration,
 )
-from services.trip_service import get_all_trip_types, get_trip_type_id_by_trip_type
+from services.trip_service import get_all_trip_types, get_trip_package_configuration_by_region_code, get_trip_type_id_by_trip_type
 
 
 class ConfigStore(BaseModel):
@@ -94,6 +96,13 @@ class ConfigStore(BaseModel):
     _is_initialized: bool = False
     _lock: threading.Lock = Field(default_factory=threading.Lock, exclude=True)
 
+    # ✅ Private attributes using PrivateAttr (not validated by Pydantic)
+    _store: dict = PrivateAttr(default_factory=dict)
+    _last_loaded_at: Optional[datetime] = PrivateAttr(default=None)
+    _is_initialized: bool = PrivateAttr(default=False)
+    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    _db: Optional[Session] = PrivateAttr(default=None)
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -119,18 +128,8 @@ class ConfigStore(BaseModel):
         super().__init__(**data)
 
         # Initialize internal state
-        if not hasattr(self, "_store"):
-            self._store = {}
-        if not hasattr(self, "_lock"):
-            self._lock = threading.Lock()
-        if not hasattr(self, "_last_loaded_at"):
-            self._last_loaded_at = None
-        if not hasattr(self, "_is_initialized"):
-            self._is_initialized = False
-        if not hasattr(self, "_db"):
+        if self._db is None:
             self._db = get_mysql_local_session()
-            
-            
 
     @classmethod
     def get_instance(cls) -> "ConfigStore":
@@ -157,7 +156,7 @@ class ConfigStore(BaseModel):
             if not self._db:
                 self._db = get_mysql_local_session()
             self._lazy_load(self._db)
-            print("ConfigStore initialization completed.")
+            print("ConfigStore initialization completed.") 
         else:
             print(
                 "ConfigStore already initialized with valid cache. Skipping initialization."
@@ -481,6 +480,13 @@ class ConfigStore(BaseModel):
                         outstation_data[state_code].auxiliary_pricing.permit = (
                             permit_fee_schema
                         )
+        # Load cancelation policy config in store for outstation trips for each state
+        for state_code, pricing_config in outstation_data.items():
+            cancellation_policy = get_cancellation_policy_by_state_code(state_code, db)
+            if cancellation_policy:
+                pricing_config.auxiliary_pricing.cancellation_policy = (
+                    cancellation_policy
+                )
 
         self._set_outstation_pricing(outstation_data)
 
@@ -534,6 +540,23 @@ class ConfigStore(BaseModel):
                     local_data[region_code].auxiliary_pricing.night = (
                         night_pricing_schema
                     )
+        # Load cancelation policy config in store for local trips for each region
+        for region_code, pricing_config in local_data.items():
+            cancellation_policy = get_cancellation_policy_by_region_code(
+                region_code, db
+            )
+            if cancellation_policy:
+                pricing_config.auxiliary_pricing.cancellation_policy = (
+                    cancellation_policy
+                )
+        #- Load trip package config per region inside local trip config data
+        for region_code, pricing_config in local_data.items():
+            trip_package_config = get_trip_package_configuration_by_region_code(
+                region_code, db
+            )
+            if trip_package_config:
+                pricing_config.auxiliary_pricing.trip_package = trip_package_config
+
         self._set_local_pricing(local_data)
 
     def _retrieve_and_set_airport_pricing(self, trip_type: TripTypeEnum, db: Session):
@@ -581,6 +604,16 @@ class ConfigStore(BaseModel):
                     airport_data[region_code].auxiliary_pricing.common = trip_config
                     # No night pricing for airport trips
                     # No permit fee for airport trips
+        # Load cancelation policy config in store for local trips for each region
+        for region_code, pricing_config in airport_data.items():
+            cancellation_policy = get_cancellation_policy_by_region_code(
+                region_code, db
+            )
+            if cancellation_policy:
+                pricing_config.auxiliary_pricing.cancellation_policy = (
+                    cancellation_policy
+                )
+
         if trip_type == TripTypeEnum.airport_pickup:
             self._set_airport_pickup_pricing(airport_data)
         elif trip_type == TripTypeEnum.airport_drop:

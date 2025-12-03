@@ -3,6 +3,7 @@ from typing import List
 from aiohttp_retry import Union
 from sqlalchemy import func
 from models.cab.cab_orm import CabType, FuelType
+from models.geography.state_orm import StateModel
 from models.policies.cancelation_orm import CancellationPolicy
 from models.policies.cancelation_schema import CancelationPolicySchema
 from models.pricing.pricing_schema import (
@@ -13,6 +14,7 @@ from models.pricing.pricing_schema import (
     NightPricingConfigurationSchema,
     OutstationCabPricingSchema,
     PermitFeeConfigurationSchema,
+    TripPackageConfigSchema,
 )
 from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
@@ -28,7 +30,7 @@ from models.pricing.pricing_orm import (
 )
 from models.trip.trip_enums import TripTypeEnum
 from core.exceptions import CabboException
-from models.trip.trip_schema import TripBookRequest, TripPackageConfigSchema, TripSearchOption
+from models.trip.trip_schema import TripBookRequest, TripSearchOption
 
 APP_COUNTRY_CURRENCY_SYMBOL = "₹"  # Placeholder for currency symbol, adjust as needed
 def retrieve_interstate_permit_fee(
@@ -524,3 +526,29 @@ def create_fixed_platform_fee(payload:FixedPlatformFeeConfigurationSchema, db:Se
     db.commit()
     db.refresh(fixed_platform_fee_config)
     return FixedPlatformFeeConfigurationSchema.model_validate(fixed_platform_fee_config)
+
+def get_cancellation_policy_by_state_code(state_code: str, db: Session) -> CancelationPolicySchema:
+    cancellation_policy = (
+        db.query(CancellationPolicy)
+        .join(StateModel, CancellationPolicy.state_id == StateModel.id)
+        .filter(
+            StateModel.state_code == state_code,
+        )
+        .first()
+    )
+    if cancellation_policy:
+        return CancelationPolicySchema.model_validate(cancellation_policy)
+    return None
+
+def get_cancellation_policy_by_region_code(region_code: str, db: Session) -> CancelationPolicySchema:
+    cancellation_policy = (
+        db.query(CancellationPolicy)
+        .join(RegionModel, CancellationPolicy.region_id == RegionModel.id)
+        .filter(
+            RegionModel.region_code == region_code,
+        )
+        .first()
+    )
+    if cancellation_policy:
+        return CancelationPolicySchema.model_validate(cancellation_policy)
+    return None 

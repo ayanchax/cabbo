@@ -7,6 +7,7 @@ from models.pricing.pricing_schema import (
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
     OveragesSchema,
+    TripPackageConfigSchema,
 )
 from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
@@ -215,19 +216,7 @@ class TripSearchRequest(BaseModel):
         return v
 
 
-class TripPackageConfigSchema(BaseModel):
-    id: Optional[str] = None  # Optional ID for existing packages
-    trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
-    region_id: Optional[str] = None  # FK to RegionsMaster.id
-    included_hours: Optional[int]  # e.g., 4, 6, 8, 10, 12
-    included_km: Optional[int]  # e.g., 40, 60, 80, 100, 120
-    package_label: Optional[str]  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
-    driver_allowance: Optional[float] = (
-        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
-    )
 
-    class Config:
-        from_attributes = True
 
 
 class AmenitiesSchema(BaseModel):

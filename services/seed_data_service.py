@@ -13,10 +13,10 @@ from models.pricing.pricing_schema import (
     NightPricingConfigurationSchema,
     OutstationCabPricingSchema,
     PermitFeeConfigurationSchema,
+    TripPackageConfigSchema,
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from models.trip.trip_orm import TripTypeMaster
-from models.trip.trip_schema import TripPackageConfigSchema
 from services.cab_service import create_cabs, get_all_cabs
 from services.document_service import create_master_kyc_data
 from services.file_service import is_file_exists, is_file_exists, save_file

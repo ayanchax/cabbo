@@ -2,6 +2,7 @@ from typing import List, Union
 
 from core.security import RoleEnum, generate_trip_hash, verify_trip_hash
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
     AirportPricingBreakdownSchema,
@@ -10,6 +11,7 @@ from models.pricing.pricing_schema import (
     OutstationCabPricingSchema,
     OveragesSchema,
     OutstationPricingBreakdownSchema,
+    TripPackageConfigSchema,
 )
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import PaymentNotesSchema, RazorPayPaymentResponse
@@ -21,7 +23,6 @@ from models.trip.trip_schema import (
     TripCreate,
     TripDetails,
     TripOut,
-    TripPackageConfigSchema,
     TripSearchAdditionalData,
     TripSearchRequest,
     TripSearchOption,
@@ -35,14 +36,23 @@ from models.pricing.pricing_orm import (
     LocalCabPricing,
     OutstationCabPricing,
 )
-from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import (
+    CarTypeEnum,
+    FuelTypeEnum,
+    TripStatusEnum,
+    TripTypeEnum,
+)
 from core.exceptions import CabboException
 from services.audit_trail_service import log_trip_audit
 from services.location_service import get_distance_km, get_state_from_location
-from core.constants import  APP_NAME
+from core.constants import APP_NAME
 from datetime import datetime, timezone, timedelta
 import math
-from services.passenger_service import get_passenger_id_from_preferences, populate_passenger_details, validate_passenger_id
+from services.passenger_service import (
+    get_passenger_id_from_preferences,
+    populate_passenger_details,
+    validate_passenger_id,
+)
 from services.payment_service import get_trip_payment_order, verify_payment
 from services.pricing_service import (
     get_airport_toll,
@@ -56,7 +66,14 @@ from services.pricing_service import (
     retrieve_interstate_permit_fee,
     retrieve_trip_wise_pricing_config,
 )
-from services.validation_service import validate_airport_schedule, validate_booking_request, validate_local_trip_schedule, validate_outstation_trip_schedule, validate_placard_requirements, validate_serviceable_area
+from services.validation_service import (
+    validate_airport_schedule,
+    validate_booking_request,
+    validate_local_trip_schedule,
+    validate_outstation_trip_schedule,
+    validate_placard_requirements,
+    validate_serviceable_area,
+)
 from utils.utility import remove_none_recursive, validate_date_time
 from models.trip.trip_enums import TripTypeEnum
 
@@ -71,14 +88,14 @@ TRIP_MESSAGES = {
                     "id": "COMPLETE_ADVANCE_PAYMENT",
                     "step": "Complete Advance Payment",
                     "instruction": "Please complete the advance payment to confirm your trip.",
-                    "reason": "This advance payment is our platform/convenience fee that helps us guarantee your trip."
+                    "reason": "This advance payment is our platform/convenience fee that helps us guarantee your trip.",
                 },
                 {
                     "id": "AWAIT_CONFIRMATION",
                     "step": "Await Confirmation",
-                    "instruction": "You will receive a confirmation once the payment is successful."
-                }
-            ]
+                    "instruction": "You will receive a confirmation once the payment is successful.",
+                },
+            ],
         }
     },
     TripStatusEnum.confirmed.value: {
@@ -89,48 +106,48 @@ TRIP_MESSAGES = {
                 {
                     "id": "AWAIT_TRIP_DETAILS",
                     "step": "Await trip details",
-                    "instruction": "You will receive the trip and driver details shortly."
+                    "instruction": "You will receive the trip and driver details shortly.",
                 },
                 {
                     "id": "PAY_REMAINING_FARE",
                     "step": "Pay remaining fare after trip completion",
-                    "instruction": "You will receive an invoice after your trip ends, and you should pay the rest of your fare only through the app or provided payment link in the invoice."
-                }
+                    "instruction": "You will receive an invoice after your trip ends, and you should pay the rest of your fare only through the app or provided payment link in the invoice.",
+                },
             ],
             "advisory": [
                 {
                     "id": "DO_NOT_PAY_FOR_DRIVER_ACCOMMODATION",
                     "instruction": "You are not required or liable to arrange or pay for any driver accommodation.",
-                    "additional_info": f"If you are willing to provide driver accommodation during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements."
+                    "additional_info": f"If you are willing to provide driver accommodation during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements.",
                 },
                 {
                     "id": "DO_NOT_PAY_FOR_DRIVER_FOOD",
                     "instruction": "You are not required or liable to arrange or pay for any driver food or meals.",
-                    "additional_info": f"If you are willing to provide driver food or meals during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements."
-                },
-               {
-                    "id": "DO_NOT_PAY_TO_DRIVER",
-                    "instruction": "Please do not make any trip related payments to the driver directly.",
-                    "additional_info": "All trip related payments should be made through the app for your safety."
+                    "additional_info": f"If you are willing to provide driver food or meals during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements.",
                 },
                 {
-                    "id":"DO_NOT_ENTERTAIN_PAYMENT_REQUESTS_FROM_DRIVER",
+                    "id": "DO_NOT_PAY_TO_DRIVER",
+                    "instruction": "Please do not make any trip related payments to the driver directly.",
+                    "additional_info": "All trip related payments should be made through the app for your safety.",
+                },
+                {
+                    "id": "DO_NOT_ENTERTAIN_PAYMENT_REQUESTS_FROM_DRIVER",
                     "instruction": "Please do not entertain any kind of payment requests from the driver.",
-                    "additional_info": "All payment requests should be directed through the app for your safety. If the driver insists, please report it to our support team."
+                    "additional_info": "All payment requests should be directed through the app for your safety. If the driver insists, please report it to our support team.",
                 },
                 {
                     "id": "OPTIONAL_TIPPING",
                     "instruction": "You are free to tip your driver directly in cash/UPI, at your own discretion.",
-                    "additional_info": "Tipping is not mandatory but greatly appreciated."
+                    "additional_info": "Tipping is not mandatory but greatly appreciated.",
                 },
                 {
                     "id": "CONTACT_SUPPORT_GENERAL",
                     "instruction": f"If you face any issues or have concerns during your trip, please contact {APP_NAME.capitalize()} support immediately.",
-                    "additional_info": "Your comfort and safety are our priority. Our support team is always here to help you."
-                }
-            ]
+                    "additional_info": "Your comfort and safety are our priority. Our support team is always here to help you.",
+                },
+            ],
         }
-    }
+    },
 }
 
 
@@ -150,33 +167,45 @@ COMMON_EXCLUSIONS = [
     "Extra parking(if any)",
 ]
 
+
 def get_trip_messages(status: Union[str, TripStatusEnum]):
     status = status.value if isinstance(status, TripStatusEnum) else status
     return TRIP_MESSAGES.get(status, {})
 
 
 def _retrieve_trip_package_by_id(
-    package_id: str, db: Session, fallback_duration: int=4, fallback_km: int=40, fallback_label: str="4Hours / 40KM"
+    package_id: str,
+    db: Session,
+    fallback_duration: int = 4,
+    fallback_km: int = 40,
+    fallback_label: str = "4Hours / 40KM",
 ):
     if not package_id:
         return TripPackageConfigSchema(
-            included_hours=fallback_duration, included_km=fallback_km, package_label=fallback_label
+            included_hours=fallback_duration,
+            included_km=fallback_km,
+            package_label=fallback_label,
         )
     package = (
         db.query(TripPackageConfig).filter(TripPackageConfig.id == package_id).first()
     )
     if not package:
         return TripPackageConfigSchema(
-            included_hours=fallback_duration, included_km=fallback_km, package_label=fallback_label
+            included_hours=fallback_duration,
+            included_km=fallback_km,
+            package_label=fallback_label,
         )
     package_schema = TripPackageConfigSchema.model_validate(package)
     return (
         package_schema
         if package_schema.included_hours and package_schema.included_hours > 0
         else TripPackageConfigSchema(
-            included_hours=fallback_duration, included_km=fallback_km, package_label=fallback_label
+            included_hours=fallback_duration,
+            included_km=fallback_km,
+            package_label=fallback_label,
         )
     )
+
 
 def _set_default_trip_preferences(search_in: TripSearchRequest):
     """
@@ -199,7 +228,13 @@ def _set_default_trip_preferences(search_in: TripSearchRequest):
     if search_in.num_children < 0 or search_in.num_children is None:
         search_in.num_children = 0
 
-def _generate_trip_field_dictionary(search_in: TripSearchRequest, car_type: str, fuel_type: str, option: TripSearchOption):
+
+def _generate_trip_field_dictionary(
+    search_in: TripSearchRequest,
+    car_type: str,
+    fuel_type: str,
+    option: TripSearchOption,
+):
     """Generates a dictionary of trip fields for the booking option and preferences.
     This method creates a dictionary representation of the trip option and preferences
     for use in generating a hash to verify the integrity of the booking data.
@@ -215,36 +250,41 @@ def _generate_trip_field_dictionary(search_in: TripSearchRequest, car_type: str,
             - option_dict: Dictionary of trip option fields.
             - preference_dict: Dictionary of user preferences for the trip.
     """
-    option_dict ={
-                "car_type": car_type,  # Use display name from schema
-                "fuel_type": fuel_type,  # Use display name from schema
-                "total_price": option.total_price,
-                }
-    preference_dict={
-                "trip_type": search_in.trip_type,
-                "origin": search_in.origin.model_dump() if search_in.origin else None,
-                "start_date": search_in.start_date,
-                }
-    passenger_id =get_passenger_id_from_preferences(preferences=search_in)
+    option_dict = {
+        "car_type": car_type,  # Use display name from schema
+        "fuel_type": fuel_type,  # Use display name from schema
+        "total_price": option.total_price,
+    }
+    preference_dict = {
+        "trip_type": search_in.trip_type,
+        "origin": search_in.origin.model_dump() if search_in.origin else None,
+        "start_date": search_in.start_date,
+    }
+    passenger_id = get_passenger_id_from_preferences(preferences=search_in)
     if passenger_id:
         preference_dict["passenger_id"] = passenger_id
-    
+
     if search_in.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-         preference_dict["destination"]= search_in.destination.model_dump() if search_in.destination else None
-        
+        preference_dict["destination"] = (
+            search_in.destination.model_dump() if search_in.destination else None
+        )
+
     elif search_in.trip_type == TripTypeEnum.local:
         option_dict["package"] = option.package
         option_dict["package_short_label"] = option.package_short_label
         option_dict["included_hours"] = option.included_hours
         option_dict["included_km"] = option.included_km
     elif search_in.trip_type == TripTypeEnum.outstation:
-        preference_dict["destination"]= search_in.destination.model_dump() if search_in.destination else None
+        preference_dict["destination"] = (
+            search_in.destination.model_dump() if search_in.destination else None
+        )
         preference_dict["start_date"] = search_in.end_date
     else:
         # For other trip types, we can set additional fields if needed
         pass
-    
+
     return option_dict, preference_dict
+
 
 def get_trip_search_options(
     search_in: TripSearchRequest, requestor: str, db: Session
@@ -276,9 +316,7 @@ def get_trip_search_options(
     Raises:
         CabboException: If the trip type is invalid or not supported, or if any validation fails.
     """
-    validate_passenger_id(
-        search_in, requestor, db
-    )  # Validate passenger ID if provided
+    validate_passenger_id(search_in, requestor, db)  # Validate passenger ID if provided
     _set_default_trip_preferences(search_in)  # Ensure preferences are set
     validate_serviceable_area(search_in, db)  # Enforce serviceable area boundaries
     options: List[TripSearchOption] = []
@@ -291,8 +329,8 @@ def get_trip_search_options(
         None  # Default to 1 day for local and airport trips, can be overridden later
     )
     est_km = None
-    total_unique_states:int = 0
-    unique_states=[]
+    total_unique_states: int = 0
+    unique_states = []
 
     is_interstate = False  # Default to False, will be set for outstation trips
     if search_in.trip_type == TripTypeEnum.airport_pickup:  # from airport
@@ -310,7 +348,9 @@ def get_trip_search_options(
             db.query(AirportCabPricing, CabType, FuelType)
             .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
             .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
-            .filter(AirportCabPricing.is_available_in_network == True)  # Ensure only available cabs are considered
+            .filter(
+                AirportCabPricing.is_available_in_network == True
+            )  # Ensure only available cabs are considered
             .all()
         )
         package_short_label = "Airport Pickup"
@@ -321,7 +361,7 @@ def get_trip_search_options(
             cab_type_schema = CabTypeSchema.model_validate(cab_type)
             fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
             base_fare_per_km = pricing_schema.fare_per_km
-            
+
             overage_amount_per_km = pricing_schema.overage_amount_per_km
             placard_charge = (
                 configs.placard_charge
@@ -337,7 +377,7 @@ def get_trip_search_options(
             total_price_before_platform_fee = math.ceil(
                 base_price + toll + parking + placard_charge
             )
-            
+
             margin = max_included_km - est_km  # Allow negative values for overage
             indicative_overage_warning = margin <= warning_km_threshold
             # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
@@ -360,41 +400,40 @@ def get_trip_search_options(
                 "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
             )
             option = TripSearchOption(
-                    car_type=cab_type_schema.name,  # Use display name from schema
-                    fuel_type=fuel_type_schema.name,  # Use display name from schema
-                    total_price=math.ceil(
-                        total_price_before_platform_fee + price_breakdown.platform_fee
-                    ),
-                    included_km=max_included_km,
-                    price_breakdown=price_breakdown,
-                    package=package_label,  # Use package string for display
-                    package_short_label=package_short_label,
-                    overages=(
-                        OveragesSchema(
-                            indicative_overage_warning=indicative_overage_warning,
-                            overage_amount_per_km=(
-                                overage_amount_per_km
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            overage_estimate_amount=(
-                                math.ceil(overage_amount)
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            disclaimer=disclaimer_lines,
-                            extra_charges_disclaimers=disclaimer_message,
-                        )
-                    ),
-                )
-            option_dict, preference_dict=_generate_trip_field_dictionary(
-                search_in, cab_type_schema.name, fuel_type_schema.name, option)
-             
-            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
-            option.hash = hash  # Attach the generated hash to the option
-            options.append(
-                option
+                car_type=cab_type_schema.name,  # Use display name from schema
+                fuel_type=fuel_type_schema.name,  # Use display name from schema
+                total_price=math.ceil(
+                    total_price_before_platform_fee + price_breakdown.platform_fee
+                ),
+                included_km=max_included_km,
+                price_breakdown=price_breakdown,
+                package=package_label,  # Use package string for display
+                package_short_label=package_short_label,
+                overages=(
+                    OveragesSchema(
+                        indicative_overage_warning=indicative_overage_warning,
+                        overage_amount_per_km=(
+                            overage_amount_per_km if indicative_overage_warning else 0.0
+                        ),
+                        overage_estimate_amount=(
+                            math.ceil(overage_amount)
+                            if indicative_overage_warning
+                            else 0.0
+                        ),
+                        disclaimer=disclaimer_lines,
+                        extra_charges_disclaimers=disclaimer_message,
+                    )
+                ),
             )
+            option_dict, preference_dict = _generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option
+            )
+
+            hash = generate_trip_hash(
+                option_dict, preference_dict
+            )  # Generate hash for the option
+            option.hash = hash  # Attach the generated hash to the option
+            options.append(option)
     elif search_in.trip_type == TripTypeEnum.airport_drop:  # to airport
         validate_airport_schedule(search_in)  # Validate airport drop schedule
         _, _, est_km = _get_trip_origin_destination_distance_airport_drop(search_in)
@@ -407,7 +446,9 @@ def get_trip_search_options(
             db.query(AirportCabPricing, CabType, FuelType)
             .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
             .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
-            .filter(AirportCabPricing.is_available_in_network == True)  # Ensure only available cabs are considered
+            .filter(
+                AirportCabPricing.is_available_in_network == True
+            )  # Ensure only available cabs are considered
             .all()
         )
         package_short_label = "Airport Drop"
@@ -444,37 +485,39 @@ def get_trip_search_options(
             disclaimer_message = (
                 "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
             )
-            option=TripSearchOption(
+            option = TripSearchOption(
                 car_type=cab_type_schema.name,  # Use display name
-                    fuel_type=fuel_type_schema.name,  # Use display name
-                    total_price=math.ceil(
-                        total_price_before_platform_fee + price_breakdown.platform_fee
-                    ),
-                    price_breakdown=price_breakdown,
-                    included_km=max_included_km,
-                    package=package_label,
-                    package_short_label=package_short_label,
-                    overages=(
-                        OveragesSchema(
-                            indicative_overage_warning=indicative_overage_warning,
-                            overage_amount_per_km=(
-                                overage_amount_per_km
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            overage_estimate_amount=(
-                                math.ceil(overage_amount)
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            disclaimer=disclaimer_lines,
-                            extra_charges_disclaimers=disclaimer_message,
-                        )
-                    ))
-            option_dict, preference_dict=_generate_trip_field_dictionary(
-                search_in, cab_type_schema.name, fuel_type_schema.name, option)
-             
-            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
+                fuel_type=fuel_type_schema.name,  # Use display name
+                total_price=math.ceil(
+                    total_price_before_platform_fee + price_breakdown.platform_fee
+                ),
+                price_breakdown=price_breakdown,
+                included_km=max_included_km,
+                package=package_label,
+                package_short_label=package_short_label,
+                overages=(
+                    OveragesSchema(
+                        indicative_overage_warning=indicative_overage_warning,
+                        overage_amount_per_km=(
+                            overage_amount_per_km if indicative_overage_warning else 0.0
+                        ),
+                        overage_estimate_amount=(
+                            math.ceil(overage_amount)
+                            if indicative_overage_warning
+                            else 0.0
+                        ),
+                        disclaimer=disclaimer_lines,
+                        extra_charges_disclaimers=disclaimer_message,
+                    )
+                ),
+            )
+            option_dict, preference_dict = _generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option
+            )
+
+            hash = generate_trip_hash(
+                option_dict, preference_dict
+            )  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(option)
     elif search_in.trip_type == TripTypeEnum.local:
@@ -500,17 +543,20 @@ def get_trip_search_options(
         package_short_label = package.package_label
         package_included_hours = package.included_hours
         package_included_km = package.included_km
-        
-        expected_end_date =validate_date_time(search_in.start_date) + timedelta(
+
+        expected_end_date = validate_date_time(search_in.start_date) + timedelta(
             hours=package_included_hours
         )
-        search_in.expected_end_date = str(expected_end_date)  # Ensure expected end date is set for local trips
+        search_in.expected_end_date = str(
+            expected_end_date
+        )  # Ensure expected end date is set for local trips
         local_pricings = (
             db.query(LocalCabPricing, CabType, FuelType)
             .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
             .join(FuelType, LocalCabPricing.fuel_type_id == FuelType.id)
             .filter(
-                LocalCabPricing.is_available_in_network == True,)  # Ensure only available cabs are considered
+                LocalCabPricing.is_available_in_network == True,
+            )  # Ensure only available cabs are considered
             .all()
         )
 
@@ -555,28 +601,31 @@ def get_trip_search_options(
                 "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
             )
             package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
-            option= TripSearchOption(
-                    car_type=cab_type_schema.name,  # Use display name from schema
-                    fuel_type=fuel_type_schema.name,  # Use display name from schema
-                    total_price=math.ceil(
-                        total_price_before_platform_fee + price_breakdown.platform_fee
-                    ),
-                    price_breakdown=price_breakdown,
-                    included_hours=package_included_hours,
-                    included_km=package_included_km,
-                    package=package_label,  # Use package string for display
-                    package_short_label=package_short_label,
-                    overages=(
-                        OveragesSchema(
-                            disclaimer=disclaimer_lines,
-                            extra_charges_disclaimers=disclaimer_message,
-                        )
-                    ),
-                )
-            option_dict, preference_dict=_generate_trip_field_dictionary(
-                search_in, cab_type_schema.name, fuel_type_schema.name, option)
-             
-            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
+            option = TripSearchOption(
+                car_type=cab_type_schema.name,  # Use display name from schema
+                fuel_type=fuel_type_schema.name,  # Use display name from schema
+                total_price=math.ceil(
+                    total_price_before_platform_fee + price_breakdown.platform_fee
+                ),
+                price_breakdown=price_breakdown,
+                included_hours=package_included_hours,
+                included_km=package_included_km,
+                package=package_label,  # Use package string for display
+                package_short_label=package_short_label,
+                overages=(
+                    OveragesSchema(
+                        disclaimer=disclaimer_lines,
+                        extra_charges_disclaimers=disclaimer_message,
+                    )
+                ),
+            )
+            option_dict, preference_dict = _generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option
+            )
+
+            hash = generate_trip_hash(
+                option_dict, preference_dict
+            )  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(option)
     elif search_in.trip_type == TripTypeEnum.outstation:
@@ -593,8 +642,12 @@ def get_trip_search_options(
         )
 
         # Identify unique state borders crossed (including between hops)
-        is_interstate, total_unique_states, unique_states = _track_state_transitions(search_in)
-        inclusions, exclusions = _get_inclusions_exclusions_for_outstation_trip(is_interstate)
+        is_interstate, total_unique_states, unique_states = _track_state_transitions(
+            search_in
+        )
+        inclusions, exclusions = _get_inclusions_exclusions_for_outstation_trip(
+            is_interstate
+        )
         in_car_amenities.candies = True  # Candies are included for outstation trips
         in_car_amenities.phone_charger = (
             True  # Always include phone charger for outstation trips
@@ -612,7 +665,9 @@ def get_trip_search_options(
         night_surcharge_per_hour = (
             configs.night_pricing_configuration.night_overage_amount_per_block
         )
-        night_hours_display_label = configs.night_pricing_configuration.night_hours_label
+        night_hours_display_label = (
+            configs.night_pricing_configuration.night_hours_label
+        )
         search_in.expected_end_date = search_in.end_date
         # Fetch all outstation cab pricings
         outstation_pricings = (
@@ -620,7 +675,8 @@ def get_trip_search_options(
             .join(CabType, OutstationCabPricing.cab_type_id == CabType.id)
             .join(FuelType, OutstationCabPricing.fuel_type_id == FuelType.id)
             .filter(
-                OutstationCabPricing.is_available_in_network == True, ) # Ensure only available cabs are considered
+                OutstationCabPricing.is_available_in_network == True,
+            )  # Ensure only available cabs are considered
             .all()
         )
         for pricing, cab_type, fuel_type in outstation_pricings:
@@ -683,44 +739,43 @@ def get_trip_search_options(
             disclaimer_message = "Extra charges may apply:\n - " + "\n - ".join(
                 disclaimer_lines
             )
-            option =  TripSearchOption(
-                    car_type=cab_type_schema.name,
-                    fuel_type=fuel_type_schema.name,
-                    total_price=math.ceil(
-                        total_price_before_platform_fee + platform_fee_amount
-                    ),
-                    price_breakdown=price_breakdown,
-                    included_km=included_km,
-                    package=package_label,
-                    package_short_label=package_short_label,
-                    overages=(
-                        OveragesSchema(
-                            indicative_overage_warning=indicative_overage_warning,
-                            overage_amount_per_km=(
-                                overage_amount_per_km
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            overage_estimate_amount=(
-                                math.ceil(overage_amount)
-                                if indicative_overage_warning
-                                else 0.0
-                            ),
-                            disclaimer=disclaimer_lines,
-                            extra_charges_disclaimers=disclaimer_message,
-                        )
-                    ),
-                )
-            
-           
-            option_dict, preference_dict=_generate_trip_field_dictionary(
-                search_in, cab_type_schema.name, fuel_type_schema.name, option)
-             
-            hash = generate_trip_hash(option_dict, preference_dict)  # Generate hash for the option
+            option = TripSearchOption(
+                car_type=cab_type_schema.name,
+                fuel_type=fuel_type_schema.name,
+                total_price=math.ceil(
+                    total_price_before_platform_fee + platform_fee_amount
+                ),
+                price_breakdown=price_breakdown,
+                included_km=included_km,
+                package=package_label,
+                package_short_label=package_short_label,
+                overages=(
+                    OveragesSchema(
+                        indicative_overage_warning=indicative_overage_warning,
+                        overage_amount_per_km=(
+                            overage_amount_per_km if indicative_overage_warning else 0.0
+                        ),
+                        overage_estimate_amount=(
+                            math.ceil(overage_amount)
+                            if indicative_overage_warning
+                            else 0.0
+                        ),
+                        disclaimer=disclaimer_lines,
+                        extra_charges_disclaimers=disclaimer_message,
+                    )
+                ),
+            )
+
+            option_dict, preference_dict = _generate_trip_field_dictionary(
+                search_in, cab_type_schema.name, fuel_type_schema.name, option
+            )
+
+            hash = generate_trip_hash(
+                option_dict, preference_dict
+            )  # Generate hash for the option
             option.hash = hash  # Attach the generated hash to the option
             options.append(option)
-           
-            
+
     else:
         # If the trip type is not supported, raise an exception
         raise CabboException("Trip is not supported", status_code=501)
@@ -787,26 +842,42 @@ def get_trip_search_options(
     _options = sorted(options, key=sort_key)[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
-    metadata=TripSearchAdditionalData(
+    metadata = TripSearchAdditionalData(
         inclusions=inclusions,
         exclusions=exclusions,
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
         estimated_km=est_km,
-        included_hours=_options[0].included_hours if search_in.trip_type in[TripTypeEnum.local] and _options and len(_options)> 0 and _options[0].included_hours else None,
-        included_km=_options[0].included_km if _options and len(_options)> 0 and _options[0].included_km else None,
+        included_hours=(
+            _options[0].included_hours
+            if search_in.trip_type in [TripTypeEnum.local]
+            and _options
+            and len(_options) > 0
+            and _options[0].included_hours
+            else None
+        ),
+        included_km=(
+            _options[0].included_km
+            if _options and len(_options) > 0 and _options[0].included_km
+            else None
+        ),
         choices=len(_options),  # Total number of options returned
-        is_round_trip=True if search_in.trip_type in[ TripTypeEnum.outstation, TripTypeEnum.local] else False,
+        is_round_trip=(
+            True
+            if search_in.trip_type in [TripTypeEnum.outstation, TripTypeEnum.local]
+            else False
+        ),
         is_interstate=is_interstate,
         total_unique_states=total_unique_states,
         unique_states=unique_states if is_interstate else None,
-        )
+    )
 
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
         metadata=metadata,
     )
+
 
 def _get_default_trip_amenities():
     return AmenitiesSchema(
@@ -815,6 +886,7 @@ def _get_default_trip_amenities():
         ac=True,
         music_system=True,
     )
+
 
 def _get_inclusions_exclusions_for_local_trip():
     """
@@ -832,8 +904,9 @@ def _get_inclusions_exclusions_for_local_trip():
         ]
     )
     exclusions = COMMON_EXCLUSIONS[:]
-    
+
     return inclusions, exclusions
+
 
 def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
     """
@@ -853,8 +926,7 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
             "Water bottles, candies, and tissues",
         ]
     )
-    
-    
+
     exclusions = COMMON_EXCLUSIONS[:]  # base set
     exclusions.extend(
         [
@@ -871,6 +943,7 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
         )
     return inclusions, exclusions
 
+
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
     """
     Returns the inclusions and exclusions for airport drop trips.
@@ -879,13 +952,14 @@ def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = Fals
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = COMMON_INCLUSIONS[:] # base set
+    inclusions = COMMON_INCLUSIONS[:]  # base set
     if toll_road_preferred:
         inclusions.insert(1, "Toll")  # keep Toll early in the list
     inclusions.extend(["Water bottles and tissues"])
-   
-    exclusions = COMMON_EXCLUSIONS[:] 
+
+    exclusions = COMMON_EXCLUSIONS[:]
     return inclusions, exclusions
+
 
 def _get_inclusions_exclusions_for_airort_pickup(
     toll_road_preferred: bool = False, placard_required: bool = False
@@ -906,6 +980,7 @@ def _get_inclusions_exclusions_for_airort_pickup(
     inclusions.append("Water bottles and tissues")
     exclusions = COMMON_EXCLUSIONS[:]  # base set
     return inclusions, exclusions
+
 
 def _track_state_transitions(search_in: TripSearchRequest):
     """
@@ -944,6 +1019,7 @@ def _track_state_transitions(search_in: TripSearchRequest):
     )  # More than one unique state means interstate trip
     return is_interstate, total_unique_states, list(unique_states)
 
+
 def _get_trip_origin_destination_distance_airport_pickup(search_in: TripSearchRequest):
     """
     Validates and retrieves the origin, destination, and estimated distance for airport pickup trips.
@@ -971,6 +1047,7 @@ def _get_trip_origin_destination_distance_airport_pickup(search_in: TripSearchRe
         )
 
     return search_in.origin, search_in.destination, est_km
+
 
 def _get_trip_origin_destination_distance_airport_drop(search_in: TripSearchRequest):
     """
@@ -1000,6 +1077,7 @@ def _get_trip_origin_destination_distance_airport_drop(search_in: TripSearchRequ
         )
     return search_in.origin, search_in.destination, est_km
 
+
 def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
     """
     Validates and retrieves the origin, destination, and estimated distance for local trips.
@@ -1024,6 +1102,7 @@ def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
         search_in.destination,
         0.0,
     )  # Local trips don't require distance estimation as they are hourly based, can be 0 or any default value
+
 
 def _get_trip_origin_destination_distance_outstation(search_in: TripSearchRequest):
     """
@@ -1058,7 +1137,7 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
             "Could not estimate distance between origin and destination",
             status_code=400,
         )
-    if est_km<100:
+    if est_km < 100:
         # Ensure that the estimated distance is at least 100 km for outstation trips
         raise CabboException(
             "Outstation trips must have a minimum distance of 100 km, the route you have selected is less than 100 km, try with a different route or switch to local trip",
@@ -1067,20 +1146,41 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
 
     return search_in.origin, search_in.destination, est_km
 
-def _verify_trip_hash(booking_request: TripBookRequest):
-    if not hasattr(booking_request, 'option'):
-        raise CabboException("Invalid booking request, option is required", status_code=400)
-    
-    if not booking_request.option or not hasattr(booking_request.option, 'hash'):
-        raise CabboException("Invalid booking request, option hash is required", status_code=400)
-    if not booking_request.preferences:
-        raise CabboException("Invalid booking request, preferences are required", status_code=400)
-    # Validate the trip option hash
-    option_dict, preference_dict =_generate_trip_field_dictionary(search_in = booking_request.preferences, car_type=booking_request.option.car_type, fuel_type=booking_request.option.fuel_type, option=booking_request.option)
-    if not verify_trip_hash(option=option_dict, preferences=preference_dict, client_hash=booking_request.option.hash):
-        raise CabboException("Invalid booking request, option hash is not valid", status_code=400)
 
-def get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session, include_id_only=True) -> Union[str, TripTypeSchema]:
+def _verify_trip_hash(booking_request: TripBookRequest):
+    if not hasattr(booking_request, "option"):
+        raise CabboException(
+            "Invalid booking request, option is required", status_code=400
+        )
+
+    if not booking_request.option or not hasattr(booking_request.option, "hash"):
+        raise CabboException(
+            "Invalid booking request, option hash is required", status_code=400
+        )
+    if not booking_request.preferences:
+        raise CabboException(
+            "Invalid booking request, preferences are required", status_code=400
+        )
+    # Validate the trip option hash
+    option_dict, preference_dict = _generate_trip_field_dictionary(
+        search_in=booking_request.preferences,
+        car_type=booking_request.option.car_type,
+        fuel_type=booking_request.option.fuel_type,
+        option=booking_request.option,
+    )
+    if not verify_trip_hash(
+        option=option_dict,
+        preferences=preference_dict,
+        client_hash=booking_request.option.hash,
+    ):
+        raise CabboException(
+            "Invalid booking request, option hash is not valid", status_code=400
+        )
+
+
+def get_trip_type_id_by_trip_type(
+    trip_type: TripTypeEnum, db: Session, include_id_only=True
+) -> Union[str, TripTypeSchema]:
     """
     Retrieves the trip type ID from the database based on the provided trip type.
     Args:
@@ -1091,10 +1191,17 @@ def get_trip_type_id_by_trip_type(trip_type: TripTypeEnum, db: Session, include_
     Raises:
         CabboException: If the trip type is not found in the database.
     """
-    trip_type_obj = db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
+    trip_type_obj = (
+        db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
+    )
     if not trip_type_obj:
         raise CabboException(f"Trip type {trip_type} not found", status_code=404)
-    return trip_type_obj.id if include_id_only else TripTypeSchema.model_validate(trip_type_obj)
+    return (
+        trip_type_obj.id
+        if include_id_only
+        else TripTypeSchema.model_validate(trip_type_obj)
+    )
+
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
     """
@@ -1107,10 +1214,15 @@ def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEn
     Raises:
         CabboException: If the trip type ID is not found in the database.
     """
-    trip_type_obj = db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id).first()
+    trip_type_obj = (
+        db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id).first()
+    )
     if not trip_type_obj:
-        raise CabboException(f"Trip type with ID {trip_type_id} not found", status_code=404)
+        raise CabboException(
+            f"Trip type with ID {trip_type_id} not found", status_code=404
+        )
     return TripTypeEnum(trip_type_obj.trip_type)
+
 
 def _delete_temp_trip(requestor: str, db: Session):
     """
@@ -1127,9 +1239,18 @@ def _delete_temp_trip(requestor: str, db: Session):
         print(f"Temporary trip details deleted for requestor: {requestor}")
     except Exception as e:
         db.rollback()
-        raise CabboException(f"Failed to delete temporary trip details: {str(e)}", status_code=500)
+        raise CabboException(
+            f"Failed to delete temporary trip details: {str(e)}", status_code=500
+        )
 
-def _calculate_expected_trip_end_datetime(trip_type: TripTypeEnum, start_date: datetime, end_date: datetime, db:Session, package_id: str = None) -> datetime:
+
+def _calculate_expected_trip_end_datetime(
+    trip_type: TripTypeEnum,
+    start_date: datetime,
+    end_date: datetime,
+    db: Session,
+    package_id: str = None,
+) -> datetime:
     """
     Calculates the expected end datetime for a trip based on the trip type, start date, end date, and package ID.
     Args:
@@ -1147,16 +1268,20 @@ def _calculate_expected_trip_end_datetime(trip_type: TripTypeEnum, start_date: d
             if package and package.included_hours:
                 return start_date + timedelta(hours=package.included_hours)
         return start_date + timedelta(hours=4)  # Default to 4 hours for local trips
-    
+
     elif trip_type == TripTypeEnum.outstation:
         # For outstation trips, use the provided end date
         return end_date
-    
+
     elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
         # For airport trips, we can assume a short duration
         return start_date + timedelta(hours=1)  # Default to 1 hour for airport trips
     else:
-        raise CabboException(f"Trip type {trip_type} is not supported for expected end datetime calculation", status_code=501)
+        raise CabboException(
+            f"Trip type {trip_type} is not supported for expected end datetime calculation",
+            status_code=501,
+        )
+
 
 def _get_total_num_luggages(booking_request: TripBookRequest) -> int:
     """
@@ -1173,9 +1298,12 @@ def _get_total_num_luggages(booking_request: TripBookRequest) -> int:
         + booking_request.preferences.num_other_bags
     )
 
-def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db: Session) -> TempTrip:
+
+def _create_temporary_trip(
+    booking_request: TripBookRequest, requestor: str, db: Session
+) -> TempTrip:
     """
-    
+
     Creates a temporary trip record in the database based on the booking request.
     This function validates the booking request, calculates necessary fields, and stores the trip details.
     Args:
@@ -1187,35 +1315,78 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
     Raises:
         CabboException: If the booking request is invalid or if any database operation fails.
     """
-    trip_type_id = get_trip_type_id_by_trip_type(booking_request.preferences.trip_type, db=db)
-    validated_start_date = validate_date_time(date_time=booking_request.preferences.start_date)
-    
+    trip_type_id = get_trip_type_id_by_trip_type(
+        booking_request.preferences.trip_type, db=db
+    )
+    validated_start_date = validate_date_time(
+        date_time=booking_request.preferences.start_date
+    )
+
     validated_end_date = None
     if booking_request.preferences.end_date:
-        validated_end_date = validate_date_time(date_time=booking_request.preferences.end_date)
-        
-    
-    json_hops = [hop.model_dump() for hop in booking_request.preferences.hops] if booking_request.preferences.hops else None
+        validated_end_date = validate_date_time(
+            date_time=booking_request.preferences.end_date
+        )
+
+    json_hops = (
+        [hop.model_dump() for hop in booking_request.preferences.hops]
+        if booking_request.preferences.hops
+        else None
+    )
     temp_trip = TempTrip(
         creator_id=requestor,
         trip_type_id=trip_type_id,
         origin=booking_request.preferences.origin.model_dump(),
         destination=booking_request.preferences.destination.model_dump(),
         hops=json_hops,
-        is_interstate=booking_request.metadata.is_interstate if booking_request.preferences.trip_type == TripTypeEnum.outstation else False,
+        is_interstate=(
+            booking_request.metadata.is_interstate
+            if booking_request.preferences.trip_type == TripTypeEnum.outstation
+            else False
+        ),
         is_round_trip=booking_request.metadata.is_round_trip or False,
-        total_unique_states=booking_request.metadata.total_unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
-        unique_states=booking_request.metadata.unique_states if booking_request.preferences.trip_type == TripTypeEnum.outstation else None,
-        package_id=booking_request.preferences.package_id if booking_request.preferences.trip_type == TripTypeEnum.local  and booking_request.preferences.package_id else None,
-        package_label=booking_request.option.package if booking_request.option.package else None,
-        package_label_short=booking_request.option.package_short_label if booking_request.option.package_short_label else None,
+        total_unique_states=(
+            booking_request.metadata.total_unique_states
+            if booking_request.preferences.trip_type == TripTypeEnum.outstation
+            else None
+        ),
+        unique_states=(
+            booking_request.metadata.unique_states
+            if booking_request.preferences.trip_type == TripTypeEnum.outstation
+            else None
+        ),
+        package_id=(
+            booking_request.preferences.package_id
+            if booking_request.preferences.trip_type == TripTypeEnum.local
+            and booking_request.preferences.package_id
+            else None
+        ),
+        package_label=(
+            booking_request.option.package if booking_request.option.package else None
+        ),
+        package_label_short=(
+            booking_request.option.package_short_label
+            if booking_request.option.package_short_label
+            else None
+        ),
         start_datetime=validated_start_date,
         end_datetime=validated_end_date,
-        expected_end_datetime=_calculate_expected_trip_end_datetime(booking_request.preferences.trip_type, validated_start_date, validated_end_date, db, booking_request.preferences.package_id),
-        total_days=booking_request.metadata.total_trip_days if booking_request.metadata.total_trip_days else None,
+        expected_end_datetime=_calculate_expected_trip_end_datetime(
+            booking_request.preferences.trip_type,
+            validated_start_date,
+            validated_end_date,
+            db,
+            booking_request.preferences.package_id,
+        ),
+        total_days=(
+            booking_request.metadata.total_trip_days
+            if booking_request.metadata.total_trip_days
+            else None
+        ),
         num_adults=booking_request.preferences.num_adults,
         num_children=booking_request.preferences.num_children,
-        num_passengers=booking_request.preferences.num_adults + booking_request.preferences.num_children,
+        num_passengers=booking_request.preferences.num_adults
+        + booking_request.preferences.num_children,
         num_large_suitcases=booking_request.preferences.num_large_suitcases,
         num_carryons=booking_request.preferences.num_carryons,
         num_backpacks=booking_request.preferences.num_backpacks,
@@ -1223,29 +1394,100 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         num_luggages=_get_total_num_luggages(booking_request=booking_request),
         preferred_car_type=booking_request.preferences.preferred_car_type,
         preferred_fuel_type=booking_request.preferences.preferred_fuel_type,
-        in_car_amenities=booking_request.metadata.in_car_amenities.model_dump() if booking_request.metadata.in_car_amenities else None,
-        price_breakdown=booking_request.option.price_breakdown.model_dump() if booking_request.option.price_breakdown else None,
-        overages=booking_request.option.overages.model_dump() if booking_request.option.overages else None,
+        in_car_amenities=(
+            booking_request.metadata.in_car_amenities.model_dump()
+            if booking_request.metadata.in_car_amenities
+            else None
+        ),
+        price_breakdown=(
+            booking_request.option.price_breakdown.model_dump()
+            if booking_request.option.price_breakdown
+            else None
+        ),
+        overages=(
+            booking_request.option.overages.model_dump()
+            if booking_request.option.overages
+            else None
+        ),
         base_fare=booking_request.option.price_breakdown.base_fare,
-        driver_allowance=get_driver_allowance(option=booking_request.option) if booking_request.preferences.trip_type in [TripTypeEnum.outstation, TripTypeEnum.local] else 0.0,
+        driver_allowance=(
+            get_driver_allowance(option=booking_request.option)
+            if booking_request.preferences.trip_type
+            in [TripTypeEnum.outstation, TripTypeEnum.local]
+            else 0.0
+        ),
         tolls_estimate=get_tolls_estimate(booking_request=booking_request),
         parking_estimate=get_parking_estimate(booking_request=booking_request),
-        permit_fee=booking_request.option.price_breakdown.permit_fee if booking_request.metadata.is_interstate and booking_request.option.price_breakdown.permit_fee else 0.0,
-        platform_fee=booking_request.option.price_breakdown.platform_fee if booking_request.option.price_breakdown.platform_fee else 0.0,
+        permit_fee=(
+            booking_request.option.price_breakdown.permit_fee
+            if booking_request.metadata.is_interstate
+            and booking_request.option.price_breakdown.permit_fee
+            else 0.0
+        ),
+        platform_fee=(
+            booking_request.option.price_breakdown.platform_fee
+            if booking_request.option.price_breakdown.platform_fee
+            else 0.0
+        ),
         final_price=booking_request.option.total_price,
-        final_display_price=(booking_request.option.total_price - booking_request.option.price_breakdown.platform_fee) ,
-        inclusions=booking_request.metadata.inclusions if booking_request.metadata.inclusions else None,
-        exclusions=booking_request.metadata.exclusions if booking_request.metadata.exclusions else None,
-        flight_number=booking_request.preferences.flight_number if booking_request.preferences.flight_number else None,
-        terminal_number=booking_request.preferences.terminal_number if booking_request.preferences.terminal_number else None,
-        toll_road_preferred=booking_request.preferences.toll_road_preferred if booking_request.preferences.toll_road_preferred else False,
-        placard_required=booking_request.preferences.placard_required if booking_request.preferences.placard_required else False,
-        placard_name=booking_request.preferences.placard_name if booking_request.preferences.placard_name else None,
-        estimated_km=booking_request.metadata.estimated_km if booking_request.metadata.estimated_km else 0.0,
-        indicative_overage_warning=booking_request.option.overages.indicative_overage_warning if booking_request.option.overages.indicative_overage_warning else None,
+        final_display_price=(
+            booking_request.option.total_price
+            - booking_request.option.price_breakdown.platform_fee
+        ),
+        inclusions=(
+            booking_request.metadata.inclusions
+            if booking_request.metadata.inclusions
+            else None
+        ),
+        exclusions=(
+            booking_request.metadata.exclusions
+            if booking_request.metadata.exclusions
+            else None
+        ),
+        flight_number=(
+            booking_request.preferences.flight_number
+            if booking_request.preferences.flight_number
+            else None
+        ),
+        terminal_number=(
+            booking_request.preferences.terminal_number
+            if booking_request.preferences.terminal_number
+            else None
+        ),
+        toll_road_preferred=(
+            booking_request.preferences.toll_road_preferred
+            if booking_request.preferences.toll_road_preferred
+            else False
+        ),
+        placard_required=(
+            booking_request.preferences.placard_required
+            if booking_request.preferences.placard_required
+            else False
+        ),
+        placard_name=(
+            booking_request.preferences.placard_name
+            if booking_request.preferences.placard_name
+            else None
+        ),
+        estimated_km=(
+            booking_request.metadata.estimated_km
+            if booking_request.metadata.estimated_km
+            else 0.0
+        ),
+        indicative_overage_warning=(
+            booking_request.option.overages.indicative_overage_warning
+            if booking_request.option.overages.indicative_overage_warning
+            else None
+        ),
         alternate_customer_phone=None,
-        passenger_id=get_passenger_id_from_preferences(preferences=booking_request.preferences),
-        hash=booking_request.option.hash if hasattr(booking_request.option, 'hash') else None,
+        passenger_id=get_passenger_id_from_preferences(
+            preferences=booking_request.preferences
+        ),
+        hash=(
+            booking_request.option.hash
+            if hasattr(booking_request.option, "hash")
+            else None
+        ),
     )
     try:
         db.add(temp_trip)
@@ -1255,9 +1497,14 @@ def _create_temporary_trip(booking_request: TripBookRequest, requestor: str, db:
         return temp_trip
     except Exception as e:
         db.rollback()
-        raise CabboException(f"Failed to create temporary trip: {str(e)}", status_code=500)
+        raise CabboException(
+            f"Failed to create temporary trip: {str(e)}", status_code=500
+        )
 
-def _get_temp_trip_by_booking_id_and_requestor(booking_id: str, requestor: str, db: Session) -> TempTrip:
+
+def _get_temp_trip_by_booking_id_and_requestor(
+    booking_id: str, requestor: str, db: Session
+) -> TempTrip:
     """
     Retrieves a temporary trip record from the database based on the booking ID and requestor.
     Args:
@@ -1269,12 +1516,18 @@ def _get_temp_trip_by_booking_id_and_requestor(booking_id: str, requestor: str, 
     Raises:
         CabboException: If the trip is not found or if the requestor is not authorized to access it.
     """
-    temp_trip = db.query(TempTrip).filter(
-        TempTrip.id == booking_id, TempTrip.creator_id == requestor
-    ).first()
+    temp_trip = (
+        db.query(TempTrip)
+        .filter(TempTrip.id == booking_id, TempTrip.creator_id == requestor)
+        .first()
+    )
     if not temp_trip:
-        raise CabboException("Booking not found or you are not authorized to access this booking", status_code=404)
+        raise CabboException(
+            "Booking not found or you are not authorized to access this booking",
+            status_code=404,
+        )
     return temp_trip
+
 
 def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> bool:
     """
@@ -1286,37 +1539,53 @@ def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> b
     Returns:
         bool: True if the trip booking exists, False otherwise.
     """
-    trip = db.query(Trip).filter(
-        Trip.id == booking_id, Trip.creator_id == requestor
-    ).first()
+    trip = (
+        db.query(Trip)
+        .filter(Trip.id == booking_id, Trip.creator_id == requestor)
+        .first()
+    )
     if trip:
         return True
     return False
 
-def _populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetails:
-    trip_schema = TripDetails.model_validate(trip)  # Convert Trip object to TripDetail schema
-    trip_schema.trip_type=_get_trip_type_by_trip_type_id(trip_type_id=trip.trip_type_id, db=db)
-    
 
-    passenger = populate_passenger_details(passenger_id=trip.passenger_id,  db=db)
+def _populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetails:
+    trip_schema = TripDetails.model_validate(
+        trip
+    )  # Convert Trip object to TripDetail schema
+    trip_schema.trip_type = _get_trip_type_by_trip_type_id(
+        trip_type_id=trip.trip_type_id, db=db
+    )
+
+    passenger = populate_passenger_details(passenger_id=trip.passenger_id, db=db)
     if passenger:
-           trip_schema.passenger=passenger
-    result= trip_schema.model_dump(exclude_none=True)  # Return the trip schema as a dictionary excluding None values
+        trip_schema.passenger = passenger
+    result = trip_schema.model_dump(
+        exclude_none=True
+    )  # Return the trip schema as a dictionary excluding None values
     return remove_none_recursive(result)
 
-def _attach_trip_details_to_order_notes(order:dict, trip_details: TripDetails):
-     
+
+def _attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
+
     notes = order.get("notes", {})
-    notes= PaymentNotesSchema.model_validate(notes)  # Validate the notes structure
+    notes = PaymentNotesSchema.model_validate(notes)  # Validate the notes structure
     # Ensure that trip_details is set in notes
     if not hasattr(notes, "trip_details"):
         notes.trip_details = trip_details
 
-    order["notes"] = notes.model_dump(exclude_none=True)  # Update the order with the notes containing trip details
-    
+    order["notes"] = notes.model_dump(
+        exclude_none=True
+    )  # Update the order with the notes containing trip details
 
 
-def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, booking_id:str, payment_info:RazorPayPaymentResponse, db:Session) -> TripCreate:
+def _create_confirmed_trip_from_temp_trip(
+    temp_trip: TempTrip,
+    requestor: str,
+    booking_id: str,
+    payment_info: RazorPayPaymentResponse,
+    db: Session,
+) -> TripCreate:
     """Creates a confirmed trip record from a temporary trip record.
     This function takes a temporary trip record, validates it, and creates a confirmed trip record in the database.
     Args:
@@ -1359,8 +1628,12 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         num_luggages=temp_trip.num_luggages,
         preferred_car_type=temp_trip.preferred_car_type,
         preferred_fuel_type=temp_trip.preferred_fuel_type,
-        in_car_amenities=temp_trip.in_car_amenities if temp_trip.in_car_amenities else None,
-        price_breakdown=temp_trip.price_breakdown if temp_trip.price_breakdown else None,
+        in_car_amenities=(
+            temp_trip.in_car_amenities if temp_trip.in_car_amenities else None
+        ),
+        price_breakdown=(
+            temp_trip.price_breakdown if temp_trip.price_breakdown else None
+        ),
         overages=temp_trip.overages if temp_trip.overages else None,
         base_fare=temp_trip.base_fare,
         driver_allowance=temp_trip.driver_allowance,
@@ -1368,7 +1641,7 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         parking_estimate=temp_trip.parking_estimate,
         permit_fee=temp_trip.permit_fee,
         platform_fee=temp_trip.platform_fee,
-        final_price=temp_trip.final_price, 
+        final_price=temp_trip.final_price,
         final_display_price=temp_trip.final_display_price,
         advance_payment=temp_trip.platform_fee,
         balance_payment=temp_trip.final_price - temp_trip.platform_fee,
@@ -1376,27 +1649,53 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
         inclusions=temp_trip.inclusions if temp_trip.inclusions else None,
         exclusions=temp_trip.exclusions if temp_trip.exclusions else None,
         flight_number=temp_trip.flight_number if temp_trip.flight_number else None,
-        terminal_number= temp_trip.terminal_number if temp_trip.terminal_number else None,
-        toll_road_preferred=temp_trip.toll_road_preferred if temp_trip.toll_road_preferred else False,
-        placard_required=temp_trip.placard_required if temp_trip.placard_required else False,
+        terminal_number=(
+            temp_trip.terminal_number if temp_trip.terminal_number else None
+        ),
+        toll_road_preferred=(
+            temp_trip.toll_road_preferred if temp_trip.toll_road_preferred else False
+        ),
+        placard_required=(
+            temp_trip.placard_required if temp_trip.placard_required else False
+        ),
         placard_name=temp_trip.placard_name if temp_trip.placard_name else None,
         estimated_km=temp_trip.estimated_km if temp_trip.estimated_km else 0.0,
-        indicative_overage_warning=temp_trip.indicative_overage_warning if temp_trip.indicative_overage_warning else None,
-        alternate_customer_phone=temp_trip.alternate_customer_phone if temp_trip.alternate_customer_phone else None,
+        indicative_overage_warning=(
+            temp_trip.indicative_overage_warning
+            if temp_trip.indicative_overage_warning
+            else None
+        ),
+        alternate_customer_phone=(
+            temp_trip.alternate_customer_phone
+            if temp_trip.alternate_customer_phone
+            else None
+        ),
         passenger_id=temp_trip.passenger_id if temp_trip.passenger_id else None,
-        payment_provider_metadata=payment_info.model_dump(exclude_none=True) if payment_info else None,
+        payment_provider_metadata=(
+            payment_info.model_dump(exclude_none=True) if payment_info else None
+        ),
     )
 
     try:
         db.add(trip)
         db.commit()
         db.refresh(trip)
-        #Here we will perform a trip status audit log entry
-        log_trip_audit(trip_id=trip.id, status=trip.status, committer_id=requestor, reason="Trip confirmed", db=db)  # Log the trip status audit entry
+        # Here we will perform a trip status audit log entry
+        log_trip_audit(
+            trip_id=trip.id,
+            status=trip.status,
+            committer_id=requestor,
+            reason="Trip confirmed",
+            db=db,
+        )  # Log the trip status audit entry
         print(f"Trip confirmed for booking ID: {booking_id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
-        _delete_temp_trip(requestor=requestor, db=db)  # Clean up all temporary trip details for this customer.
-        trip_schema=_populate_trip_schema(trip=trip, db=db)  # Populate the trip schema with necessary details
+        _delete_temp_trip(
+            requestor=requestor, db=db
+        )  # Clean up all temporary trip details for this customer.
+        trip_schema = _populate_trip_schema(
+            trip=trip, db=db
+        )  # Populate the trip schema with necessary details
         return TripCreate(
             booking_id=trip.id,
             payment_info=payment_info,
@@ -1407,11 +1706,14 @@ def _create_confirmed_trip_from_temp_trip(temp_trip: TempTrip, requestor:str, bo
     except Exception as e:
         db.rollback()
         print(e)
-        raise CabboException(f"Failed to confirm trip booking: {str(e)}", status_code=500)
+        raise CabboException(
+            f"Failed to confirm trip booking: {str(e)}", status_code=500
+        )
 
 
-def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db:Session):
-
+def initiate_trip_booking(
+    booking_request: TripBookRequest, customer: Customer, db: Session
+):
     """
     Initiates a booking for a trip based on the provided booking request.
     Args:
@@ -1426,27 +1728,38 @@ def initiate_trip_booking(booking_request:TripBookRequest, customer:Customer, db
     """
     # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
     _verify_trip_hash(booking_request=booking_request)
-    
-    # Check for duplicate or conflicting bookings for the same customer.
-    validate_booking_request(booking_request=booking_request, requestor=customer.id, db=db)
 
-    #Delete all previous temporary trip details for the customer
+    # Check for duplicate or conflicting bookings for the same customer.
+    validate_booking_request(
+        booking_request=booking_request, requestor=customer.id, db=db
+    )
+
+    # Delete all previous temporary trip details for the customer
     _delete_temp_trip(requestor=customer.id, db=db)
 
     # Create a new Temp Trip object from the booking request
-    temp_trip=_create_temporary_trip(booking_request=booking_request, requestor=customer.id, db=db)
+    temp_trip = _create_temporary_trip(
+        booking_request=booking_request, requestor=customer.id, db=db
+    )
 
     # Create razor pay order for the trip
-    booking_id, order=get_trip_payment_order(booking_request=booking_request, customer=customer, temp_trip=temp_trip)
-    
+    booking_id, order = get_trip_payment_order(
+        booking_request=booking_request, customer=customer, temp_trip=temp_trip
+    )
+
     # Populate the trip schema with necessary details
-    trip_schema=_populate_trip_schema(trip=temp_trip, db=db)  # Populate the trip schema with necessary details
-    
-    _attach_trip_details_to_order_notes(order=order, trip_details=trip_schema)  # Attach trip details to order notes
-    
+    trip_schema = _populate_trip_schema(
+        trip=temp_trip, db=db
+    )  # Populate the trip schema with necessary details
+
+    _attach_trip_details_to_order_notes(
+        order=order, trip_details=trip_schema
+    )  # Attach trip details to order notes
+
     return booking_id, order
 
-def confirm_trip_booking(booking_request:TripOut,customer:Customer, db:Session):
+
+def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Session):
     """
     Confirms a trip booking based on the provided booking request.
     Args:
@@ -1464,24 +1777,35 @@ def confirm_trip_booking(booking_request:TripOut,customer:Customer, db:Session):
     # For now, we will just return a success message
 
     if not booking_request.booking_id:
-        raise CabboException("Booking ID is required to confirm the booking", status_code=400)
+        raise CabboException(
+            "Booking ID is required to confirm the booking", status_code=400
+        )
 
-    #Check if the booking request already exists in the main Trip table
-    existing_trip=_is_existing_trip_booking(booking_id=booking_request.booking_id, requestor=customer.id, db=db)
+    # Check if the booking request already exists in the main Trip table
+    existing_trip = _is_existing_trip_booking(
+        booking_id=booking_request.booking_id, requestor=customer.id, db=db
+    )
     if existing_trip:
         raise CabboException("Booking already exists", status_code=400)
 
     # Check in database if the booking exists
-    temp_trip=_get_temp_trip_by_booking_id_and_requestor(booking_id=booking_request.booking_id, requestor=customer.id, db=db)
+    temp_trip = _get_temp_trip_by_booking_id_and_requestor(
+        booking_id=booking_request.booking_id, requestor=customer.id, db=db
+    )
 
     # Verify the payment details in the booking request
-    payment_verified=verify_payment(payment_detail=booking_request.payment_info)
+    payment_verified = verify_payment(payment_detail=booking_request.payment_info)
     if not payment_verified:
         raise CabboException("Payment verification failed", status_code=400)
-    
+
     # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
     return _create_confirmed_trip_from_temp_trip(
-        temp_trip=temp_trip, requestor=customer.id, booking_id=booking_request.booking_id, payment_info=booking_request.payment_info, db=db)
+        temp_trip=temp_trip,
+        requestor=customer.id,
+        booking_id=booking_request.booking_id,
+        payment_info=booking_request.payment_info,
+        db=db,
+    )
 
 
 def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session):
@@ -1494,11 +1818,16 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
     Raises:
         CabboException: If the trip is not found or if the requestor is not authorized to delete it.
     """
-    temp_trip = db.query(TempTrip).filter(
-        TempTrip.id == booking_id, TempTrip.creator_id == requestor
-    ).first()
+    temp_trip = (
+        db.query(TempTrip)
+        .filter(TempTrip.id == booking_id, TempTrip.creator_id == requestor)
+        .first()
+    )
     if not temp_trip:
-        raise CabboException("Booking not found or you are not authorized to delete this booking", status_code=404)
+        raise CabboException(
+            "Booking not found or you are not authorized to delete this booking",
+            status_code=404,
+        )
     try:
         db.delete(temp_trip)
         db.commit()
@@ -1508,13 +1837,14 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
         db.rollback()
         return False
 
+
 def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
     """
     Retrieves all trips from the database.
     Returns:
         List[TripTypeSchema]: A list of all trip type master records.
     """
-    
+
     try:
         trip_types = db.query(TripTypeMaster).all()
         trip_type_schemas = [
@@ -1524,7 +1854,8 @@ def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
     except Exception as e:
         return []
 
-def create_trip_types(trip_types:list, db:Session):
+
+def create_trip_types(trip_types: list, db: Session):
     trip_type_master_objs = [
         TripTypeMaster(
             trip_type=entry["trip_type"],
@@ -1536,3 +1867,19 @@ def create_trip_types(trip_types:list, db:Session):
     ]
     db.add_all(trip_type_master_objs)
     db.commit()
+
+
+def get_trip_package_configuration_by_region_code(
+    region_code: str, db: Session
+) -> TripPackageConfigSchema:
+    trip_package_config = (
+        db.query(TripPackageConfig)
+        .join(RegionModel, TripPackageConfig.region_id == RegionModel.id)
+        .filter(
+            RegionModel.region_code == region_code,
+        )
+        .first()
+    )
+    if not trip_package_config:
+        return None
+    return TripPackageConfigSchema.model_validate(trip_package_config)

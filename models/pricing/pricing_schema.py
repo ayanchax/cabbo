@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Union
 
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.policies.cancelation_schema import CancelationPolicySchema
+
 
 
 
@@ -199,10 +201,27 @@ class FixedPlatformFeeConfigurationSchema(BaseModel):
         extra = "allow"
         from_orm = True
 
+class TripPackageConfigSchema(BaseModel):
+    id: Optional[str] = None  # Optional ID for existing packages
+    trip_type_id: Optional[str] = None  # FK to TripTypeMaster.id
+    region_id: Optional[str] = None  # FK to RegionsMaster.id
+    included_hours: Optional[int]  # e.g., 4, 6, 8, 10, 12
+    included_km: Optional[int]  # e.g., 40, 60, 80, 100, 120
+    package_label: Optional[str]  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    driver_allowance: Optional[float] = (
+        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
+    )
+
+    class Config:
+        from_attributes = True
+        extra = "allow"
 class AuxiliaryPricingConfiguration(BaseModel):
+
     common: Optional[CommonPricingConfigurationSchema] = None
     night: Optional[NightPricingConfigurationSchema] = None # Includes region wise and state wise night pricing configurations for outstation and local
     permit: Optional[PermitFeeConfigurationSchema] = None # Includes permit fee configurations state wise for outstation trips
+    cancellation_policy: Optional[CancelationPolicySchema] = None  # Cancellation policy configuration for outstation trips
+    trip_package: Optional[TripPackageConfigSchema] = None  # Trip package configuration for local trips
 
 class MasterPricingConfiguration(BaseModel):
     base_pricing: List[

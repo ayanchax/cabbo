@@ -73,7 +73,7 @@ def _ensure_database_exists():
         raise
 
 
-def init_db(seed: bool = False, preload_config: bool = False):
+def init_db(seed: bool = False, preload_config: bool = True):
     logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
