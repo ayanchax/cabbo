@@ -518,8 +518,8 @@ def create_cancellation_policy_pricing(payload:CancelationPolicySchema,db:Sessio
     db.refresh(cancellation_policy_orm)
     return CancelationPolicySchema.model_validate(cancellation_policy_orm)
 
-def create_fixed_platform_fee(fee:float, db:Session):
-    fixed_platform_fee_config = FixedPlatformPricingConfiguration(fixed_platform_fee=fee)
+def create_fixed_platform_fee(payload:FixedPlatformFeeConfigurationSchema, db:Session):
+    fixed_platform_fee_config = FixedPlatformPricingConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
     db.add(fixed_platform_fee_config)
     db.commit()
     db.refresh(fixed_platform_fee_config)

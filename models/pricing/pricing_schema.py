@@ -185,8 +185,11 @@ class PermitFeeConfigurationSchema(BaseModel):
 
 # Fixed platform fee configuration schema is used to define fixed platform fee per booking irrespective of cab type, fuel type, trip type, region, state etc.
 class FixedPlatformFeeConfigurationSchema(BaseModel):
-    id: Optional[str]
+    id: Optional[str]= None
     fixed_platform_fee: float = Field(0.0, description="Fixed platform fee per booking")  # e.g., 50.0 for ₹50
+    country_id: Optional[str] = Field(
+        None, description="Identifier for the country; null means applies to all countries"
+    )
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None

@@ -370,6 +370,7 @@ def update_region(
     if not region_model:
         return None
     try:
+        #We only allow updating region_name and region_alt_names
         if payload.region_name is not None:
             region_model.region_name = payload.region_name
         if payload.region_alt_names is not None:
@@ -471,7 +472,7 @@ def get_country_by_code(country_code: str, db: Session) -> Optional["CountrySche
     country_model = (
         db.query(CountryModel)
         .filter(
-            CountryModel.country_code == country_code.upper(),
+            CountryModel.country_code == country_code.upper() | CountryModel.id == country_code,
             CountryModel.is_serviceable == True,
         )
         .first()
@@ -748,4 +749,61 @@ def get_state_by_state_code_and_country_id(state_code:str, country_id:str, db:Se
         except ValidationError:
             return None
     return None
+
+def get_states_by_country_id(country_id: str, db: Session) -> list["StateSchema"]:
+    """Fetch all states for a given country ID as a list of StateSchema."""
+    state_models = (
+        db.query(StateModel)
+        .filter(StateModel.country_id == country_id, StateModel.is_serviceable == True)
+        .all()
+    )
+    state_schemas = []
+    for s_model in state_models:
+        try:
+            state_schema = StateSchema.model_validate(s_model)
+            state_schemas.append(state_schema)
+        except ValidationError:
+            continue
+    return state_schemas
+
+def get_regions_by_state_id(state_id: str, db: Session) -> list["RegionSchema"]:
+    """Fetch all regions for a given state ID as a list of RegionSchema."""
+    region_models = (
+        db.query(RegionModel)
+        .filter(RegionModel.state_id == state_id, RegionModel.is_serviceable == True)
+        .all()
+    )
+    region_schemas = []
+    for r_model in region_models:
+        try:
+            region_schema = RegionSchema(
+                id=r_model.id,
+                region_name=r_model.region_name,
+                region_code=r_model.region_code,
+                region_alt_names=(
+                    json.loads(r_model.region_alt_names)
+                    if r_model.region_alt_names
+                    else None
+                ),
+                state_id=r_model.state_id,
+                country_id=r_model.country_id,
+                trip_types=(
+                    json.loads(r_model.trip_types) if r_model.trip_types else None
+                ),
+                fuel_types=(
+                    json.loads(r_model.fuel_types) if r_model.fuel_types else None
+                ),
+                car_types=json.loads(r_model.car_types) if r_model.car_types else None,
+                airport_locations=(
+                    json.loads(r_model.airport_locations)
+                    if r_model.airport_locations
+                    else None
+                ),
+            )
+            region_schemas.append(region_schema)
+        except ValidationError:
+            continue
+    return region_schemas
+
+
         

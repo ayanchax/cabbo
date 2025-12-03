@@ -11,6 +11,7 @@ from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 from sqlalchemy import (
     JSON,
     Column,
+    Index,
     Integer,
     String,
     Enum,
@@ -50,8 +51,8 @@ class Trip(Base):
     )  # FK to trip types master table
 
     # Location information
-    origin=Column(JSON, nullable=False)  # Origin city name
-    destination=Column(JSON, nullable=False)  # Destination city name
+    origin = Column(JSON, nullable=False)  # Origin city name
+    destination = Column(JSON, nullable=False)  # Destination city name
     hops = Column(
         JSON, nullable=True
     )  # JSON/text list of hops for outstation and hourly rental [Providing hops by customer helps us approximate the overages more efficiently]
@@ -72,13 +73,13 @@ class Trip(Base):
     )
     package_label = Column(
         String(255), nullable=True, default=None
-    )  # Label for the package, e.g., "4 Hours / 40 KM" 
+    )  # Label for the package, e.g., "4 Hours / 40 KM"
     package_label_short = Column(
         String(100), nullable=True, default=None
-    )  # Short label for the package, e.g., "4H/40KM" 
+    )  # Short label for the package, e.g., "4H/40KM"
     # FK to trip package config table for hourly rental trips
     # Package information selected by customer - END
-    
+
     # Date and time information
     start_datetime = Column(DateTime, nullable=False)
     expected_end_datetime = Column(
@@ -103,8 +104,9 @@ class Trip(Base):
     )  # Other bags, small items
     num_luggages = Column(Integer, nullable=True, default=0)  # Total luggage count
     num_passengers = Column(
-        Integer, nullable=True, default=1) # Total passengers including adults and children
-    
+        Integer, nullable=True, default=1
+    )  # Total passengers including adults and children
+
     # Passenger and luggage information - END
 
     # Car and fuel preferences
@@ -121,7 +123,10 @@ class Trip(Base):
 
     # Driver assignment fields
     driver_id = Column(
-        MySQL_CHAR(36), ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True
+        MySQL_CHAR(36),
+        ForeignKey("drivers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )  # Nullable: Driver assigned to the trip, if any
     # Driver assignment fields -END
 
@@ -157,11 +162,11 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
-    payment_provider_metadata= Column(
+    payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
     price_breakdown = Column(
-        JSON, nullable=True 
+        JSON, nullable=True
     )  # JSON/text for detailed price breakdown (base fare, driver allowance, tolls, parking, etc.)
     overages = Column(
         JSON, nullable=True
@@ -195,7 +200,8 @@ class Trip(Base):
 
     # Additional metadata
     estimated_km = Column(
-        Float, nullable=True, default=0.0)  # Estimated distance for the trip
+        Float, nullable=True, default=0.0
+    )  # Estimated distance for the trip
     indicative_overage_warning = Column(
         Boolean, default=False, nullable=False
     )  # does not apply to all hourly local trips
@@ -210,18 +216,23 @@ class Trip(Base):
     )
     # Additional metadata - END
 
-    #Audit fields
+    # Audit fields
     status_audits = relationship("TripStatusAudit", back_populates="trip")
     driver = relationship("Driver", back_populates="trips")
     driver_earnings = relationship(
-        "DriverEarnings", back_populates="trip", cascade="all, delete-orphan", passive_deletes=True
+        "DriverEarnings",
+        back_populates="trip",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     driver_ratings = relationship(
-        "DriverRating", back_populates="trip", cascade="all, delete-orphan", passive_deletes=True
+        "DriverRating",
+        back_populates="trip",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
-    #Audit fields - END
-
+    # Audit fields - END
 
 
 class TripStatusAudit(Base):
@@ -314,12 +325,20 @@ class TripPackageConfig(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
     )
+    #Since Trip Package applies to local/hourly rental trips, so region_id is set to configure region-specific packages
+    region_id = Column(
+        MySQL_CHAR(36),
+        ForeignKey("regions_master.id"),
+        nullable=True,  # Nullable for backward compatibility or "default" packages
+        index=True,
+        comment="FK to regions_master; null means applies to all regions",
+    )
     included_hours = Column(Integer, nullable=False)  # e.g., 4, 6, 8, 10, 12
     included_km = Column(Integer, nullable=False)  # e.g., 40, 60, 80, 100, 120
     driver_allowance = Column(
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation/local trips
-    package_label = Column(String(64), nullable=False, unique=True)
+    package_label = Column(String(64), nullable=False)
     created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
@@ -327,4 +346,15 @@ class TripPackageConfig(Base):
         nullable=False,
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
+    )
+
+    # Add composite unique constraint: (trip_type_id, region_id, package_label)
+    __table_args__ = (
+        Index(
+            "ix_trip_package_region",
+            "trip_type_id",
+            "region_id",
+            "package_label",
+            unique=True,
+        ),
     )

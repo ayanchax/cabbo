@@ -8,6 +8,7 @@ from models.policies.cancelation_schema import CancelationPolicySchema
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
     CommonPricingConfigurationSchema,
+    FixedPlatformFeeConfigurationSchema,
     LocalCabPricingSchema,
     NightPricingConfigurationSchema,
     OutstationCabPricingSchema,
@@ -72,12 +73,12 @@ SEED_STATES = [
     ("Kerala", "KL"),
     ("Andhra Pradesh", "AP"),
 ]
-SEED_REGIONS=[
+SEED_REGIONS = [
     # Return list of seed regions with (name, code, alt_names, state_code)
     # This is seed data and can be updated later via admin interface
-        ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], "KA"),
-        ("Mysore", "MYS", ["Mysuru"], "KA"),
-    ]
+    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], "KA"),
+    ("Mysore", "MYS", ["Mysuru"], "KA"),
+]
 # Airport data for seed data initialization
 SEED_AIRPORTS = {
     # It can contain multiple airports for a city in a state in a country. Here state or country is not modelled for simplicity, because airports are all over the world regions and we are focusing on few regions/cities only for seed data.
@@ -174,35 +175,47 @@ FUEL_TYPES_SEED_DATA = [
     FuelTypeEnum.cng,
 ]
 
-HOURLY_RENTAL_PACKAGES_SEED_DATA = [
-    TripPackageConfigSchema(
-        included_hours=4,
-        included_km=40,
-        package_label="4Hours / 40KM",
-    ),
-    TripPackageConfigSchema(
-        included_hours=6,
-        included_km=60,
-        package_label="6Hours / 60KM",
-    ),
-    TripPackageConfigSchema(
-        included_hours=8,
-        included_km=80,
-        package_label="8Hours / 80KM",
-    ),
-    TripPackageConfigSchema(
-        included_hours=10,
-        included_km=100,
-        package_label="10Hours / 100KM",
-    ),
-    TripPackageConfigSchema(
-        included_hours=12,
-        included_km=120,
-        package_label="12Hours / 120KM",
-        driver_allowance=400.0,  # Driver allowance applies for 12 hours
-    ),
-]
+HOURLY_RENTAL_PACKAGES_SEED_DATA = {
+    "BLR": [ # Hourly rental packages for Bangalore region
+        # This is seed data and can be updated later via admin interface, where region-specific packages can be configured
+        TripPackageConfigSchema(
+            included_hours=4,
+            included_km=40,
+            package_label="4Hours / 40KM",
+        ),
+        TripPackageConfigSchema(
+            included_hours=6,
+            included_km=60,
+            package_label="6Hours / 60KM",
+        ),
+        TripPackageConfigSchema(
+            included_hours=8,
+            included_km=80,
+            package_label="8Hours / 80KM",
+        ),
+        TripPackageConfigSchema(
+            included_hours=10,
+            included_km=100,
+            package_label="10Hours / 100KM",
+        ),
+        TripPackageConfigSchema(
+            included_hours=12,
+            included_km=120,
+            package_label="12Hours / 120KM",
+            driver_allowance=400.0,  # Driver allowance applies for 12 hours
+        ),
+    ]
+}
 
+PLATFORM_FEE_BY_COUNTRY = {
+        # These are fixed platform fees per booking per country
+        # The fees are in local currency of the country
+        # These are seed data and can be updated later via admin interface
+        "IN": 3.0,   # 3 for India
+        # Future countries:
+        # "US": 2.5,  # $2.5 for USA
+        # "AE": 10.0, # AED 10 for UAE
+    }
 
 def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
     """Convert airport dicts to LocationInfo and back to dicts for JSON serialization."""
@@ -946,7 +959,7 @@ def init_seed_data(session: Session):
     """Initialize seed data for the application."""
     is_seeded = is_file_exists(SEED_DATA_COMPLETION_FILE)
     if is_seeded:
-        err="Seed data already initialized. Skipping seeding."
+        err = "Seed data already initialized. Skipping seeding."
         print(err)
         return err
     try:
@@ -962,7 +975,7 @@ def init_seed_data(session: Session):
         # Create a completion of seed data file at the root of the project Cabbo to indicate seeding is done and avoid re-seeding
         msg = "Seed data initialization completed."
         save_file(SEED_DATA_COMPLETION_FILE, msg)
-        return  msg
+        return msg
     except Exception as e:
         session.rollback()
         print(f"Error during seed data initialization: {e}")
@@ -1062,7 +1075,7 @@ def _seed_regions(session: Session):
             country_code=state.country_code,
             state_id=state.id,
             state_code=state.state_code,
-            trip_types=supported_trip_types, 
+            trip_types=supported_trip_types,
             fuel_types=supported_fuel_types,
             car_types=supported_car_types,
             airport_locations=airports_in_region,
@@ -1099,7 +1112,7 @@ def _seed_local_cab_pricing(session: Session):
         if not region:
             continue
         region_id = region.id
-        for cab in cab_types: 
+        for cab in cab_types:
             for fuel in fuel_types:
                 # Local
                 if cab.name == CarTypeEnum.hatchback and fuel.name in [
@@ -1295,13 +1308,30 @@ def _seed_local_trip_packages(session: Session):
     # Seed local rental package configurations
     trip_type_master_objs = session.query(TripTypeMaster).all()
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
+    local_trip_type_id = trip_type_id_map.get(TripTypeEnum.local)
+    
+    if not local_trip_type_id:
+        print("Local trip type not found. Skipping package seeding.")
+        return 
+    
+    for region_code, packages in HOURLY_RENTAL_PACKAGES_SEED_DATA.items():
+        region = get_region_by_code(region_code.upper(), session)
+        if not region:
+            print(f"Region {region_code} not found. Skipping packages.")
+            continue
+        
+        for package_data in packages:
+            payload = TripPackageConfigSchema(
+                trip_type_id=local_trip_type_id,
+                region_id=region.id,  # ✅ Now region-specific
+                included_hours=package_data.included_hours,
+                included_km=package_data.included_km,
+                driver_allowance=package_data.driver_allowance,
+                package_label=package_data.package_label,
+            )
+            create_trip_package_pricing_configuration(payload, session)
 
-    trip_wise_packages: List[TripPackageConfigSchema] = []
-    trip_wise_packages.extend(HOURLY_RENTAL_PACKAGES_SEED_DATA)
-    for package in trip_wise_packages:
-        package.trip_type_id = trip_type_id_map[TripTypeEnum.local]
-        create_trip_package_pricing_configuration(package, session)
-
+    
 
 def _seed_cancelation_policy_pricing(session: Session):
     # Seed cancellation policy pricing configurations
@@ -1316,7 +1346,7 @@ def _seed_cancelation_policy_pricing(session: Session):
             TripTypeEnum.airport_pickup,
             TripTypeEnum.airport_drop,
         ]:
-            payload= None
+            payload = None
             # For seeding the data, we are assuming some standard values for cancellation policies across regions
             # These can be updated later via admin interface per region and trip type as needed
             if trip_type in [
@@ -1330,7 +1360,7 @@ def _seed_cancelation_policy_pricing(session: Session):
                     free_cutoff_time_label="30 minutes before trip start",
                     cancelation_amount=20.0,  # Flat cancellation fee after free period
                 )
-                
+
             elif trip_type == TripTypeEnum.local:
                 payload: CancelationPolicySchema = CancelationPolicySchema(
                     trip_type_id=trip_type_id_map[trip_type],
@@ -1340,7 +1370,7 @@ def _seed_cancelation_policy_pricing(session: Session):
                     cancelation_amount=50.0,  # Flat cancellation fee after free period
                 )
             if payload:
-             create_cancellation_policy_pricing(payload, session)
+                create_cancellation_policy_pricing(payload, session)
 
     for state in states:
         # For seeding the data, we are assuming some standard values for cancellation policies across states
@@ -1354,14 +1384,25 @@ def _seed_cancelation_policy_pricing(session: Session):
             cancelation_amount=100.0,  # Flat cancellation fee after free period
         )
         create_cancellation_policy_pricing(payload, session)
-       
 
 
 def _seed_fixed_platform_pricing(session: Session):
     # Seed fixed platform pricing configurations
     # Fixed platform fee/infrastructure fee for all trips
-    create_fixed_platform_fee(3.0, session)
-
+    countries = get_all_countries(session)
+    for country in countries:
+        country_code = country.country_code
+        platform_fee = PLATFORM_FEE_BY_COUNTRY.get(country_code)
+        
+        if platform_fee is None:
+            print(f"No platform fee configured for {country_code}. Skipping.")
+            continue
+        
+        payload = FixedPlatformFeeConfigurationSchema(
+            fixed_platform_fee=platform_fee,
+            country_id=country.id
+        )
+        create_fixed_platform_fee(payload, session)
 
 def _seed_night_pricing(session: Session):
     regions = get_all_regions(session)

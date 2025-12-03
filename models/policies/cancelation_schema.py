@@ -5,6 +5,7 @@ from datetime import datetime
 class CancelationPolicySchema(BaseModel):
     trip_type_id: str = Field(..., description="ID of the trip type")
     region_id: Optional[str] = Field(None, description="ID of the region for which this cancelation policy applies")
+    state_id: Optional[str] = Field(None, description="ID of the state for which this cancelation policy applies")
     free_cutoff_minutes: int = Field(..., description="Free cancellation cutoff in minutes")
     free_cutoff_time_label: Optional[str] = Field(None, description="Label for free cutoff time, e.g., '30 minutes before'")
     cancelation_amount: float = Field(..., description="Cancelation amount charged after free cutoff")

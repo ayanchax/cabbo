@@ -1,6 +1,7 @@
 from sqlalchemy import (
     Boolean,
     Column,
+    Index,
     Integer,
     String,
     Float,
@@ -234,6 +235,16 @@ class FixedPlatformPricingConfiguration(Base):
         unique=True,
         index=True,
     )
+    # Add country_id for country-specific platform fees
+    country_id = Column(
+        MySQL_CHAR(36), 
+        ForeignKey("countries_master.id"), 
+        nullable=True,  # Nullable for backward compatibility or "default" fee
+        index=True,
+        unique=True,
+        comment="FK to countries_master; null means applies to all countries"
+
+    )
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
      
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
@@ -244,6 +255,7 @@ class FixedPlatformPricingConfiguration(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    
 
 
 # Since Permit fee varies by state, so we have the state_id foreign key here instead of region_id
