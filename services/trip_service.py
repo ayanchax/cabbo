@@ -318,6 +318,11 @@ def get_trip_search_options(
     """
     validate_passenger_id(search_in, requestor, db)  # Validate passenger ID if provided
     _set_default_trip_preferences(search_in)  # Ensure preferences are set
+    
+    # Here from the search origin and destination, we need to find the country, state and region to enforce serviceable area boundaries
+    origin_country = get_country_by_location(search_in.origin, db)
+    
+    
     validate_serviceable_area(search_in, db)  # Enforce serviceable area boundaries
     options: List[TripSearchOption] = []
     configs = retrieve_trip_wise_pricing_config(db, search_in.trip_type)

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Optional, Union
 from mapbox import Geocoder, Directions
 from models.map.location_schema import LocationInfo
 from core.config import settings
@@ -6,7 +6,9 @@ from core.config import settings
 MAPBOX_TOKEN = settings.MAPBOX_TOKEN
 
 
-def get_state_from_location(location: Union[LocationInfo, dict, str], state_code: bool = False) -> Union[str,None]:
+def get_state_from_location(
+    location: Union[LocationInfo, dict, str], state_code: bool = False
+) -> Union[str, None]:
     """
     Given a location (LocationInfo, dict, or string), return the state name or state code using Mapbox geocoding.
     If a string is provided, geocode to get lat/lng, then reverse geocode to get state.
@@ -110,27 +112,156 @@ def get_distance_km(
         return None
 
 
-def get_location_suggestions(query: str):
+def _extract_geography_from_context(feature: dict) -> dict:
     """
-    Given a partial location string, return a list of LocationInfo objects using Mapbox geocoding.
+    Extract country, state, region codes and names from Mapbox feature context.
+
+    Mapbox context structure:
+    - country: id="country.xxx", short_code="in", text="India"
+    - region (state): id="region.xxx", short_code="IN-KA", text="Karnataka"
+    - place (city): id="place.xxx", text="Bengaluru"
+    - postcode: id="postcode.xxx", text="560001"
+
+    Returns:
+        dict with country, country_code, state, state_code, region, region_code, postal_code
+    """
+    geography = {
+        "country": None,
+        "country_code": None,
+        "state": None,
+        "state_code": None,
+        "region": None,
+        "region_code": None,
+        "postal_code": None,
+    }
+
+    # Get context array from feature
+    context = feature.get("context", [])
+
+    # Extract from context
+    for ctx in context:
+        ctx_id = ctx.get("id", "")
+
+        # Country
+        if ctx_id.startswith("country"):
+            geography["country"] = ctx.get("text")
+            geography["country_code"] = ctx.get("short_code", "").upper()
+
+        # Region/State
+        elif ctx_id.startswith("region"):
+            geography["state"] = ctx.get("text")
+            # short_code format: "IN-KA" -> extract "KA"
+            short_code = ctx.get("short_code", "")
+            if short_code and "-" in short_code:
+                geography["state_code"] = short_code.split("-")[-1].upper()
+
+        # Place (city/locality) - use as region
+        elif ctx_id.startswith("place"):
+            geography["region"] = ctx.get("text")
+            # Generate region code from text (first 3 letters uppercase)
+            # or use wikidata if available
+            text = ctx.get("text", "")
+            if text:
+                geography["region_code"] = text[:3].upper().replace(" ", "")
+
+        # Postal code
+        elif ctx_id.startswith("postcode"):
+            geography["postal_code"] = ctx.get("text")
+
+    # Also check feature's own properties for place_type
+    place_types = feature.get("place_type", [])
+
+    # If the feature itself is a place (city), use it as region
+    if "place" in place_types:
+        geography["region"] = feature.get("text")
+        if feature.get("text"):
+            geography["region_code"] = feature.get("text")[:3].upper().replace(" ", "")
+
+    # If feature is a region (state), use it
+    if "region" in place_types:
+        geography["state"] = feature.get("text")
+        # Try to get short_code from properties
+        short_code = feature.get("properties", {}).get("short_code", "")
+        if short_code and "-" in short_code:
+            geography["state_code"] = short_code.split("-")[-1].upper()
+
+    # If feature is a country, use it
+    if "country" in place_types:
+        geography["country"] = feature.get("text")
+        geography["country_code"] = (
+            feature.get("properties", {}).get("short_code", "").upper()
+        )
+
+    return geography
+
+
+def get_location_suggestions(
+    query: str, country_filter: Optional[List[str]] = ["IN"], limit: int = 5
+) -> list[LocationInfo]:
+    """
+    Given a partial location string, return a list of enriched LocationInfo objects using Mapbox geocoding.
+
+    Args:
+        query: Search query string
+        country_filter: List of ISO country codes to filter results (default ["IN"] for India as we are India-focused so far, hence suggest only Indian locations)
+        limit: Maximum number of results to return
+
+    Returns:
+        List of LocationInfo objects with geography data populated
     """
     geocoder = Geocoder(access_token=MAPBOX_TOKEN)
-    resp = geocoder.forward(query, limit=5)
+
+    # Add country filter to limit results
+    params = {
+        "limit": limit,
+    }
+    if country_filter:
+        # ✅ Fix: Don't use .lower() - Mapbox expects the full lowercase ISO code
+        params["country"] = [code.lower() for code in country_filter]  # Must be a list
+
+    resp = geocoder.forward(query, **params)
     geojson = resp.geojson()
     features = geojson.get("features", [])
+
     suggestions = []
     for feature in features:
         display_name = feature.get("place_name")
         coords = feature.get("center", [None, None])
         lng, lat = coords if len(coords) == 2 else (None, None)
         place_id = feature.get("id")
-        suggestions.append(
-            LocationInfo(
+
+        # Extract geography from context
+        geography = _extract_geography_from_context(feature)
+        try:
+            # Create enriched LocationInfo
+            location = LocationInfo(
+                display_name=display_name,
+                lat=lat,
+                lng=lng,
+                place_id=place_id,
+                address=display_name,
+                # Add geography fields
+                country=geography["country"],
+                country_code=geography["country_code"],
+                state=geography["state"],
+                state_code=geography["state_code"],
+                region=geography["region"],
+                region_code=geography["region_code"],
+                postal_code=geography["postal_code"],
+            )
+        except Exception as e:
+            print(f"Error creating enriched LocationInfo: {e}")
+            location = LocationInfo(
                 display_name=display_name,
                 lat=lat,
                 lng=lng,
                 place_id=place_id,
                 address=display_name,
             )
-        )
+
+        suggestions.append(location)
+
     return suggestions
+
+
+

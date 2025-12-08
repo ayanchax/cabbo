@@ -10,6 +10,17 @@ class LocationInfo(BaseModel):
     place_id: Optional[str] = None
     address: Optional[str] = None
 
+    # ✅ Add structured geography fields (populated by Mapbox context)
+    country: Optional[str] = Field(None, description="Country name from Mapbox")
+    country_code: Optional[str] = Field(None, description="ISO country code (e.g., IN, US)")
+    state: Optional[str] = Field(None, description="State/province name")
+    state_code: Optional[str] = Field(None, description="State code (e.g., KA, TN)")
+    region: Optional[str] = Field(None, description="City/region name")
+    region_code: Optional[str] = Field(None, description="Region code (e.g., BLR, MYS)")
+    postal_code: Optional[str] = Field(None, description="Postal/ZIP code")
+
+
+
 class Address(BaseModel):
     address_line1: Optional[str] = None
     address_line2: Optional[str] = None

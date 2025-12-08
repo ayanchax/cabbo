@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Union
 from models.map.location_schema import LocationInfo
 from core.config import settings

@@ -16,3 +16,5 @@ def get_distance_km(
 
 def get_location_suggestions(query: str):
     pass
+
+

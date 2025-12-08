@@ -21,14 +21,14 @@ ENGINE_OPTIONS = dict(
     pool_pre_ping=True,
     pool_recycle=1800,  # Recycle connections every 30 minutes
     pool_size=10,  # Number of connections to keep in the pool
-    max_overflow=20,  # Number of connections allowed above pool_size
+    max_overflow=20,  # Number of connections allowed above pool_size, if both pool_size and max_overflow are reached, further connections will wait until a connection is returned to the pool
 )
 
 
 # Pooling and connection settings (adjust as needed)
 engine = create_engine(DATABASE_URL, **ENGINE_OPTIONS)
 # Create a synchronous session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine,)
 
 async_engine = create_async_engine(ASYNC_DATABASE_URL, **ENGINE_OPTIONS)
 # Create an asynchronous session factory
@@ -38,6 +38,7 @@ AsyncSessionLocal = sessionmaker(
     expire_on_commit=False,
     autoflush=False,
     autocommit=False,
+    
 )
 
 Base = declarative_base()
@@ -73,7 +74,7 @@ def _ensure_database_exists():
         raise
 
 
-def init_db(seed: bool = False, preload_config: bool = True):
+def init_db(seed: bool = True, preload_config: bool = True):
     logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
@@ -87,8 +88,21 @@ def init_db(seed: bool = False, preload_config: bool = True):
 
 
 def preload_config_store():
+    """Preload configuration store with a dedicated session."""
     from core.store import ConfigStore
-    ConfigStore.get_instance().initialize_config_store()
+    print("Starting ConfigStore preload...")
+    db = SessionLocal()
+    try:
+        store = ConfigStore.get_instance()
+        store.initialize_config_store(db)
+        print("ConfigStore preload completed successfully.")
+    except Exception as e:
+        logger.error(f"Error preloading config store: {e}", exc_info=True)
+        raise
+    finally:
+        db.close()
+        print("ConfigStore preload session closed.")
+
 
 
 def seed_now():

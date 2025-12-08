@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 import threading
 from typing import ClassVar, List, Optional, Union
 from pydantic import BaseModel, Field, PrivateAttr
-from db.database import get_mysql_local_session
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
 from sqlalchemy.orm import Session
@@ -38,7 +37,11 @@ from services.pricing_service import (
     get_night_pricing_configuration,
     get_permit_fee_configuration,
 )
-from services.trip_service import get_all_trip_types, get_trip_package_configuration_by_region_code, get_trip_type_id_by_trip_type
+from services.trip_service import (
+    get_all_trip_types,
+    get_trip_package_configuration_by_region_code,
+    get_trip_type_id_by_trip_type,
+)
 
 
 class ConfigStore(BaseModel):
@@ -91,53 +94,32 @@ class ConfigStore(BaseModel):
         description="In-memory store for fixed platform fee configurations",
     )
 
-    # Cache metadata
-    _last_loaded_at: Optional[datetime] = None
-    _is_initialized: bool = False
-    _lock: threading.Lock = Field(default_factory=threading.Lock, exclude=True)
-
     # ✅ Private attributes using PrivateAttr (not validated by Pydantic)
     _store: dict = PrivateAttr(default_factory=dict)
     _last_loaded_at: Optional[datetime] = PrivateAttr(default=None)
     _is_initialized: bool = PrivateAttr(default=False)
     _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
-    _db: Optional[Session] = PrivateAttr(default=None)
 
     class Config:
         arbitrary_types_allowed = True
 
-    def __new__(cls, **kwargs):
-        """Override __new__ to implement singleton pattern."""
-        if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    instance = super().__new__(cls)
-                    cls._instance = instance
-        return cls._instance
-
-    def __init__(self, **data):
-        """Initialize singleton instance only once."""
-        # Check if this specific instance has been initialized
-        if hasattr(self, "_initialization_done"):
-            return
-
-        # Mark this instance as being initialized to prevent Pydantic from re-initializing
-        object.__setattr__(self, "_initialization_done", True)
-
-        # Call parent init only once
-        super().__init__(**data)
-
-        # Initialize internal state
-        if self._db is None:
-            self._db = get_mysql_local_session()
-
     @classmethod
     def get_instance(cls) -> "ConfigStore":
         """Get or create the singleton instance."""
+        print("ConfigStore.get_instance() called")
+
         if cls._instance is None:
+            print("Instance is None, acquiring lock...")
             with cls._instance_lock:
+                print("Lock acquired, checking again...")
                 if cls._instance is None:
-                    cls._instance = cls()
+                    print("Creating new instance...")
+                    cls._instance = super(ConfigStore, cls).__new__(cls)
+                    print("Calling BaseModel.__init__...")
+                    BaseModel.__init__(cls._instance)
+                    print("Instance created successfully")
+
+        print("Returning instance")
         return cls._instance
 
     @classmethod
@@ -149,18 +131,17 @@ class ConfigStore(BaseModel):
                 cls._instance._last_loaded_at = None
             cls._instance = None
 
-    def initialize_config_store(self):
+    def initialize_config_store(self, db: Session):
         """Initial load of all configurations from database."""
         # Only initialize if not already initialized or cache expired
         if not self._is_initialized or not self.is_cache_valid():
-            if not self._db:
-                self._db = get_mysql_local_session()
-            self._lazy_load(self._db)
-            print("ConfigStore initialization completed.") 
+            print("ConfigStore: Starting initialization...")
+            self._lazy_load(db)
+            print("ConfigStore initialization completed.")
         else:
             print(
                 "ConfigStore already initialized with valid cache. Skipping initialization."
-            )
+            ) 
 
     def is_cache_valid(self) -> bool:
         """Check if cache is still valid based on TTL."""
@@ -173,6 +154,9 @@ class ConfigStore(BaseModel):
     def is_initialized(self) -> bool:
         """Check if store has been initialized."""
         return self._is_initialized
+
+    def _initialize_pricing_configuration(self):
+        return MasterPricingConfiguration()
 
     def force_reload_config_store(self, db: Session):
         """Force reload all configurations from database, bypassing cache."""
@@ -204,26 +188,50 @@ class ConfigStore(BaseModel):
                     self._is_initialized = True
                 return
 
-            self._load_all_configurations(db)
-            self._last_loaded_at = datetime.now(timezone.utc)
-            self._is_initialized = True
-            print("Configuration store loaded/reloaded successfully.")
+            print("ConfigStore: Loading all configurations from database...")
+            try:
+                self._load_all_configurations(db)
+                self._last_loaded_at = datetime.now(timezone.utc)
+                self._is_initialized = True
+                print("Configuration store loaded/reloaded successfully.")
+            except Exception as e:
+                print(f"ERROR loading configurations: {e}")
+                import traceback
+
+                traceback.print_exc()
+                self._is_initialized = False
+                raise
 
     def _load_all_configurations(self, db: Session):
         """Load all configurations from database."""
         # Load in dependency order
+        print("Step 1: Loading cabs...")
         self._retrieve_and_set_cabs(db)
+
+        print("Step 2: Loading fuel types...")
         self._retrieve_and_set_fuel_types(db)
+
+        print("Step 3: Loading trip types...")
         self._retrieve_and_set_trip_types(db)
+
+        print("Step 4: Loading geographies...")
         self._retrieve_and_set_serviceable_geographies(db)
 
         # Load pricing configurations
+        print("Step 5: Loading outstation pricing...")
         self._retrieve_and_set_outstation_pricing(db)
+
+        print("Step 6: Loading local pricing...")
         self._retrieve_and_set_local_pricing(db)
+
+        print("Step 7: Loading airport pickup pricing...")
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_pickup, db)
+
+        print("Step 8: Loading airport drop pricing...")
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_drop, db)
 
         # Load platform fee
+        print("Step 9: Loading platform fee information...")
         self._retrieve_and_set_platform_fee_info(db)
 
     def _clear_all_data(self):
@@ -258,6 +266,7 @@ class ConfigStore(BaseModel):
             ),
         }
 
+    # ===== SETTERS AND GETTERS =====
     def set(
         self,
         key,
@@ -296,8 +305,7 @@ class ConfigStore(BaseModel):
     def get_outstation_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve outstation pricing data."""
         # Attempt to initialize store if not already done
-        self.initialize_config_store()
-        self.outstation
+        return self.outstation
 
     def _set_local_pricing(self, local_data: dict[str, MasterPricingConfiguration]):
         """Set local pricing data for a specific region."""
@@ -306,7 +314,6 @@ class ConfigStore(BaseModel):
 
     def get_local_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve local pricing data."""
-        self.initialize_config_store()
         return self.local
 
     def _set_airport_pickup_pricing(
@@ -318,7 +325,6 @@ class ConfigStore(BaseModel):
 
     def get_airport_pickup_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve airport pickup pricing data."""
-        self.initialize_config_store()
         return self.airport_pickup
 
     def _set_airport_drop_pricing(
@@ -330,7 +336,6 @@ class ConfigStore(BaseModel):
 
     def get_airport_drop_pricing(self) -> dict[str, MasterPricingConfiguration]:
         """Retrieve airport drop pricing data."""
-        self.initialize_config_store()
         return self.airport_drop
 
     def _set_geography(self, geography_data: Geographies):
@@ -340,7 +345,6 @@ class ConfigStore(BaseModel):
 
     def get_geography(self) -> Geographies:
         """Retrieve geography configurations from the store."""
-        self.initialize_config_store()
         return self.geographies
 
     def _set_cabs(self, cab_data: List[CabTypeSchema]):
@@ -350,7 +354,6 @@ class ConfigStore(BaseModel):
 
     def get_cabs(self) -> List[CabTypeSchema]:
         """Retrieve cab configurations from the store."""
-        self.initialize_config_store()
         return self.cabs
 
     def _set_fuel_types(self, fuel_type_data: List[FuelTypeSchema]):
@@ -360,7 +363,6 @@ class ConfigStore(BaseModel):
 
     def get_fuel_types(self) -> List[FuelTypeSchema]:
         """Retrieve fuel type configurations from the store."""
-        self.initialize_config_store()
         return self.fuel_types
 
     def _set_trip_types(self, trip_type_data: List[TripTypeSchema]):
@@ -370,7 +372,6 @@ class ConfigStore(BaseModel):
 
     def get_trip_types(self) -> List[TripTypeSchema]:
         """Retrieve trip type configurations from the store."""
-        self.initialize_config_store()
         return self.trip_types
 
     def _set_platform_fee(self, platform_fee_data: FixedPlatformFeeConfigurationSchema):
@@ -380,9 +381,9 @@ class ConfigStore(BaseModel):
 
     def get_platform_fee(self) -> FixedPlatformFeeConfigurationSchema:
         """Retrieve fixed platform fee configurations from the store."""
-        self.initialize_config_store()
         return self.platform_fee
 
+    # ===== DATA RETRIEVAL HELPERS =====
     def _retrieve_and_set_cabs(self, db: Session):
         """Load cab data into the store."""
         print("Loading cab data into ConfigStore...")
@@ -402,18 +403,18 @@ class ConfigStore(BaseModel):
         """Load country data from the database into the store."""
         print("Loading geography data into ConfigStore...")
         countries = get_all_countries(db)
-        country_dict = {country.code: country for country in countries}
+        country_dict = {country.country_code: country for country in countries}
         self.geographies.countries = country_dict
 
         states = get_all_states(db)
-        state_dict = {state.code: state for state in states}
+        state_dict = {state.state_code: state for state in states}
         self.geographies.states = state_dict
 
         regions = get_all_regions(db)
-        region_dict = {region.code: region for region in regions}
+        region_dict = {region.region_code: region for region in regions}
         self.geographies.regions = region_dict
 
-        self._set_geography_config(self.geographies)
+        self._set_geography(self.geographies)
 
     def _retrieve_and_set_outstation_pricing(self, db: Session):
         """Load outstation master data from the database into the store."""
@@ -549,7 +550,7 @@ class ConfigStore(BaseModel):
                 pricing_config.auxiliary_pricing.cancellation_policy = (
                     cancellation_policy
                 )
-        #- Load trip package config per region inside local trip config data
+        # - Load trip package config per region inside local trip config data
         for region_code, pricing_config in local_data.items():
             trip_package_config = get_trip_package_configuration_by_region_code(
                 region_code, db
@@ -575,9 +576,9 @@ class ConfigStore(BaseModel):
         # First, group base pricings by region_code
         for pricing, cab, fuel in base_pricings:
             # Model validate pricing, cab, fuel
-            _pricing = AirportCabPricingSchema.model_validate(_pricing)
-            _cab = CabTypeSchema.model_validate(_cab)
-            _fuel = FuelTypeSchema.model_validate(_fuel)
+            _pricing = AirportCabPricingSchema.model_validate(pricing)
+            _cab = CabTypeSchema.model_validate(cab)
+            _fuel = FuelTypeSchema.model_validate(fuel)
 
             if _pricing.region_id:
                 region = get_region_by_id(_pricing.region_id, db)
@@ -641,6 +642,3 @@ class ConfigStore(BaseModel):
         return get_trip_type_id_by_trip_type(
             trip_type=trip_type, db=db, include_id_only=False
         )
-
-    def _initialize_pricing_configuration(self):
-        return MasterPricingConfiguration()
