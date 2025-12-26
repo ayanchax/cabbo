@@ -33,7 +33,6 @@ def save_customer_profile_picture(customer_id: str, file, max_size_mb: int = 2) 
     # Return the relative URL for static serving
     return f"/images/customers/{customer_id}.png"
 
-
 def remove_customer_profile_picture(customer_id: str) -> bool:
     """
     Remove the profile picture file for a customer if it exists.
@@ -52,7 +51,6 @@ def remove_customer_profile_picture(customer_id: str) -> bool:
                 f"Failed to remove profile picture: {str(e)}", status_code=500
             )
     return False
-
 
 def save_driver_profile_picture(driver_id: str, file, max_size_mb: int = 2) -> str:
     """
@@ -79,7 +77,6 @@ def save_driver_profile_picture(driver_id: str, file, max_size_mb: int = 2) -> s
         f.write(contents)
     # Return the relative URL for static serving
     return f"/images/drivers/{driver_id}.png"
-
 
 def remove_driver_profile_picture(driver_id: str) -> bool:
     """
@@ -116,3 +113,23 @@ def is_file_exists(path:Union[Path, str]) -> bool:
     Check if a file exists at the specified path.
     """
     return os.path.exists(path)
+
+def create_directory(path:Union[Path, str]):
+    """
+    Create a directory at the specified path if it doesn't exist.
+    """
+    try:
+        os.makedirs(path, exist_ok=True)
+        return True
+    except Exception as e:
+        print(f"Failed to create directory {path}: {str(e)}")
+        return False
+    
+def create_directories(paths:list[Union[Path, str]]):
+    """
+    Create multiple directories from a list of paths.
+    """
+    for path in paths:
+        if not create_directory(path):
+            return False
+    return True

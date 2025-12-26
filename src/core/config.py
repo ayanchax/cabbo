@@ -2,16 +2,21 @@ from pydantic_settings import BaseSettings
 from pydantic import ValidationError
 import os
 from rich.console import Console
+from core.constants import Environment
 
-ENV = os.getenv("ENV", "dev")
-ENV_FILE = ".env.dev" if ENV == "dev" else ".env.prod"
+
+ENV = os.getenv("ENV", Environment.DEV.value)
+ENV_FILE = (
+    f".env.{Environment.DEV.value}"
+    if ENV == Environment.DEV.value
+    else f".env.{Environment.PROD.value}"
+)
 
 
 class Settings(BaseSettings):
     APP_URL: str
     API_URL: str
     ENV: str = ENV
-    REGION: str
     DB_HOST: str
     DB_PORT: str
     DB_USER: str
@@ -31,12 +36,13 @@ class Settings(BaseSettings):
     RAZOR_PAY_KEY_SECRET: str
     CABBO_TRIP_BOOKING_SECRET_KEY: str
     CABBO_SUPER_ADMIN_SECRET: str
-    CABBO_USER_DEFAULT_PASSWORD:str
-    CABBO_DEFAULT_TIMEZONE: str 
+    CABBO_USER_DEFAULT_PASSWORD: str
+    CABBO_DEFAULT_TIMEZONE: str
 
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 try:

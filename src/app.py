@@ -2,6 +2,8 @@ from core.cabbo_logging import *
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION
 from core.config import settings
 import warnings
+
+from services.file_service import create_directories
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI, Request
@@ -57,8 +59,7 @@ app.include_router(v1_router, prefix="/api/v1")
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SHARE_IMAGES_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "images")
 SHARE_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "documents")
-os.makedirs(SHARE_IMAGES_DIR, exist_ok=True)
-os.makedirs(SHARE_DOCUMENTS_DIR, exist_ok=True)
+create_directories([SHARE_IMAGES_DIR, SHARE_DOCUMENTS_DIR])
 # Mount the static images directory
 app.mount("/images", StaticFiles(directory=SHARE_IMAGES_DIR), name="images")
 # Mount the static documents directory
@@ -156,4 +157,4 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

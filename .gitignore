@@ -49,5 +49,5 @@ dist/
 share/
 application-requirements.txt
 notes/
-testdata/
+test/testdata/
 seed_data_completed.chk
