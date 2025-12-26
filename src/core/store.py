@@ -400,21 +400,27 @@ class ConfigStore(BaseModel):
         self._set_trip_types(get_all_trip_types(db))
 
     def _retrieve_and_set_serviceable_geographies(self, db: Session):
-        """Load country data from the database into the store."""
-        print("Loading geography data into ConfigStore...")
-        countries = get_all_countries(db)
-        country_dict = {country.country_code: country for country in countries}
-        self.geographies.countries = country_dict
+        try:
+            """Load country data from the database into the store."""
+            print("Loading geography data into ConfigStore...")
+            countries = get_all_countries(db)
+            country_dict = {country.country_code: country for country in countries}
+            self.geographies.countries = country_dict
 
-        states = get_all_states(db)
-        state_dict = {state.state_code: state for state in states}
-        self.geographies.states = state_dict
+            states = get_all_states(db)
+            state_dict = {state.state_code: state for state in states}
+            self.geographies.states = state_dict
 
-        regions = get_all_regions(db)
-        region_dict = {region.region_code: region for region in regions}
-        self.geographies.regions = region_dict
+            regions = get_all_regions(db)
+            region_dict = {region.region_code: region for region in regions}
+            self.geographies.regions = region_dict
 
-        self._set_geography(self.geographies)
+            self._set_geography(self.geographies)
+        except Exception as e:
+            print(f"Error loading geography data: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def _retrieve_and_set_outstation_pricing(self, db: Session):
         """Load outstation master data from the database into the store."""

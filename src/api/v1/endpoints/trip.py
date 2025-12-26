@@ -9,14 +9,15 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.trip_service import (
+from services.trip_booking_service import (
     confirm_trip_booking,
     delete_temp_trip_by_booking_id,
-    get_trip_messages,
     get_trip_search_options,
     initiate_trip_booking,
 )
 from sqlalchemy.orm import Session
+
+from services.trip_service import get_trip_messages
 
 router = APIRouter()
 
@@ -77,9 +78,14 @@ def cleanup_temp_trip_booking(
 ):
     """
     Cleanup trip data for the customer.
-    This endpoint is invoked when the customer abandons the trip search or payment page midway or payment fails.
+    This endpoint is invoked silently from frontend when the customer abandons the trip search or payment page midway or payment fails.
     """ 
     is_deleted = delete_temp_trip_by_booking_id(booking_id=booking_id, requestor=current_customer.id, db=db)
     if is_deleted:
         return {"message": "Trip data cleaned up successfully."}
     return {"message": "Failed to clean up trip data."}
+
+
+
+
+    

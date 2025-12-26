@@ -1,8 +1,10 @@
+from typing import Any
 from pydantic_settings import BaseSettings
 from pydantic import ValidationError
 import os
 from rich.console import Console
 from core.constants import Environment
+from sqlalchemy.orm import Session
 
 
 ENV = os.getenv("ENV", Environment.DEV.value)
@@ -14,6 +16,8 @@ ENV_FILE = (
 
 
 class Settings(BaseSettings):
+    
+
     APP_URL: str
     API_URL: str
     ENV: str = ENV
@@ -38,11 +42,28 @@ class Settings(BaseSettings):
     CABBO_SUPER_ADMIN_SECRET: str
     CABBO_USER_DEFAULT_PASSWORD: str
     CABBO_DEFAULT_TIMEZONE: str
+    CONFIG_STORE: Any = None
 
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"
         extra = "ignore"
+
+    def init_config_store(self, db: Session):
+        """Preload configuration store with a dedicated session."""
+    
+        print("Starting ConfigStore initialization...")
+        from core.store import ConfigStore
+
+        try:
+            store = ConfigStore.get_instance()
+            store.initialize_config_store(db)
+            self.CONFIG_STORE = store
+            print("ConfigStore initialization completed successfully.")
+            return store
+        except Exception as e:
+            print(f"Error during ConfigStore initialization: {e}")
+            raise
 
 
 try:

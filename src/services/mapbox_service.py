@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(parent_dir))
 from typing import List, Optional, Union
 from mapbox import Geocoder, Directions
 from models.map.location_schema import LocationInfo
@@ -263,5 +268,10 @@ def get_location_suggestions(
 
     return suggestions
 
-
+if __name__ == "__main__":
+    # Test location suggestions
+    test_query = "mysore palace"
+    suggestions = get_location_suggestions(test_query)
+    for loc in suggestions:
+        print(loc)
 

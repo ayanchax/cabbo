@@ -1,5 +1,5 @@
 from core.cabbo_logging import *
-from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION
+from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT
 from core.config import settings
 import warnings
 
@@ -56,10 +56,12 @@ def read_root():
 app.include_router(v1_router, prefix="/api/v1")
 
 # Ensure share/images and share/documents directory exists relative to this file (project root)
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SHARE_IMAGES_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "images")
 SHARE_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "documents")
 create_directories([SHARE_IMAGES_DIR, SHARE_DOCUMENTS_DIR])
+
+# ...existing code...
+
 # Mount the static images directory
 app.mount("/images", StaticFiles(directory=SHARE_IMAGES_DIR), name="images")
 # Mount the static documents directory

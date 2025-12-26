@@ -8,6 +8,8 @@ import mysql.connector
 import contextlib
 import logging
 
+from core.constants import Environment
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ ASYNC_DATABASE_URL = DATABASE_URL.replace(
     "mysql+mysqlconnector://", "mysql+aiomysql://"
 )
 ENGINE_OPTIONS = dict(
-    echo=True if settings.ENV == "dev" else False,
+    #echo=True if settings.ENV == Environment.DEV.value else False,
     future=True,
     pool_pre_ping=True,
     pool_recycle=1800,  # Recycle connections every 30 minutes
@@ -52,6 +54,7 @@ def _import_all_models():
                 # Build the module path relative to the models directory
                 rel_path = os.path.relpath(os.path.join(root, filename), models_dir)
                 module_name = "models." + rel_path.replace(os.sep, ".")[:-3]
+                print(f"Importing model module: {module_name}")
                 importlib.import_module(module_name)
 
 
@@ -74,35 +77,21 @@ def _ensure_database_exists():
         raise
 
 
-def init_db(seed: bool = True, preload_config: bool = True):
+def init_db(seed: bool = True, initialize_config_store: bool = True):
     logger.info("Initializing database and creating tables if not present...")
     _ensure_database_exists()
     _import_all_models()
+  
     Base.metadata.create_all(bind=engine)
+    
 
     logger.info("Database initialization complete.")
     if seed:
         seed_now()
-    if preload_config:
-        preload_config_store()
-
-
-def preload_config_store():
-    """Preload configuration store with a dedicated session."""
-    from core.store import ConfigStore
-    print("Starting ConfigStore preload...")
-    db = SessionLocal()
-    try:
-        store = ConfigStore.get_instance()
-        store.initialize_config_store(db)
-        print("ConfigStore preload completed successfully.")
-    except Exception as e:
-        logger.error(f"Error preloading config store: {e}", exc_info=True)
-        raise
-    finally:
-        db.close()
-        print("ConfigStore preload session closed.")
-
+    if initialize_config_store:
+        with SessionLocal() as session:
+            settings.init_config_store(session)
+    
 
 
 def seed_now():

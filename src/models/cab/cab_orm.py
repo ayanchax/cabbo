@@ -6,10 +6,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
+
+
 from db.database import Base
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
 from sqlalchemy.sql import func
 from core.security import RoleEnum
+
+
 
 class CabType(Base):
     __tablename__ = "cab_types_master"

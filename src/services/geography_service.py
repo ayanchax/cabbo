@@ -48,6 +48,11 @@ def get_region(
                     if r_model.region_alt_names
                     else None
                 ),
+                alt_region_codes=(
+                    json.loads(r_model.alt_region_codes)
+                    if r_model.alt_region_codes
+                    else None
+                ),
                 state_code=s_model.state_code if s_model.state_code else None,
                 country_code=c_model.country_code,
                 trip_types=(
@@ -86,6 +91,11 @@ def get_region_by_id(region_id: str, db: Session) -> Optional["RegionSchema"]:
                 region_alt_names=(
                     json.loads(region_model.region_alt_names)
                     if region_model.region_alt_names
+                    else None
+                ),
+                alt_region_codes=(
+                    json.loads(region_model.alt_region_codes)
+                    if region_model.alt_region_codes
                     else None
                 ),
                 state_code=region_model.state_id,   
@@ -133,6 +143,11 @@ def get_region_by_code(region_code: str, db: Session) -> Optional["RegionSchema"
                 region_alt_names=(
                     json.loads(region_model.region_alt_names)
                     if region_model.region_alt_names
+                    else None
+                ),
+                alt_region_codes=(
+                    json.loads(region_model.alt_region_codes)
+                    if region_model.alt_region_codes
                     else None
                 ),
                 state_code=region_model.state_id,   
@@ -340,6 +355,11 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
             region_alt_names=(
                 json.dumps(payload.region_alt_names)
                 if payload.region_alt_names
+                else None
+            ),
+            alt_region_codes=(
+                json.dumps(payload.alt_region_codes)
+                if payload.alt_region_codes
                 else None
             ),
             state_id=state_model.id,

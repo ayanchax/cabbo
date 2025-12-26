@@ -45,8 +45,10 @@ from services.pricing_service import (
 )
 from services.trip_service import create_trip_types, get_all_trip_types
 from services.user_service import create_super_admin_user
+from core.constants import PROJECT_ROOT
+import os
 
-SEED_DATA_COMPLETION_FILE = "seed_data_completed.chk"
+SEED_DATA_COMPLETION_FILE = os.path.join(PROJECT_ROOT, "seed_data_completed.chk")
 
 SEED_COUNTRIES = [
     {
@@ -76,8 +78,8 @@ SEED_STATES = [
 SEED_REGIONS = [
     # Return list of seed regions with (name, code, alt_names, state_code)
     # This is seed data and can be updated later via admin interface
-    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], "KA"),
-    ("Mysore", "MYS", ["Mysuru"], "KA"),
+    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"],["BEN"], "KA"),
+    ("Mysore", "MYS", ["Mysuru"], [],"KA"),
 ]
 # Airport data for seed data initialization
 SEED_AIRPORTS = {
@@ -228,7 +230,7 @@ def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
             LocationInfo.model_validate(ap) for ap in airports_in_region
         ]
         # Convert back to dict for JSON serialization
-        airports_in_region = [ap.model_dump() for ap in validated_airports]
+        airports_in_region = [ap.model_dump(exclude_none=True) for ap in validated_airports]
 
     return airports_in_region
 
@@ -959,9 +961,9 @@ def init_seed_data(session: Session):
     """Initialize seed data for the application."""
     is_seeded = is_file_exists(SEED_DATA_COMPLETION_FILE)
     if is_seeded:
-        err = "Seed data already initialized. Skipping seeding."
-        print(err)
-        return err
+        msg = "Seed data already initialized. Skipping seeding."
+        print(msg)
+        return msg
     try:
         session.begin()
 
@@ -970,6 +972,7 @@ def init_seed_data(session: Session):
         _seed_geographical_data(session)
 
         _seed_pricing_data(session)
+        
         session.commit()
 
         # Create a completion of seed data file at the root of the project Cabbo to indicate seeding is done and avoid re-seeding
@@ -1062,7 +1065,8 @@ def _seed_regions(session: Session):
     for car_type in car_types:
         supported_car_types.append(car_type.id)
     regions = SEED_REGIONS
-    for name, code, alt_names, state_code in regions:
+    for name, code, alt_names, alt_codes, state_code in regions:
+
         state = get_state_by_state_code(state_code.upper(), session)
         if not state:
             continue
@@ -1071,6 +1075,7 @@ def _seed_regions(session: Session):
             region_name=name,
             region_code=code,
             region_alt_names=alt_names,
+            alt_region_codes=alt_codes,
             country_id=state.country_id,
             country_code=state.country_code,
             state_id=state.id,
