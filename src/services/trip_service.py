@@ -6,9 +6,10 @@ from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
-from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
+    TripSearchRequest,
     TripTypeSchema,
 )
 from sqlalchemy.orm import Session
@@ -175,3 +176,26 @@ def get_trip_type_id_by_trip_type(
         if include_id_only
         else TripTypeSchema.model_validate(trip_type_obj)
     )
+
+
+def set_default_preferences(search_in: TripSearchRequest):
+    """
+    Ensures all required trip search preferences have sensible defaults.
+
+    - Sets 'preferred_car_type' to CarTypeEnum.sedan if not provided.
+    - Sets 'preferred_fuel_type' to FuelTypeEnum.diesel if not provided.
+    - Ensures at least one adult is present (defaults to 1 if missing or < 1).
+    - Ensures number of children is not negative (defaults to 0 if missing or < 0).
+
+    Args:
+        search_in (TripSearchRequest): The trip search request object to populate defaults for.
+    """
+    if not search_in.preferred_car_type:
+        search_in.preferred_car_type = CarTypeEnum.sedan
+    if not search_in.preferred_fuel_type:
+        search_in.preferred_fuel_type = FuelTypeEnum.diesel
+    if search_in.num_adults < 1 or search_in.num_adults is None:
+        search_in.num_adults = 1  # Ensure at least one adult is present
+    if search_in.num_children < 0 or search_in.num_children is None:
+        search_in.num_children = 0
+

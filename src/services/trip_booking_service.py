@@ -114,27 +114,6 @@ def _retrieve_trip_package_by_id(
     )
 
 
-def _set_default_trip_preferences(search_in: TripSearchRequest):
-    """
-    Ensures all required trip search preferences have sensible defaults.
-
-    - Sets 'preferred_car_type' to CarTypeEnum.sedan if not provided.
-    - Sets 'preferred_fuel_type' to FuelTypeEnum.diesel if not provided.
-    - Ensures at least one adult is present (defaults to 1 if missing or < 1).
-    - Ensures number of children is not negative (defaults to 0 if missing or < 0).
-
-    Args:
-        search_in (TripSearchRequest): The trip search request object to populate defaults for.
-    """
-    if not search_in.preferred_car_type:
-        search_in.preferred_car_type = CarTypeEnum.sedan
-    if not search_in.preferred_fuel_type:
-        search_in.preferred_fuel_type = FuelTypeEnum.diesel
-    if search_in.num_adults < 1 or search_in.num_adults is None:
-        search_in.num_adults = 1  # Ensure at least one adult is present
-    if search_in.num_children < 0 or search_in.num_children is None:
-        search_in.num_children = 0
-
 
 def _generate_trip_field_dictionary(
     search_in: TripSearchRequest,
@@ -224,10 +203,10 @@ def get_trip_search_options(
         CabboException: If the trip type is invalid or not supported, or if any validation fails.
     """
     
-    validate_passenger_id(search_in, requestor, db)  # Validate passenger ID if provided
-    _set_default_trip_preferences(search_in)  # Ensure preferences are set
+    # validate_passenger_id(search_in, requestor, db)  # Validate passenger ID if provided
+    # set_default_trip_preferences(search_in)  # Ensure preferences are set
     
-    validate_serviceable_area(search_in, db)  # Enforce serviceable area boundaries
+    # validate_serviceable_area(search_in, db)  # Enforce serviceable area boundaries
     options: List[TripSearchOption] = []
     configs = retrieve_trip_wise_pricing_config(db, search_in.trip_type)
     platform_fee_percent = configs.dynamic_platform_fee_percent

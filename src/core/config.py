@@ -16,7 +16,6 @@ ENV_FILE = (
 
 
 class Settings(BaseSettings):
-    
 
     APP_URL: str
     API_URL: str
@@ -50,8 +49,8 @@ class Settings(BaseSettings):
         extra = "ignore"
 
     def init_config_store(self, db: Session):
-        """Preload configuration store with a dedicated session."""
-    
+        """Initialize configuration store with a dedicated session."""
+
         print("Starting ConfigStore initialization...")
         from core.store import ConfigStore
 
@@ -64,7 +63,8 @@ class Settings(BaseSettings):
         except Exception as e:
             print(f"Error during ConfigStore initialization: {e}")
             raise
-
+    
+    
 
 try:
     settings = Settings()

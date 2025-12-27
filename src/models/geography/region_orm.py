@@ -32,7 +32,7 @@ class RegionModel(Base):
     region_name = Column(
         String(64), unique=True, nullable=False
     )  # e.g. Bangalore, Chennai
-    region_alt_names=Column(JSON, nullable=True)  # e.g. ["Bengaluru", "Bangalore City"]
+    alt_region_names=Column(JSON, nullable=True)  # e.g. ["Bengaluru", "Bangalore City"]
     region_code = Column(String(8), unique=True, nullable=False)  # e.g. BLR
     alt_region_codes = Column(
         JSON, nullable=True 

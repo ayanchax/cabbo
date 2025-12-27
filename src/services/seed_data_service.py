@@ -76,8 +76,9 @@ SEED_STATES = [
     ("Andhra Pradesh", "AP"),
 ]
 SEED_REGIONS = [
-    # Return list of seed regions with (name, code, alt_names, state_code)
+    # Return list of seed regions with (name, code, alt_names, alt_codes, state_code)
     # This is seed data and can be updated later via admin interface
+    # Alt region codes are added to support multiple region codes returned by different location service providers, we will use these codes to verify service availability in a region if primary region code is not found in the LocationInfo response.
     ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"],["BEN"], "KA"),
     ("Mysore", "MYS", ["Mysuru"], [],"KA"),
 ]
@@ -1065,8 +1066,9 @@ def _seed_regions(session: Session):
     for car_type in car_types:
         supported_car_types.append(car_type.id)
     regions = SEED_REGIONS
+    
     for name, code, alt_names, alt_codes, state_code in regions:
-
+        
         state = get_state_by_state_code(state_code.upper(), session)
         if not state:
             continue
@@ -1074,7 +1076,7 @@ def _seed_regions(session: Session):
         region_schema = RegionSchema(
             region_name=name,
             region_code=code,
-            region_alt_names=alt_names,
+            alt_region_names=alt_names,
             alt_region_codes=alt_codes,
             country_id=state.country_id,
             country_code=state.country_code,

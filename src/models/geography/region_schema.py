@@ -34,7 +34,7 @@ class RegionSchema(BaseModel):
     region_code: str = Field(..., description="Region code, e.g., 'BLR' for Bangalore") # e.g. BLR, MAA
     alt_region_codes: Optional[List[str]] = Field(
         None, description="List of alternative region codes")
-    region_alt_names: Optional[List[str]] = Field(
+    alt_region_names: Optional[List[str]] = Field(
         None, description="List of alternative names for the region"
     )  # e.g. ["Bengaluru", "Bangalore City"]
     country_code: Optional[str] = Field(None, description="ISO country code the region belongs to, e.g., 'IN' for India") # e.g. IN
@@ -61,12 +61,16 @@ class RegionSchema(BaseModel):
     class Config:
         from_attributes = True
     
-    @field_validator('region_alt_names', 'trip_types', 'fuel_types', 'car_types', mode='before')
+    @field_validator('alt_region_names', 'alt_region_codes', 'trip_types', 'fuel_types', 'car_types', mode='before')
     @classmethod
     def parse_json_list_fields(cls, v):
         """Parse JSON string fields to lists."""
-        if v is None:
+        if v is None :
             return None
+        if isinstance(v, list):
+            if len(v) == 0:
+                return None
+            return v
         if isinstance(v, str):
             try:
                 return json.loads(v)
@@ -89,8 +93,10 @@ class RegionSchema(BaseModel):
 
 class RegionUpdate(BaseModel):
     region_name: Optional[str] = Field(None, description="Name of the region/city") # e.g. Bangalore, Chennai
-    region_alt_names: Optional[List[str]] = Field(
+    alt_region_names: Optional[List[str]] = Field(
         None, description="List of alternative names for the region"
     )
+    alt_region_codes: Optional[List[str]] = Field(
+        None, description="List of alternative region codes")
     class Config:
         from_attributes = True

@@ -268,10 +268,10 @@ def get_location_suggestions(
 
     return suggestions
 
-if __name__ == "__main__":
-    # Test location suggestions
-    test_query = "mysore palace"
-    suggestions = get_location_suggestions(test_query)
-    for loc in suggestions:
-        print(loc)
+# if __name__ == "__main__":
+#     # Test location suggestions
+#     test_query = "mysore palace"
+#     suggestions = get_location_suggestions(test_query)
+#     for loc in suggestions:
+#         print(loc)
 

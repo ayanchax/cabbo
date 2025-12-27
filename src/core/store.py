@@ -158,7 +158,7 @@ class ConfigStore(BaseModel):
     def _initialize_pricing_configuration(self):
         return MasterPricingConfiguration()
 
-    def force_reload_config_store(self, db: Session):
+    def warm_up_cache(self, db: Session):
         """Force reload all configurations from database, bypassing cache."""
         with self._lock:
             self._clear_all_data()

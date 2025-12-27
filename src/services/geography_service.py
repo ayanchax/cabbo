@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 from pydantic_core import ValidationError
 import json
 from typing import Optional
@@ -43,9 +43,9 @@ def get_region(
             region_schema = RegionSchema(
                 region_name=r_model.region_name,
                 region_code=r_model.region_code,
-                region_alt_names=(
-                    json.loads(r_model.region_alt_names)
-                    if r_model.region_alt_names
+                alt_region_names=(
+                    json.loads(r_model.alt_region_names)
+                    if r_model.alt_region_names
                     else None
                 ),
                 alt_region_codes=(
@@ -88,9 +88,9 @@ def get_region_by_id(region_id: str, db: Session) -> Optional["RegionSchema"]:
             region_schema = RegionSchema(
                 region_name=region_model.region_name,
                 region_code=region_model.region_code,
-                region_alt_names=(
-                    json.loads(region_model.region_alt_names)
-                    if region_model.region_alt_names
+                alt_region_names=(
+                    json.loads(region_model.alt_region_names)
+                    if region_model.alt_region_names
                     else None
                 ),
                 alt_region_codes=(
@@ -140,9 +140,9 @@ def get_region_by_code(region_code: str, db: Session) -> Optional["RegionSchema"
                 id=region_model.id,
                 region_name=region_model.region_name,
                 region_code=region_model.region_code,
-                region_alt_names=(
-                    json.loads(region_model.region_alt_names)
-                    if region_model.region_alt_names
+                alt_region_names=(
+                    json.loads(region_model.alt_region_names)
+                    if region_model.alt_region_names
                     else None
                 ),
                 alt_region_codes=(
@@ -187,9 +187,9 @@ def get_all_regions(db: Session) -> list["RegionSchema"]:
             region_schema = RegionSchema(
                 region_name=r_model.region_name,
                 region_code=r_model.region_code,
-                region_alt_names=(
-                    json.loads(r_model.region_alt_names)
-                    if r_model.region_alt_names
+                alt_region_names=(
+                    json.loads(r_model.alt_region_names)
+                    if r_model.alt_region_names
                     else None
                 ),
                 id=r_model.id,
@@ -235,9 +235,9 @@ def get_regions_by_country(country_code: str, db: Session) -> list["RegionSchema
             region_schema = RegionSchema(
                 region_name=r_model.region_name,
                 region_code=r_model.region_code,
-                region_alt_names=(
-                    json.loads(r_model.region_alt_names)
-                    if r_model.region_alt_names
+                alt_region_names=(
+                    json.loads(r_model.alt_region_names)
+                    if r_model.alt_region_names
                     else None
                 ),
                 state_code=None,  # State code not fetched here
@@ -295,9 +295,9 @@ def get_regions_by_state(
             region_schema = RegionSchema(
                 region_name=r_model.region_name,
                 region_code=r_model.region_code,
-                region_alt_names=(
-                    json.loads(r_model.region_alt_names)
-                    if r_model.region_alt_names
+                alt_region_names=(
+                    json.loads(r_model.alt_region_names)
+                    if r_model.alt_region_names
                     else None
                 ),
                 state_code=state_code,
@@ -352,22 +352,30 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
         region_model = RegionModel(
             region_name=payload.region_name,
             region_code=payload.region_code.upper(),
-            region_alt_names=(
-                json.dumps(payload.region_alt_names)
-                if payload.region_alt_names
-                else None
+            alt_region_names=(
+                []
+                if not payload.alt_region_names or len(payload.alt_region_names) == 0
+                else json.dumps(payload.alt_region_names)
             ),
             alt_region_codes=(
-                json.dumps(payload.alt_region_codes)
-                if payload.alt_region_codes
-                else None
+                []
+                if not payload.alt_region_codes or len(payload.alt_region_codes) == 0
+                else json.dumps(payload.alt_region_codes)
             ),
             state_id=state_model.id,
             country_id=country_model.id,
-            trip_types=json.dumps(payload.trip_types) if payload.trip_types else None,
-            fuel_types=json.dumps(payload.fuel_types) if payload.fuel_types else None,
-            car_types=json.dumps(payload.car_types) if payload.car_types else None,
-            airport_locations=json.dumps(payload.airport_locations) if payload.airport_locations else None,
+            trip_types=(
+                [] if not payload.trip_types or len(payload.trip_types) == 0 else json.dumps(payload.trip_types)
+            ),
+            fuel_types=(
+                [] if not payload.fuel_types or len(payload.fuel_types) == 0 else json.dumps(payload.fuel_types)
+            ),
+            car_types=(
+                [] if not payload.car_types or len(payload.car_types) == 0 else json.dumps(payload.car_types)
+            ),
+            airport_locations=(
+                [] if not payload.airport_locations or len(payload.airport_locations) == 0 else json.dumps(payload.airport_locations)
+            ),
         )
         db.add(region_model)
         db.commit()
@@ -393,8 +401,8 @@ def update_region(
         #We only allow updating region_name and region_alt_names
         if payload.region_name is not None:
             region_model.region_name = payload.region_name
-        if payload.region_alt_names is not None:
-            region_model.region_alt_names = json.dumps(payload.region_alt_names)
+        if payload.alt_region_names is not None:
+            region_model.alt_region_names = json.dumps(payload.alt_region_names)
         db.commit()
         db.refresh(region_model)
         return RegionSchema.model_validate(region_model)
@@ -744,7 +752,7 @@ def enable_region(region_id: str, db: Session) -> bool:
     except Exception as e:
         db.rollback()
         raise e
-    
+
 def create_countries(countries:list[CountrySchema], db:Session):
     for country in countries:
         add_country(country, db)
@@ -800,9 +808,9 @@ def get_regions_by_state_id(state_id: str, db: Session) -> list["RegionSchema"]:
                 id=r_model.id,
                 region_name=r_model.region_name,
                 region_code=r_model.region_code,
-                region_alt_names=(
-                    json.loads(r_model.region_alt_names)
-                    if r_model.region_alt_names
+                alt_region_names=(
+                    json.loads(r_model.alt_region_names)
+                    if r_model.alt_region_names
                     else None
                 ),
                 state_id=r_model.state_id,
@@ -825,7 +833,20 @@ def get_regions_by_state_id(state_id: str, db: Session) -> list["RegionSchema"]:
             continue
     return region_schemas
 
+def lookup_region_by_code(regions:Dict[str, RegionSchema], region_code:str) -> Optional[RegionSchema]:
+    for _, region in regions.items():
+        if not region.is_serviceable:
+            continue
+        if region.region_code.upper() == region_code:
+            return region
+        if region.alt_region_codes and region_code in [code.upper() for code in region.alt_region_codes]:
+            return region
+    return None #If we reach here, no matching region found or region is not serviceable
 
-
-
-        
+def lookup_state_by_code(states:Dict[str, StateSchema], state_code:str) -> Optional[StateSchema]:
+    for _, state in states.items():
+        if not state.is_serviceable:
+            continue
+        if state.state_code.upper() == state_code:
+            return state
+    return None #If we reach here, no matching state found or state is not serviceable
