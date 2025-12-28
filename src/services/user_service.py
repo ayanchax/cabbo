@@ -1,13 +1,17 @@
 
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(parent_dir))
 from sqlalchemy import or_
-from core.constants import APP_ADMIN_EMAIL, SUPER_ADMIN
+from core.constants import SUPER_ADMIN
 from core.exceptions import CabboException
 from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from core.config import settings
 
-from models.user.user_schema import UserCreateSchema, UserPasswordUpdateSchema, UserUpdateSchema
+from models.user.user_schema import UserCreateSchema, UserUpdateSchema
 import logging
 
 logger = logging.getLogger(__name__)
@@ -227,7 +231,7 @@ def create_user(data:UserCreateSchema, db: Session) -> User:
         username=data.username.strip(),
         email=data.email.strip() if data.email else None,  # Default to None if email is not provided
         phone_number=data.phone_number.strip(),
-        password_hash=generate_password_hash(data.password) if data.password else None,  # Assuming password is hashed before passing
+        password_hash=generate_password_hash(data.password) if data.password else settings.CABBO_USER_DEFAULT_PASSWORD,  # Assuming password is hashed before passing
         role=data.role.strip(),
     )
     db.add(user)
@@ -260,11 +264,12 @@ def auto_logoff_user_after_password_change(user: User, db: Session) -> bool:
 def create_super_admin_user(db:Session):
     super_admin = User(
         **SUPER_ADMIN,
-        password_hash=generate_password_hash(
-            settings.CABBO_SUPER_ADMIN_SECRET
-        ),  # Use a secure hash in production
+        password_hash=settings.CABBO_SUPER_ADMIN_SECRET,
         is_active=True,
     )
     db.add(super_admin)
     db.commit()
          
+# if __name__ == "__main__":
+#     secret = generate_password_hash("P@55w0rd1234")
+#     print(secret)

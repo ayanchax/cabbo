@@ -25,7 +25,7 @@ def add_driver(background_tasks: BackgroundTasks,payload: DriverCreateSchema = B
     if driver.email and driver.name:
         subject = f"Welcome to {APP_NAME}!"
         from services.message_service import render_email_template
-
+        
         html_content = render_email_template(
             WELCOME_EMAIL_FILE,
             for_driver=True,

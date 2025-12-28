@@ -14,7 +14,7 @@ class UserCreateSchema(UserBaseSchema):
     username: str  # User's username
     email: Optional[EmailStr] = None  # User's email address
     phone_number: str  # User's phone number
-    password: Optional[str]= settings.CABBO_USER_DEFAULT_PASSWORD  # User's password
+    password: Optional[str]= None  # User's password
     role: RoleEnum
     is_active: bool = True  # Active status of the user
     gender: Optional[GenderEnum] = None  # User's gender 

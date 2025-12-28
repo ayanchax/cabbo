@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(parent_dir))
 from twilio.rest import Client
 from core.config import settings
 import sendgrid
@@ -6,6 +10,8 @@ from sendgrid.helpers.mail import Mail
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import os
+
+from core.constants import PROJECT_ROOT
 
 EMAIL_VERIFY_EXPIRY_UNIT = 2
 EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
@@ -29,8 +35,10 @@ WELCOME_EMAIL_FILE = "welcome.html"
 EMAIL_VERIFICATION_FILE = "email_verification.html"
 # Jinja2 Environment for email templates
 EMAIL_TEMPLATES_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "templates", "emails"
+    PROJECT_ROOT, "templates", "emails"
 )
+
+
 jinja_templates_env = Environment(
     loader=FileSystemLoader(EMAIL_TEMPLATES_DIR),
     autoescape=select_autoescape(["html", "xml"]),
@@ -91,7 +99,7 @@ def render_email_template(template_name: str, for_customer=False, for_driver=Fal
     elif for_driver:
         template_name = f"driver/{template_name}"
     
-
+    
     template = jinja_templates_env.get_template(template_name)
     return template.render(**kwargs)
 
@@ -118,3 +126,14 @@ def create_email_verification_link(
         f"{settings.APP_URL}?ep={endpoint}&id={id}&token={secrets.token_urlsafe(16)}"
     )
     return verification_url, expiry
+
+# if __name__ == "__main__":
+#     # Test rendering email template
+#     html = render_email_template(
+#         WELCOME_EMAIL_FILE,
+#         for_customer=True,
+#         name="John Doe",
+#         app_name="Cabbo",
+#         app_url="https://cabbo.co.in",
+#     )
+#     print(html)

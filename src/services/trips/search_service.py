@@ -16,20 +16,12 @@ from services.trips.outstation_service import (
 )
 from core.config import settings
 
-config_store: ConfigStore = settings.CONFIG_STORE
-try:
-    if config_store and config_store.is_cache_valid():
-        config_store.warm_up_cache()
-
-except Exception as e:
-    raise CabboException(
-        f"Error initializing configuration store: {e}", status_code=500
-    )
-
 
 def search(
     search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
+    config_store: ConfigStore = settings.CONFIG_STORE
+    
     validate_trip_search(
         search_in=search_in, requestor=requestor, db=db, config_store=config_store
     )

@@ -130,7 +130,13 @@ def validate_serviceable_area(search_in: TripSearchRequest,config_store:ConfigSt
                     airport_locations = dest_region.airport_locations or []
                     if not airport_locations:
                         raise CabboException("No airport found in region", status_code=400)
-                    pickup = LocationInfo.model_validate(airport_locations[0])  
+                    pickup = LocationInfo.model_validate(airport_locations[0])
+                    # if not pickup.region_code:
+                    #     enhanced_pickup = get_region_from_location(location=pickup, config_store=config_store)
+                    #     if enhanced_pickup:
+                    #         print(enhanced_pickup)
+                    #         pickup.region_code = enhanced_pickup.region_code
+
                     search_in.origin = pickup
                 else:
                     #Validate that we support this pickup location and it is an airport 
@@ -177,6 +183,7 @@ def validate_serviceable_area(search_in: TripSearchRequest,config_store:ConfigSt
                     if not dest_region:
                         raise CabboException("Destination region is not serviceable", status_code=400)
             #Final check: Ensure both pickup and drop are in the same region
+
             if pickup.region_code != drop.region_code:
                 raise CabboException("Both origin and destination must be in the same region", status_code=400)
     

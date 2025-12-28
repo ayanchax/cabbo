@@ -8,7 +8,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.mysql import CHAR
-from core.security import RoleEnum, generate_password_hash
+from core.security import RoleEnum
 from db.database import Base
 import uuid
 from sqlalchemy.types import Enum as SqlEnum
@@ -29,7 +29,7 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(255), unique=True, nullable=True)
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=True, default=generate_password_hash(settings.CABBO_USER_DEFAULT_PASSWORD))  # Hashed password
+    password_hash = Column(String(255), nullable=True, default=settings.CABBO_USER_DEFAULT_PASSWORD)  # Hashed password
     is_active = Column(Boolean, default=True, nullable=False)  # Active status
     role = Column(
         SqlEnum(RoleEnum, name="user_role_enum"),

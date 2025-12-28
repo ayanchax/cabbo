@@ -192,6 +192,11 @@ def get_all_regions(db: Session) -> list["RegionSchema"]:
                     if r_model.alt_region_names
                     else None
                 ),
+                alt_region_codes=(
+                    json.loads(r_model.alt_region_codes)
+                    if r_model.alt_region_codes
+                    else None
+                ),
                 id=r_model.id,
                 state_id=r_model.state_id,
                 country_id=r_model.country_id,
@@ -839,6 +844,7 @@ def lookup_region_by_code(regions:Dict[str, RegionSchema], region_code:str) -> O
             continue
         if region.region_code.upper() == region_code:
             return region
+        
         if region.alt_region_codes and region_code in [code.upper() for code in region.alt_region_codes]:
             return region
     return None #If we reach here, no matching region found or region is not serviceable
