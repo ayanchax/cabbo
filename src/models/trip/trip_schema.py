@@ -215,10 +215,6 @@ class TripSearchRequest(BaseModel):
             )
         return v
 
-
-
-
-
 class AmenitiesSchema(BaseModel):
     ac: bool = True  # Air conditioning
     music_system: bool = True  # Music system
@@ -230,7 +226,6 @@ class AmenitiesSchema(BaseModel):
     aux_cable: bool = False  # Aux cable for music
     bluetooth: bool = False  # Bluetooth connectivity
     wifi: bool = False  # Wifi connectivity
-
 
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
@@ -276,7 +271,7 @@ class TripSearchAdditionalData(BaseModel):
     choices:Optional[int] = None  # Number of choices available for the user to book from
     
     is_interstate: Optional[bool] = (
-        None  # Indicates if the trip is interstate, mainly applicable for outstation trips
+        False  # Indicates if the trip is interstate, mainly applicable for outstation trips
     )  # This is used to calculate the total price for outstation trips which are interstate
     total_unique_states: Optional[int] = (
         None  # Applicable for outstation trips which are interstate

@@ -1,6 +1,6 @@
 
 from sqlalchemy import or_
-from core.constants import APP_ADMIN_EMAIL
+from core.constants import APP_ADMIN_EMAIL, SUPER_ADMIN
 from core.exceptions import CabboException
 from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
@@ -259,10 +259,7 @@ def auto_logoff_user_after_password_change(user: User, db: Session) -> bool:
 
 def create_super_admin_user(db:Session):
     super_admin = User(
-        email=APP_ADMIN_EMAIL,
-        name="Super Admin",
-        username="superadmin",
-        phone_number="9999999999",
+        **SUPER_ADMIN,
         password_hash=generate_password_hash(
             settings.CABBO_SUPER_ADMIN_SECRET
         ),  # Use a secure hash in production
