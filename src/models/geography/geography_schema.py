@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict
+from typing import Dict, Optional
 from models.geography.country_schema import CountrySchema
 from models.geography.state_schema import StateSchema
 from models.geography.region_schema import RegionSchema
@@ -18,3 +18,10 @@ class Geographies(BaseModel):
         default_factory=dict,
         description="Dictionary of regions keyed by region_code"
     )
+
+    country_server:Optional[CountrySchema] = Field(
+        None,
+        description="Country configuration for the server's operating country"
+    )
+
+    

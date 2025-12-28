@@ -13,11 +13,7 @@ def get_region_from_location(
     Given a location (with region_code), find and return the matching region object
     from config_store.geographies.regions, checking both region_code and alt_region_codes.
     """
-    if not config_store:
-        return None
-
-    if not config_store.is_cache_valid():
-        config_store.warm_up_cache()
+    
 
     region_code = location.region_code
     if not region_code:
@@ -33,10 +29,7 @@ def get_state_from_location_v2(
     Given a location (with state_code), find and return the matching state name
     from config_store.geographies.states.
     """
-    if not config_store:
-        return None
-    if not config_store.is_cache_valid():
-        config_store.warm_up_cache()
+    
     state_code = location.state_code
     if not state_code:
         return None

@@ -9,15 +9,12 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.trip_booking_service import (
-    confirm_trip_booking,
-    delete_temp_trip_by_booking_id,
-    get_trip_search_options,
-    initiate_trip_booking,
-)
+
 from sqlalchemy.orm import Session
 
-from services.trip_service import get_trip_messages
+from services.trips.trip_service import get_trip_messages
+from services.trips.booking_service import confirm_trip_booking, delete_temp_trip_by_booking_id, initiate_trip_booking
+from services.trips.search_service import search
 
 router = APIRouter()
 
@@ -29,7 +26,7 @@ def search_trip(
     current_customer: Customer = Depends(validate_customer_token),
 ):
 
-    return get_trip_search_options(
+    return search(
         search_in=search_in, requestor=current_customer.id, db=db
     )
 

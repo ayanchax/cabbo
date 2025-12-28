@@ -221,7 +221,7 @@ class AuxiliaryPricingConfiguration(BaseModel):
     night: Optional[NightPricingConfigurationSchema] = None # Includes region wise and state wise night pricing configurations for outstation and local
     permit: Optional[PermitFeeConfigurationSchema] = None # Includes permit fee configurations state wise for outstation trips
     cancellation_policy: Optional[CancelationPolicySchema] = None  # Cancellation policy configuration for outstation trips
-    trip_package: Optional[TripPackageConfigSchema] = None  # Trip package configuration for local trips
+    trip_packages: Optional[List[TripPackageConfigSchema]] = None  # Trip package configuration for local trips
 
 class MasterPricingConfiguration(BaseModel):
     base_pricing: List[

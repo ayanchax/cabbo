@@ -37,11 +37,12 @@ from services.pricing_service import (
     get_night_pricing_configuration,
     get_permit_fee_configuration,
 )
-from services.trip_service import (
+from services.trips.trip_service import (
     get_all_trip_types,
-    get_trip_package_configuration_by_region_code,
+    get_trip_package_configuration_list_by_region_code,
     get_trip_type_id_by_trip_type,
 )
+from core.config import settings
 
 
 class ConfigStore(BaseModel):
@@ -234,6 +235,8 @@ class ConfigStore(BaseModel):
         print("Step 9: Loading platform fee information...")
         self._retrieve_and_set_platform_fee_info(db)
 
+         
+
     def _clear_all_data(self):
         """Clear all cached data."""
         self.outstation = {}
@@ -415,6 +418,10 @@ class ConfigStore(BaseModel):
             region_dict = {region.region_code: region for region in regions}
             self.geographies.regions = region_dict
 
+            country_server = settings.COUNTRY_CODE.upper()
+            if country_server in country_dict:
+                self.geographies.country_server = country_dict[country_server]
+
             self._set_geography(self.geographies)
         except Exception as e:
             print(f"Error loading geography data: {e}")
@@ -558,11 +565,11 @@ class ConfigStore(BaseModel):
                 )
         # - Load trip package config per region inside local trip config data
         for region_code, pricing_config in local_data.items():
-            trip_package_config = get_trip_package_configuration_by_region_code(
+            trip_package_config_list = get_trip_package_configuration_list_by_region_code(
                 region_code, db
             )
-            if trip_package_config:
-                pricing_config.auxiliary_pricing.trip_package = trip_package_config
+            if trip_package_config_list:
+                pricing_config.auxiliary_pricing.trip_packages= trip_package_config_list
 
         self._set_local_pricing(local_data)
 
@@ -648,3 +655,5 @@ class ConfigStore(BaseModel):
         return get_trip_type_id_by_trip_type(
             trip_type=trip_type, db=db, include_id_only=False
         )
+
+    

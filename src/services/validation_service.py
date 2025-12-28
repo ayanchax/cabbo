@@ -112,6 +112,7 @@ def validate_serviceable_area(search_in: TripSearchRequest,config_store:ConfigSt
     """
    
     
+
     trip_type = search_in.trip_type
     pickup = search_in.origin
     drop = search_in.destination
@@ -256,7 +257,6 @@ def validate_placard_requirements(search_in: TripSearchRequest):
             status_code=400,
         )
 
-
 def validate_local_trip_schedule(search_in: TripSearchRequest):
     """
     Validates the start date and end date for local trips.
@@ -289,7 +289,6 @@ def validate_local_trip_schedule(search_in: TripSearchRequest):
             "Start date for local trip must be at least 6 hours from now.",
             status_code=400,
         )
-
 
 def validate_outstation_trip_schedule(search_in: TripSearchRequest):
     """
@@ -347,7 +346,6 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
         )
     return total_days
 
-
 def validate_airport_schedule(search_in: TripSearchRequest):
 
     if search_in.start_date is None:
@@ -377,3 +375,17 @@ def validate_airport_schedule(search_in: TripSearchRequest):
             "Start date for airport trip must be at least 3 hours from now.",
             status_code=400,
         )
+
+def validate_trip_type(trip_type: TripTypeEnum, config_store: ConfigStore):
+    """
+    Validates if the provided trip type is supported.
+
+    Args:
+        trip_type (TripTypeEnum): The trip type to validate.
+        config_store (ConfigStore): The configuration store instance.
+    Raises:
+        CabboException: If the trip type is not supported.
+    """
+    supported_trip_types = {t.trip_type for t in config_store.trip_types}
+    if trip_type not in supported_trip_types:
+        raise CabboException(f"Trip type {trip_type.value} is not supported", status_code=501)
