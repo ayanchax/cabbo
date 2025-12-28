@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 import json
-from typing import List, Union
-from core.constants import APP_NAME
+from typing import Union
 from core.exceptions import CabboException
-from core.security import RoleEnum, generate_hash, verify_hash
+from core.security import verify_hash
 from core.store import ConfigStore
-from models.geography.region_orm import RegionModel
+from core.trip_constants import TRIP_MESSAGES
+from core.trip_helpers import generate_trip_field_dictionary, get_trip_type_id_by_trip_type
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
@@ -18,12 +18,9 @@ from models.trip.trip_enums import (
 )
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
-    AmenitiesSchema,
     TripBookRequest,
     TripDetails,
-    TripSearchOption,
     TripSearchRequest,
-    TripTypeSchema,
 )
 from sqlalchemy.orm import Session
 
@@ -40,93 +37,6 @@ from services.pricing_service import (
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 
-TRIP_MESSAGES = {
-    TripStatusEnum.created.value: {
-        "messages": {
-            "status": TripStatusEnum.created,
-            "status_text": "Your trip has been created!",
-            "next_steps": [
-                {
-                    "id": "COMPLETE_ADVANCE_PAYMENT",
-                    "step": "Complete Advance Payment",
-                    "instruction": "Please complete the advance payment to confirm your trip.",
-                    "reason": "This advance payment is our platform/convenience fee that helps us guarantee your trip.",
-                },
-                {
-                    "id": "AWAIT_CONFIRMATION",
-                    "step": "Await Confirmation",
-                    "instruction": "You will receive a confirmation once the payment is successful.",
-                },
-            ],
-        }
-    },
-    TripStatusEnum.confirmed.value: {
-        "messages": {
-            "status": TripStatusEnum.confirmed,
-            "status_text": "Your booking has been confirmed!",
-            "next_steps": [
-                {
-                    "id": "AWAIT_TRIP_DETAILS",
-                    "step": "Await trip details",
-                    "instruction": "You will receive the trip and driver details shortly.",
-                },
-                {
-                    "id": "PAY_REMAINING_FARE",
-                    "step": "Pay remaining fare after trip completion",
-                    "instruction": "You will receive an invoice after your trip ends, and you should pay the rest of your fare only through the app or provided payment link in the invoice.",
-                },
-            ],
-            "advisory": [
-                {
-                    "id": "DO_NOT_PAY_FOR_DRIVER_ACCOMMODATION",
-                    "instruction": "You are not required or liable to arrange or pay for any driver accommodation.",
-                    "additional_info": f"If you are willing to provide driver accommodation during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements.",
-                },
-                {
-                    "id": "DO_NOT_PAY_FOR_DRIVER_FOOD",
-                    "instruction": "You are not required or liable to arrange or pay for any driver food or meals.",
-                    "additional_info": f"If you are willing to provide driver food or meals during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements.",
-                },
-                {
-                    "id": "DO_NOT_PAY_TO_DRIVER",
-                    "instruction": "Please do not make any trip related payments to the driver directly.",
-                    "additional_info": "All trip related payments should be made through the app for your safety.",
-                },
-                {
-                    "id": "DO_NOT_ENTERTAIN_PAYMENT_REQUESTS_FROM_DRIVER",
-                    "instruction": "Please do not entertain any kind of payment requests from the driver.",
-                    "additional_info": "All payment requests should be directed through the app for your safety. If the driver insists, please report it to our support team.",
-                },
-                {
-                    "id": "OPTIONAL_TIPPING",
-                    "instruction": "You are free to tip your driver directly in cash/UPI, at your own discretion.",
-                    "additional_info": "Tipping is not mandatory but greatly appreciated.",
-                },
-                {
-                    "id": "CONTACT_SUPPORT_GENERAL",
-                    "instruction": f"If you face any issues or have concerns during your trip, please contact {APP_NAME.capitalize()} support immediately.",
-                    "additional_info": "Your comfort and safety are our priority. Our support team is always here to help you.",
-                },
-            ],
-        }
-    },
-}
-
-COMMON_INCLUSIONS = [
-    "Base fare",
-    "Premium AC cab with professional driver",
-    "Doorstep pickup and drop",
-    "Platform/Convenience fee",
-    "Well-maintained and sanitized vehicle",
-    "24/7 customer support",
-]
-
-COMMON_EXCLUSIONS = [
-    "Personal expenses",
-    "Self sponsored driver meals",
-    "Tolls(if applicable)",
-    "Extra parking(if any)",
-]
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
     """
@@ -244,80 +154,6 @@ def get_trip_messages(status: Union[str, TripStatusEnum]):
     return TRIP_MESSAGES.get(status, {})
 
 
-def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
-    """
-    Retrieves all trips from the database.
-    Returns:
-        List[TripTypeSchema]: A list of all trip type master records.
-    """
-
-    try:
-        trip_types = db.query(TripTypeMaster).all()
-        trip_type_schemas = [
-            TripTypeSchema.model_validate(trip_type) for trip_type in trip_types
-        ]
-        return trip_type_schemas
-    except Exception as e:
-        return []
-
-
-def create_trip_types(trip_types: list, db: Session):
-    trip_type_master_objs = [
-        TripTypeMaster(
-            trip_type=entry["trip_type"],
-            display_name=entry["display_name"],
-            description=entry["description"],
-            created_by=RoleEnum.system,
-        )
-        for entry in trip_types
-    ]
-    db.add_all(trip_type_master_objs)
-    db.commit()
-
-
-def get_trip_package_configuration_list_by_region_code(
-    region_code: str, db: Session
-) -> List[TripPackageConfigSchema]:
-    trip_package_config = (
-        db.query(TripPackageConfig)
-        .join(RegionModel, TripPackageConfig.region_id == RegionModel.id)
-        .filter(
-            RegionModel.region_code == region_code,
-        )
-        .all()
-    )
-    if not trip_package_config:
-        return []
-    return [
-        TripPackageConfigSchema.model_validate(config) for config in trip_package_config
-    ]
-
-
-def get_trip_type_id_by_trip_type(
-    trip_type: TripTypeEnum, db: Session, include_id_only=True
-) -> Union[str, TripTypeSchema]:
-    """
-    Retrieves the trip type ID from the database based on the provided trip type.
-    Args:
-        trip_type (TripTypeEnum): The trip type for which to retrieve the ID.
-        db (Session): The database session for ORM operations.
-    Returns:
-        Union[str, TripTypeSchema]: The trip type object if include_id_only is False.
-    Raises:
-        CabboException: If the trip type is not found in the database.
-    """
-    trip_type_obj = (
-        db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
-    )
-    if not trip_type_obj:
-        raise CabboException(f"Trip type {trip_type} not found", status_code=404)
-    return (
-        trip_type_obj.id
-        if include_id_only
-        else TripTypeSchema.model_validate(trip_type_obj)
-    )
-
-
 def _set_default_preferences(search_in: TripSearchRequest):
     """
     Ensures all required trip search preferences have sensible defaults.
@@ -338,82 +174,6 @@ def _set_default_preferences(search_in: TripSearchRequest):
         search_in.num_adults = 1  # Ensure at least one adult is present
     if search_in.num_children < 0 or search_in.num_children is None:
         search_in.num_children = 0
-
-
-def get_default_trip_amenities():
-    return AmenitiesSchema(
-        water_bottle=True,
-        tissues=True,
-        ac=True,
-        music_system=True,
-    )
-
-
-def generate_trip_field_dictionary(
-    search_in: TripSearchRequest,
-    car_type: str,
-    fuel_type: str,
-    option: TripSearchOption,
-):
-    """Generates a dictionary of trip fields for the booking option and preferences.
-    This method creates a dictionary representation of the trip option and preferences
-    for use in generating a hash to verify the integrity of the booking data.
-
-    Args:
-        search_in (TripSearchRequest): The trip search request containing user preferences.
-        car_type (str): The car type selected for the trip.
-        fuel_type (str): The fuel type selected for the trip.
-        option (TripSearchOption): The trip search option containing pricing and breakdown details.
-
-    Returns:
-        tuple: A tuple containing two dictionaries:
-            - option_dict: Dictionary of trip option fields.
-            - preference_dict: Dictionary of user preferences for the trip.
-    """
-    option_dict = {
-        "car_type": car_type,  # Use display name from schema
-        "fuel_type": fuel_type,  # Use display name from schema
-        "total_price": option.total_price,
-    }
-    preference_dict = {
-        "trip_type": search_in.trip_type,
-        "origin": search_in.origin.model_dump() if search_in.origin else None,
-        "start_date": search_in.start_date,
-    }
-    passenger_id = get_passenger_id_from_preferences(preferences=search_in)
-    if passenger_id:
-        preference_dict["passenger_id"] = passenger_id
-
-    if search_in.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-        preference_dict["destination"] = (
-            search_in.destination.model_dump() if search_in.destination else None
-        )
-
-    elif search_in.trip_type == TripTypeEnum.local:
-        option_dict["package"] = option.package
-        option_dict["package_short_label"] = option.package_short_label
-        option_dict["included_hours"] = option.included_hours
-        option_dict["included_km"] = option.included_km
-    elif search_in.trip_type == TripTypeEnum.outstation:
-        preference_dict["destination"] = (
-            search_in.destination.model_dump() if search_in.destination else None
-        )
-        preference_dict["start_date"] = search_in.end_date
-    else:
-        # For other trip types, we can set additional fields if needed
-        pass
-
-    return option_dict, preference_dict
-
-
-def generate_trip_hash(option: dict, preferences: dict) -> str:
-    """
-    Generate a hash for the trip booking option and preferences.
-    This is used to verify the integrity of the booking data.
-    """
-    payload = json.dumps({"option": option, "preferences": preferences}, sort_keys=True)
-    return generate_hash(payload)
-
 
 def verify_trip_hash(booking_request: TripBookRequest):
     if not hasattr(booking_request, "option"):
@@ -447,62 +207,6 @@ def verify_trip_hash(booking_request: TripBookRequest):
         raise CabboException(
             "Invalid booking request, option hash is not valid", status_code=400
         )
-
-
-def derive_trip_sort_priority(search_in: TripSearchRequest, option: TripSearchOption):
-    # 1. User preferred car type/fuel type always first
-    pref_score = 0
-    if search_in.preferred_car_type and option.car_type == search_in.preferred_car_type:
-        pref_score -= 1000  # Strong preference
-    if (
-        search_in.preferred_fuel_type
-        and option.fuel_type == search_in.preferred_fuel_type
-    ):
-        pref_score -= 500
-    # 2. Passenger count logic
-    total_pax = search_in.num_adults + search_in.num_children
-    if total_pax > 4:  # More than 4 passengers, prefer larger vehicles
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 200
-    elif total_pax <= 4:  # 4 or fewer passengers, prefer smaller vehicles
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-    if total_pax <= 3:  #
-        if option.car_type == CarTypeEnum.hatchback:
-            pref_score -= 50
-    # 3. Luggage logic (fine-grained)
-    num_large_suitcases = search_in.num_large_suitcases or 0
-    num_carryons = search_in.num_carryons or 0
-    num_backpacks = search_in.num_backpacks or 0
-    num_other_bags = search_in.num_other_bags or 0
-    # Strongly prefer SUV/SUV+ only if large suitcases/trolley bags are 3 or more
-    if num_large_suitcases >= 3:
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 300  # Strong preference for SUV/SUV+
-        else:
-            pref_score += 200  # Penalize smaller cars
-    # Strongly prefer sedan/premium sedan if large suitcases/trolley bags are exactly 2
-    elif num_large_suitcases == 2:
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 200  # Strong preference for sedan/sedan+
-        elif option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score += 50  # Slightly penalize SUV/SUV+ (overkill for 2 bags)
-        elif option.car_type == CarTypeEnum.hatchback:
-            pref_score += 200  # Penalize hatchback
-
-    # Moderate preference for SUV/SUV+ for other bag types
-    elif num_carryons > 2 or num_backpacks > 1 or num_other_bags > 1:
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 150
-        else:
-            pref_score += 100
-    elif num_carryons <= 2 or num_backpacks == 1 or num_other_bags == 1:
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-        elif option.car_type == CarTypeEnum.hatchback:
-            pref_score += 100
-    # 4. Price as a tiebreaker
-    return (pref_score, option.total_price)
 
 
 def validate_trip_search(

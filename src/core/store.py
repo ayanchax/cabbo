@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import threading
 from typing import ClassVar, List, Optional, Union
 from pydantic import BaseModel, Field, PrivateAttr
+from core.trip_helpers import get_all_trip_types, get_trip_package_configuration_list_by_region_code, get_trip_type_id_by_trip_type
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
 from sqlalchemy.orm import Session
@@ -37,11 +38,7 @@ from services.pricing_service import (
     get_night_pricing_configuration,
     get_permit_fee_configuration,
 )
-from services.trips.trip_service import (
-    get_all_trip_types,
-    get_trip_package_configuration_list_by_region_code,
-    get_trip_type_id_by_trip_type,
-)
+
 from core.config import settings
 
 

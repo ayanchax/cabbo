@@ -17,14 +17,22 @@ from services.trips.outstation_service import (
 from core.config import settings
 
 config_store: ConfigStore = settings.CONFIG_STORE
-if not config_store.is_cache_valid():
-    config_store.warm_up_cache()
+try:
+    if config_store and config_store.is_cache_valid():
+        config_store.warm_up_cache()
+
+except Exception as e:
+    raise CabboException(
+        f"Error initializing configuration store: {e}", status_code=500
+    )
 
 
 def search(
     search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
-    validate_trip_search(search_in= search_in, requestor=requestor, db=db, config_store=config_store)
+    validate_trip_search(
+        search_in=search_in, requestor=requestor, db=db, config_store=config_store
+    )
     trip_type = search_in.trip_type
     if trip_type == TripTypeEnum.local:
         # Retrieve local trip pricing configuration for the origin region

@@ -11,11 +11,8 @@ from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripTypeMaster
 from models.trip.trip_schema import TripBookRequest, TripDetails, TripSearchRequest
 from services.configuration_service import get_region_from_location, get_state_from_location_v2
-from services.location_service import get_state_from_location
-from services.trips.outstation_service import get_allowed_outstation_states
 from utils.utility import remove_none_recursive, transform_datetime_to_str, validate_date_time
 from sqlalchemy.orm import Session
-from core.config import settings
 
 
 def _validate_duplicate_local_bookings(booking_request: TripBookRequest, requestor: str, db: Session, overlap_hours: int = 12):
@@ -186,6 +183,8 @@ def validate_serviceable_area(search_in: TripSearchRequest,config_store:ConfigSt
     # Outstation trips   
     # For outstation trips, both pickup and drop must be in serviceable states
     elif trip_type == TripTypeEnum.outstation:
+        from services.trips.outstation_service import get_allowed_outstation_states
+
         allowed_states = get_allowed_outstation_states(config_store=config_store)
         if not allowed_states:
             raise CabboException("No states are configured for outstation trips", status_code=500)

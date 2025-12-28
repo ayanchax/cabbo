@@ -1,5 +1,6 @@
 from typing import List
 from sqlalchemy.orm import Session
+from core.trip_helpers import create_trip_types, get_all_trip_types
 from models.geography.country_schema import CountrySchema
 from models.geography.region_schema import RegionSchema
 from models.geography.state_schema import StateSchema
@@ -43,7 +44,6 @@ from services.pricing_service import (
     create_permit_fee_configuration,
     create_trip_package_pricing_configuration,
 )
-from services.trips.trip_service import create_trip_types, get_all_trip_types
 from services.user_service import create_super_admin_user
 from core.constants import PROJECT_ROOT
 import os
