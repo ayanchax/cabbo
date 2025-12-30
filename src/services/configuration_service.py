@@ -19,7 +19,6 @@ def get_region_from_location(
     if not region_code:
         return None
     region_code = region_code.upper()
-    
     return lookup_region_by_code(config_store.geographies.regions, region_code)
 
 

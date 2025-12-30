@@ -59,7 +59,7 @@ class RegionModel(Base):
     )  # Comma-separated list of car type IDs from car_types_master
     airport_locations = Column(
         JSON, nullable=True
-    )  # JSON string array of airport locations validated by LocationInfo schema 
+    )  # Comma separated list of airport location IDs from airports_master
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
 
     # foreign key + relationship to CountryModel (one country per region)
@@ -85,5 +85,5 @@ class RegionModel(Base):
         server_default=func.now(),
         nullable=False,
     )
-
+     
 

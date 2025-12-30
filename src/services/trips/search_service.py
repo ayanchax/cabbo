@@ -21,7 +21,7 @@ def search(
     search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
     config_store: ConfigStore = settings.CONFIG_STORE
-    
+
     validate_trip_search(
         search_in=search_in, requestor=requestor, db=db, config_store=config_store
     )
@@ -30,15 +30,15 @@ def search(
         # Retrieve local trip pricing configuration for the origin region
         return get_local_trip_options(search_in=search_in, config_store=config_store)
 
-    if trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-        if trip_type == TripTypeEnum.airport_pickup:
-            return get_airport_pickup_trip_options(
-                search_in=search_in, config_store=config_store
-            )
-        elif trip_type == TripTypeEnum.airport_drop:
-            return get_airport_dropoff_trip_options(
-                search_in=search_in, config_store=config_store
-            )
+    elif trip_type == TripTypeEnum.airport_pickup:
+        return get_airport_pickup_trip_options(
+            search_in=search_in, config_store=config_store
+        )
+    elif trip_type == TripTypeEnum.airport_drop:
+        return get_airport_dropoff_trip_options(
+            search_in=search_in, config_store=config_store
+        )
+
     elif trip_type == TripTypeEnum.outstation:
         return get_outstation_trip_options(
             search_in=search_in, config_store=config_store

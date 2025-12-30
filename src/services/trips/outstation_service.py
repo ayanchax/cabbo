@@ -379,5 +379,5 @@ def get_outstation_trip_options(
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata,
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
     )

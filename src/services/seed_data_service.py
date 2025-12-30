@@ -4,7 +4,6 @@ from core.trip_helpers import create_trip_types, get_all_trip_types
 from models.geography.country_schema import CountrySchema
 from models.geography.region_schema import RegionSchema
 from models.geography.state_schema import StateSchema
-from models.map.location_schema import LocationInfo
 from models.policies.cancelation_schema import CancelationPolicySchema
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
@@ -18,6 +17,7 @@ from models.pricing.pricing_schema import (
 )
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from models.trip.trip_orm import TripTypeMaster
+from services.airport_service import create_master_airports_data, get_all_airports
 from services.cab_service import create_cabs, get_all_cabs
 from services.document_service import create_master_kyc_data
 from services.file_service import is_file_exists, is_file_exists, save_file
@@ -82,39 +82,7 @@ SEED_REGIONS = [
     ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"],["BEN"], "KA"),
     ("Mysore", "MYS", ["Mysuru"], [],"KA"),
 ]
-# Airport data for seed data initialization
-SEED_AIRPORTS = {
-    # It can contain multiple airports for a city in a state in a country. Here state or country is not modelled for simplicity, because airports are all over the world regions and we are focusing on few regions/cities only for seed data.
-    # Admin can add more airports for a city/region inside a (state, country) via admin panel if needed.
-    # Admin can also add more regions/cities under a (state, country) via admin panel if needed.
-    "BLR": [
-        {
-            "display_name": "Kempegowda International Airport, Bengaluru",
-            "lat": 13.1986,
-            "lng": 77.7066,
-            "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",  # official Mapbox place ID for the airport in Bengaluru
-            "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India",
-        }
-    ],
-    "MYS": [
-        {
-            "display_name": "Mysore Airport, Mysore",
-            "lat": 12.3052,
-            "lng": 76.6536,
-            "place_id": "ChIJX8f5gq6rDTkR6e-8K5J7hYzA",  # official Mapbox place ID for the airport in Mysore
-            "address": "Mysore Airport, Mandakalli, Mysore, Karnataka 570008, India",
-        }
-    ],
-    "MAA": [
-        {
-            "display_name": "Chennai International Airport, Chennai",
-            "lat": 12.9941,
-            "lng": 80.1709,
-            "place_id": "ChIJGZ0fW3KqDTkR6r1K5J7hYzA",  # official Mapbox place ID for the airport in Chennai
-            "address": "Chennai International Airport, Tirusulam, Chennai, Tamil Nadu 600027, India",
-        }
-    ],
-}
+
 
 TRIP_TYPE_SEED_DATA = [
     {
@@ -219,21 +187,6 @@ PLATFORM_FEE_BY_COUNTRY = {
         # "US": 2.5,  # $2.5 for USA
         # "AE": 10.0, # AED 10 for UAE
     }
-
-def _get_regional_airports(airports_in_region: List[dict]) -> List[dict]:
-    """Convert airport dicts to LocationInfo and back to dicts for JSON serialization."""
-    if airports_in_region is None:
-        airports_in_region = []
-
-    if airports_in_region and len(airports_in_region) > 0:
-        # Validate with Pydantic to ensure data integrity
-        validated_airports = [
-            LocationInfo.model_validate(ap) for ap in airports_in_region
-        ]
-        # Convert back to dict for JSON serialization
-        airports_in_region = [ap.model_dump(exclude_none=True) for ap in validated_airports]
-
-    return airports_in_region
 
 
 def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
@@ -1002,6 +955,7 @@ def _seed_master_data(session: Session):
     _seed_cab_types(session)
     _seed_fuel_types(session)
     _seed_kyc_document_types(session)
+    _seed_airports(session)
 
 
 def _seed_pricing_data(session: Session):
@@ -1054,6 +1008,7 @@ def _seed_regions(session: Session):
     supported_trip_types = []
     supported_fuel_types = []
     supported_car_types = []
+    supported_airport_locations = []
 
     # Use the TripTypeMaster, FuelType and CabType Models to get supported types
     trip_types = get_all_trip_types(session)
@@ -1065,6 +1020,9 @@ def _seed_regions(session: Session):
     car_types = get_all_cabs(session)
     for car_type in car_types:
         supported_car_types.append(car_type.id)
+    for airport in get_all_airports(session):
+        supported_airport_locations.append((airport.id, airport.region_code))
+    
     regions = SEED_REGIONS
     
     for name, code, alt_names, alt_codes, state_code in regions:
@@ -1072,7 +1030,13 @@ def _seed_regions(session: Session):
         state = get_state_by_state_code(state_code.upper(), session)
         if not state:
             continue
-        airports_in_region = _get_regional_airports(SEED_AIRPORTS.get(code, None))
+        airport_loc_ids = []
+        for airport_data in supported_airport_locations:
+            id, region_code = airport_data
+            if region_code == code.upper():
+                # This airport belongs to this region
+                airport_loc_ids.append(id)
+
         region_schema = RegionSchema(
             region_name=name,
             region_code=code,
@@ -1085,7 +1049,7 @@ def _seed_regions(session: Session):
             trip_types=supported_trip_types,
             fuel_types=supported_fuel_types,
             car_types=supported_car_types,
-            airport_locations=airports_in_region,
+            airport_locations=airport_loc_ids,
         )
         add_region(payload=region_schema, db=session)
 
@@ -1465,3 +1429,8 @@ def _seed_permit_fee_pricing(session: Session):
 def _seed_kyc_document_types(session: Session):
     # Seed KYC Document Types Master table for drivers' KYC verification
     create_master_kyc_data(session)
+
+
+def _seed_airports(session: Session):
+    # Seed Airports Master table
+    create_master_airports_data(session=session)

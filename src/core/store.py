@@ -3,6 +3,7 @@ import threading
 from typing import ClassVar, List, Optional, Union
 from pydantic import BaseModel, Field, PrivateAttr
 from core.trip_helpers import get_all_trip_types, get_trip_package_configuration_list_by_region_code, get_trip_type_id_by_trip_type
+from models.airport.airport_schema import AirportSchema
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
 from sqlalchemy.orm import Session
@@ -85,6 +86,10 @@ class ConfigStore(BaseModel):
     trip_types: List[TripTypeSchema] = Field(
         default_factory=list,
         description="In-memory store for trip type configurations",
+    )
+    airport_locations: List[AirportSchema] = Field(
+        default_factory=list,
+        description="In-memory store for airport location configurations",
     )
 
     platform_fee: FixedPlatformFeeConfigurationSchema = Field(
@@ -212,24 +217,27 @@ class ConfigStore(BaseModel):
         print("Step 3: Loading trip types...")
         self._retrieve_and_set_trip_types(db)
 
-        print("Step 4: Loading geographies...")
+        print("Step 4: Loading airport locations...")
+        self._retrieve_and_set_airport_locations(db)
+
+        print("Step 5: Loading geographies...")
         self._retrieve_and_set_serviceable_geographies(db)
 
         # Load pricing configurations
-        print("Step 5: Loading outstation pricing...")
+        print("Step 6: Loading outstation pricing...")
         self._retrieve_and_set_outstation_pricing(db)
 
-        print("Step 6: Loading local pricing...")
+        print("Step 7: Loading local pricing...")
         self._retrieve_and_set_local_pricing(db)
 
-        print("Step 7: Loading airport pickup pricing...")
+        print("Step 8: Loading airport pickup pricing...")
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_pickup, db)
 
-        print("Step 8: Loading airport drop pricing...")
+        print("Step 9: Loading airport drop pricing...")
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_drop, db)
 
         # Load platform fee
-        print("Step 9: Loading platform fee information...")
+        print("Step 10: Loading platform fee information...")
         self._retrieve_and_set_platform_fee_info(db)
 
          
@@ -369,6 +377,11 @@ class ConfigStore(BaseModel):
         """Load trip type configurations into the store."""
         self.trip_types = trip_type_data
         self.set("trip_types", trip_type_data)
+    
+    def _set_airport_locations(self, airport_location_data: List[AirportSchema]):
+        """Load airport location configurations into the store."""
+        self.airport_locations = airport_location_data
+        self.set("airport_locations", airport_location_data)
 
     def get_trip_types(self) -> List[TripTypeSchema]:
         """Retrieve trip type configurations from the store."""
@@ -398,6 +411,12 @@ class ConfigStore(BaseModel):
         """Load trip type data into the store."""
         print("Loading trip type data into ConfigStore...")
         self._set_trip_types(get_all_trip_types(db))
+    
+    def _retrieve_and_set_airport_locations(self, db: Session):
+        """Load airport location data into the store."""
+        print("Loading airport location data into ConfigStore...")
+        from services.airport_service import get_all_airports
+        self._set_airport_locations(get_all_airports(db))
 
     def _retrieve_and_set_serviceable_geographies(self, db: Session):
         try:
@@ -542,15 +561,15 @@ class ConfigStore(BaseModel):
                             self._initialize_pricing_configuration()
                         )
 
-                local_data[region_code].auxiliary_pricing.common = trip_config
-                # Get the night pricing configuration for the region and set it
-                night_pricing_schema = get_night_pricing_configuration(
-                    db=db, id=region.id
-                )
-                if night_pricing_schema:
-                    local_data[region_code].auxiliary_pricing.night = (
-                        night_pricing_schema
+                    local_data[region_code].auxiliary_pricing.common = trip_config
+                    # Get the night pricing configuration for the region and set it
+                    night_pricing_schema = get_night_pricing_configuration(
+                        db=db, id=region.id
                     )
+                    if night_pricing_schema:
+                        local_data[region_code].auxiliary_pricing.night = (
+                            night_pricing_schema
+                        )
         # Load cancelation policy config in store for local trips for each region
         for region_code, pricing_config in local_data.items():
             cancellation_policy = get_cancellation_policy_by_region_code(

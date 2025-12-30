@@ -50,7 +50,7 @@ class RegionSchema(BaseModel):
     car_types: Optional[List[str]] = Field(
         None, description="List of supported car types in the region"
     )  
-    airport_locations: Optional[List[dict]] = Field(
+    airport_locations: Optional[List[str]] = Field(
         None,
         description="Dictionary of airport locations with details like display name, lat, lng, place_id, address",
     ) # JSON string of airport locations validated by LocationInfo schema

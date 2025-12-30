@@ -83,19 +83,19 @@ class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
     minimum_toll_wallet: Optional[float] = None
     minimum_parking_wallet: Optional[float] = None
     permit_fee: Optional[float] = None
-    quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
         extra = "allow"
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 
 class LocalPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
     minimum_parking_wallet: Optional[float] = None
-    quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
         extra = "allow"
+        exclude_none = True  # Exclude fields with None values from the model dump  
 
 
 class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
@@ -104,10 +104,10 @@ class AirportPricingBreakdownSchema(PricingBreakdownBaseSchema):
     )
     toll: Optional[float] = None
     parking: Optional[float] = None
-    quoted_price: Optional[float] = None  # Customer's counter-quote
 
     class Config:
         extra = "allow"
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 
 class OveragesSchema(BaseModel):

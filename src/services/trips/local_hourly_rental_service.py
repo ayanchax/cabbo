@@ -301,5 +301,5 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata,
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
     )

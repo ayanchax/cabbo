@@ -844,7 +844,6 @@ def lookup_region_by_code(regions:Dict[str, RegionSchema], region_code:str) -> O
             continue
         if region.region_code.upper() == region_code:
             return region
-        
         if region.alt_region_codes and region_code in [code.upper() for code in region.alt_region_codes]:
             return region
     return None #If we reach here, no matching region found or region is not serviceable

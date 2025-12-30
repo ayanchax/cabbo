@@ -22,6 +22,7 @@ from services.validation_service import (
     validate_airport_schedule,
     validate_placard_requirements,
 )
+from utils.utility import remove_none_recursive
 
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
@@ -138,6 +139,7 @@ def _get_airport_pickup_pricing_configuration_by_region(
 
     region_code = region_code.upper()
     # Find the airport pickup configuration for the given region code
+    print(region_code)
     return config_store.airport_pickup.get(region_code, None)
 
 
@@ -329,11 +331,11 @@ def get_airport_pickup_trip_options(
         ),
         choices=len(_options),  # Total number of options returned
     )
-
+     
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata,
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
     )
 
 
@@ -474,5 +476,5 @@ def get_airport_dropoff_trip_options(
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata,
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
     )

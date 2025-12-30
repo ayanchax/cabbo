@@ -286,15 +286,15 @@ class TripSearchAdditionalData(BaseModel):
 
 
     class Config:
-        extra = "allow"  # Allow extra fields not defined in the model
+        extra = "forbid"  # Allow extra fields not defined in the model
         exclude_none = True
     
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
     preferences: Optional[TripSearchRequest] = None  # User preferences used for search
-    metadata:Optional[TripSearchAdditionalData] = None  # Metadata about the trip search, like total options found, etc.
+    metadata:Optional[Union[dict,TripSearchAdditionalData]] = None  # Metadata about the trip search, like total options found, etc.
 
 class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book
     preferences: TripSearchRequest
-    metadata: Optional[TripSearchAdditionalData] = None  # Additional metadata for the booking
+    metadata: Optional[Union[dict, TripSearchAdditionalData]] = None  # Additional metadata for the booking
