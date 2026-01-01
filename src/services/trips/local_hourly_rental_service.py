@@ -21,7 +21,7 @@ from models.trip.trip_schema import (
 from services.pricing_service import get_preauthorized_minimum_wallet_amount
 
 from services.validation_service import validate_local_trip_schedule
-from utils.utility import validate_date_time
+from utils.utility import remove_none_recursive, validate_date_time
 
 
 def _get_inclusions_exclusions_for_local_trip():
@@ -255,7 +255,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
                 OveragesSchema(
                     disclaimer=disclaimer_lines,
                     extra_charges_disclaimers=disclaimer_message,
-                )
+                ).model_dump(exclude_none=True, exclude_unset=True)
             ),
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
@@ -301,5 +301,6 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
+
     )

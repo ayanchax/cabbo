@@ -19,6 +19,10 @@ class LocationInfo(BaseModel):
     region_code: Optional[str] = Field(None, description="Region code (e.g., BLR, MYS)")
     postal_code: Optional[str] = Field(None, description="Postal/ZIP code")
 
+    class Config:
+        exclude_none = True  # Exclude fields with None values from the model dump
+        extra = "allow"
+
 
 
 class Address(BaseModel):

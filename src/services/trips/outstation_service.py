@@ -1,3 +1,4 @@
+import json
 import math
 from typing import List
 from core.exceptions import CabboException
@@ -20,6 +21,7 @@ from services.location_service import get_distance_km, get_state_from_location
 from services.pricing_service import get_preauthorized_minimum_wallet_amount
 
 from services.validation_service import validate_outstation_trip_schedule
+from utils.utility import remove_none_recursive
 
 
 def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
@@ -189,7 +191,7 @@ def get_allowed_outstation_states(config_store: ConfigStore) -> set:
 
 def get_outstation_trip_options(
     search_in: TripSearchRequest, config_store: ConfigStore
-) -> TripSearchResponse:
+)->TripSearchResponse:
     """
     Retrieves outstation trip options based on the search request and configuration store.
     Args:
@@ -332,14 +334,13 @@ def get_outstation_trip_options(
                     ),
                     disclaimer=disclaimer_lines,
                     extra_charges_disclaimers=disclaimer_message,
-                )
+                ).model_dump(exclude_none=True, exclude_unset=True)
             ),
         )
 
         option_dict, preference_dict = generate_trip_field_dictionary(
             search_in, cab_type_schema.name, fuel_type_schema.name, option
         )
-
         hash = generate_trip_hash(
             option_dict, preference_dict
         )  # Generate hash for the option
@@ -376,8 +377,10 @@ def get_outstation_trip_options(
         unique_states=unique_states if is_interstate else None,
     )
 
+   
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
     )
+   

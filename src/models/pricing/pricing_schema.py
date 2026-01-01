@@ -119,6 +119,11 @@ class OveragesSchema(BaseModel):
     class Config:
         extra = "allow"
         exclude_none = True  # Exclude fields with None values from the model dump
+        
+
+    #Remove none or unset fields from the model dump
+
+
 
 
 class NightPricingConfigurationSchema(BaseModel):

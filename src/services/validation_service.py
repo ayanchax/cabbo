@@ -224,8 +224,14 @@ def validate_serviceable_area(
                 raise CabboException(
                     "Destination region is not serviceable", status_code=400
                 )
+            
+            drop.region = dest_region.region_name
             drop.region_code = dest_region.region_code
-
+            drop.state= dest_region.state_name
+            drop.state_code= dest_region.state_code
+            drop.country_code= dest_region.country_code
+            drop.country= dest_region.country_name
+            
             if not pickup:
                 dest_region_airport_locations = (
                     dest_region.airport_locations or []
@@ -290,7 +296,12 @@ def validate_serviceable_area(
                         "Origin location is not a valid airport in the region",
                         status_code=400,
                     )
+                pickup.region = origin_region.region_name
                 pickup.region_code = origin_region.region_code
+                pickup.state= origin_region.state_name
+                pickup.state_code= origin_region.state_code
+                pickup.country_code= origin_region.country_code
+                pickup.country= origin_region.country_name
 
         elif trip_type == TripTypeEnum.airport_drop:
             if not pickup:
@@ -304,7 +315,14 @@ def validate_serviceable_area(
                 raise CabboException(
                     "Origin region is not serviceable", status_code=400
                 )
+            
+            pickup.region = origin_region.region_name
             pickup.region_code = origin_region.region_code
+            pickup.state= origin_region.state_name
+            pickup.state_code= origin_region.state_code
+            pickup.country_code= origin_region.country_code
+            pickup.country= origin_region.country_name
+
             if not drop:
                 # Set drop as first airport location of origin region
                 airport_locations = (
@@ -360,7 +378,12 @@ def validate_serviceable_area(
                         "Destination location is not a valid airport in the region",
                         status_code=400,
                     )
+                drop.region=dest_region.region_name
                 drop.region_code = dest_region.region_code
+                drop.state= dest_region.state_name
+                drop.state_code= dest_region.state_code
+                drop.country_code= dest_region.country_code
+                drop.country= dest_region.country_name
 
         elif trip_type == TripTypeEnum.local:
             if not pickup:
@@ -374,7 +397,12 @@ def validate_serviceable_area(
                 raise CabboException(
                     "Origin region is not serviceable", status_code=400
                 )
+            pickup.region=origin_region.region_name
             pickup.region_code = origin_region.region_code
+            pickup.state= origin_region.state_name
+            pickup.state_code= origin_region.state_code
+            pickup.country_code= origin_region.country_code
+            pickup.country= origin_region.country_name
             if not drop:
                 drop = pickup  # For local trips, set drop as same as pickup if not provided
                 search_in.destination = drop
@@ -386,7 +414,12 @@ def validate_serviceable_area(
                     raise CabboException(
                         "Destination region is not serviceable", status_code=400
                     )
+                drop.region=dest_region.region_name
                 drop.region_code = dest_region.region_code
+                drop.state= dest_region.state_name
+                drop.state_code= dest_region.state_code
+                drop.country_code= dest_region.country_code
+                drop.country= dest_region.country_name
         # Final check: Ensure both pickup and drop are in the same region
         if pickup.region_code != drop.region_code:
             raise CabboException(
@@ -425,6 +458,14 @@ def validate_serviceable_area(
                 f"Outstation trips are only serviceable from: {', '.join(allowed_states)}.",
                 status_code=400,
             )
+        
+        #At this point as we have the state_code, we will enrich origin_state pick up with 
+            # "country": null,
+            # "country_code": null,
+           
+        pickup.state= origin_state.state_name
+        pickup.country_code= origin_state.country_code
+        pickup.country= origin_state.country_name
 
         dest_state = get_state_from_location_v2(
             location=drop, config_store=config_store
@@ -439,9 +480,17 @@ def validate_serviceable_area(
                 f"Outstation trips are only serviceable to: {', '.join(allowed_states)}.",
                 status_code=400,
             )
+        
+        drop.state= dest_state.state_name
+        drop.country_code= dest_state.country_code
+        drop.country= dest_state.country_name
+        #There is no need of having region or postal code for outstation trips since we are validating at state level and have all state level and higher level info
+
 
         if search_in.hops:
             invalid_hops = []
+            same_as_drop_hops = []
+            zero_coord_hops = []
             
             for hop in search_in.hops:
                 hop_state = get_state_from_location_v2(
@@ -451,9 +500,43 @@ def validate_serviceable_area(
                     invalid_hops.append(hop.state_code)
                 elif hop_state.state_code not in allowed_states:
                     invalid_hops.append(hop_state.state_code)
+                elif hop.lat is None or hop.lng is None:
+                    zero_coord_hops.append(hop_state.state_code)
+                elif hop.lat == 0.0 or hop.lng == 0.0:
+                    zero_coord_hops.append(hop_state.state_code)
+                elif (hop.lat == drop.lat and hop.lng == drop.lng) or hop.place_id == drop.place_id: # Same as drop, do not consider and si
+                    same_as_drop_hops.append(hop_state.state_code)
+                
+                if hop_state and hop_state.state_code not in same_as_drop_hops:
+                    hop.state= hop_state.state_name
+                    hop.country_code= hop_state.country_code
+                    hop.country= hop_state.country_name
+            if same_as_drop_hops:
+                print(
+                    f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
+                )
+                #Remove these hops from search_in.hops
+                search_in.hops = [
+                    hop
+                    for hop in search_in.hops
+                    if hop.state_code not in same_as_drop_hops
+                ]
+            if zero_coord_hops:
+                print(
+                    f"Note: The following hops have zero or missing coordinates and will be ignored: {', '.join(zero_coord_hops)}"
+                )
+                #Remove these hops from search_in.hops
+                search_in.hops = [ hop for hop in search_in.hops if hop.state_code not in zero_coord_hops ]
+
             if invalid_hops:
                 message = f"Outstation trips are only serviceable to: {', '.join(allowed_states)}."
-                context = f"One or more hops in your trip is not serviceable: {', '.join(invalid_hops)}, try again with different hops within serviceable states or remove them."
+                # Convert None to 'Unknown' or just str
+                context = (
+                    "One or more hops in your trip is not serviceable: "
+                    f"{', '.join([str(h) if h is not None else 'Unknown' for h in invalid_hops])}, "
+                    "try again with different hops within serviceable states or remove them."
+                )
+                #Only raise exception if there are invalid hops
                 raise CabboException(
                     {
                         "message": message,
@@ -461,6 +544,7 @@ def validate_serviceable_area(
                     },
                     status_code=400,
                 )
+            
 
     else:
         raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)

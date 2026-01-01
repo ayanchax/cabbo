@@ -22,7 +22,6 @@ from services.validation_service import (
     validate_airport_schedule,
     validate_placard_requirements,
 )
-from utils.utility import remove_none_recursive
 
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
@@ -293,7 +292,7 @@ def get_airport_pickup_trip_options(
                     ),
                     disclaimer=disclaimer_lines,
                     extra_charges_disclaimers=disclaimer_message,
-                )
+                ).model_dump(exclude_none=True, exclude_unset=True)
             ),
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
@@ -335,7 +334,7 @@ def get_airport_pickup_trip_options(
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
     )
 
 
@@ -433,7 +432,7 @@ def get_airport_dropoff_trip_options(
                     ),
                     disclaimer=disclaimer_lines,
                     extra_charges_disclaimers=disclaimer_message,
-                )
+                ).model_dump(exclude_none=True, exclude_unset=True)
             ),
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
@@ -476,5 +475,5 @@ def get_airport_dropoff_trip_options(
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
     )

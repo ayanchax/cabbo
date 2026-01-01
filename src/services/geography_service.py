@@ -855,3 +855,19 @@ def lookup_state_by_code(states:Dict[str, StateSchema], state_code:str) -> Optio
         if state.state_code.upper() == state_code:
             return state
     return None #If we reach here, no matching state found or state is not serviceable
+
+def look_up_state_by_id(states:Dict[str, StateSchema], state_id:str) -> Optional[StateSchema]:
+    for _, state in states.items():
+        if not state.is_serviceable:
+            continue
+        if state.id == state_id:
+            return state
+    return None #If we reach here, no matching state found or state is not serviceable
+
+def lookup_country_by_country_id(countries:Dict[str, CountrySchema], country_id:str) -> Optional[CountrySchema]:
+    for _, country in countries.items():
+        if not country.is_serviceable:
+            continue
+        if country.id == country_id:
+            return country
+    return None #If we reach here, no matching country found or country is not serviceable

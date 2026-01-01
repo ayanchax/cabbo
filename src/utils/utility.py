@@ -43,6 +43,8 @@ def remove_none_recursive(obj):
         return [remove_none_recursive(v) for v in obj if v is not None]
     else:
         return obj
+    
+
 
 
 def transform_datetime_to_str(obj):

@@ -38,7 +38,9 @@ class RegionSchema(BaseModel):
         None, description="List of alternative names for the region"
     )  # e.g. ["Bengaluru", "Bangalore City"]
     country_code: Optional[str] = Field(None, description="ISO country code the region belongs to, e.g., 'IN' for India") # e.g. IN
+    country_name: Optional[str] = Field(None, description="Name of the country the region belongs to, e.g., 'India'") # e.g. India  
     state_code: Optional[str] = Field(None, description="ISO state code the region belongs to, e.g., 'KA' for Karnataka") # e.g. KA
+    state_name: Optional[str] = Field(None, description="Name of the state the region belongs to, e.g., 'Karnataka'") # e.g. Karnataka
     country_id: Optional[str] = Field(None, description="UUID of the country this region belongs to")  # UUID of the country
     state_id: Optional[str] = Field(None, description="UUID of the state this region belongs to")  # UUID of the state
     trip_types: Optional[List[str]] = Field(

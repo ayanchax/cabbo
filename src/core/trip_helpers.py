@@ -170,7 +170,7 @@ def generate_trip_field_dictionary(
     }
     preference_dict = {
         "trip_type": search_in.trip_type,
-        "origin": search_in.origin.model_dump() if search_in.origin else None,
+        "origin": search_in.origin.model_dump(exclude_none=True, exclude_unset=True) if search_in.origin else None,
         "start_date": search_in.start_date,
     }
     passenger_id = get_passenger_id_from_preferences(preferences=search_in)
@@ -179,7 +179,7 @@ def generate_trip_field_dictionary(
 
     if search_in.trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
         preference_dict["destination"] = (
-            search_in.destination.model_dump() if search_in.destination else None
+            search_in.destination.model_dump(exclude_none=True, exclude_unset=True) if search_in.destination else None
         )
 
     elif search_in.trip_type == TripTypeEnum.local:
@@ -189,8 +189,13 @@ def generate_trip_field_dictionary(
         option_dict["included_km"] = option.included_km
     elif search_in.trip_type == TripTypeEnum.outstation:
         preference_dict["destination"] = (
-            search_in.destination.model_dump() if search_in.destination else None
+            search_in.destination.model_dump(exclude_none=True, exclude_unset=True) if search_in.destination else None
         )
+        if search_in.hops:
+            preference_dict["hops"] = [
+                hop.model_dump(exclude_none=True, exclude_unset=True) for hop in search_in.hops
+            ] if search_in.hops else []
+
         preference_dict["start_date"] = search_in.end_date
     else:
         # For other trip types, we can set additional fields if needed

@@ -15,20 +15,22 @@ from sqlalchemy.orm import Session
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import confirm_trip_booking, delete_temp_trip_by_booking_id, initiate_trip_booking
 from services.trips.search_service import search
+from utils.utility import remove_none_recursive
 
 router = APIRouter()
 
 
-@router.post("/search", response_model=TripSearchResponse)
+@router.post("/search")
 def search_trip(
     search_in: TripSearchRequest,
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
 
-    return search(
+    result= search(
         search_in=search_in, requestor=current_customer.id, db=db
     )
+    return remove_none_recursive(result.model_dump())
 
 
 @router.post("/initiate-booking", response_model=dict)
