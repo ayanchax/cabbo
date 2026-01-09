@@ -13,11 +13,15 @@ from models.financial.payments_schema import (
 from sqlalchemy.orm import Session
 import razorpay
 from core.config import settings
+from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest, TripDetails
 
 logger = logging.getLogger(__name__)
-APP_COUNTRY_CURRENCY = "INR"  # Placeholder for country currency, adjust as needed
+
+RAZOR_PAY_CLIENT = razorpay.Client(
+            auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
+        )
 RAZOR_PAY_CLIENT_DETAILS = {
     "version": APP_VERSION,
     "name": f"{APP_NAME.capitalize()} Trip Booking Service",
@@ -29,7 +33,7 @@ def _format_razorpay_order(order: dict) -> dict:
     """Format Razorpay order response."""
     return {
         **order,
-        "amount": float(order.get("amount", 0) / 100),
+        "amount": float(order.get("amount", 0) / 100), # Convert paise to rupees as we want to work in standard currency units in UI
         "amount_due": float(order.get("amount_due", 0) / 100),
     }
 
@@ -45,13 +49,11 @@ def _create_razorpay_order(
         dict: A dictionary containing the Razorpay order details.
     """
     try:
-        client = razorpay.Client(
-            auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
-        )
+        client = RAZOR_PAY_CLIENT
 
         order_data = {
             "description": razorpay_order.description,
-            "amount": int(razorpay_order.amount * 100),  # Amount in paise
+            "amount": int(razorpay_order.amount * 100),  # Amount in paise as Razorpay expects amount in the smallest currency unit
             "currency": razorpay_order.currency,
             "receipt": razorpay_order.receipt,
             "notes": razorpay_order.notes.model_dump(),
@@ -61,6 +63,7 @@ def _create_razorpay_order(
         if not order or "id" not in order:
             raise CabboException("Failed to create Razorpay order.", status_code=500)
         _formatted_order = _format_razorpay_order(order)
+        _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
         logger.info(f"Razorpay order created successfully: {_formatted_order}")
 
         return _formatted_order
@@ -78,12 +81,14 @@ def _create_razorpay_order(
 
 
 def get_trip_payment_order(
-    booking_request: TripBookRequest, customer: Customer, temp_trip: TempTrip
+    booking_request: TripBookRequest, customer: Customer, temp_trip: TempTrip, currency:Currency
 ) -> tuple:
+    
     razorpay_schema = RazorpayOrderSchema(
         description=f"Trip booking for {booking_request.preferences.trip_type} trip by {customer.name}",
         amount=temp_trip.platform_fee,  # Collect platform fee/convenience fee from the customer as part of the trip booking so that system is not abused
-        currency=APP_COUNTRY_CURRENCY,
+        currency=currency.code,
+        currency_symbol=currency.symbol,
         receipt=f"id#{temp_trip.id}",
         notes=PaymentNotesSchema(
             reference_source_id=temp_trip.id,
@@ -105,9 +110,7 @@ def verify_payment(payment_detail: RazorPayPaymentResponse):
     Verify the payment status with Razorpay.
     This function should be called after the payment is completed to confirm the payment status.
     """
-    client = razorpay.Client(
-        auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
-    )
+    client = RAZOR_PAY_CLIENT
     client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
     try:
         payment = client.payment.fetch(payment_detail.razorpay_payment_id)

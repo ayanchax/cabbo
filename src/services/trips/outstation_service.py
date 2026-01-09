@@ -153,12 +153,17 @@ def _get_outstation_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for outstation trips.
     """
-
+    non_refund_line = (
+        "If you do not utilise the full included days for your outstation package, the full package amount will still be charged; unused days/kilometres are non‑refundable."
+    )
     return [
-        f"If the driver drives during night hours ({night_hours_display_label}), a nightly hourly surcharge of {currency}{night_surcharge_per_hour} will be applied.",
-        "If total toll and/or parking costs exceed the included wallet amount, the extra will be charged. If you use less, the unused balance will be refunded at the end of your trip by adjusting the final fare.",
-        "All extra charges are based on actual usage and will be transparently shown in your invoice.",
+        f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
+        non_refund_line,
+        "If total tolls and/or parking costs exceed the included wallet amount, the excess will be charged. If you use less, the unused balance will be refunded at trip end by adjusting the final fare.",
+        "All extra charges are based on actual usage and will be clearly shown on your invoice.",
     ]
+
+    
 
 
 def _get_outstation_pricing_configuration_by_state(
@@ -326,9 +331,7 @@ def get_outstation_trip_options(
             overages=(
                 OveragesSchema(
                     indicative_overage_warning=indicative_overage_warning,
-                    overage_amount_per_km=(
-                        overage_amount_per_km if indicative_overage_warning else 0.0
-                    ),
+                    overage_amount_per_km=overage_amount_per_km,
                     overage_estimate_amount=(
                         math.ceil(overage_amount) if indicative_overage_warning else 0.0
                     ),

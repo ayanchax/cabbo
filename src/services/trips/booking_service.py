@@ -1,5 +1,7 @@
+from core.store import ConfigStore
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import RazorPayPaymentResponse
+from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
@@ -27,6 +29,7 @@ from services.trips.trip_service import (
 from services.validation_service import (
     validate_booking_request,
 )
+from core.config import settings
 
 
 def _get_temp_trip_by_booking_id_and_requestor(
@@ -223,37 +226,56 @@ def initiate_trip_booking(
         CabboException: If the booking request is invalid or if any error occurs during booking.
 
     """
-    # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
-    verify_trip_hash(booking_request=booking_request)
+    try:
+        # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
+        verify_trip_hash(booking_request=booking_request)
 
-    # Check for duplicate or conflicting bookings for the same customer.
-    validate_booking_request(
-        booking_request=booking_request, requestor=customer.id, db=db
-    )
+        # Check for duplicate or conflicting bookings for the same customer.
+        validate_booking_request(
+            booking_request=booking_request, requestor=customer.id, db=db
+        )
 
-    # Delete all previous temporary trip details for the customer
-    delete_temp_trip(requestor=customer.id, db=db)
+        
 
-    # Create a new Temp Trip object from the booking request
-    temp_trip = create_temporary_trip(
-        booking_request=booking_request, requestor=customer.id, db=db
-    )
+        config_store: ConfigStore = settings.CONFIG_STORE
+        currency:Currency = Currency(
+            code=config_store.geographies.country_server.currency or "INR",
+            symbol=config_store.geographies.country_server.currency_symbol or "₹",
+        )
+        # Create razor pay order for the trip
+        booking_id, order = get_trip_payment_order(
+            booking_request=booking_request, customer=customer, temp_trip=temp_trip, currency=currency
+        )
+        payment_provider_metadata= {
+            "razorpay_order_id": order.get("id"),
+            "amount": order.get("amount"),
+            "currency": order.get("currency"),
+            "receipt": order.get("receipt"),
+        }
+        #After successful order creation, proceed with temporary trip creation
+        # Delete all previous temporary trip details for the customer
+        delete_temp_trip(requestor=customer.id, db=db)
 
-    # Create razor pay order for the trip
-    booking_id, order = get_trip_payment_order(
-        booking_request=booking_request, customer=customer, temp_trip=temp_trip
-    )
+        # Create a new Temp Trip object from the booking request
+        temp_trip = create_temporary_trip(
+            booking_request=booking_request, requestor=customer.id, payment_provider_metadata=payment_provider_metadata, db=db
+        )
 
-    # Populate the trip schema with necessary details
-    trip_schema = populate_trip_schema(
-        trip=temp_trip, db=db
-    )  # Populate the trip schema with necessary details
+        # Populate the trip schema with necessary details
+        trip_schema = populate_trip_schema(
+            trip=temp_trip, db=db
+        )  # Populate the trip schema with necessary details
 
-    attach_trip_details_to_order_notes(
-        order=order, trip_details=trip_schema
-    )  # Attach trip details to order notes
+        attach_trip_details_to_order_notes(
+            order=order, trip_details=trip_schema
+        )  # Attach trip details to order notes
 
-    return booking_id, order
+        return booking_id, order
+    except Exception as e:
+        db.rollback()
+        raise CabboException(
+            f"Failed to initiate trip booking: {str(e)}", status_code=500
+        )
 
 
 def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Session):

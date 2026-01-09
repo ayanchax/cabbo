@@ -39,16 +39,24 @@ def init_booking(
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    booking_id, order = initiate_trip_booking(
+    booking_id, order =  initiate_trip_booking(
         booking_request=trip_in, customer=current_customer, db=db
     )
 
     return {
         "booking_id": booking_id,
         "order_id": order.get("id"),
-        "order": order,
+        "amount": order.get("amount"),
+        "currency": order.get("currency"),
+        "currency_symbol": order.get("currency_symbol"),
+        "description": order.get("description"),
+        "created_at": order.get("created_at"),
+        "entity": order.get("entity"),
+        "customer":order.get("notes", {}).get("customer",{}),
+        "receipt": order.get("receipt"),
+        "offer_id": order.get("offer_id"),
+        "status": order.get("status"),
         **get_trip_messages(status=TripStatusEnum.created),
-     
     }
 
 

@@ -247,3 +247,10 @@ class MasterPricingConfiguration(BaseModel):
     class Config:
         from_attributes = True
         extra = "allow"
+
+class Currency(BaseModel):
+    code: str  # Currency code, e.g., "INR"
+    symbol: str  # Currency symbol, e.g., "₹"
+
+    class Config:
+        from_attributes = True

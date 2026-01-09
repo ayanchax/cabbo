@@ -155,9 +155,10 @@ def _get_airport_trips_disclaimer_lines(
         List[str]: A list of disclaimer lines for airport trips.
     """
     return [
-        f"If you exceed the included kilometers({included_kms}) in your airport transfer, {currency}{overage_amount_per_km} per additional kilometer will be charged.",
-        "All extra charges are based on actual usage and will be transparently shown in your invoice.",
+        f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{overage_amount_per_km} per kilometre will apply.",
+        "All extra charges are based on actual usage and will be clearly shown on your invoice.",
     ]
+    
 
 
 def _get_airport_dropoff_pricing_configuration_by_region(
@@ -284,9 +285,7 @@ def get_airport_pickup_trip_options(
             overages=(
                 OveragesSchema(
                     indicative_overage_warning=indicative_overage_warning,
-                    overage_amount_per_km=(
-                        overage_amount_per_km if indicative_overage_warning else 0.0
-                    ),
+                    overage_amount_per_km=overage_amount_per_km,
                     overage_estimate_amount=(
                         math.ceil(overage_amount) if indicative_overage_warning else 0.0
                     ),
@@ -424,9 +423,7 @@ def get_airport_dropoff_trip_options(
             overages=(
                 OveragesSchema(
                     indicative_overage_warning=indicative_overage_warning,
-                    overage_amount_per_km=(
-                        overage_amount_per_km if indicative_overage_warning else 0.0
-                    ),
+                    overage_amount_per_km=overage_amount_per_km,
                     overage_estimate_amount=(
                         math.ceil(overage_amount) if indicative_overage_warning else 0.0
                     ),

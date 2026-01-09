@@ -32,6 +32,7 @@ class RazorpayOrderSchema(PaymentOrderSchema):
     notify:Optional[dict[str, bool]] = None  # Notification settings for the order
     amount: float  # Amount in the smallest currency unit (e.g., paise for INR)
     currency: str  # Currency code (e.g., "INR")
+    currency_symbol: Optional[str] = None  # Currency symbol (e.g., "₹" for INR)
     receipt: Optional[str] = None  # Receipt identifier
     notes: Optional[PaymentNotesSchema] = None  # Additional notes for the order
 

@@ -242,7 +242,7 @@ class TripSearchOption(BaseModel):
         None  # Short label for the package, e.g., "4 Hours / 40 KM"
     )
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
-    overages: Optional[Union[dict, OveragesSchema]] = None
+    overages: Optional[OveragesSchema] = None
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
@@ -297,4 +297,4 @@ class TripSearchResponse(BaseModel):
 class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book
     preferences: TripSearchRequest
-    metadata: Optional[Union[dict, TripSearchAdditionalData]] = None  # Additional metadata for the booking
+    metadata: Optional[TripSearchAdditionalData] = None  # Additional metadata for the booking

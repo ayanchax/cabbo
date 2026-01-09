@@ -135,7 +135,7 @@ def _validate_booking_request_hash(
             raise CabboException(
                 {
                     "message": "You already have made a similar booking which is incomplete. Please complete the previous booking to continue",
-                    "incomplete_trip_details": trip_details,
+                    "booking_id": existing_temp_trip.id,
                 },
                 status_code=400,
             )

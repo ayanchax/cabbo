@@ -248,7 +248,7 @@ def delete_temp_trip(requestor: str, db: Session):
 
 
 def create_temporary_trip(
-    booking_request: TripBookRequest, requestor: str, db: Session
+    booking_request: TripBookRequest, requestor: str, payment_provider_metadata: dict, db: Session
 ) -> TempTrip:
     """
 
@@ -292,7 +292,7 @@ def create_temporary_trip(
             if booking_request.preferences.trip_type == TripTypeEnum.outstation
             else False
         ),
-        is_round_trip=booking_request.metadata.is_round_trip or False,
+        is_round_trip=booking_request.metadata.is_round_trip if hasattr(booking_request.metadata, "is_round_trip") else False,
         total_unique_states=(
             booking_request.metadata.total_unique_states
             if booking_request.preferences.trip_type == TripTypeEnum.outstation
@@ -328,7 +328,7 @@ def create_temporary_trip(
         ),
         total_days=(
             booking_request.metadata.total_trip_days
-            if booking_request.metadata.total_trip_days
+            if hasattr(booking_request.metadata, "total_trip_days")
             else None
         ),
         num_adults=booking_request.preferences.num_adults,
@@ -344,7 +344,7 @@ def create_temporary_trip(
         preferred_fuel_type=booking_request.preferences.preferred_fuel_type,
         in_car_amenities=(
             booking_request.metadata.in_car_amenities.model_dump()
-            if booking_request.metadata.in_car_amenities
+            if  booking_request.metadata.in_car_amenities
             else None
         ),
         price_breakdown=(
@@ -382,6 +382,7 @@ def create_temporary_trip(
             booking_request.option.total_price
             - booking_request.option.price_breakdown.platform_fee
         ),
+        payment_provider_metadata=payment_provider_metadata,
         inclusions=(
             booking_request.metadata.inclusions
             if booking_request.metadata.inclusions
