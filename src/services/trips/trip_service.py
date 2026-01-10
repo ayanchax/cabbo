@@ -248,7 +248,7 @@ def delete_temp_trip(requestor: str, db: Session):
 
 
 def create_temporary_trip(
-    booking_request: TripBookRequest, requestor: str, payment_provider_metadata: dict, db: Session
+    booking_request: TripBookRequest, requestor: str, db: Session
 ) -> TempTrip:
     """
 
@@ -382,7 +382,6 @@ def create_temporary_trip(
             booking_request.option.total_price
             - booking_request.option.price_breakdown.platform_fee
         ),
-        payment_provider_metadata=payment_provider_metadata,
         inclusions=(
             booking_request.metadata.inclusions
             if booking_request.metadata.inclusions

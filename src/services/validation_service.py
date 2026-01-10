@@ -260,7 +260,7 @@ def validate_serviceable_area(
                     raise CabboException("No airport found in region", status_code=400)
 
                 pickup = LocationInfo.model_validate(
-                    json.loads(airport_in_dest_region.model_dump_json())
+                    json.loads(airport_in_dest_region.model_dump_json(exclude_none=True))
                 )
                 search_in.origin = pickup
             else:
@@ -460,9 +460,7 @@ def validate_serviceable_area(
             )
         
         #At this point as we have the state_code, we will enrich origin_state pick up with 
-            # "country": null,
-            # "country_code": null,
-           
+          
         pickup.state= origin_state.state_name
         pickup.country_code= origin_state.country_code
         pickup.country= origin_state.country_name
@@ -491,43 +489,62 @@ def validate_serviceable_area(
             invalid_hops = []
             same_as_drop_hops = []
             zero_coord_hops = []
+            duplicate_hops = []
+            seen_hop_keys = set()
+            unique_hops = []
             
             for hop in search_in.hops:
                 hop_state = get_state_from_location_v2(
                     location=hop, config_store=config_store
                 )
+                # Build a stable key to detect duplicate hops (prefer place_id, fallback to coords)
+                if getattr(hop, "place_id", None):
+                        hop_key = f"place:{hop.place_id}"
+                else:
+                        hop_key = f"coord:{hop.lat}:{hop.lng}"
+                if hop_key in seen_hop_keys:
+                    duplicate_hops.append(hop.state_code)
+                    continue  # Skip adding this duplicate hop
+
+                seen_hop_keys.add(hop_key)
                 if not hop_state:
                     invalid_hops.append(hop.state_code)
                 elif hop_state.state_code not in allowed_states:
                     invalid_hops.append(hop_state.state_code)
                 elif hop.lat is None or hop.lng is None:
-                    zero_coord_hops.append(hop_state.state_code)
+                    zero_coord_hops.append(hop_state.state_code if hop_state else hop_key)
                 elif hop.lat == 0.0 or hop.lng == 0.0:
-                    zero_coord_hops.append(hop_state.state_code)
-                elif (hop.lat == drop.lat and hop.lng == drop.lng) or hop.place_id == drop.place_id: # Same as drop, do not consider and si
-                    same_as_drop_hops.append(hop_state.state_code)
+                    zero_coord_hops.append(hop_state.state_code if hop_state else hop_key)
+                elif (hop.lat == drop.lat and hop.lng == drop.lng) or (
+                        getattr(hop, "place_id", None) and hop.place_id == drop.place_id
+                    ): # Same as drop, do not consider and si
+                    same_as_drop_hops.append(hop_state.state_code if hop_state else hop_key)
+                    continue  # Skip adding this hop
                 
                 if hop_state and hop_state.state_code not in same_as_drop_hops:
                     hop.state= hop_state.state_name
                     hop.country_code= hop_state.country_code
                     hop.country= hop_state.country_name
+                unique_hops.append(hop)
+            
+            if duplicate_hops:
+                    print(
+                        f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}"
+                    )
             if same_as_drop_hops:
-                print(
-                    f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
-                )
-                #Remove these hops from search_in.hops
-                search_in.hops = [
-                    hop
-                    for hop in search_in.hops
-                    if hop.state_code not in same_as_drop_hops
-                ]
+                    print(
+                        f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
+                    )
             if zero_coord_hops:
-                print(
-                    f"Note: The following hops have zero or missing coordinates and will be ignored: {', '.join(zero_coord_hops)}"
-                )
-                #Remove these hops from search_in.hops
-                search_in.hops = [ hop for hop in search_in.hops if hop.state_code not in zero_coord_hops ]
-
+                    print(
+                        f"Note: The following hops have zero or missing coordinates and will be ignored: {', '.join(zero_coord_hops)}"
+                    )
+            # Keep only unique, valid hops (invalid hops cause an exception below)
+            search_in.hops = [
+                    h
+                    for h in unique_hops
+                    if (getattr(h, "state_code", None) not in zero_coord_hops)
+                ]
             if invalid_hops:
                 message = f"Outstation trips are only serviceable to: {', '.join(allowed_states)}."
                 # Convert None to 'Unknown' or just str

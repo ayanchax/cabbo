@@ -20,6 +20,7 @@ def add_driver(background_tasks: BackgroundTasks,payload: DriverCreateSchema = B
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
             raise CabboException("You do not have permission to add drivers.", status_code=403)
+    
     driver = create_driver(payload=payload, db=db, created_by=current_user_role)
     #Send welcome email in background if email is provided
     if driver.email and driver.name:

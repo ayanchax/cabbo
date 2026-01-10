@@ -48,13 +48,8 @@ def init_booking(
         "order_id": order.get("id"),
         "amount": order.get("amount"),
         "currency": order.get("currency"),
-        "currency_symbol": order.get("currency_symbol"),
         "description": order.get("description"),
-        "created_at": order.get("created_at"),
-        "entity": order.get("entity"),
         "customer":order.get("notes", {}).get("customer",{}),
-        "receipt": order.get("receipt"),
-        "offer_id": order.get("offer_id"),
         "status": order.get("status"),
         **get_trip_messages(status=TripStatusEnum.created),
     }
@@ -69,11 +64,10 @@ def confirm_booking(
     """
     Confirm the trip booking after payment is successful.
     """
-    trip_create_response=confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
+    _=confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
     return {
         
         "booking_id": booking.booking_id,
-        **trip_create_response.model_dump(),
         **get_trip_messages(status=TripStatusEnum.confirmed),
     }
 

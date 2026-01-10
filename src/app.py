@@ -3,7 +3,9 @@ from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT
 from core.config import settings
 import warnings
 
+from scheduler.app_scheduler import start_scheduler, stop_scheduler
 from services.file_service import create_directories
+
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI, Request
@@ -23,8 +25,17 @@ from api.v1.routes import router as v1_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
+    print("Starting application...")
+    print("Initializing database...")
     init_db()  # Call synchronously, do not await
+    print("Starting scheduler...")
+    start_scheduler()
     yield
+    # Shutdown
+    print("Shutting down scheduler...")
+    stop_scheduler()
+    print("Shutting down application...")
 
 
 app = FastAPI(

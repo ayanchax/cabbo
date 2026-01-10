@@ -12,7 +12,7 @@ TRIP_MESSAGES = {
                     "id": "COMPLETE_ADVANCE_PAYMENT",
                     "step": "Complete Advance Payment",
                     "instruction": "Please complete the advance payment to confirm your trip.",
-                    "reason": "This advance payment is our platform/convenience fee that helps us guarantee your trip.",
+                    "reason": "This advance payment is our platform/convenience fee that helps us guarantee your trip booking.",
                 },
                 {
                     "id": "AWAIT_CONFIRMATION",

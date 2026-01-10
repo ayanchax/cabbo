@@ -235,7 +235,13 @@ def initiate_trip_booking(
             booking_request=booking_request, requestor=customer.id, db=db
         )
 
-        
+        # Delete all previous temporary trip details for the customer
+        delete_temp_trip(requestor=customer.id, db=db)
+
+        # Create a new Temp Trip object from the booking request
+        temp_trip = create_temporary_trip(
+            booking_request=booking_request, requestor=customer.id, db=db
+        )
 
         config_store: ConfigStore = settings.CONFIG_STORE
         currency:Currency = Currency(
@@ -252,14 +258,11 @@ def initiate_trip_booking(
             "currency": order.get("currency"),
             "receipt": order.get("receipt"),
         }
-        #After successful order creation, proceed with temporary trip creation
-        # Delete all previous temporary trip details for the customer
-        delete_temp_trip(requestor=customer.id, db=db)
-
-        # Create a new Temp Trip object from the booking request
-        temp_trip = create_temporary_trip(
-            booking_request=booking_request, requestor=customer.id, payment_provider_metadata=payment_provider_metadata, db=db
-        )
+        #After successful order creation, update the temp trip with payment provider metadata
+        temp_trip.payment_provider_metadata=payment_provider_metadata
+        db.commit()
+        db.refresh(temp_trip)
+        
 
         # Populate the trip schema with necessary details
         trip_schema = populate_trip_schema(

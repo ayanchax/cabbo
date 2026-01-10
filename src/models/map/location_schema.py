@@ -21,7 +21,7 @@ class LocationInfo(BaseModel):
 
     class Config:
         exclude_none = True  # Exclude fields with None values from the model dump
-        extra = "allow"
+         
 
 
 
