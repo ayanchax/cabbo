@@ -9,7 +9,7 @@ from fastapi import (
     File,
 )
 from core.exceptions import CabboException
-from core.security import RoleEnum, validate_user_token
+from core.security import  ActiveInactiveStatusEnum, RoleEnum, validate_user_token
 from db.database import yield_mysql_session
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_schema import KYCDocumentSchema
@@ -31,6 +31,8 @@ from services.driver_service import (
     delete_driver,
     get_all_active_drivers,
     get_all_drivers,
+    get_all_drivers_by_availability,
+    get_all_drivers_by_status,
     get_all_inactive_drivers,
     get_driver_by_id,
     update_driver,
@@ -372,31 +374,28 @@ def driver_deactivation(
         "You do not have permission to deactivate this driver.", status_code=403
     )
 
-# List all active drivers
-@router.get("/drivers/active")
-def list_active_drivers(db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
-    """List all active drivers."""
-    
+# List all drivers by their activation status
+@router.get("/all/{status}")
+def list_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """List all drivers by their status."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException("You do not have permission to view drivers.", status_code=403)
     
-    return get_all_active_drivers(db)
+    return get_all_drivers_by_status(status=status, db=db)
 
-
-# List all inactive drivers
-@router.get("/drivers/inactive")
-def list_inactive_drivers(db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
-    """List all inactive drivers."""
+#List all drivers by their availability status
+@router.get("/all/availability/{is_available}")
+def list_drivers_by_availability(is_available: bool, db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """List all drivers by their availability status. This endpoint will enable to know which drivers are available for new trips and which are not and hence help in better trip assignment and management."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException("You do not have permission to view drivers.", status_code=403)
-
-    return get_all_inactive_drivers(db)
-
-
+    
+    return get_all_drivers_by_availability(is_available=is_available, db=db)
+    
 # List all drivers
-@router.get("/drivers")
+@router.get("/")
 def list_drivers(db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """List all drivers (admin view)."""
     current_user_role = current_user.role

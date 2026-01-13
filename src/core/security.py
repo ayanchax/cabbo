@@ -22,6 +22,12 @@ JWT_EXPIRY_UNIT_TIME_FRAME = {
 SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
  
+
+
+class ActiveInactiveStatusEnum(str, Enum):
+    active = "active"
+    inactive = "inactive"
+    
     
 
 class RoleEnum(str, Enum):
