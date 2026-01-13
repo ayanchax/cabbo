@@ -5,6 +5,7 @@ from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 
 
 class KYCDocumentSchema(BaseModel):
+    document_id: Optional[str] = None  # Unique identifier for the document
     document_type: KYCDocumentTypeEnum  # Type of the document (e.g., driver_license, aadhar_card)
     document_url: str  # mount URL to access the document
     document_alias: Optional[str] = None  # Alias for the document type (e.g., Driver License, Aadhar Card)
@@ -24,3 +25,5 @@ class KYCSchema(BaseModel):
     class Config:
         exclude_none = True  # Exclude fields with None values from the model dump
         from_attributes = True
+
+

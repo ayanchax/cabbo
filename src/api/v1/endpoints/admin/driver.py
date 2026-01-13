@@ -1,7 +1,18 @@
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, UploadFile, File
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Form,
+    Form,
+    Path,
+    UploadFile,
+    File,
+)
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import yield_mysql_session
+from models.documents.kyc_document_enum import KYCDocumentTypeEnum
+from models.documents.kyc_document_schema import KYCDocumentSchema
 from models.driver.driver_schema import (
     DriverBaseSchema,
     DriverCreateSchema,
@@ -12,11 +23,15 @@ from models.driver.driver_schema import (
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from core.constants import APP_NAME
+from services.kyc_service import list_kyc_documents, mark_kyc_verification_status_for_driver_document, remove_kyc_document_by_id_for_driver, update_driver_kyc_documents
 from services.driver_service import (
     activate_driver,
     create_driver,
     deactivate_driver,
     delete_driver,
+    get_all_active_drivers,
+    get_all_drivers,
+    get_all_inactive_drivers,
     get_driver_by_id,
     update_driver,
     update_driver_last_modified,
@@ -46,9 +61,7 @@ def add_driver(
             "You do not have permission to add drivers.", status_code=403
         )
 
-    driver = create_driver(
-        payload=payload, db=db, created_by=current_user_role
-    )
+    driver = create_driver(payload=payload, db=db, created_by=current_user_role)
     # Send welcome email in background if email is provided
     if driver.email and driver.name:
         subject = f"Welcome to {APP_NAME}!"
@@ -180,61 +193,98 @@ def view_driver_profile(
 
 # Upload driver kyc documents
 @router.post("/{driver_id}/documents")
-def upload_driver_documents(driver_id: str):
-    """Upload driver kyc documents."""
-    return {"message": f"Documents uploaded for driver {driver_id}"}
+def upload_driver_documents(
+    driver_id: str,
+    files: list[UploadFile] = File(...),
+    document_types: list[KYCDocumentTypeEnum] = Form(...),
+    db: Session = Depends(yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    current_user_role = current_user.role
+    driver = get_driver_by_id(driver_id, db)
+    if driver is None:
+        raise CabboException("Driver not found", status_code=404)
+    if not driver.is_active:
+        raise CabboException(
+            "Cannot upload documents for inactive driver", status_code=400
+        )
+
+    if (
+        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
+        or driver.id == current_user.id
+    ):
+
+        return update_driver_kyc_documents(
+            driver=driver, files=files, document_types=document_types, db=db
+        )
+
+    raise CabboException(
+        "You do not* have permission to upload driver documents.", status_code=403
+    )
 
 
 # Remove driver kyc document
 @router.delete("/{driver_id}/documents/{document_id}")
-def remove_driver_document(driver_id: str, document_id: str):
+def remove_driver_document(driver_id: str, document_id: str, db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)  ):
     """Remove a specific driver document."""
-    return {"message": f"Document {document_id} removed for driver {driver_id}"}
+    current_user_role = current_user.role
+    driver = get_driver_by_id(driver_id, db)
+    if driver is None:
+        raise CabboException("Driver not found", status_code=404)
+    if (
+        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
+        or driver.id == current_user.id
+    ):
+        if not driver.kyc_documents:
+            raise CabboException("No documents found for this driver.", status_code=404)
+
+        removed, error = remove_kyc_document_by_id_for_driver(driver, document_id, db)
+        if not removed:
+            raise CabboException(error or "Document not found.", status_code=404)
+        return {"message": f"Document {document_id} removed for driver {driver_id}"}
 
 
 # View driver kyc documents
 @router.get("/{driver_id}/documents")
-def view_driver_documents(driver_id: str):
+def view_driver_documents(
+    driver_id: str,
+    db: Session = Depends(yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """View all kyc documents for a driver."""
-    return {"message": f"KYC documents for driver {driver_id}"}
+    current_user_role = current_user.role
+    driver = get_driver_by_id(driver_id, db)
+    if driver is None:
+        raise CabboException("Driver not found", status_code=404)
+    if (
+        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
+        or driver.id == current_user.id
+    ):
+        if not driver.kyc_documents:
+            return []
+        return list_kyc_documents(driver, db)
+
+    raise CabboException(
+        "You do not have permission to view driver documents.", status_code=403
+    )
 
 
-# mark kyc verified
-@router.post("/{driver_id}/documents/{document_id}/verify")
-def mark_kyc_verified(driver_id: str, document_id: str):
-    """Mark a specific driver document as verified."""
-    return {"message": f"Document {document_id} verified for driver {driver_id}"}
-
-
-# Mark kyc unverified
-@router.post("/{driver_id}/documents/{document_id}/unverify")
-def mark_kyc_unverified(driver_id: str, document_id: str):
-    """Mark a specific driver document as unverified."""
-    return {"message": f"Document {document_id} unverified for driver {driver_id}"}
-
-
-# mark all kyc documents verified
-@router.post("/{driver_id}/documents/verify-all")
-def mark_all_kyc_verified(driver_id: str):
-    """Mark all kyc documents for a driver as verified."""
-    # This will automatically set overall kyc status to verified as well
-    return {"message": f"All documents verified for driver {driver_id}"}
-
-
-# mark all kyc documents unverified
-@router.post("/{driver_id}/documents/unverify-all")
-def mark_all_kyc_unverified(driver_id: str):
-    """Mark all kyc documents for a driver as unverified."""
-    # This will automatically set overall kyc status to unverified as well
-    return {"message": f"All documents unverified for driver {driver_id}"}
-
-
-# Update overall kyc status
-# (Usually this will be auto managed based on individual document statuses, but in case admin wants to override)
-@router.post("/{driver_id}/documents/kyc-status/{status}")
-def update_kyc_status(driver_id: str, status: bool):
-    """Update overall kyc status for a driver."""
-    return {"message": f"KYC status for driver {driver_id} updated to {status}"}
+# mark kyc verified or unverified
+@router.post("/{driver_id}/documents/{document_id}/verify/{status}")
+def mark_kyc_verified(driver_id: str, document_id: str, status: bool, db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)   ):
+    """Mark a specific driver document as verified or unverified."""
+    current_user_role = current_user.role
+    driver = get_driver_by_id(driver_id, db)
+    if driver is None:
+        raise CabboException("Driver not found", status_code=404)
+    if (
+        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
+        or driver.id == current_user.id
+    ):
+        return mark_kyc_verification_status_for_driver_document(driver, document_id, status, db)
+    raise CabboException(
+        "You do not have permission to verify/unverify driver documents.", status_code=403
+    )
 
 
 # Remove driver
@@ -270,7 +320,6 @@ def remove_driver(
         "You do not have permission to remove this driver.", status_code=403
     )
 
-
 # Activate driver
 @router.post("/{driver_id}/activate")
 def driver_activation(
@@ -294,7 +343,6 @@ def driver_activation(
     raise CabboException(
         "You do not have permission to activate this driver.", status_code=403
     )
-
 
 # Deactivate driver
 @router.post("/{driver_id}/deactivate")
@@ -324,26 +372,38 @@ def driver_deactivation(
         "You do not have permission to deactivate this driver.", status_code=403
     )
 
-
 # List all active drivers
 @router.get("/drivers/active")
-def list_active_drivers():
+def list_active_drivers(db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """List all active drivers."""
-    return {"message": "List of active drivers"}
+    
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException("You do not have permission to view drivers.", status_code=403)
+    
+    return get_all_active_drivers(db)
 
 
 # List all inactive drivers
 @router.get("/drivers/inactive")
-def list_inactive_drivers():
+def list_inactive_drivers(db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """List all inactive drivers."""
-    return {"message": "List of inactive drivers"}
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException("You do not have permission to view drivers.", status_code=403)
+
+    return get_all_inactive_drivers(db)
 
 
 # List all drivers
 @router.get("/drivers")
-def list_drivers():
+def list_drivers(db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """List all drivers (admin view)."""
-    return {"message": "List of drivers (admin view)"}
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException("You do not have permission to view drivers.", status_code=403)
+    
+    return get_all_drivers(db)
 
 
 # Assign driver to trip

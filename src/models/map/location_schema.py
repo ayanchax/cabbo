@@ -31,4 +31,7 @@ class Address(BaseModel):
     country_id: Optional[str] = Field(None, description="Country identifier")
     region_id: Optional[str] = Field(None, description="Region identifier")
     state_id: Optional[str] = Field(None, description="State identifier")
+    state: Optional[str] = Field(None, description="State or province name")
+    country: Optional[str] = Field(None, description="Country name")
+    landmark: Optional[str] = Field(None, description="Landmark near the address")
     postal_code: Optional[str] = Field(None, description="Postal or ZIP code")
