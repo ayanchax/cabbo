@@ -206,9 +206,8 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
             db=db,
         )  # Log the trip status audit entry
     
-        # Background job to notify customer via email.
-        # As of now, driver admin will call the driver and inform about the trip manually. Not implementing notification system for driver at the moment to save cost.
-    
+        
+        return trip, driver
     except Exception as e:
         db.rollback()
         raise CabboException(
