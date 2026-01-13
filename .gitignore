@@ -51,3 +51,7 @@ application-requirements.txt
 notes/
 test/testdata/
 seed_data_completed.chk
+
+#Builds
+build/
+dist/

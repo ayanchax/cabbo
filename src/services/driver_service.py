@@ -6,6 +6,11 @@ from models.driver.driver_schema import DriverCreateSchema, DriverUpdateSchema
 from core.security import ActiveInactiveStatusEnum, RoleEnum
 import uuid
 
+from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_orm import Trip
+from models.user.user_orm import User
+from services.audit_trail_service import log_trip_audit
+
 
 def create_driver(
     payload: DriverCreateSchema,
@@ -74,11 +79,12 @@ def get_all_active_drivers(db: Session):
     """Retrieve all active drivers."""
     return db.query(Driver).filter(Driver.is_active == True).all()
 
+
 def get_all_drivers_by_availability(is_available: bool, db: Session):
     """Retrieve all drivers by their availability status."""
     return db.query(Driver).filter(Driver.is_available == is_available).all()
 
-        
+
 def get_all_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session):
     """Retrieve all drivers by their active status."""
 
@@ -142,7 +148,6 @@ def deactivate_driver(driver_id: str, db: Session) -> Driver:
     db.refresh(driver)
     return driver
 
- 
 
 def update_driver_last_modified(driver: Driver, db: Session):
     try:
@@ -152,3 +157,60 @@ def update_driver_last_modified(driver: Driver, db: Session):
     except Exception as e:
         db.rollback()
     return driver
+
+
+def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: User):
+    try:
+        # Check Trip is in confirmed status
+        if trip.status != TripStatusEnum.confirmed.value:
+            raise CabboException(
+                "Trip must be in confirmed status to assign a driver.", status_code=400
+            )
+        # Check trip has a non-zero balance_payment
+        if trip.balance_payment <= 0:
+            raise CabboException(
+                "Trip must have a non-zero balance payment to assign a driver.",
+                status_code=400,
+            )
+        if trip.advance_payment <= 0:
+            raise CabboException(
+                "Trip must have a non-zero advance payment to assign a driver.",
+                status_code=400,
+            )
+        if not driver.is_active:
+            raise CabboException("Driver is not active.", status_code=400)
+        
+        # Check Driver is available
+        if not driver.is_available:
+            raise CabboException("Driver is not available.", status_code=400)
+        
+        if not driver.phone or driver.phone.strip() == "":
+            raise CabboException("Driver does not have a valid phone number.", status_code=400)
+        
+        if trip.driver_id==driver.id:
+            raise CabboException("Driver is already assigned to this trip.", status_code=400)
+
+        # Assign Driver to Trip
+        trip.driver_id = driver.id
+        # Update Driver availability to False
+        driver.is_available = False
+        db.commit()
+        db.refresh(trip)
+        db.refresh(driver)
+        log_trip_audit(
+            trip_id=trip.id,
+            status=trip.status,
+            committer_id=requestor.id,
+            reason=f"Driver {driver.name} assigned to trip.",
+            changed_by=requestor.role,
+            db=db,
+        )  # Log the trip status audit entry
+    
+        # Background job to notify customer via email.
+        # As of now, driver admin will call the driver and inform about the trip manually. Not implementing notification system for driver at the moment to save cost.
+    
+    except Exception as e:
+        db.rollback()
+        raise CabboException(
+            f"Error assigning driver to trip: {str(e)}", status_code=500, include_traceback=True
+        )

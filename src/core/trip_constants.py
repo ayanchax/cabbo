@@ -30,7 +30,7 @@ TRIP_MESSAGES = {
                 {
                     "id": "AWAIT_TRIP_DETAILS",
                     "step": "Await trip details",
-                    "instruction": "You will receive the trip and driver details shortly.",
+                    "instruction": "Your booking is confirmed! You will receive the trip and driver details in your registered email shortly. You can also view all your trip details anytime in the app.",
                 },
                 {
                     "id": "PAY_REMAINING_FARE",

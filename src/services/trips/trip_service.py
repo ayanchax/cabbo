@@ -465,3 +465,8 @@ def populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetail
         exclude_none=True
     )  # Return the trip schema as a dictionary excluding None values
     return remove_none_recursive(result)
+
+
+def get_trip_by_id(trip_id: str, db: Session) -> Trip:
+    """Retrieve a trip by its ID."""
+    return db.query(Trip).filter(Trip.id == trip_id).first()

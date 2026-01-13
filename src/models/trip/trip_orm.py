@@ -199,6 +199,9 @@ class Trip(Base):
     # Trip metadata - END
 
     # Additional metadata
+    special_needs_requests = Column(
+        Text, nullable=True)  # Special needs or requests from customer, essentially customer notes that customer can update before trip starts[created, confirmed]
+    
     estimated_km = Column(
         Float, nullable=True, default=0.0
     )  # Estimated distance for the trip

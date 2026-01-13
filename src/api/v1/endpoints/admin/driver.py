@@ -43,6 +43,7 @@ from services.file_service import (
     save_driver_profile_picture,
 )
 from services.message_service import WELCOME_EMAIL_FILE, send_email
+from services.trips.trip_service import get_trip_by_id
 from services.validation_service import validate_driver_payload
 
 router = APIRouter()
@@ -407,9 +408,20 @@ def list_drivers(db: Session = Depends(yield_mysql_session), current_user: User 
 
 # Assign driver to trip
 @router.post("/{driver_id}/trips/{trip_id}/assign")
-def assign_driver_to_trip(trip_id: str):
+def assign_driver_to_trip(trip_id: str, driver_id: str,  db: Session = Depends(yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """Assign a driver to a trip."""
-    return {"message": f"Driver assigned to trip {trip_id}"}
+    current_user_role = current_user.role
+    trip = get_trip_by_id(trip_id, db)
+    if trip is None:
+        raise CabboException("Trip not found", status_code=404)
+    driver = get_driver_by_id(driver_id, db)
+    if driver is None:
+        raise CabboException("Driver not found", status_code=404)
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException("You do not have permission to assign drivers to trips.", status_code=403)
+    
+    return {"message": f"Driver {driver_id} assigned to trip {trip_id}"}
+    
 
 
 # Unassign driver from trip
