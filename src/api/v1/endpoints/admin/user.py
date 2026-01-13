@@ -7,12 +7,13 @@ from db.database import yield_mysql_session
 from models.user.user_orm import User
 from models.user.user_schema import UserCreateSchema, UserPasswordResetSchema, UserPasswordUpdateSchema, UserReadSchema, UserUpdateSchema
 from services.user_service import activate_user, auto_logoff_user_after_password_change, change_user_password, create_user, deactivate_user, delete_bearer_token, get_all_users, get_user_by_id, get_user_by_username, get_users_by_role, is_user_exists, update_user
+from services.validation_service import validate_system_user_payload
 
 router = APIRouter()
 
 # Create a new admin user
 @router.post("/create", response_model=UserReadSchema, status_code=201,)
-def create_admin_user(payload: UserCreateSchema = Body(...), db: Session = Depends(yield_mysql_session),
+def create_admin_user(payload: UserCreateSchema = Depends(validate_system_user_payload), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Create a new administrative user."""
     
@@ -47,7 +48,7 @@ def get_admin_user(user_id: str, db: Session = Depends(yield_mysql_session),
 
 # Update admin user
 @router.put("/{user_id}")
-def update_admin_user(user_id: str, payload: UserUpdateSchema = Body(...), db: Session = Depends(yield_mysql_session),
+def update_admin_user(user_id: str, payload: UserUpdateSchema = Depends(validate_system_user_payload), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Update an administrative user."""
     current_user_role = current_user.role

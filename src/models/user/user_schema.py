@@ -15,9 +15,9 @@ class UserCreateSchema(UserBaseSchema):
     email: Optional[EmailStr] = None  # User's email address
     phone_number: str  # User's phone number
     password: Optional[str]= None  # User's password
-    role: RoleEnum
     is_active: bool = True  # Active status of the user
-    gender: Optional[GenderEnum] = None  # User's gender 
+    role: RoleEnum #Immutable role for the user
+    gender: Optional[GenderEnum] = None  # User's gender Immutable
     dob: Optional[datetime] = None  # Date of birth
     emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None
@@ -47,8 +47,11 @@ class UserCreateSchema(UserBaseSchema):
 class UserUpdateSchema(UserBaseSchema):
     name: Optional[str] = None  # User's name
     username: Optional[str] = None  # User's username
+    dob: Optional[datetime] = None  # Date of birth
     email: Optional[EmailStr] = None  # User's email address
     phone_number: Optional[str] = None  # User's phone number
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
 
    
 

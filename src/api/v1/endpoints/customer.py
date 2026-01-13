@@ -48,6 +48,7 @@ from services.message_service import (
 )
 from core.constants import APP_NAME
 from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_any_trip, is_passenger_belongs_to_customer, update_passenger
+from services.validation_service import validate_customer_payload, validate_passenger_payload
 
 router = APIRouter()
 
@@ -66,7 +67,7 @@ def get_customer_profile(
 @router.put("/{customer_id}", response_model=CustomerReadAfterUpdate)
 def modify_customer_profile(
     customer_id: str,
-    payload: CustomerUpdate = Body(...),
+    payload: CustomerUpdate = Depends(validate_customer_payload),
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
@@ -176,6 +177,7 @@ def trigger_email_verification(
     return {"message": "Verification email sent. Please check your inbox."}
 
 
+
 @router.get(SELF_SERVICE_CUSTOMER_EMAIL_VERIFICATION_ENDPOINT)
 def verify_email(
     id: str = Query(..., description="Customer UUID"),
@@ -183,6 +185,10 @@ def verify_email(
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
+    """
+    Verify customer's email using the provided id and token passed in the query parameters of the verification link.
+    This endpoint will be called when the customer clicks on the verification link sent to their email.
+    """
     # Only allow self-service
     if str(current_customer.id) != id:
         raise CabboException("Unauthorized", status_code=403)
@@ -206,7 +212,7 @@ def verify_email(
 @router.post("/{customer_id}/passenger/add", response_model=PassengerOut)
 def add_passenger(
     customer_id: str = Path(..., description="UUID of the customer"),
-    payload: PassengerCreate = Body(..., description="Passenger create payload"),
+    payload: PassengerCreate = Depends(validate_passenger_payload),
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
@@ -247,7 +253,7 @@ def remove_passenger(
 def update_passenger_details(
     customer_id: str = Path(..., description="UUID of the customer"),
     passenger_id: str = Path(..., description="UUID of the passenger to update"),
-    payload: PassengerUpdate = Body(..., description="Passenger update payload"),
+    payload: PassengerUpdate = Depends(validate_passenger_payload),
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
@@ -306,7 +312,7 @@ def get_passenger(
     return PassengerOut.model_validate(passenger)
 
 #Route for providing driver rating and feedback for a trip by a customer
-# Driver rating can be provided only once per trip by a customer    
+# Driver rating can be provided only once per trip by a customer for a driver. 1 trip -> 1 driver -> 1 rating by customer   
 @router.post("/{customer_id}/trips/{trip_id}/{driver_id}/rate-driver", response_model=dict)
 def rate_driver_for_trip(
     customer_id: str = Path(..., description="UUID of the customer"),

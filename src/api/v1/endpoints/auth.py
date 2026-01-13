@@ -29,18 +29,17 @@ from services.message_service import (
 from core.config import settings
 from core.exceptions import CabboException
 from core.constants import APP_NAME
+from services.validation_service import validate_customer_login_payload, validate_customer_onboarding_payload, validate_customer_payload
 
 router = APIRouter()
 
 
 @router.post("/onboard/initiate")
 def initiate_onboarding(
-    payload: CustomerOnboardInitiationRequest = Body(...),
+    payload: CustomerOnboardInitiationRequest = Depends(validate_customer_onboarding_payload),
     db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
-    if not phone_number:
-        raise CabboException("Phone number is required.", status_code=400)
     # Check if phone number already exists in permanent users
     if is_existing_customer(phone_number, db):
         raise CabboException("Phone number already registered.", status_code=400)
@@ -61,7 +60,7 @@ def initiate_onboarding(
 @router.post("/register", response_model=CustomerLoginResponse)
 def register(
     background_tasks: BackgroundTasks,
-    payload: CustomerCreate = Body(...),
+    payload: CustomerCreate = Depends(validate_customer_payload),
     db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
@@ -104,12 +103,11 @@ def register(
 
 @router.post("/login/initiate")
 def initiate_login(
-    payload: CustomerOnboardInitiationRequest = Body(...),
+    payload: CustomerOnboardInitiationRequest = Depends(validate_customer_login_payload),
     db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
-    if not phone_number:
-        raise CabboException("Phone number is required.", status_code=400)
+    
     if not is_existing_customer(phone_number, db):
         raise CabboException("Phone number not registered.", status_code=404)
     otp = generate_otp(phone_number, db)
@@ -125,7 +123,7 @@ def initiate_login(
 
 @router.post("/login", response_model=CustomerLoginResponse)
 def login(
-    payload: CustomerLoginRequest = Body(...), db: Session = Depends(yield_mysql_session)
+    payload: CustomerLoginRequest = Depends(validate_customer_login_payload), db: Session = Depends(yield_mysql_session)
 ):
     phone_number = payload.phone_number
     otp = payload.otp

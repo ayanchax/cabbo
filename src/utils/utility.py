@@ -1,6 +1,6 @@
 from typing import Union
 from core.exceptions import CabboException
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
 from core.config import settings
@@ -61,3 +61,9 @@ def transform_datetime_to_str(obj):
     # Format with thousand separator
     formatted = f"{amount:,.2f}"
     return f"{country.currency_symbol}{formatted}"
+
+def calculate_age_from_dob(dob: date) -> int:
+    """Calculate age from date of birth."""
+    today = date.today()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    return age

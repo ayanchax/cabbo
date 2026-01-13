@@ -2,24 +2,32 @@ from datetime import datetime, timedelta, timezone
 import json
 import math
 import re
-from typing import List
+from typing import List, Union
+
+from fastapi import Body
 from core.exceptions import CabboException
+from core.config import settings
 
 # from models.geography.service_area_orm import ServiceableGeographyOrm
 from core.store import ConfigStore
 from models.airport.airport_schema import AirportSchema
+from models.customer.customer_schema import CustomerCreate, CustomerLoginRequest, CustomerOnboardInitiationRequest, CustomerUpdate
+from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
+from models.driver.driver_schema import DriverCreateSchema, DriverUpdateSchema
 from models.geography.country_schema import CountrySchema
 from models.map.location_schema import LocationInfo
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripTypeMaster
 from models.trip.trip_schema import TripBookRequest, TripDetails, TripSearchRequest
+from models.user.user_schema import UserCreateSchema, UserUpdateSchema
 from services.airport_service import get_airport_by_region_code, get_airports_in_region
 from services.configuration_service import (
     get_region_from_location,
     get_state_from_location_v2,
 )
 from utils.utility import (
+    calculate_age_from_dob,
     remove_none_recursive,
     transform_datetime_to_str,
     validate_date_time,
@@ -752,25 +760,19 @@ def validate_phone_by_country(phone: str, country: CountrySchema) -> str:
 
     # Validate length
     if len(num) < country.phone_min_length or len(num) > country.phone_max_length:
+        example = country.phone_example if country.phone_example else f"+<country code>{'X'*country.phone_min_length}"
+        
         raise CabboException(
-            f"Invalid phone number. Expected {country.phone_min_length}-{country.phone_max_length} digits"
-            + (
-                f". Example: {country.phone_example}"
-                if country.phone_example
-                else "+<country code>XXXXXXXXXX"
-            ),
+            f"Invalid phone number. Expected {country.phone_min_length} digits. Example: {example}",
             status_code=422,
         )
 
     # Validate regex
     if not re.fullmatch(country.phone_regex, num):
+        example = country.phone_example if country.phone_example else f"+<country code>{'X'*country.phone_min_length}"
+      
         raise CabboException(
-            f"Invalid phone number format for {country.name}"
-            + (
-                f". Example: {country.phone_example}"
-                if country.phone_example
-                else "+<country code>XXXXXXXXXX"
-            ),
+            f"Invalid phone number format for {country.name}. Example: {example}",
             status_code=422,
         )
 
@@ -791,26 +793,217 @@ def validate_postal_code_by_country(postal_code: str, country: CountrySchema) ->
 
 def validate_driver_age_by_country(age: int, country: CountrySchema):
     """Validate driver age based on country rules."""
-    if age < country.min_age_for_drivers:
+    if age < country.min_age_for_drivers or age > country.max_age_for_drivers:
         raise CabboException(
-            f"Minimum age for driver in {country.country_name} is {country.min_age_for_drivers}",
+            f"Minimum age for driver in {country.country_name} is {country.min_age_for_drivers} and maximum age is {country.max_age_for_drivers}",
             status_code=422,
         )
+    return True
 
 
 def validate_customer_age_by_country(age: int, country: CountrySchema):
     """Validate customer age based on country rules."""
-    if age < country.min_age_for_customers:
+    if age < country.min_age_for_customers or age > country.max_age_for_customers:
         raise CabboException(
-            f"Minimum age for customer in {country.country_name} is {country.min_age_for_customers}",
+            f"Minimum age for customer in {country.country_name} is {country.min_age_for_customers} and maximum age is {country.max_age_for_customers}",
             status_code=422,
         )
 
 
 def validate_system_user_age_by_country(age: int, country: CountrySchema):
     """Validate system user age based on country rules."""
-    if age < country.min_age_for_system_users:
+    if age < country.min_age_for_system_users or age > country.max_age_for_system_users:
         raise CabboException(
-            f"Minimum age for system user in {country.country_name} is {country.min_age_for_system_users}",
+            f"Minimum age for system user in {country.country_name} is {country.min_age_for_system_users} and maximum age is {country.max_age_for_system_users}",
             status_code=422,
         )
+
+def validate_driver_payload(
+    payload: Union[DriverUpdateSchema, DriverCreateSchema] = Body(...),
+  
+):
+    config_store: ConfigStore = settings.CONFIG_STORE
+    country = config_store.geographies.country_server
+    if not country:
+        raise CabboException(
+            "Country configuration not found in system", status_code=500
+        )
+    
+    
+    
+    if isinstance(payload, DriverCreateSchema):
+        if not payload.phone or payload.phone.strip() == "":
+            raise CabboException(
+                "Phone number is required for driver", status_code=400
+            )
+        
+        if not payload.dob:
+            raise CabboException(
+    "Please enter the driver's date of birth so we can check if they meet the minimum age requirement.",
+    status_code=400
+)
+        
+    # Validate driver age
+    if payload.dob:
+        #Get age from dob
+        age = calculate_age_from_dob(payload.dob)
+        validate_driver_age_by_country(age=age, country=country)
+    
+    # Validate phone number
+    payload.phone = validate_phone_by_country(
+        phone=payload.phone, country=country
+    )
+    # Validate payment phone number
+    if payload.payment_phone_number:
+        payload.payment_phone_number = validate_phone_by_country(
+            phone=payload.payment_phone_number, country=country
+        )
+    if not payload.payment_phone_number or payload.payment_phone_number.strip() == "":
+        payload.payment_phone_number= payload.phone # Use driver's primary phone number if alternate not provided
+    
+    #Validate emergency contact phone number
+    if payload.emergency_contact_number:
+        payload.emergency_contact_number = validate_phone_by_country(
+            phone=payload.emergency_contact_number, country=country
+        )
+
+    return payload
+
+def validate_customer_payload(
+    payload: Union[CustomerUpdate, CustomerCreate] = Body(...),
+  
+):
+    config_store: ConfigStore = settings.CONFIG_STORE
+    country = config_store.geographies.country_server
+    if not country:
+        raise CabboException(
+            "Country configuration not found in system", status_code=500
+        )
+    
+    # Validate customer age
+    if payload.dob:
+        #Get age from dob
+        age = calculate_age_from_dob(payload.dob)
+        validate_customer_age_by_country(age=age, country=country)
+    
+    if isinstance(payload, CustomerCreate):
+        if not payload.phone_number or payload.phone_number.strip() == "":
+            raise CabboException(
+                "Phone number is required for customer creation", status_code=400
+            )
+        # Validate phone number only for creation, we do not allow phone number update
+        payload.phone_number = validate_phone_by_country(
+            phone=payload.phone_number, country=country
+        )
+    
+    #Validate emergency contact phone number
+    if payload.emergency_contact_number or payload.emergency_contact_number.strip() != "":
+        payload.emergency_contact_number = validate_phone_by_country(
+            phone=payload.emergency_contact_number, country=country
+        )
+
+    return payload
+
+def validate_passenger_payload(
+    payload: Union[PassengerUpdate, PassengerCreate] = Body(...),
+  
+):
+    config_store: ConfigStore = settings.CONFIG_STORE
+    country = config_store.geographies.country_server
+    if not country:
+        raise CabboException(
+            "Country configuration not found in system", status_code=500
+        )
+    
+    
+    
+    # Validate phone number
+    if payload.phone_number:
+        payload.phone_number = validate_phone_by_country(
+            phone=payload.phone_number, country=country
+        )
+    
+
+    return payload
+
+def validate_customer_onboarding_payload(
+        payload:CustomerOnboardInitiationRequest = Body(...),
+):
+    config_store: ConfigStore = settings.CONFIG_STORE
+    country = config_store.geographies.country_server
+    if not country:
+        raise CabboException(
+            "Country configuration not found in system", status_code=500
+        )
+    
+    if not payload.phone_number or payload.phone_number.strip() == "":
+        raise CabboException(
+            "Phone number is required for customer onboarding", status_code=400
+        )
+    
+    # Validate phone number
+    payload.phone_number = validate_phone_by_country(
+        phone=payload.phone_number, country=country
+    )
+    
+   
+
+    return payload
+
+def validate_customer_login_payload(
+        payload:Union[CustomerLoginRequest, CustomerOnboardInitiationRequest] = Body(...),
+):
+    config_store: ConfigStore = settings.CONFIG_STORE
+    country = config_store.geographies.country_server
+    if not country:
+        raise CabboException(
+            "Country configuration not found in system", status_code=500
+        )
+    
+    if not payload.phone_number or payload.phone_number.strip() == "":
+        raise CabboException(
+            "Phone number is required for customer login", status_code=400
+        )
+    
+    # Validate phone number
+    payload.phone_number = validate_phone_by_country(
+        phone=payload.phone_number, country=country
+    )
+    
+    return payload
+
+def validate_system_user_payload(
+    payload: Union[UserCreateSchema, UserUpdateSchema] = Body(...),
+  
+):
+    config_store: ConfigStore = settings.CONFIG_STORE
+    country = config_store.geographies.country_server
+    if not country:
+        raise CabboException(
+            "Country configuration not found in system", status_code=500
+        )
+    
+    # Validate system user age
+    if payload.dob:
+        #Get age from dob
+        age = calculate_age_from_dob(payload.dob)
+        validate_system_user_age_by_country(age=age, country=country)
+    
+    if isinstance(payload, UserCreateSchema):
+        if not payload.phone_number or payload.phone_number.strip() == "":
+            raise CabboException(
+                "Phone number is required for system user creation", status_code=400
+            )
+        
+    # Validate phone number
+    if payload.phone_number:
+        payload.phone_number = validate_phone_by_country(
+            phone=payload.phone_number, country=country
+        )
+    
+    if payload.emergency_contact_number:
+        payload.emergency_contact_number = validate_phone_by_country(
+            phone=payload.emergency_contact_number, country=country
+        )
+
+    return payload

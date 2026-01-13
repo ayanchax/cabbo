@@ -43,6 +43,8 @@ class DriverCreateSchema(DriverBaseSchema):
     @model_validator(mode="after")
     def payment_mode_validator(self):
         payment_mode = self.payment_mode
+        if not self.payment_phone_number or self.payment_phone_number.strip() == "":
+            self.payment_phone_number=self.phone # Use driver's primary phone number if alternate not provided
         payment_phone_number = self.payment_phone_number
         bank_details = self.bank_details
         if payment_mode in [PaymentModeEnum.gpay, PaymentModeEnum.phonepe, PaymentModeEnum.paytm] and not payment_phone_number:
@@ -71,6 +73,8 @@ class DriverUpdateSchema(DriverBaseSchema):
     @model_validator(mode="after")
     def payment_mode_validator(self):
         payment_mode = self.payment_mode
+        if not self.payment_phone_number or self.payment_phone_number.strip() == "":
+            self.payment_phone_number=self.phone # Use driver's primary phone number if alternate not provided
         payment_phone_number = self.payment_phone_number
         bank_details = self.bank_details
         if payment_mode in [PaymentModeEnum.gpay, PaymentModeEnum.phonepe, PaymentModeEnum.paytm] and not payment_phone_number:
