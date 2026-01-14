@@ -166,6 +166,14 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
             raise CabboException(
                 "Trip must be in confirmed status to assign a driver.", status_code=400
             )
+        if not trip.creator_id:
+            raise CabboException(
+                "Trip does not have a valid creator to assign a driver.", status_code=400
+            )
+        if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
+            raise CabboException(
+                "Trip creator must be a customer to assign a driver.", status_code=400
+            )
         # Check trip has a non-zero balance_payment
         if trip.balance_payment <= 0:
             raise CabboException(

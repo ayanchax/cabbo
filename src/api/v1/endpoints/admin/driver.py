@@ -478,7 +478,7 @@ def assign_driver(
 
     # Background job to notify customer via email.
 
-    # As of now, driver admin will call the driver and inform about the trip manually. Not implementing notification system for driver at the moment to save cost.
+    # As of now, driver admin will call the driver and inform about the trip and customer manually. Not implementing notification system for driver at the moment to save cost.
 
     return {
         "message": f"Driver {assigned_driver.name} assigned to trip {assigned_trip.id}"

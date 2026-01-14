@@ -24,6 +24,7 @@ dependencies = [
   "tzdata>=2025.2",
   "python-dateutil>=2.9.0.post0",
   "APScheduler>=3.10",
+  "aiosmtplib>=5.0.0",
 ]
 
 [project.optional-dependencies]
