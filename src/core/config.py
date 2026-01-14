@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     #SendGrid Settings for sending emails
     SENDGRID_API_KEY: str
     SENDGRID_FROM_NO_REPLY_EMAIL: str  # Email address used for sending emails to customers on events of welcome email, booking confirmation, trip updates, etc.
+    
     #AWS SES Settings for sending emails
     AWS_SES_SMTP_HOST: str
     AWS_SES_SMTP_PORT: int
@@ -43,6 +44,13 @@ class Settings(BaseSettings):
     AWS_SES_SMTP_PASSWORD: str
     AWS_SES_FROM_NO_REPLY_EMAIL: str # Email address used for sending emails to customers on events of welcome email, booking confirmation, trip updates, etc.
     
+    #Brevo SMTP Settings for sending emails
+    BREVO_SMTP_HOST: str
+    BREVO_SMTP_PORT: int
+    BREVO_SMTP_USERNAME: str
+    BREVO_SMTP_PASSWORD: str
+    BREVO_FROM_NO_REPLY_EMAIL: str # Email address used for sending emails to customers on events of welcome email, booking confirmation, trip updates, etc.
+
     JWT_SECRET: str
     SHARE_PATH: str
     MAPBOX_TOKEN: str

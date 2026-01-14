@@ -79,8 +79,41 @@ async def send_email(
         return _sendgrid_send_email(to_email, subject, html_content, from_email)
     elif email_provider == "aws_ses":
         return await _aws_ses_send_email(to_email, subject, html_content, from_email)
+    elif email_provider == "brevo":
+        return await _brevo_send_email(to_email, subject, html_content, from_email)
     else:
         print(f"Unsupported email service provider: {email_provider}")
+        return False
+
+
+async def _brevo_send_email(
+    to_email: str, subject: str, html_content: str, from_email: str = None
+):
+    if not from_email:
+        from_email = settings.BREVO_FROM_NO_REPLY_EMAIL
+    try:
+        message = EmailMessage()
+        message["From"] = from_email
+        message["To"] = to_email
+        message["Subject"] = subject
+
+        message.set_content("This email requires an HTML-capable email client.")
+        message.add_alternative(html_content, subtype="html")
+
+        await aiosmtplib.send(
+            message,
+            hostname=settings.BREVO_SMTP_HOST,
+            port=settings.BREVO_SMTP_PORT,
+            start_tls=True,
+            username=settings.BREVO_SMTP_USERNAME,
+            password=settings.BREVO_SMTP_PASSWORD,
+            timeout=20,
+        )
+        return True
+
+    except Exception as e:
+        # We will log audit logs later on failures of email sending
+        print(f"Brevo email send failed: {e}")
         return False
 
 
@@ -99,7 +132,7 @@ def _sendgrid_send_email(
         response = sg_client.send(message)
         return 200 <= response.status_code < 300
     except Exception as e:
-        #We will log audit logs later on failures of email sending
+        # We will log audit logs later on failures of email sending
         print(f"SendGrid email send failed: {e}")
         return False
 
@@ -134,7 +167,7 @@ async def _aws_ses_send_email(
         return True
 
     except Exception as e:
-        #We will log audit logs later on failures of email sending
+        # We will log audit logs later on failures of email sending
         print(f"AWS SES email send failed: {e}")
         return False
 
@@ -179,12 +212,16 @@ def create_email_verification_link(
 
 
 # if __name__ == "__main__":
-#     # Test rendering email template
-#     html = render_email_template(
-#         WELCOME_EMAIL_FILE,
-#         for_customer=True,
-#         name="John Doe",
-#         app_name="Cabbo",
-#         app_url="https://cabbo.co.in",
+#     # Test sending test email with Brevo
+#     import asyncio
+#     test_email = "ayanchax9088@gmail.com"
+#     subject = "Test Email from Cabbo"
+#     html_content = "<h1>This is a test email sent using Brevo SMTP.</h1><p>If you received this email, the setup is correct!</p>"
+#     asyncio.run(
+#         _brevo_send_email(
+#             to_email=test_email,
+#             subject=subject,
+#             html_content=html_content,
+#         )
 #     )
-#     print(html)
+    
