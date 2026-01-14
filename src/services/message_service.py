@@ -214,9 +214,38 @@ def create_email_verification_link(
 # if __name__ == "__main__":
 #     # Test sending test email with Brevo
 #     import asyncio
+
 #     test_email = "ayanchax9088@gmail.com"
 #     subject = "Test Email from Cabbo"
-#     html_content = "<h1>This is a test email sent using Brevo SMTP.</h1><p>If you received this email, the setup is correct!</p>"
+
+#     # ...existing code...
+#     html_content = render_email_template(
+#         "airport_transfer_booking_confirmation.html",
+#         for_customer=True,
+#         app_logo_url="https://demo.cabbo.com/logo.png",
+#         app_name="Cabbo",
+#         customer_name="Ayan Chatterjee",
+#         trip_type="airport_pickup",
+#         pickup_location="Kempegowda International Airport, Bangalore",
+#         drop_location="MG Road, Bangalore",
+#         booking_id="CAB123456",
+#         trip_date="2026-01-15",
+#         trip_time="09:30 AM",
+#         num_passengers=2,
+#         luggage_info="2 suitcases, 1 cabin bag",
+#         flight_number="AI202",
+#         special_requests="Child seat required",
+#         driver_name="Ravi Kumar",
+#         driver_contact="+91-9876543210",
+#         cab_number="KA01AB1234",
+#         cab_type="Sedan",
+#         total_fare="1200",
+#         amount_paid="500",
+#         amount_due="700",
+#         app_url="https://demo.cabbo.com",
+#     )
+#     # ...existing code...
+
 #     asyncio.run(
 #         _brevo_send_email(
 #             to_email=test_email,
@@ -224,4 +253,3 @@ def create_email_verification_link(
 #             html_content=html_content,
 #         )
 #     )
-    
