@@ -248,11 +248,11 @@
 
         <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#f4f8ff 100%);">
             <h3>💳 Fare Summary</h3>
-            <div class="detail-row"><span class="label">Total Fare</span><span class="value">₹{{ total_fare }}</span>
+            <div class="detail-row"><span class="label">Total Fare</span><span class="value">{{currency}}{{ total_fare }}</span>
             </div>
-            <div class="detail-row"><span class="label">Amount Paid</span><span class="value">₹{{ amount_paid }}</span>
+            <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{ amount_paid }}</span>
             </div>
-            <div class="detail-row"><span class="label">Amount Due</span><span class="value">₹{{ amount_due }}</span>
+            <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{ amount_due }}</span>
             </div>
         </div>
 
@@ -265,7 +265,7 @@
             Wishing you a pleasant journey!<br><br>
             This email was sent by <b>{{ app_name }}</b>.<br>
             Maa Sarada Tours and Travels, Bangalore, India<br>
-            &copy; 2025 {{ app_name }}. All rights reserved.
+            &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
         </div>
     </div>
 </body>

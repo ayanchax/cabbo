@@ -211,45 +211,80 @@ def create_email_verification_link(
     return verification_url, expiry
 
 
-# if __name__ == "__main__":
-#     # Test sending test email with Brevo
-#     import asyncio
+if __name__ == "__main__":
+    # Test sending test email with Brevo
+    import asyncio
 
-#     test_email = "ayanchax9088@gmail.com"
-#     subject = "Test Email from Cabbo"
+    test_email = "ayanchax9088@gmail.com"
+    subject = "Test Email from Cabbo"
 
-#     # ...existing code...
-#     html_content = render_email_template(
-#         "airport_transfer_booking_confirmation.html",
-#         for_customer=True,
-#         app_logo_url="https://demo.cabbo.com/logo.png",
-#         app_name="Cabbo",
-#         customer_name="Ayan Chatterjee",
-#         trip_type="airport_pickup",
-#         pickup_location="Kempegowda International Airport, Bangalore",
-#         drop_location="MG Road, Bangalore",
-#         booking_id="CAB123456",
-#         trip_date="2026-01-15",
-#         trip_time="09:30 AM",
-#         num_passengers=2,
-#         luggage_info="2 suitcases, 1 cabin bag",
-#         flight_number="AI202",
-#         special_requests="Child seat required",
-#         driver_name="Ravi Kumar",
-#         driver_contact="+91-9876543210",
-#         cab_number="KA01AB1234",
-#         cab_type="Sedan",
-#         total_fare="1200",
-#         amount_paid="500",
-#         amount_due="700",
-#         app_url="https://demo.cabbo.com",
-#     )
-#     # ...existing code...
+     
+    html_content = render_email_template(
+        "outstation_booking_confirmation.html",
+        for_customer=True,
+        app_logo_url="https://cdn.example.com/assets/logo.png",
+        app_name="Cabbo",
+        app_url="https://app.cabbo.example",
+        customer_name="Ayan Chacko",
+        booking_id="OT-20260119-0001",
+        pickup_location="Bengaluru Airport (BLR)",
+        drop_location="Munnar, Kerala",
+        hops=[
+            {"display_name": "Kothamangalam, KL", "address": "Kothamangalam, Kerala, India", "state": "Kerala"},
+            {"display_name": "Adimali, KL", "address": "Adimali, Kerala, India", "state": "Kerala"},
+        ],
+        is_round_trip=True,
+        is_interstate=False,
+        unique_states=["KA", "KL"],
+        start_date="2026-01-20",
+        end_date="2026-01-24",
+        trip_time="09:00 AM",
+        package_label="5 Days / 4 Nights - Standard",
+        total_trip_days=5,
+        included_km=500,
+        estimated_km=620,
+        options={"car_type": "SUV", "fuel_type": "Diesel"},
+        cab_type="Toyota Innova Crysta",
+        cab_number="KA01AB1234",
+        driver_name="Ramesh Kumar",
+        driver_contact="+91-9876543210",
+        currency="₹",
+        price_breakdown={
+            "base_fare": 12000,
+            "driver_allowance": 1200,
+            "minimum_toll_wallet": 500,
+            "minimum_parking_wallet": 200,
+            "permit_fee": 300,
+            "platform_fee": 150,
+        },
+        overages={
+            "overage_amount_per_km": 12,
+            "overage_estimate_amount": 1500,
+            "extra_charges_disclaimers": "Overages will be charged per km beyond included km.",
+        },
+        in_car_amenities={
+            "ac": True,
+            "music_system": True,
+            "water_bottle": True,
+            "tissues": True,
+            "candies": True,
+            "snacks": False,
+            "phone_charger": True,
+            "aux_cable": False,
+            "bluetooth": True,
+            "wifi": False,
+        },
+        inclusions=["Fuel", "Driver allowance", "Water bottles"],
+        exclusions=["Driver accommodation", "Extra tolls"],
+        total_fare=15000,
+        amount_paid=5000,
+        amount_due=10000,
+    )
 
-#     asyncio.run(
-#         _brevo_send_email(
-#             to_email=test_email,
-#             subject=subject,
-#             html_content=html_content,
-#         )
-#     )
+    asyncio.run(
+        _brevo_send_email(
+            to_email=test_email,
+            subject=subject,
+            html_content=html_content,
+        )
+    )

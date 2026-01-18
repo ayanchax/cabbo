@@ -4,7 +4,7 @@ from core.config import settings
 import warnings
 
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
-from services.file_service import create_directories
+from services.file_service import copy_file, create_directories
 
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
@@ -69,7 +69,14 @@ app.include_router(v1_router, prefix="/api/v1")
 # Ensure share/images and share/documents directory exists relative to this file (project root)
 SHARE_IMAGES_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "images")
 SHARE_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "documents")
+# Create directories if they don't exist
 create_directories([SHARE_IMAGES_DIR, SHARE_DOCUMENTS_DIR])
+# Copy default logo to share/images if not already present, this logo can be used in emails or other places
+copy_file(
+    os.path.join(PROJECT_ROOT,"resources", "logo-without-tagline.svg"),
+    os.path.join(SHARE_IMAGES_DIR, "logo.svg"),
+    overwrite=False,
+)
 
 # ...existing code...
 
