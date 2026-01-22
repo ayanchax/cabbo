@@ -87,7 +87,7 @@ def _get_local_trips_disclaimer_lines(
         List[str]: A list of disclaimer lines for local trips.
     """
     non_refund_line = (
-        "If you do not utilise your full package hours and/or kilometres, the full package amount will still be charged; unused hours/kilometres are non‑refundable."
+        "If you do not utilise your full package hours and/or kilometres, the full package amount will still be charged; unused hours/kilometres are non-refundable."
     )
     if applicable_driver_allowance == 0.0:
         return [
@@ -101,7 +101,7 @@ def _get_local_trips_disclaimer_lines(
         f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{overage_amount_per_hour} per hour and/or {currency}{overage_amount_per_km} per km will apply.",
         f"If you exceed the included hours in your selected package ({package_label}), an additional driver allowance of {currency}{applicable_driver_allowance} will be charged.",
         non_refund_line,
-        "Any tolls incurred during the trip will be billed based on actual usage.",
+        "Any tolls incurred during the trip will be billed based on actual toll charges.",
         "If parking costs exceed the included wallet amount, the excess will be charged. If you use less, the unused balance will be refunded at trip end by adjusting the final fare.",
         "All extra charges are based on actual usage and will be clearly shown on your invoice.",
     ]

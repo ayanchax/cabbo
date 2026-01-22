@@ -405,7 +405,7 @@ def list_drivers_by_status(
     db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
-    """List all drivers by their status."""
+    """List all drivers by their activation status."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
@@ -449,8 +449,6 @@ def list_drivers(
 
 
 # Assign driver to trip
-
-
 @router.post("/{driver_id}/trips/{trip_id}/assign")
 def assign_driver(
     background_tasks: BackgroundTasks,

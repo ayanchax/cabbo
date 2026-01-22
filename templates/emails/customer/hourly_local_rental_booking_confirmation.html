@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>⏱️ Cabbo Hourly Rental Booking Confirmed</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f6f8fb;
+            color: #23272f;
+            margin: 0;
+            padding: 0
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 36px auto;
+            background: #fff;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(25, 40, 60, 0.06)
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 18px
+        }
+
+        .header {
+            text-align: center;
+            font-size: 1.8rem;
+            color: #2d7ff9;
+            font-weight: 700;
+            margin-bottom: 6px
+        }
+
+        .sub {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 20px
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .col-left {
+            color: #6b7280;
+            font-weight: 600;
+            flex: 0 0 140px;
+            padding-right: 8px;
+        }
+
+        .col-right {
+            font-weight: 700;
+            color: #23272f;
+            text-align: right;
+            flex: 1 1 0;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f4f8ff 60%, #eaf6e7 100%);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px #f0f4fa
+        }
+
+        h3 {
+            color: #2d7ff9;
+            margin: 0 0 12px 0;
+            font-size: 1.05rem
+        }
+
+        .cta {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: linear-gradient(90deg, #2d7ff9 60%, #00c6fb 100%);
+            color: #fff;
+            padding: 14px 0;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.08rem;
+            margin: 32px 0 0 0;
+            box-shadow: 0 2px 8px #e0e8f8;
+            transition: background 0.2s;
+        }
+
+        .cta:hover {
+            background: linear-gradient(90deg, #1a5fd7 60%, #00a6d6 100%);
+        }
+
+        .meta-list {
+            font-size: 13px;
+            color: #4a5568;
+            margin-top: 8px
+        }
+
+        .badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px
+        }
+
+        .badge {
+            background: #eef6ff;
+            color: #1b5fd6;
+            padding: 6px 8px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 12px
+        }
+
+        ul {
+            margin: 8px 0 0 18px;
+            color: #4a5568
+        }
+
+        .footer {
+            text-align: center;
+            color: #9aa6b6;
+            font-size: 12px;
+            margin-top: 20px;
+            line-height: 1.5
+        }
+
+        .tnc {
+            font-size: 11px;
+            color: #64748b;
+            text-align: left;
+            margin-top: 10px;
+            line-height: 1.35;
+            white-space: pre-line;
+        }
+
+        @media(max-width:600px) {
+            .row {
+                flex-direction: column;
+                align-items: flex-start
+            }
+
+            .col-right {
+                text-align: left
+            }
+
+            .tnc {
+                font-size: 10px;
+            }
+        }
+
+        .detail-row {
+            width: 100%;
+            margin-bottom: 10px;
+            font-size: 15px;
+            clear: both;
+        }
+
+        .label {
+            color: #6b7280;
+            font-weight: 500;
+            min-width: 140px;
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .value {
+            color: #23272f;
+            font-weight: 600;
+            text-align: right;
+            float: right;
+            word-break: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Expected Jinja fields (examples from local_hourly_rental_service):
+         app_logo_url, app_name, app_url,
+         customer_name, booking_id,
+         pickup_location,
+         start_date, expected_end_date (or end_date),
+         included_hours, included_km,
+         package_label,
+         options -> (car_type, fuel_type),
+         overages -> (disclaimer, extra_charges_disclaimers),
+         in_car_amenities -> ac, music_system, water_bottle, tissues, candies, snacks, phone_charger, aux_cable, bluetooth, wifi
+         inclusions (list), exclusions (list),
+         driver_name, driver_contact, cab_number, cab_type,
+         total_fare, amount_paid, amount_due, currency, is_round_trip
+    -->
+    <div class="container">
+        <!-- Logo -->
+        <div class="logo">
+            <img src="{{ app_logo_url }}" alt="{{ app_name }} Logo" width="64" style="border-radius:12px" />
+        </div>
+
+        <!-- Booking Confirmation Header -->
+        <div class="header">🎉 Booking Confirmed</div>
+        <div class="sub">Hi {{ customer_name }}, your hourly rental with <strong>{{ app_name }}</strong> is confirmed.
+        </div>
+
+        <!-- Pickup Details -->
+        <div class="card" style="background:linear-gradient(135deg,#f4f8ff 60%,#fff 100%);">
+            <h3>📍 Pickup</h3>
+            <div class="detail-row"><span class="label">Pickup location</span><span class="value">{{ pickup_location
+                    }}</span></div>
+            <div class="detail-row"><span class="label">Start</span><span class="value">{{ start_date }}</span></div>
+            <div class="detail-row"><span class="label">Expected end</span><span class="value">{{ expected_end_date or
+                    end_date or '-' }}</span></div>
+             
+        </div>
+
+        <!-- Package Details -->
+        <div class="card">
+            <h3>⏳ Package</h3>
+            <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Package</span><span class="value">{{ package_label }}</span>
+            </div>
+           
+        </div>
+
+        <!-- Cab & Driver -->
+        <div class="card">
+            <h3>🚕 Cab & Driver</h3>
+            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ cab_type }}{% if options %} —
+                    {{ options.car_type }} / {{ options.fuel_type }}{% endif %}</span></div>
+            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-' }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name or '-' }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Driver Contact</span><span class="value">{{ driver_contact or
+                    '-' }}</span></div>
+        </div>
+
+        <!-- Fare Summary -->
+        <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#fdf8ff 100%)">
+            <h3>💳 Fare Summary</h3>
+            <div class="detail-row" style="font-weight:700;font-size:1.02rem;"><span class="label">Total
+                    Fare</span><span class="value">{{ currency }}{{ total_fare }}</span></div>
+            <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{ currency }}{{
+                    amount_paid or 0 }}</span></div>
+            <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{ currency }}{{ amount_due
+                    or (total_fare - (amount_paid or 0)) }}</span></div>
+        </div>
+
+        <!-- Inclusions & Amenities and Exclusions -->
+        <div class="card">
+            <h3>🧰 In-car amenities & inclusions</h3>
+            <div class="badges">
+                {% if in_car_amenities.ac %}<div class="badge">AC</div>{% endif %}
+                {% if in_car_amenities.music_system %}<div class="badge">Music</div>{% endif %}
+                {% if in_car_amenities.water_bottle %}<div class="badge">Water bottle</div>{% endif %}
+                {% if in_car_amenities.tissues %}<div class="badge">Tissues</div>{% endif %}
+                {% if in_car_amenities.candies %}<div class="badge">Candies</div>{% endif %}
+                {% if in_car_amenities.snacks %}<div class="badge">Snacks</div>{% endif %}
+                {% if in_car_amenities.phone_charger %}<div class="badge">Phone charger</div>{% endif %}
+                {% if in_car_amenities.aux_cable %}<div class="badge">Aux cable</div>{% endif %}
+                {% if in_car_amenities.bluetooth %}<div class="badge">Bluetooth</div>{% endif %}
+                {% if in_car_amenities.wifi %}<div class="badge">Wi‑Fi</div>{% endif %}
+            </div>
+            <div style="margin-top:10px">
+                <div style="font-weight:600;color:#2d7ff9">What's included</div>
+                <ul>{% for inc in inclusions %}<li>{{ inc }}</li>{% endfor %}</ul>
+                <div style="font-weight:600;color:#f05555;margin-top:8px">What's excluded</div>
+                <ul>{% for ex in exclusions %}<li>{{ ex }}</li>{% endfor %}</ul>
+            </div>
+        </div>
+
+        <!-- Overages Disclaimer Terms and Conditions -->
+        {% if overages and overages.disclaimer %}
+        <div class="card" style="background:#fff8e8">
+            <h3>⚠️ Important</h3>
+            <div style="color:#7a5a00;white-space:pre-line;font-size:13px">{{ overages.extra_charges_disclaimers }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- View Trip CTA -->
+        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
+            View Trip in App</a>
+        
+        <!-- Footer with Terms & Conditions -->
+        <div class="footer">
+            <div class="tnc">
+                <strong>Other Terms &amp; conditions</strong>
+                <ul>
+                    <li>Extra hours / kms will be charged as per standard overage rates. All extra charges are billed after trip
+                        completion.</li>
+                    <li>Parking & tolls incurred during the trip will be charged based on actual usage and accordingly adjusted in the final bill.</li>
+                </ul>
+            </div>
+            <br>
+            If you have any questions or need to make changes, please contact our support team.<br>
+            Wishing you a pleasant journey!<br><br>
+            This email was sent by <b>{{ app_name }}</b>.<br>
+            Maa Sarada Tours and Travels, Bangalore, India<br>
+            &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
+
+        </div>
+    </div>
+</body>
+
+</html>

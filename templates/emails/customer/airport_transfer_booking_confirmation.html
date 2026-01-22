@@ -44,6 +44,12 @@
             margin-bottom: 24px;
         }
 
+        .sub {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 20px
+        }
+
         .card {
             background: linear-gradient(135deg, #f4f8ff 60%, #eaf6e7 100%);
             border-radius: 12px;
@@ -136,138 +142,146 @@
 
 <body>
     <div class="container">
+        <!-- Logo -->
         <div class="logo">
             <img src="{{ app_logo_url }}" alt="{{ app_name }} Logo" width="56" style="border-radius:12px;" />
         </div>
+        <!-- Header -->
         <div class="header">🎉 Booking Confirmed!</div>
-        <div style="margin-bottom: 24px;">
-            <div style="text-align:center; font-size:1.08rem; color:#23272f; margin-bottom:2px;">
-                Hi {{ customer_name }},
+        <div class="sub">Hi {{ customer_name }}, your airport transfer booking with <strong>{{ app_name }}</strong> is
+            confirmed.
+
+            <!-- Route timeline -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
+                <tr>
+                    <!-- LEFT COLUMN: DOTS -->
+                    <td width="24" valign="top" style="padding-right:10px;">
+                        <table cellpadding="0" cellspacing="0" align="center">
+                            <!-- Pickup dot -->
+                            <tr>
+                                <td align="center">
+                                    <div style="width:12px;height:12px;background:#2d7ff9;border-radius:50%;"></div>
+                                </td>
+                            </tr>
+
+                            <!-- Vertical line -->
+                            <tr>
+                                <td align="center">
+                                    <div style="width:2px;height:44px;background:#bcd3f7;"></div>
+                                </td>
+                            </tr>
+
+                            <!-- Drop dot -->
+                            <tr>
+                                <td align="center">
+                                    <div style="width:12px;height:12px;background:#22bb33;border-radius:50%;"></div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+
+                    <!-- RIGHT COLUMN: TEXT -->
+                    <td valign="top">
+                        {% if trip_type == "airport_pickup" %}
+                        <div style="margin-bottom:18px;">
+                            <div style="color:#2d7ff9;font-weight:600;">Pickup (Airport)</div>
+                            <div style="font-weight:600;">{{ pickup_location }}</div>
+                        </div>
+                        <div>
+                            <div style="color:#22bb33;font-weight:600;">Drop</div>
+                            <div style="font-weight:600;">{{ drop_location }}</div>
+                        </div>
+                        {% elif trip_type == "airport_drop" %}
+                        <div style="margin-bottom:18px;">
+                            <div style="color:#2d7ff9;font-weight:600;">Pickup</div>
+                            <div style="font-weight:600;">{{ pickup_location }}</div>
+                        </div>
+                        <div>
+                            <div style="color:#22bb33;font-weight:600;">Drop (Airport)</div>
+                            <div style="font-weight:600;">{{ drop_location }}</div>
+                        </div>
+                        {% else %}
+                        <div style="margin-bottom:18px;">
+                            <div style="color:#2d7ff9;font-weight:600;">Pickup</div>
+                            <div style="font-weight:600;">{{ pickup_location }}</div>
+                        </div>
+                        <div>
+                            <div style="color:#22bb33;font-weight:600;">Drop</div>
+                            <div style="font-weight:600;">{{ drop_location }}</div>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Trip Details -->
+            <div class="card">
+                <h3>🚕 Trip Details</h3>
+                <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Date & Time</span><span class="value">{{ trip_date }} at {{
+                        trip_time }}</span></div>
+
+                <div class="detail-row"><span class="label">Passengers</span><span class="value">{{ num_passengers
+                        }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Luggage</span><span class="value">{{ luggage_info }}</span>
+                </div>
+                {% if flight_number %}
+                <div class="detail-row"><span class="label">Flight No.</span><span class="value">{{ flight_number
+                        }}</span>
+                </div>
+                {% endif %}
+                {% if special_requests %}
+                <div class="detail-row"><span class="label">Special Requests</span><span class="value">{{
+                        special_requests
+                        }}</span></div>
+                {% endif %}
             </div>
-            <div style="text-align:center; font-size:1.13rem; color:#2d7ff9; font-weight:600;">
-                Your airport transfer booking with <b>{{ app_name }}</b> is <span
-                    style="color:#22bb33;">confirmed</span>.
+
+            <!-- Driver & Cab -->
+            <div class="card">
+                <h3>🧑‍✈️ Driver & Cab</h3>
+                <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Contact</span><span class="value">{{ driver_contact
+                        }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Cab Number</span><span class="value">{{ cab_number }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Cab Type</span><span class="value">{{ cab_type }}</span>
+                </div>
             </div>
-            <div style="text-align:left; font-size:1.04rem; color:#4a5568; margin-top:18px;">
-                Here are your trip and driver details:
+
+            <!-- Fare summary -->
+            <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#f4f8ff 100%);">
+                <h3>💳 Fare Summary</h3>
+                <div class="detail-row"><span class="label">Total Fare</span><span class="value">{{currency}}{{
+                        total_fare }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{
+                        amount_paid }}</span>
+                </div>
+                <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{
+                        amount_due }}</span>
+                </div>
+            </div>
+
+            <!-- Trip CTA -->
+            <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta"
+                style="color:#fff!important;text-decoration:none;">📲
+                View Trip in App</a>
+
+            <hr>
+            <!-- Footer -->
+            <div class="footer">
+                If you have any questions or need to make changes, please contact our support team.<br>
+                Wishing you a pleasant journey!<br><br>
+                This email was sent by <b>{{ app_name }}</b>.<br>
+                Maa Sarada Tours and Travels, Bangalore, India<br>
+                &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
             </div>
         </div>
-
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
-            <tr>
-                <!-- LEFT COLUMN: DOTS -->
-                <td width="24" valign="top" style="padding-right:10px;">
-                    <table cellpadding="0" cellspacing="0" align="center">
-                        <!-- Pickup dot -->
-                        <tr>
-                            <td align="center">
-                                <div style="width:12px;height:12px;background:#2d7ff9;border-radius:50%;"></div>
-                            </td>
-                        </tr>
-
-                        <!-- Vertical line -->
-                        <tr>
-                            <td align="center">
-                                <div style="width:2px;height:44px;background:#bcd3f7;"></div>
-                            </td>
-                        </tr>
-
-                        <!-- Drop dot -->
-                        <tr>
-                            <td align="center">
-                                <div style="width:12px;height:12px;background:#22bb33;border-radius:50%;"></div>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-
-                <!-- RIGHT COLUMN: TEXT -->
-                <td valign="top">
-                    {% if trip_type == "airport_pickup" %}
-                    <div style="margin-bottom:18px;">
-                        <div style="color:#2d7ff9;font-weight:600;">Pickup (Airport)</div>
-                        <div style="font-weight:600;">{{ pickup_location }}</div>
-                    </div>
-                    <div>
-                        <div style="color:#22bb33;font-weight:600;">Drop</div>
-                        <div style="font-weight:600;">{{ drop_location }}</div>
-                    </div>
-                    {% elif trip_type == "airport_drop" %}
-                    <div style="margin-bottom:18px;">
-                        <div style="color:#2d7ff9;font-weight:600;">Pickup</div>
-                        <div style="font-weight:600;">{{ pickup_location }}</div>
-                    </div>
-                    <div>
-                        <div style="color:#22bb33;font-weight:600;">Drop (Airport)</div>
-                        <div style="font-weight:600;">{{ drop_location }}</div>
-                    </div>
-                    {% else %}
-                    <div style="margin-bottom:18px;">
-                        <div style="color:#2d7ff9;font-weight:600;">Pickup</div>
-                        <div style="font-weight:600;">{{ pickup_location }}</div>
-                    </div>
-                    <div>
-                        <div style="color:#22bb33;font-weight:600;">Drop</div>
-                        <div style="font-weight:600;">{{ drop_location }}</div>
-                    </div>
-                    {% endif %}
-                </td>
-            </tr>
-        </table>
-
-        <div class="card">
-            <h3>🚕 Trip Details</h3>
-            <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Date & Time</span><span class="value">{{ trip_date }} at {{
-                    trip_time }}</span></div>
-
-            <div class="detail-row"><span class="label">Passengers</span><span class="value">{{ num_passengers }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Luggage</span><span class="value">{{ luggage_info }}</span>
-            </div>
-            {% if flight_number %}
-            <div class="detail-row"><span class="label">Flight No.</span><span class="value">{{ flight_number }}</span>
-            </div>
-            {% endif %}
-            {% if special_requests %}
-            <div class="detail-row"><span class="label">Special Requests</span><span class="value">{{ special_requests
-                    }}</span></div>
-            {% endif %}
-        </div>
-
-        <div class="card">
-            <h3>🧑‍✈️ Driver & Cab</h3>
-            <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name }}</span></div>
-            <div class="detail-row"><span class="label">Contact</span><span class="value">{{ driver_contact }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Cab Number</span><span class="value">{{ cab_number }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Cab Type</span><span class="value">{{ cab_type }}</span></div>
-        </div>
-
-        <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#f4f8ff 100%);">
-            <h3>💳 Fare Summary</h3>
-            <div class="detail-row"><span class="label">Total Fare</span><span class="value">{{currency}}{{ total_fare }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{ amount_paid }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{ amount_due }}</span>
-            </div>
-        </div>
-
-        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
-            View Trip in App</a>
-
-        <hr>
-        <div class="footer">
-            If you have any questions or need to make changes, please contact our support team.<br>
-            Wishing you a pleasant journey!<br><br>
-            This email was sent by <b>{{ app_name }}</b>.<br>
-            Maa Sarada Tours and Travels, Bangalore, India<br>
-            &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
-        </div>
-    </div>
 </body>
 
 </html>

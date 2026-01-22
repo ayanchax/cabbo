@@ -154,7 +154,7 @@ def _get_outstation_trips_disclaimer_lines(
         List[str]: A list of disclaimer lines for outstation trips.
     """
     non_refund_line = (
-        "If you do not utilise the full included days for your outstation package, the full package amount will still be charged; unused days/kilometres are non‑refundable."
+        "If you do not utilise the full included days for your outstation package, the full package amount will still be charged; unused days/kilometres are non-refundable."
     )
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",

@@ -384,9 +384,10 @@
             <img src="{{ app_logo_url }}" alt="{{ app_name }} Logo" width="64" style="border-radius:12px" />
         </div>
 
-        <div class="header">🎉 Outstation Booking Confirmed</div>
+        <div class="header">🎉 Booking Confirmed</div>
         <div class="sub">Hi {{ customer_name }}, your outstation trip with <strong>{{ app_name }}</strong> is confirmed.
         </div>
+        <!-- Route  -->
         <div class="card">
             <h3>📍 Route {% if is_round_trip %}<span
                     style="display:inline-block;background:rgba(45,127,249,0.12);color:#2d7ff9;padding:6px 8px;border-radius:999px;font-weight:700;font-size:12px;margin-left:8px;vertical-align:middle;">Round
@@ -500,21 +501,6 @@
         <!-- FARE SUMMARY -->
         <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#fdf8ff 100%)">
             <h3>💳 Fare Summary</h3>
-            <div class="detail-row"><span class="label">Base fare</span><span class="value">{{currency}}{{
-                    price_breakdown.base_fare }}</span></div>
-            <div class="detail-row"><span class="label">Driver allowance</span><span class="value">{{currency}}{{
-                    price_breakdown.driver_allowance }}</span></div>
-            <div class="detail-row"><span class="label">Toll wallet (preauth)</span><span class="value">{{currency}}{{
-                    price_breakdown.minimum_toll_wallet }}</span></div>
-            <div class="detail-row"><span class="label">Parking wallet (preauth)</span><span
-                    class="value">{{currency}}{{ price_breakdown.minimum_parking_wallet }}</span></div>
-            {% if is_interstate %}
-            <div class="detail-row"><span class="label">Permit / state fees</span><span class="value">{{currency}}{{
-                    price_breakdown.permit_fee }}</span></div>
-            {% endif %}
-            <div class="detail-row"><span class="label">Platform fee</span><span class="value">{{currency}}{{
-                    price_breakdown.platform_fee }}</span></div>
-             
             <div class="detail-row" style="font-weight:700;font-size:1.02rem;"><span class="label">Total
                     Fare</span><span class="value">{{currency}}{{ total_fare }}</span></div>
             <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{ amount_paid
@@ -524,6 +510,7 @@
         </div>
 
 
+        <!-- Inclusions & Amenities and Exclusions -->
         <div class="card">
             <h3>🧰 In-car amenities & inclusions</h3>
             <div class="badges">
@@ -546,6 +533,7 @@
             </div>
         </div>
 
+        <!-- Overages Disclaimer Terms and Conditions -->
         {% if overages and overages.disclaimer %}
         <div class="card" style="background:#fff8e8">
             <h3>⚠️ Important</h3>
@@ -554,13 +542,14 @@
         </div>
         {% endif %}
 
+        <!-- View Trip in App CTA -->
         <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
             View Trip in App</a>
 
-
+        <!-- Footer with terms and conditions -->
         <div class="footer">
             <div class="tnc">
-                <strong>Terms &amp; conditions</strong>
+                <strong>Other Terms &amp; conditions</strong>
                 <ul>
                     <li>The total / final kilometre reading may vary from the calculated kilometres due to unplanned
                         events (e.g. sightseeing, extra stops, route changes).</li>
@@ -571,11 +560,13 @@
                     <li>If the trip includes hill climbs, the cab AC may be switched off during such climbs.</li>
                 </ul>
             </div>
-            Need help? Contact our support team. <br>
-            This email was sent by <strong>{{ app_name }}</strong>.<br>
+            <br>
+            If you have any questions or need to make changes, please contact our support team.<br>
+            Wishing you a pleasant journey!<br><br>
+            This email was sent by <b>{{ app_name }}</b>.<br>
             Maa Sarada Tours and Travels, Bangalore, India<br>
             &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
-
+     
         </div>
     </div>
 </body>
