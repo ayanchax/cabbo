@@ -222,4 +222,24 @@ def get_default_trip_amenities():
     )
 
 
+def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
+    """
+    Retrieves the trip type from the database based on the provided trip type ID.
+    Args:
+        trip_type_id (str): The ID of the trip type to retrieve.
+        db (Session): The database session for ORM operations.
+    Returns:
+        TripTypeEnum: The trip type corresponding to the provided ID.
+    Raises:
+        CabboException: If the trip type ID is not found in the database.
+    """
+    trip_type_obj = (
+        db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id).first()
+    )
+    if not trip_type_obj:
+        raise CabboException(
+            f"Trip type with ID {trip_type_id} not found", status_code=404
+        )
+    return TripTypeEnum(trip_type_obj.trip_type)
+
 

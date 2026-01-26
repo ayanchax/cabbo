@@ -1,4 +1,7 @@
+import secrets
+import string
 from core.store import ConfigStore
+from core.trip_helpers import get_trip_type_by_trip_type_id
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import RazorPayPaymentResponse
 from models.pricing.pricing_schema import Currency
@@ -32,13 +35,43 @@ from services.validation_service import (
 from core.config import settings
 
 
-def _get_temp_trip_by_booking_id_and_requestor(
-    booking_id: str, requestor: str, db: Session
+def _generate_booking_id(trip_type: str, length: int = 16) -> str:
+    """
+    Generate a unique booking ID with a prefix based on the trip type.
+    The ID will consist of a trip type prefix followed by a 16-character alphanumeric string.
+    
+    Args:
+        trip_type (str): The type of trip (e.g., "AIRPORT", "OUTSTATION", "RENTAL").
+        length (int): The length of the unique part of the booking ID (default is 16).
+    
+    Returns:
+        str: The generated booking ID.
+    """
+    try:
+        # Map trip types to prefixes
+        trip_type_prefix = {
+            "airport": "AIRPORT",
+            "outstation": "OUTSTATION",
+            "local": "RENTAL"
+        }.get(trip_type.lower(), "TRIP")  # Default to "TRIP" if trip type is unknown
+
+        # Generate the unique part of the booking ID
+        alphabet = string.ascii_uppercase + string.digits
+        unique_part = ''.join(  secrets.choice(alphabet) for _ in range(length))
+
+        # Combine the prefix and unique part
+        return f"{trip_type_prefix}-{unique_part}"
+
+    except Exception as e:
+        return None
+    
+def _get_temp_trip_by_trip_id_and_requestor(
+    trip_id: str, requestor: str, db: Session
 ) -> TempTrip:
     """
-    Retrieves a temporary trip record from the database based on the booking ID and requestor.
+    Retrieves a temporary trip record from the database based on the trip ID and requestor.
     Args:
-        booking_id (str): The ID of the booking to retrieve.
+        trip_id (str): The ID of the trip to retrieve.
         requestor (str): The user or system requesting the trip details.
         db (Session): The database session for ORM operations.
     Returns:
@@ -48,22 +81,22 @@ def _get_temp_trip_by_booking_id_and_requestor(
     """
     temp_trip = (
         db.query(TempTrip)
-        .filter(TempTrip.id == booking_id, TempTrip.creator_id == requestor)
+        .filter(TempTrip.id == trip_id, TempTrip.creator_id == requestor)
         .first()
     )
     if not temp_trip:
         raise CabboException(
-            "Booking not found or you are not authorized to access this booking",
+            "Trip not found or you are not authorized to access this trip",
             status_code=404,
         )
     return temp_trip
 
 
-def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> bool:
+def _is_existing_trip_booking(trip_id: str, requestor: str, db: Session) -> bool:
     """
-    Checks if a trip booking exists in the database for the given booking ID and requestor.
+    Checks if a trip booking exists in the database for the given trip ID and requestor.
     Args:
-        booking_id (str): The ID of the booking to retrieve.
+        trip_id (str): The ID of the trip to retrieve.
         requestor (str): The user or system requesting the trip details.
         db (Session): The database session for ORM operations.
     Returns:
@@ -71,7 +104,7 @@ def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> b
     """
     trip = (
         db.query(Trip)
-        .filter(Trip.id == booking_id, Trip.creator_id == requestor)
+        .filter(Trip.id == trip_id, Trip.creator_id == requestor)
         .first()
     )
     if trip:
@@ -82,7 +115,6 @@ def _is_existing_trip_booking(booking_id: str, requestor: str, db: Session) -> b
 def _create_confirmed_trip_from_temp_trip(
     temp_trip: TempTrip,
     requestor: str,
-    booking_id: str,
     payment_info: RazorPayPaymentResponse,
     db: Session,
 ) -> TripCreate:
@@ -91,7 +123,6 @@ def _create_confirmed_trip_from_temp_trip(
     Args:
         temp_trip (TempTrip): The temporary trip record to convert.
         requestor (str): The user or system requesting the trip creation.
-        booking_id (str): The ID of the booking to create.
         payment_info (RazorPayPaymentResponse): The payment information for the trip.
         db (Session): The database session for ORM operations.
     Returns:
@@ -99,8 +130,21 @@ def _create_confirmed_trip_from_temp_trip(
     Raises:
         CabboException: If the temporary trip is invalid or if any database operation fails.
     """
+    trip_type = get_trip_type_by_trip_type_id(temp_trip.trip_type_id, db)
+    if not trip_type:
+        raise CabboException(
+            f"Invalid trip type ID: {temp_trip.trip_type_id}", status_code=400
+        )
+    trip_type_name= str(trip_type.name)
+    booking_id = _generate_booking_id(trip_type=trip_type_name.lower())
+    if not booking_id:
+        raise CabboException(
+            "Failed to generate booking ID", status_code=500
+        )
+    
     trip = Trip(
         id=temp_trip.id,
+        booking_id = booking_id, # Booking ID to be generated or assigned appropriately per trip type
         creator_id=temp_trip.creator_id,
         creator_type=temp_trip.creator_type,
         trip_type_id=temp_trip.trip_type_id,
@@ -188,7 +232,7 @@ def _create_confirmed_trip_from_temp_trip(
             reason="Trip confirmed",
             db=db,
         )  # Log the trip status audit entry
-        print(f"Trip confirmed for booking ID: {booking_id}")
+        print(f"Trip confirmed for trip ID: {trip.id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
         delete_temp_trip(
             requestor=requestor, db=db
@@ -197,6 +241,7 @@ def _create_confirmed_trip_from_temp_trip(
             trip=trip, db=db
         )  # Populate the trip schema with necessary details
         return TripCreate(
+            trip_id=trip.id,
             booking_id=trip.id,
             payment_info=payment_info,
             status=trip.status,
@@ -298,21 +343,21 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     # This would typically involve checking payment status and updating trip status
     # For now, we will just return a success message
 
-    if not booking_request.booking_id:
+    if not booking_request.trip_id:
         raise CabboException(
-            "Booking ID is required to confirm the booking", status_code=400
+            "Booking Trip ID is required to confirm the booking", status_code=400
         )
 
     # Check if the booking request already exists in the main Trip table
     existing_trip = _is_existing_trip_booking(
-        booking_id=booking_request.booking_id, requestor=customer.id, db=db
+        trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
     if existing_trip:
         raise CabboException("Booking already exists", status_code=400)
 
     # Check in database if the booking exists
-    temp_trip = _get_temp_trip_by_booking_id_and_requestor(
-        booking_id=booking_request.booking_id, requestor=customer.id, db=db
+    temp_trip = _get_temp_trip_by_trip_id_and_requestor(
+        trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
 
     # Verify the payment details in the booking request
@@ -324,7 +369,6 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     return _create_confirmed_trip_from_temp_trip(
         temp_trip=temp_trip,
         requestor=customer.id,
-        booking_id=booking_request.booking_id,
         payment_info=booking_request.payment_info,
         db=db,
     )

@@ -49,6 +49,7 @@ from services.file_service import (
     save_driver_profile_picture,
 )
 from services.message_service import WELCOME_EMAIL_FILE, send_email
+from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import get_trip_by_id
 from services.validation_service import validate_driver_payload
 
@@ -474,9 +475,12 @@ def assign_driver(
         trip=trip, driver=driver, db=db, requestor=current_user
     )
 
-    # Background job to notify customer via email.
+    # Background job to notify customer via email, if email is provided
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    
 
-    # As of now, driver admin will call the driver and inform about the trip and customer manually. Not implementing notification system for driver at the moment to save cost.
+    #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
+    #  Not implementing extra notification system for driver at the moment to save cost.
 
     return {
         "message": f"Driver {assigned_driver.name} assigned to trip {assigned_trip.id}"

@@ -7,7 +7,6 @@ from models.trip.trip_schema import (
     TripBookRequest,
     TripOut,
     TripSearchRequest,
-    TripSearchResponse,
 )
 
 from sqlalchemy.orm import Session
@@ -67,7 +66,7 @@ def confirm_booking(
     _=confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
     return {
         
-        "booking_id": booking.booking_id,
+        "booking_id": booking.trip_id,
         **get_trip_messages(status=TripStatusEnum.confirmed),
     }
 

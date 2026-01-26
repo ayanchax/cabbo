@@ -36,6 +36,9 @@ class Trip(Base):
         unique=True,
         index=True,
     )
+    booking_id = Column(
+        String(64), nullable=False, unique=True, index=True
+    )  # Unique booking reference ID which is shown to customer and driver
     #  Creator information
     creator_id = Column(MySQL_CHAR(36), nullable=False, index=True)
     creator_type = Column(

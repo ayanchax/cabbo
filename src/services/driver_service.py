@@ -1,15 +1,20 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
+from core.trip_helpers import get_trip_type_by_trip_type_id
 from models.driver.driver_orm import Driver
 from models.driver.driver_schema import DriverCreateSchema, DriverUpdateSchema
 from core.security import ActiveInactiveStatusEnum, RoleEnum
 import uuid
 
+from models.map.location_schema import LocationInfo
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_orm import Trip
 from models.user.user_orm import User
 from services.audit_trail_service import log_trip_audit
+from services.customer_service import get_customer_by_id
+from services.geography_service import get_country_by_code
+from services.geography_service import get_country_by_code
 
 
 def create_driver(
@@ -195,11 +200,17 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         if not driver.phone or driver.phone.strip() == "":
             raise CabboException("Driver does not have a valid phone number.", status_code=400)
         
+
         if trip.driver_id==driver.id:
             raise CabboException("Driver is already assigned to this trip.", status_code=400)
 
+        # When we have the driver app we will also check if the driver is kyc_verified or not.
+
         # Assign Driver to Trip
-        trip.driver_id = driver.id
+        # Once driver is assigned to trip, the trip status will still be confirmed until the driver admin marks the trip as ongoing after the driver informs the admin on trip start.
+        # Since we have the driver_id assigned to a confirmed trip, we can easily find assigned trips for a driver without needing a sub status like 'assigned'. Moreover, we are logging this event in the trip audit log.
+        # Later when we have the driver app, the driver can mark the trip as ongoing (post otp from customer) from the app which will update the trip status to ongoing. This will be done same way like Uber, Ola etc.
+        trip.driver_id = driver.id 
         # Update Driver availability to False
         driver.is_available = False
         db.commit()
@@ -221,3 +232,37 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         raise CabboException(
             f"Error assigning driver to trip: {str(e)}", status_code=500, include_traceback=True
         )
+    
+def notify_customer_on_confirmed_trip_driver_assignment(trip:Trip, driver:Driver, db: Session):
+    # Get customer email from trip.creator_id
+    customer_id = trip.creator_id
+    
+    if not customer_id:
+        print("Trip does not have a valid creator to notify customer.")
+        return False
+    
+    customer = get_customer_by_id(customer_id, db)
+    
+    if not customer:
+        print("Customer not found to notify on driver assignment.")
+        return False
+    
+    if not customer.email or customer.email.strip() == "":
+        print("Customer does not have a valid email to notify on trip confirmation and driver assignment. They will have to check the app for trip details.")
+        return False
+    
+    
+    trip_type = get_trip_type_by_trip_type_id(trip.trip_type_id, db)
+
+    if not trip_type:
+        print("Trip type not found for the trip to notify customer.")
+        return False
+    
+    if not trip.origin or not trip.destination:
+        print("Trip origin or destination not found to notify customer.")
+        return False
+    
+    
+    validated_origin = LocationInfo.model_validate(trip.origin)
+    country = get_country_by_code(country_code=validated_origin.country_code, db=db)
+    currency = country.currency_symbol or ""
