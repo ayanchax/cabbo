@@ -1,5 +1,5 @@
 import math
-from typing import List, Union
+from typing import List, Optional, Union
 
 from core.constants import APP_NAME
 from core.exceptions import CabboException
@@ -7,6 +7,7 @@ from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.customer.customer_orm import Customer
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
@@ -485,11 +486,11 @@ def get_airport_dropoff_trip_options(
     )
 
 def get_kwargs_for_airport_transfer(
-    customer_email: str, 
     trip_type: TripTypeEnum, 
     trip: Trip, 
     currency: str,
     db: Session,
+    customer:Optional[Customer]=None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -507,25 +508,27 @@ def get_kwargs_for_airport_transfer(
             print("Invalid origin or destination for trip:", trip.booking_id)
             return {} # Do not proceed if origin or destination is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
 
-        customer_id = trip.creator_id 
-        
-        if not customer_id or not customer_email:
-            print("Invalid customer information for trip:", trip.booking_id)
-            return {} # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
-        
-        #Get customer from customer_id
-        customer = get_customer_by_id(customer_id, db)
-        
         if not customer:
-            print("Customer not found for trip:", trip.booking_id)
-            return {} # Do not proceed if customer not found, do not raise exception here as this is used for email notifications that will mostly fail silently
-        
-        customer_name = customer.name
-        if not customer_name:
-            #Attempt to extract name from email if name is not available
-            customer_name = customer_email.split('@')[0] or "Valued Customer"
-        
-        
+            customer_id = trip.creator_id 
+            
+            if not customer_id:
+                print("Invalid customer information for trip:", trip.booking_id)
+                return {} # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+            
+            #Get customer from customer_id
+            customer = get_customer_by_id(customer_id, db)
+            
+            if not customer:
+                print("Customer not found for trip:", trip.booking_id)
+                return {} # Do not proceed if customer not found, do not raise exception here as this is used for email notifications that will mostly fail silently
+            
+            customer_name = customer.name or "Valued Customer"
+            
+            customer_email = customer.email or None
+        else:
+            customer_name = customer.name or "Valued Customer"
+            customer_email = customer.email or None
+            
         driver= get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
         
 
@@ -547,6 +550,7 @@ def get_kwargs_for_airport_transfer(
         passenger_name = passenger.name if passenger else None
         # Prepare kwargs for the Jinja template
         kwargs = {
+            "customer_email": customer_email,
             "customer_name": customer_name,
             "app_name": app_name,
             "app_url": app_url,

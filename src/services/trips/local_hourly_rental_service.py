@@ -1,6 +1,6 @@
 from datetime import timedelta
 import math
-from typing import List
+from typing import List, Optional
 
 from core.constants import APP_NAME
 from core.config import settings
@@ -14,6 +14,7 @@ from core.trip_helpers import (
     get_default_trip_amenities,
 )
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.customer.customer_orm import Customer
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     LocalCabPricingSchema,
@@ -314,10 +315,10 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
 
 
 def get_kwargs_for_local_hourly_rental(
-    customer_email: str,
     trip: Trip,
     currency: str,
     db: Session,
+    customer: Optional[Customer]=None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -334,20 +335,24 @@ def get_kwargs_for_local_hourly_rental(
             print("Invalid origin for trip:", trip.booking_id)
             return {}  # Do not proceed if origin is invalid
 
-        customer_id = trip.creator_id
+        if not customer :
+            customer_id = trip.creator_id
+            if not customer_id:
+                print("Invalid customer information for trip:", trip.booking_id)
+                return {}  # Do not proceed if customer info is invalid
 
-        if not customer_id or not customer_email:
-            print("Invalid customer information for trip:", trip.booking_id)
-            return {}  # Do not proceed if customer info is invalid
+            # Get customer from customer_id
+            customer = get_customer_by_id(customer_id, db)
 
-        # Get customer from customer_id
-        customer = get_customer_by_id(customer_id, db)
+            if not customer:
+                print("Customer not found for trip:", trip.booking_id)
+                return {}  # Do not proceed if customer not found
 
-        if not customer:
-            print("Customer not found for trip:", trip.booking_id)
-            return {}  # Do not proceed if customer not found
-
-        customer_name = customer.name or customer_email.split("@")[0] or "Valued Customer"
+            customer_name = customer.name or "Valued Customer"
+            customer_email = customer.email or None
+        else:
+            customer_name = customer.name or "Valued Customer"
+            customer_email = customer.email or None
 
         driver = get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
 
@@ -371,6 +376,7 @@ def get_kwargs_for_local_hourly_rental(
         passenger_name = passenger.name if passenger else None
         # Prepare kwargs for the Jinja template
         kwargs = {
+            "customer_email": customer_email,
             "customer_name": customer_name,
             "app_name": app_name,
             "app_url": app_url,

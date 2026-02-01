@@ -49,6 +49,7 @@ from services.file_service import (
     save_driver_profile_picture,
 )
 from services.message_service import WELCOME_EMAIL_FILE, send_email
+from services.notification_service import notify_customer_booking_confirmed
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import get_trip_by_id
 from services.validation_service import validate_driver_payload
@@ -461,6 +462,7 @@ def assign_driver(
     """Assign a driver to a trip."""
     current_user_role = current_user.role
     trip = get_trip_by_id(trip_id, db)
+    
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
     driver = get_driver_by_id(driver_id, db)
@@ -477,6 +479,8 @@ def assign_driver(
 
     # Background job to notify customer via email, if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(notify_customer_booking_confirmed, assigned_trip, db)
+
     
 
     #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.

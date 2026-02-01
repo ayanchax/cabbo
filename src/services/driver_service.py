@@ -36,9 +36,11 @@ def create_driver(
             emergency_contact_number=payload.emergency_contact_number,
             nationality=payload.nationality,
             religion=payload.religion,
-            car_type=payload.cab_type,
-            car_model=payload.cab_model_and_make,
-            car_registration_number=payload.cab_registration_number,
+            fuel_type=payload.fuel_type,
+            cab_type=payload.cab_type,
+            cab_model_and_make=payload.cab_model_and_make,
+            cab_registration_number=payload.cab_registration_number,
+            cab_amenities=payload.amenities.model_dump() if payload.amenities else None,
             payment_mode=payload.payment_mode,
             payment_phone_number=payload.payment_phone_number,
             bank_details=(
@@ -171,15 +173,17 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
             raise CabboException(
                 "Trip must be in confirmed status to assign a driver.", status_code=400
             )
+        # Check Trip has a valid creator_id
         if not trip.creator_id:
             raise CabboException(
                 "Trip does not have a valid creator to assign a driver.", status_code=400
             )
+        # Check Trip creator is a customer
         if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
             raise CabboException(
                 "Trip creator must be a customer to assign a driver.", status_code=400
             )
-        # Check trip has a non-zero balance_payment
+        # Check trip has a non-zero balance_payment, so that customer has paid advance and there is balance to be paid to driver
         if trip.balance_payment <= 0:
             raise CabboException(
                 "Trip must have a non-zero balance payment to assign a driver.",
@@ -190,6 +194,7 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
                 "Trip must have a non-zero advance payment to assign a driver.",
                 status_code=400,
             )
+        # Check Driver is active
         if not driver.is_active:
             raise CabboException("Driver is not active.", status_code=400)
         
@@ -197,10 +202,11 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         if not driver.is_available:
             raise CabboException("Driver is not available.", status_code=400)
         
+        # Check Driver has a valid phone number
         if not driver.phone or driver.phone.strip() == "":
             raise CabboException("Driver does not have a valid phone number.", status_code=400)
         
-
+        # Check Driver is not already assigned to the trip
         if trip.driver_id==driver.id:
             raise CabboException("Driver is already assigned to this trip.", status_code=400)
 

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 import math
-from typing import List
+from typing import List, Optional
 from core.constants import APP_NAME
 from core.exceptions import CabboException
 from core.store import ConfigStore
@@ -13,6 +13,7 @@ from core.trip_helpers import (
 )
 from core.config import settings
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.customer.customer_orm import Customer
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     OutstationCabPricingSchema,
@@ -388,10 +389,10 @@ def get_outstation_trip_options(
 
 
 def get_kwargs_for_outstation_trip(
-    customer_email: str,
     trip: Trip,
     currency: str,
     db: Session,
+    customer:Optional[Customer]=None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -409,20 +410,25 @@ def get_kwargs_for_outstation_trip(
             print("Invalid origin or destination for trip:", trip.booking_id)
             return {}  # Do not proceed if origin or destination is invalid
 
-        customer_id = trip.creator_id
-
-        if not customer_id or not customer_email:
-            print("Invalid customer information for trip:", trip.booking_id)
-            return {}  # Do not proceed if customer info is invalid
-
-        # Get customer from customer_id
-        customer = get_customer_by_id(customer_id, db)
-
         if not customer:
-            print("Customer not found for trip:", trip.booking_id)
-            return {}  # Do not proceed if customer not found
+            customer_id = trip.creator_id
 
-        customer_name = customer.name or customer_email.split("@")[0] or "Valued Customer"
+            if not customer_id or not customer_email:
+                print("Invalid customer information for trip:", trip.booking_id)
+                return {}  # Do not proceed if customer info is invalid
+
+            # Get customer from customer_id
+            customer = get_customer_by_id(customer_id, db)
+
+            if not customer:
+                print("Customer not found for trip:", trip.booking_id)
+                return {}  # Do not proceed if customer not found
+
+            customer_name = customer.name or "Valued Customer"
+            customer_email = customer.email or None
+        else:
+            customer_name = customer.name or "Valued Customer"
+            customer_email = customer.email or None
 
         driver = get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
 
@@ -452,6 +458,7 @@ def get_kwargs_for_outstation_trip(
         # Prepare kwargs for the Jinja template
         kwargs = {
             "customer_name": customer_name,
+            "customer_email": customer_email,
             "app_name": app_name,
             "app_url": app_url,
             "pickup_location": origin.address,
