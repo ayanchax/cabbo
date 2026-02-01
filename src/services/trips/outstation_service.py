@@ -48,7 +48,6 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
     inclusions.extend(
         [
             "Driver allowance",
-            "Minimum parking and toll allowance",
             "Water bottles, candies, and tissues",
         ]
     )
@@ -58,13 +57,13 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
         [
             "Self sponsored driver accomodation",
             "Night surcharges(if applicable)",
-            "Extra tolls(if any)",
+            "Tolls and parking charges(if applicable)",
         ]
     )
     if is_interstate:
         inclusions.extend(
             [
-                "State entry taxes",
+                "State entry taxes", # Applicable state entry taxes for interstate trips, we maintain a configuration for state entry taxes per state, and hence it is included here
             ]
         )
     return inclusions, exclusions
@@ -164,12 +163,12 @@ def _get_outstation_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for outstation trips.
     """
-    non_refund_line = "If you do not utilise the full included days for your outstation package, the full package amount will still be charged; unused days/kilometres are non-refundable."
+    non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
+    
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
-        "If total tolls and/or parking costs exceed the included wallet amount, the excess will be charged. If you use less, the unused balance will be refunded at trip end by adjusting the final fare.",
-        "All extra charges are based on actual usage and will be clearly shown on your invoice.",
+        "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
     ]
 
 

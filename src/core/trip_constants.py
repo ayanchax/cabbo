@@ -33,9 +33,9 @@ TRIP_MESSAGES = {
                     "instruction": "Your booking is confirmed! You will receive the trip and driver details in your registered email shortly. You can also view all your trip details anytime in the app.",
                 },
                 {
-                    "id": "PAY_REMAINING_FARE",
-                    "step": "Pay remaining fare after trip completion",
-                    "instruction": "You will receive an invoice after your trip ends, and you should pay the rest of your fare only through the app or provided payment link in the invoice.",
+                    "id": "PAY_REMAINING_FARE_TO_DRIVER",
+                    "step": "Pay remaining fare to driver after trip completion",
+                    "instruction": "After your trip is completed, please pay the remaining fare shown in the app, along with any additional charges such as tolls, paid parking, extra hours/kilometres, or night surcharges directly to the driver in cash/UPI.",
                 },
             ],
             "advisory": [
@@ -50,14 +50,9 @@ TRIP_MESSAGES = {
                     "additional_info": f"If you are willing to provide driver food or meals during the trip, please do so at your own discretion and {APP_NAME.capitalize()} will not be responsible for any such arrangements.",
                 },
                 {
-                    "id": "DO_NOT_PAY_TO_DRIVER",
-                    "instruction": "Please do not make any trip related payments to the driver directly.",
-                    "additional_info": "All trip related payments should be made through the app for your safety.",
-                },
-                {
-                    "id": "DO_NOT_ENTERTAIN_PAYMENT_REQUESTS_FROM_DRIVER",
-                    "instruction": "Please do not entertain any kind of payment requests from the driver.",
-                    "additional_info": "All payment requests should be directed through the app for your safety. If the driver insists, please report it to our support team.",
+                    "id": "DO_NOT_ENTERTAIN_UNWANTED_PAYMENT_REQUESTS_FROM_DRIVER",
+                    "instruction": "Please do not pay any money to the driver outside of the trip fare and applicable additional charges.",
+                    "additional_info": "You are only required to pay the remaining fare shown in the app and any applicable additional charges such as tolls, paid parking, extra hours/kilometres, or night surcharges. If the driver requests any other payments, please report it to our support team immediately.",
                 },
                 {
                     "id": "OPTIONAL_TIPPING",
@@ -87,5 +82,5 @@ COMMON_EXCLUSIONS = [
     "Personal expenses",
     "Self sponsored driver meals",
     "Tolls(if applicable)",
-    "Extra parking(if any)",
+    "Paid parking(if applicable)",
 ]
