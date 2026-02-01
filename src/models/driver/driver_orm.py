@@ -106,7 +106,7 @@ class Driver(Base):
 
 #Create a orm for driver earnings per trip id
 # This will be populated when the trip is completed and the driver payment is settled from Cabbo's end
-class DriverEarnings(Base):
+class DriverEarning(Base):
     __tablename__ = "driver_earnings"
     id = Column(
         MySQL_CHAR(36),

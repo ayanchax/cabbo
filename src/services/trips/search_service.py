@@ -20,7 +20,7 @@ from core.config import settings
 def search(
     search_in: TripSearchRequest, requestor: str, db: Session
 ) -> TripSearchResponse:
-    config_store: ConfigStore = settings.CONFIG_STORE
+    config_store: ConfigStore = settings.get_config_store(db)
 
     validate_trip_search(
         search_in=search_in, requestor=requestor, db=db, config_store=config_store

@@ -2,8 +2,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from core.config import settings
-import os
-import importlib
 import mysql.connector
 import contextlib
 import logging
@@ -45,60 +43,25 @@ AsyncSessionLocal = sessionmaker(
 
 Base = declarative_base()
 
-
-def _import_all_models():
-    models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
-    for root, _, files in os.walk(models_dir):
-        for filename in files:
-            if filename.endswith("_orm.py") and filename != "__init__.py":
-                # Build the module path relative to the models directory
-                rel_path = os.path.relpath(os.path.join(root, filename), models_dir)
-                module_name = "models." + rel_path.replace(os.sep, ".")[:-3]
-                print(f"Importing model module: {module_name}")
-                importlib.import_module(module_name)
-
-
-def _ensure_database_exists():
-    db_name = settings.DB_NAME
+def check_db_connection():
     try:
         conn = mysql.connector.connect(
             host=settings.DB_HOST,
             user=settings.DB_USER,
             password=settings.DB_PASSWORD,
             port=int(settings.DB_PORT),
+            database=settings.DB_NAME,
         )
+        #Test query
         cursor = conn.cursor()
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
         cursor.close()
         conn.close()
-        logger.info(f"Ensured database '{db_name}' exists.")
+        logger.info("Database connection successful.")
     except Exception as e:
-        logger.error(f"Error ensuring database exists: {e}")
+        logger.error(f"Database connection failed: {e}")
         raise
-
-
-def init_db(seed: bool = True, initialize_config_store: bool = True):
-    logger.info("Initializing database and creating tables if not present...")
-    _ensure_database_exists()
-    _import_all_models()
-  
-    Base.metadata.create_all(bind=engine)
-    
-
-    logger.info("Database initialization complete.")
-    if seed:
-        seed_now()
-    if initialize_config_store:
-        with SessionLocal() as session:
-            settings.init_config_store(session)
-    
-
-
-def seed_now():
-    from services.seed_data_service import init_seed_data
-    with SessionLocal() as session:
-        init_seed_data(session)
-
 
 def yield_mysql_session():
     db = SessionLocal()

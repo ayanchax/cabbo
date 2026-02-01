@@ -182,7 +182,7 @@ class CommonPricingConfiguration(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False
     )  # FK to TripTypeMaster.id
-    dynamic_platform_fee_percent = Column(Float, nullable=False)  # e.g., 5.0 for 5%
+    dynamic_platform_fee_percent = Column(Float, nullable=False)  #The dynamic platform fee as percentage of total fare is applied to the trip type per booking per region. We need this to support different platform fee percentages for different trip types. E.g, airport trips may have lower platform fee percentage than local trips in one region, while in another region it may be different, based on the economics of that region. This dynamic platform fee percentage is a convenience fee charged to the customer to cover the cost of operating the platform for that trip type in that region.
     
     min_included_hours = Column(
         Integer, nullable=True, default=None
@@ -225,7 +225,7 @@ class CommonPricingConfiguration(Base):
     )
 
 
-# Fixed Platform fee for cost to serve per booking
+# Fixed Platform fee for cost to serve per booking, like payment gateway fee, SMS fee, customer database management cost etc.
 class FixedPlatformPricingConfiguration(Base):
     __tablename__ = "fixed_platform_pricing"
     id = Column(
@@ -245,6 +245,13 @@ class FixedPlatformPricingConfiguration(Base):
         comment="FK to countries_master; null means applies to all countries"
 
     )
+    # The fixed platform fee as a flat amount per booking, e.g., payment gateway fee, SMS fee, customer database management cost etc.
+    
+    # This is different from dynamic platform fee percentage which is calculated as percentage of total fare and serves as a convenience fee charged to the customer to cover the cost of operating the platform for that trip type in that region.
+    
+    # Fixed Platform fee = Cost of serving per booking in the platform.
+    # Dynamic Platform fee = Percentage of total fare charged to customer to cover platform operations for that trip type in that region
+    
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
      
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)

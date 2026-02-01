@@ -3,6 +3,7 @@ from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT
 from core.config import settings
 import warnings
 
+from db.database import check_db_connection
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
 from services.file_service import copy_file, create_directories
 
@@ -12,7 +13,6 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from db.database import init_db
 from contextlib import asynccontextmanager
 from core.exceptions import CabboException
 from fastapi.exceptions import RequestValidationError
@@ -27,14 +27,18 @@ from api.v1.routes import router as v1_router
 async def lifespan(app: FastAPI):
     # Startup
     print("Starting application...")
-    print("Initializing database...")
-    init_db()  # Call synchronously, do not await
+
+    print("Checking database connection...")
+    check_db_connection()
+
     print("Starting scheduler...")
     start_scheduler()
     yield
+    
     # Shutdown
     print("Shutting down scheduler...")
     stop_scheduler()
+
     print("Shutting down application...")
 
 

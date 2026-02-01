@@ -85,7 +85,11 @@ class Settings(BaseSettings):
             print(f"Error during ConfigStore initialization: {e}")
             raise
     
-    
+    def get_config_store(self, db: Session):
+        """Get the configuration store, initializing it if necessary."""
+        if not self.CONFIG_STORE:
+            return self.init_config_store(db)
+        return self.CONFIG_STORE
 
 try:
     settings = Settings()

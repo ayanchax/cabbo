@@ -288,7 +288,7 @@ def initiate_trip_booking(
             booking_request=booking_request, requestor=customer.id, db=db
         )
 
-        config_store: ConfigStore = settings.CONFIG_STORE
+        config_store: ConfigStore = settings.get_config_store(db)
         currency:Currency = Currency(
             code=config_store.geographies.country_server.currency or "INR",
             symbol=config_store.geographies.country_server.currency_symbol or "₹",

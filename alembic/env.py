@@ -2,9 +2,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
-
 from dotenv import load_dotenv
-
 from core.constants import PROJECT_ROOT, Environment
 
 # Load .env file
@@ -31,7 +29,7 @@ SQLALCHEMY_DATABASE_URL = (
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-#Dynamic model imports
+# Dynamic model imports
 import os
 import sys
 from pathlib import Path
@@ -50,23 +48,9 @@ ENV_FILE = (
 )
 load_dotenv(dotenv_path=os.path.join(PROJECT_ROOT, ENV_FILE))
 
-# --- DYNAMIC MODEL IMPORTS ---
-import importlib
 
-def _import_all_models():
-    models_dir = os.path.join(os.path.dirname(__file__), "..", "src", "models")
-    for root, _, files in os.walk(models_dir):
-        for filename in files:
-            if filename.endswith("_orm.py") and filename != "__init__.py":
-                rel_path = os.path.relpath(os.path.join(root, filename), models_dir)
-                module_name = "models." + rel_path.replace(os.sep, ".")[:-3]
-                importlib.import_module(module_name)
-
-_import_all_models()
-
-from db.database import Base  # or from models.base import Base
-
-
+import models  # Ensure all models are imported so that they are registered with SQLAlchemy
+from db.database import Base
 
 # Set the sqlalchemy.url dynamically
 config = context.config
@@ -140,9 +124,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

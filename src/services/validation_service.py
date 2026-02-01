@@ -10,6 +10,7 @@ from core.config import settings
 
 # from models.geography.service_area_orm import ServiceableGeographyOrm
 from core.store import ConfigStore
+from db.database import get_mysql_local_session
 from models.airport.airport_schema import AirportSchema
 from models.customer.customer_schema import CustomerCreate, CustomerLoginRequest, CustomerOnboardInitiationRequest, CustomerUpdate
 from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
@@ -822,7 +823,8 @@ def validate_driver_payload(
     payload: Union[DriverUpdateSchema, DriverCreateSchema] = Body(...),
   
 ):
-    config_store: ConfigStore = settings.CONFIG_STORE
+    db = get_mysql_local_session()
+    config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -873,7 +875,8 @@ def validate_customer_payload(
     payload: Union[CustomerUpdate, CustomerCreate] = Body(...),
   
 ):
-    config_store: ConfigStore = settings.CONFIG_STORE
+    db = get_mysql_local_session()
+    config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -908,7 +911,8 @@ def validate_passenger_payload(
     payload: Union[PassengerUpdate, PassengerCreate] = Body(...),
   
 ):
-    config_store: ConfigStore = settings.CONFIG_STORE
+    db = get_mysql_local_session()
+    config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -929,7 +933,8 @@ def validate_passenger_payload(
 def validate_customer_onboarding_payload(
         payload:CustomerOnboardInitiationRequest = Body(...),
 ):
-    config_store: ConfigStore = settings.CONFIG_STORE
+    db = get_mysql_local_session()
+    config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -953,7 +958,8 @@ def validate_customer_onboarding_payload(
 def validate_customer_login_payload(
         payload:Union[CustomerLoginRequest, CustomerOnboardInitiationRequest] = Body(...),
 ):
-    config_store: ConfigStore = settings.CONFIG_STORE
+    db = get_mysql_local_session()
+    config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -976,7 +982,8 @@ def validate_system_user_payload(
     payload: Union[UserCreateSchema, UserUpdateSchema] = Body(...),
   
 ):
-    config_store: ConfigStore = settings.CONFIG_STORE
+    db = get_mysql_local_session()
+    config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
