@@ -1129,7 +1129,6 @@ def _seed_local_cab_pricing(session: Session):
                         max_included_hours=12,  # Maximum 12 hours for local trips
                         min_included_km=40,  # Minimum 40 km included for local trips
                         max_included_km=120,  # Maximum 120 km included for local trips
-                        minimum_parking_wallet=80,  #  minimum parking 80 for local trips
                         region_id=region_id,
                     )
                 )
@@ -1197,8 +1196,6 @@ def _seed_outstation_cab_pricing(session: Session):
                         trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
                         dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
                         overage_warning_km_threshold=50,  # Warning threshold for overages
-                        minimum_toll_wallet=500,  # minimum toll 500 for outstation trips
-                        minimum_parking_wallet=150,  # minimum parking 150 for outstation trips
                         state_id=state_id,
                     )
                 )

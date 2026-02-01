@@ -80,8 +80,6 @@ class PricingBreakdownBaseSchema(BaseModel):
 
 class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
-    minimum_toll_wallet: Optional[float] = None
-    minimum_parking_wallet: Optional[float] = None
     permit_fee: Optional[float] = None
 
     class Config:
@@ -91,7 +89,6 @@ class OutstationPricingBreakdownSchema(PricingBreakdownBaseSchema):
 
 class LocalPricingBreakdownSchema(PricingBreakdownBaseSchema):
     driver_allowance: Optional[float] = None
-    minimum_parking_wallet: Optional[float] = None
 
     class Config:
         extra = "allow"
@@ -159,12 +156,10 @@ class CommonPricingConfigurationSchema(BaseModel):
     overage_warning_km_threshold: Optional[float] = (
         None  # For airport pickup/drop and outstation
     )
-    toll: Optional[float] = None  # For airport pickup and drop
+    toll: Optional[float] = None  # For airport pickup and drop, if applicable
     parking: Optional[float] = None  # For airport pickup
     state_id: Optional[str] = None  # FK to State.id
     region_id: Optional[str] = None  # FK to GeoRegion.id
-    minimum_toll_wallet: Optional[float] = None  # For local/outstation
-    minimum_parking_wallet: Optional[float] = None  # For local/outstation
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     last_modified: Optional[datetime] = None

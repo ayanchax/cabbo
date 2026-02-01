@@ -207,8 +207,7 @@ class CommonPricingConfiguration(Base):
     )  # For airport pickup/drop and outstation
     toll = Column(Float, nullable=True)  # For airport pickup and drop
     parking = Column(Float, nullable=True)  # For airport pickup
-    minimum_toll_wallet = Column(Float, nullable=True)  # For local/outstation
-    minimum_parking_wallet = Column(Float, nullable=True)  # For local/outstation
+    
     region_id = Column(
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True  
     )

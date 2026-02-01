@@ -1,4 +1,3 @@
-import json
 from sqlalchemy.orm import Session
 import math
 from typing import List
@@ -31,10 +30,8 @@ from services.customer_service import get_customer_by_id
 from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km, get_state_from_location
 from services.passenger_service import get_passenger_by_id
-from services.pricing_service import get_preauthorized_minimum_wallet_amount
 
 from services.validation_service import validate_outstation_trip_schedule
-from utils.utility import remove_none_recursive
 
 
 def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
@@ -142,13 +139,14 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
         # If the distance is zero or negative, it indicates an error in estimation
         raise CabboException(
             "Could not estimate distance between origin and destination",
-            status_code=400,
+            status_code=500,
         )
-    if est_km < 100:
-        # Ensure that the estimated distance is at least 100 km for outstation trips
+    min_distance_for_outstation_trip = 70  # in km
+    if est_km < min_distance_for_outstation_trip: # todo : configurable minimum distance for outstation trips
+        # Ensure that the estimated distance is at least 70 km for outstation trips
         raise CabboException(
-            "Outstation trips must have a minimum distance of 100 km, the route you have selected is less than 100 km, try with a different route or switch to local trip",
-            status_code=400,
+            f"Outstation trips must have a minimum distance of {min_distance_for_outstation_trip} km, the route you have selected is less than {min_distance_for_outstation_trip} km, try with a different route or switch to local trip",
+            status_code=500,
         )
 
     return search_in.origin, search_in.destination, est_km
@@ -230,15 +228,7 @@ def get_outstation_trip_options(
 
     _, _, est_km = _get_trip_origin_destination_distance_outstation(search_in)
     total_trip_days = validate_outstation_trip_schedule(search_in)
-    # Minumum toll wallet amount is configured to 500.00 for outstation trips, if the total cost of the toll goes above the minimum toll amount during the trip, then the surplus amount will be charged to the customer accordingly, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
-    minimum_toll_wallet = get_preauthorized_minimum_wallet_amount(
-        configuration.auxiliary_pricing.common.minimum_toll_wallet
-    )
-
-    # Minimum parking wallet amount is configured to 150 for outstation trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer accordingly, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
-    minimum_parking_wallet = get_preauthorized_minimum_wallet_amount(
-        configuration.auxiliary_pricing.common.minimum_parking_wallet
-    )
+    
 
     # Identify unique state borders crossed (including between hops)
     is_interstate, total_unique_states, unique_states = _track_state_transitions(
@@ -308,8 +298,6 @@ def get_outstation_trip_options(
         total_price_before_platform_fee = (
             base_price
             + driver_allowance_amount
-            + minimum_toll_wallet
-            + minimum_parking_wallet
             + permit_fee
             + overage_amount
         )
@@ -320,8 +308,6 @@ def get_outstation_trip_options(
         price_breakdown = OutstationPricingBreakdownSchema(
             base_fare=math.ceil(base_price),
             driver_allowance=math.ceil(driver_allowance_amount),
-            minimum_toll_wallet=math.ceil(minimum_toll_wallet),
-            minimum_parking_wallet=math.ceil(minimum_parking_wallet),
             permit_fee=math.ceil(permit_fee),
             platform_fee=math.ceil(platform_fee_amount),
         )

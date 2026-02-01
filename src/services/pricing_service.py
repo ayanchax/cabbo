@@ -126,13 +126,6 @@ def get_airport_toll(toll: float, toll_road_preferred: bool):
     return toll if toll_road_preferred and toll is not None else 0.0
 
 
-def get_preauthorized_minimum_wallet_amount(pre_authorized_wallet_amount: float):
-    return (
-        pre_authorized_wallet_amount
-        if pre_authorized_wallet_amount is not None
-        else 0.0
-    )
-
 def get_driver_allowance(option: TripSearchOption):
     if not option or not hasattr(option, "price_breakdown"):
         return 0.0
@@ -149,16 +142,10 @@ def get_tolls_estimate(booking_request: TripBookRequest) -> float:
     Returns:
         float: The estimated tolls for the trip.
     """
-    if booking_request.preferences.trip_type == TripTypeEnum.local:
-        # For local trips, tolls are not applicable
+    if booking_request.preferences.trip_type in [TripTypeEnum.local, TripTypeEnum.outstation]:
+        # For local trips and outstation trips, tolls are not estimated in advance
         return 0.0
-    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
-        # For outstation trips, use the tolls estimate from the request if available
-        return (
-            booking_request.option.price_breakdown.minimum_toll_wallet
-            if booking_request.option.price_breakdown.minimum_toll_wallet
-            else 0.0
-        )
+    
     elif booking_request.preferences.trip_type in [
         TripTypeEnum.airport_pickup,
         TripTypeEnum.airport_drop,
@@ -185,21 +172,7 @@ def get_parking_estimate(booking_request: TripBookRequest) -> float:
     Returns:
         float: The estimated parking charges for the trip.
     """
-    if booking_request.preferences.trip_type == TripTypeEnum.local:
-        # For local trips, parking is not applicable
-        return (
-            booking_request.option.price_breakdown.minimum_parking_wallet
-            if booking_request.option.price_breakdown.minimum_parking_wallet
-            else 0.0
-        )
-    elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
-        # For outstation trips, use the parking estimate from the request if available
-        return (
-            booking_request.option.price_breakdown.minimum_parking_wallet
-            if booking_request.option.price_breakdown.minimum_parking_wallet
-            else 0.0
-        )
-    elif booking_request.preferences.trip_type == TripTypeEnum.airport_pickup:
+    if booking_request.preferences.trip_type == TripTypeEnum.airport_pickup:
         # For airport pickup, use the parking estimate from the request if available
         return (
             booking_request.option.price_breakdown.parking
@@ -207,7 +180,7 @@ def get_parking_estimate(booking_request: TripBookRequest) -> float:
             else 0.0
         )
     else:
-        return 0.0  # For airport drop, parking is not applicable
+        return 0.0  # For all other trip types, parking is not estimated in advance
 
 
 def get_common_pricing_configurations_by_trip_type_id(

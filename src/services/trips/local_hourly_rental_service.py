@@ -31,7 +31,6 @@ from models.trip.trip_schema import (
 from services.customer_service import get_customer_by_id
 from services.driver_service import get_driver_by_id
 from services.passenger_service import get_passenger_by_id
-from services.pricing_service import get_preauthorized_minimum_wallet_amount
 
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import validate_date_time
@@ -187,11 +186,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         True  # Always include phone charger for local trips
     )
     in_car_amenities.aux_cable = True  # Always include aux cable for local trips
-    # Minimum parking wallet amount is configured to 80 for local trips, if the total cost of the parking goes above the minimum parking amount, then the surplus amount will be charged to the customer accordingly, otherwise the left/unused amount will be refunded(deducted from final bill) to the customer.
-
-    minimum_parking_wallet = get_preauthorized_minimum_wallet_amount(
-        configuration.auxiliary_pricing.common.minimum_parking_wallet
-    )
+    
     # Get the package ID if provided, otherwise use configs.min_included_hours for duration
 
     package = _get_trip_package_by_id(
@@ -224,8 +219,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         max_included_hours = configuration.auxiliary_pricing.common.max_included_hours
         base_hours = min(package.included_hours, max_included_hours)
         base_fare = hourly_rate * base_hours
-        # No tolls are added for local trips as for local trips toll cannot be estimated or walleted in advance, if any tolls are incurred, they will be charged accordingly to the customer once the trip is completed
-        total_price_before_platform_fee = base_fare + minimum_parking_wallet
+        driver_allowance_amount =math.ceil(package.driver_allowance) if package.driver_allowance else 0.0
+        total_price_before_platform_fee = base_fare  + driver_allowance_amount
 
         # Platform fee is a sum of a fixed cost(infra cost) to service and a percentage of the total price calculated before adding platform fee/convenience fee
 
@@ -235,14 +230,13 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
 
         price_breakdown = LocalPricingBreakdownSchema(
             base_fare=math.ceil(base_fare),
-            minimum_parking_wallet=math.ceil(minimum_parking_wallet),
             platform_fee=math.ceil(platform_fee_amount),
             driver_allowance=(
                 math.ceil(package.driver_allowance) if package.driver_allowance else 0.0
             ),
         )
         # For local trips, we can't estimate distance in advance since routes are uncertain and hence no est_km is provided.
-        # Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, to keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
+        # Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, we keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
         overage_amount_per_km = pricing_schema.overage_amount_per_km
         overage_amount_per_hour = pricing_schema.overage_amount_per_hour
         disclaimer_lines = _get_local_trips_disclaimer_lines(
