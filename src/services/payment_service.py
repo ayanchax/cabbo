@@ -101,8 +101,8 @@ def get_trip_payment_order(
             requestor=temp_trip.creator_id,
         ),
     )
-    booking_id = temp_trip.id  # Use the temporary trip ID as the booking ID
-    return booking_id, _create_razorpay_order(razorpay_order=razorpay_schema)
+    trip_id = temp_trip.id  # Use the temporary trip ID as the booking ID
+    return trip_id, _create_razorpay_order(razorpay_order=razorpay_schema)
 
 
 def verify_payment(payment_detail: RazorPayPaymentResponse):

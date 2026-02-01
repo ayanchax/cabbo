@@ -21,7 +21,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     # Add the `booking_id` column to the `trips` table
-    pass
+    op.drop_index(op.f('ix_trips_booking_id'), table_name='trips')
+    op.create_index(op.f('ix_trips_booking_id'), 'trips', ['booking_id'], unique=True)
 
 
 def downgrade() -> None:

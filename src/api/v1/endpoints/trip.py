@@ -38,12 +38,12 @@ def init_booking(
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    booking_id, order =  initiate_trip_booking(
+    trip_id, order =  initiate_trip_booking(
         booking_request=trip_in, customer=current_customer, db=db
     )
 
     return {
-        "booking_id": booking_id,
+        "trip_id": trip_id, #This is the temp trip id created for the booking
         "order_id": order.get("id"),
         "amount": order.get("amount"),
         "currency": order.get("currency"),
@@ -63,10 +63,10 @@ def confirm_booking(
     """
     Confirm the trip booking after payment is successful.
     """
-    _=confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
+    created_trip=confirm_trip_booking(booking_request=booking, customer=current_customer, db=db)
     return {
         
-        "booking_id": booking.trip_id,
+        "booking_id": created_trip.booking_id,
         **get_trip_messages(status=TripStatusEnum.confirmed),
     }
 

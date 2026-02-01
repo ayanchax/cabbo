@@ -108,14 +108,14 @@ class TripDetails(BaseModel):
         exclude_none = True  # Exclude fields with None values from the model dump
 
 class TripCreate(BaseModel):
-    trip_id: str  # Unique trip ID
+    trip_id: str  # Unique trip ID for the trip for internal use
     booking_id: Optional[str] = None  # Unique booking ID for the trip which will be different from trip_id and generally used for customer communication
     payment_info: Optional[RazorPayPaymentResponse]  # Payment details is mandatory
     status: TripStatusEnum = TripStatusEnum.pending  # Initial status of the trip
     trip_details:TripDetails
  
 class TripOut(BaseModel):
-    trip_id: str  # Unique booking ID for the trip
+    trip_id: str  # Unique trip ID for the trip for internal use
     payment_info: RazorPayPaymentResponse  # Payment details is mandatory as we do not confirm trips without an advance payment
     
     class Config:

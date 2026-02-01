@@ -61,6 +61,8 @@ def _generate_booking_id(trip_type: str, length: int = 16) -> str:
 
         # Combine the prefix and unique part
         return f"{trip_type_prefix}-{unique_part}"
+    #Example output: AIRPORT-1A2B3C4D5E6F7G8H
+        
 
     except Exception as e:
         return None
@@ -144,7 +146,7 @@ def _create_confirmed_trip_from_temp_trip(
     
     trip = Trip(
         id=temp_trip.id,
-        booking_id = booking_id, # Booking ID to be generated or assigned appropriately per trip type
+        booking_id = booking_id,
         creator_id=temp_trip.creator_id,
         creator_type=temp_trip.creator_type,
         trip_type_id=temp_trip.trip_type_id,
@@ -295,7 +297,7 @@ def initiate_trip_booking(
             symbol=config_store.geographies.country_server.currency_symbol or "₹",
         )
         # Create razor pay order for the trip
-        booking_id, order = get_trip_payment_order(
+        trip_id, order = get_trip_payment_order(
             booking_request=booking_request, customer=customer, temp_trip=temp_trip, currency=currency
         )
         payment_provider_metadata= {
@@ -319,7 +321,7 @@ def initiate_trip_booking(
             order=order, trip_details=trip_schema
         )  # Attach trip details to order notes
 
-        return booking_id, order
+        return trip_id, order
     except Exception as e:
         db.rollback()
         raise CabboException(
