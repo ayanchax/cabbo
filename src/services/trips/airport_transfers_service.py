@@ -1,27 +1,36 @@
 import math
 from typing import List, Union
+
+from core.constants import APP_NAME
 from core.exceptions import CabboException
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
     AirportPricingBreakdownSchema,
     OveragesSchema,
 )
+from models.trip.trip_enums import TripTypeEnum
+from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
     TripSearchOption,
     TripSearchRequest,
     TripSearchResponse,
 )
+from services.customer_service import get_customer_by_id
+from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km
-
+from core.config import settings
+from services.passenger_service import get_passenger_by_id
 from services.validation_service import (
     validate_airport_schedule,
     validate_placard_requirements,
 )
+from sqlalchemy.orm import Session
 
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
@@ -278,7 +287,7 @@ def get_airport_pickup_trip_options(
             total_price=math.ceil(
                 total_price_before_platform_fee + price_breakdown.platform_fee
             ),
-            included_km=max_included_km,
+            included_kms=max_included_km,
             price_breakdown=price_breakdown,
             package=package_label,  # Use package string for display
             package_short_label=package_short_label,
@@ -322,9 +331,9 @@ def get_airport_pickup_trip_options(
         in_car_amenities=get_default_trip_amenities(),
         total_trip_days=1,
         estimated_km=est_km,
-        included_km=(
-            _options[0].included_km
-            if _options and len(_options) > 0 and _options[0].included_km
+        included_kms=(
+            _options[0].included_kms
+            if _options and len(_options) > 0 and _options[0].included_kms
             else None
         ),
         choices=len(_options),  # Total number of options returned
@@ -417,7 +426,7 @@ def get_airport_dropoff_trip_options(
                 total_price_before_platform_fee + price_breakdown.platform_fee
             ),
             price_breakdown=price_breakdown,
-            included_km=max_included_km,
+            included_kms=max_included_km,
             package=package_label,
             package_short_label=package_short_label,
             overages=(
@@ -461,9 +470,9 @@ def get_airport_dropoff_trip_options(
         in_car_amenities=get_default_trip_amenities(),
         total_trip_days=1,
         estimated_km=est_km,
-        included_km=(
-            _options[0].included_km
-            if _options and len(_options) > 0 and _options[0].included_km
+        included_kms=(
+            _options[0].included_kms
+            if _options and len(_options) > 0 and _options[0].included_kms
             else None
         ),
         choices=len(_options),  # Total number of options returned
@@ -474,3 +483,97 @@ def get_airport_dropoff_trip_options(
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
     )
+
+def get_kwargs_for_airport_transfer(
+    customer_email: str, 
+    trip_type: TripTypeEnum, 
+    trip: Trip, 
+    currency: str,
+    db: Session,
+) -> dict:
+    try:
+        if not trip or not trip.booking_id:
+            print("Invalid trip information.")
+            return {} # Do not proceed if trip info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+        
+        app_name = APP_NAME.capitalize()
+        app_url = settings.APP_URL
+
+        # Validate and extract origin and destination
+        origin = LocationInfo.model_validate(trip.origin)
+        destination = LocationInfo.model_validate(trip.destination)
+
+        if not origin or not destination:
+            print("Invalid origin or destination for trip:", trip.booking_id)
+            return {} # Do not proceed if origin or destination is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+
+        customer_id = trip.creator_id 
+        
+        if not customer_id or not customer_email:
+            print("Invalid customer information for trip:", trip.booking_id)
+            return {} # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+        
+        #Get customer from customer_id
+        customer = get_customer_by_id(customer_id, db)
+        
+        if not customer:
+            print("Customer not found for trip:", trip.booking_id)
+            return {} # Do not proceed if customer not found, do not raise exception here as this is used for email notifications that will mostly fail silently
+        
+        customer_name = customer.name
+        if not customer_name:
+            #Attempt to extract name from email if name is not available
+            customer_name = customer_email.split('@')[0] or "Valued Customer"
+        
+        
+        driver= get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
+        
+
+        # Prepare luggage information
+        luggage_info = None
+        if trip.num_luggages and trip.num_luggages > 0:  # Only include luggage info if num_luggages > 0
+            luggage_parts = []
+            if trip.num_large_suitcases and trip.num_large_suitcases > 0:
+                luggage_parts.append(f"{trip.num_large_suitcases} large suitcases")
+            if trip.num_carryons and trip.num_carryons > 0:
+                luggage_parts.append(f"{trip.num_carryons} carry-ons")
+            if trip.num_backpacks and trip.num_backpacks > 0:
+                luggage_parts.append(f"{trip.num_backpacks} backpacks")
+            luggage_info = ", ".join(luggage_parts) if luggage_parts else None
+
+        # Prepare special requests
+        special_requests = trip.special_needs_requests if trip.special_needs_requests else None
+        passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
+        passenger_name = passenger.name if passenger else None
+        # Prepare kwargs for the Jinja template
+        kwargs = {
+            "customer_name": customer_name,
+            "app_name": app_name,
+            "app_url": app_url,
+            "trip_type": trip_type.value,
+            "pickup_location": origin.address,
+            "drop_location": destination.address,
+            "booking_id": trip.booking_id,
+            "trip_date": trip.start_datetime.strftime("%d %b %Y"),  # Format date
+            "trip_time": trip.start_datetime.strftime("%I:%M %p"),  # Format time
+            "luggage_info": luggage_info,
+            "placard_name": trip.placard_name if trip.placard_required and trip.placard_name else None,
+            "flight_number": trip.flight_number if trip.flight_number else None,
+            "special_requests": special_requests,
+            "cab_type": driver.cab_type if driver else None,
+            "fuel_type": driver.fuel_type if driver else None,
+            "model": driver.cab_model_and_make if driver else None,
+            "driver_name": driver.name if driver else None,
+            "driver_contact": driver.phone if driver else None,
+            "cab_number": driver.cab_registration_number if driver else None,
+            "passenger_name": passenger_name,
+            "currency": currency,
+            "total_fare": trip.final_price,
+            "amount_paid": trip.advance_payment,
+            "amount_due": trip.balance_payment,
+        }
+
+        return kwargs
+    except Exception as e:
+        print("Error preparing kwargs for airport transfer:", str(e))
+        return {}  # Return empty dict on error to avoid breaking email notifications

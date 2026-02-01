@@ -1,13 +1,8 @@
 from typing import List
 from sqlalchemy.orm import Session
-from core.constants import APP_NAME
 from core.store import ConfigStore
 from models.airport.airport_orm import AirportModel
 from models.airport.airport_schema import AirportSchema
-from models.map.location_schema import LocationInfo
-from models.trip.trip_enums import TripTypeEnum
-from models.trip.trip_orm import Trip
-from core.config import settings
 
 
 SEED_AIRPORTS_DATA = [
@@ -124,12 +119,3 @@ def get_airport_by_region_code(
             return airport #Return the first matching airport
     return None
 
-def get_kwargs_for_airport_transfer(customer_email:str, trip_type:TripTypeEnum, trip:Trip, currency:str ):
-    
-    app_name = APP_NAME.capitalize()
-    app_url = settings.APP_URL
-
-    origin = trip.origin
-    validated_origin = LocationInfo.model_validate(origin)
-    destination = trip.destination
-    validated_destination = LocationInfo.model_validate(destination)

@@ -1,27 +1,41 @@
 from datetime import timedelta
 import math
 from typing import List
+
+from core.constants import APP_NAME
+from core.config import settings
 from core.exceptions import CabboException
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
-from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
+from core.trip_helpers import (
+    derive_trip_sort_priority,
+    generate_trip_field_dictionary,
+    generate_trip_hash,
+    get_default_trip_amenities,
+)
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     LocalCabPricingSchema,
     LocalPricingBreakdownSchema,
     OveragesSchema,
     TripPackageConfigSchema,
 )
+from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
     TripSearchOption,
     TripSearchRequest,
     TripSearchResponse,
 )
+from services.customer_service import get_customer_by_id
+from services.driver_service import get_driver_by_id
+from services.passenger_service import get_passenger_by_id
 from services.pricing_service import get_preauthorized_minimum_wallet_amount
 
 from services.validation_service import validate_local_trip_schedule
-from utils.utility import remove_none_recursive, validate_date_time
+from utils.utility import validate_date_time
+from sqlalchemy.orm import Session
 
 
 def _get_inclusions_exclusions_for_local_trip():
@@ -86,9 +100,7 @@ def _get_local_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for local trips.
     """
-    non_refund_line = (
-        "If you do not utilise your full package hours and/or kilometres, the full package amount will still be charged; unused hours/kilometres are non-refundable."
-    )
+    non_refund_line = "If you do not utilise your full package hours and/or kilometres, the full package amount will still be charged; unused hours/kilometres are non-refundable."
     if applicable_driver_allowance == 0.0:
         return [
             f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{overage_amount_per_hour} per hour and/or {currency}{overage_amount_per_km} per km will apply.",
@@ -253,7 +265,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             ),
             price_breakdown=price_breakdown,
             included_hours=package_included_hours,
-            included_km=package_included_km,
+            included_kms=package_included_km,
             package=package_label,  # Use package string for display
             package_short_label=package_short_label,
             overages=(
@@ -294,9 +306,9 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             if _options and len(_options) > 0 and _options[0].included_hours
             else None
         ),
-        included_km=(
-            _options[0].included_km
-            if _options and len(_options) > 0 and _options[0].included_km
+        included_kms=(
+            _options[0].included_kms
+            if _options and len(_options) > 0 and _options[0].included_kms
             else None
         ),
         choices=len(_options),  # Total number of options returned
@@ -306,6 +318,98 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
-
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
     )
+
+
+def get_kwargs_for_local_hourly_rental(
+    customer_email: str,
+    trip: Trip,
+    currency: str,
+    db: Session,
+) -> dict:
+    try:
+        if not trip or not trip.booking_id:
+            print("Invalid trip information.")
+            return {}  # Do not proceed if trip info is invalid
+
+        app_name = APP_NAME.capitalize()
+        app_url = settings.APP_URL
+
+        # Validate and extract origin
+        origin = LocationInfo.model_validate(trip.origin)
+
+        if not origin:
+            print("Invalid origin for trip:", trip.booking_id)
+            return {}  # Do not proceed if origin is invalid
+
+        customer_id = trip.creator_id
+
+        if not customer_id or not customer_email:
+            print("Invalid customer information for trip:", trip.booking_id)
+            return {}  # Do not proceed if customer info is invalid
+
+        # Get customer from customer_id
+        customer = get_customer_by_id(customer_id, db)
+
+        if not customer:
+            print("Customer not found for trip:", trip.booking_id)
+            return {}  # Do not proceed if customer not found
+
+        customer_name = customer.name or customer_email.split("@")[0] or "Valued Customer"
+
+        driver = get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
+
+        # Prepare inclusions and exclusions
+        inclusions, exclusions = _get_inclusions_exclusions_for_local_trip()
+
+        # Prepare in-car amenities
+        in_car_amenities =  None
+        if driver and driver.cab_amenities:
+            in_car_amenities = driver.cab_amenities
+        else:
+            in_car_amenities= trip.in_car_amenities or {}
+
+        in_car_amenities = {key: value for key, value in in_car_amenities.items() if value}
+
+        # Prepare overages disclaimer
+        overages = trip.overages or {}
+        overages_disclaimer = overages.get("disclaimer") if overages else None
+        extra_charges_disclaimers = overages.get("extra_charges_disclaimers") if overages else None
+        passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
+        passenger_name = passenger.name if passenger else None
+        # Prepare kwargs for the Jinja template
+        kwargs = {
+            "customer_name": customer_name,
+            "app_name": app_name,
+            "app_url": app_url,
+            "pickup_location": origin.address,
+            "start_date": trip.start_datetime.strftime("%d %b %Y, %I:%M %p"),
+            "expected_end_date": trip.expected_end_datetime.strftime("%d %b %Y, %I:%M %p") if trip.expected_end_datetime else None,
+            "booking_id": trip.booking_id,
+            "package_label": trip.package_label,
+            "cab_type": driver.cab_type if driver else None,
+            "fuel_type": driver.fuel_type if driver else None,
+            "model": driver.cab_model_and_make if driver else None,
+            "driver_name": driver.name if driver else None,
+            "driver_contact": driver.phone if driver else None,
+            "cab_number": driver.cab_registration_number if driver else None,
+            "passenger_name": passenger_name,
+            "currency": currency,
+            "total_fare": trip.final_price,
+            "amount_paid": trip.advance_payment,
+            "amount_due": trip.balance_payment,
+            "in_car_amenities": in_car_amenities,
+            "inclusions": inclusions,
+            "exclusions": exclusions,
+            "overages": {
+                "disclaimer": overages_disclaimer,
+                "extra_charges_disclaimers": extra_charges_disclaimers,
+            },
+        }
+
+       
+        return kwargs
+    except Exception as e:
+        print("Error preparing kwargs for local hourly rental service:", str(e))
+        return {}  # Return empty dict on error to avoid breaking email notifications

@@ -186,7 +186,7 @@ def generate_trip_field_dictionary(
         option_dict["package"] = option.package
         option_dict["package_short_label"] = option.package_short_label
         option_dict["included_hours"] = option.included_hours
-        option_dict["included_km"] = option.included_km
+        option_dict["included_km"] = option.included_kms
     elif search_in.trip_type == TripTypeEnum.outstation:
         preference_dict["destination"] = (
             search_in.destination.model_dump(exclude_none=True, exclude_unset=True) if search_in.destination else None

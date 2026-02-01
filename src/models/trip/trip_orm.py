@@ -92,6 +92,9 @@ class Trip(Base):
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
+    included_kms = Column(
+        Float, nullable=True, default=0.0
+    ) # Included km for hourly rental trips and outstation trips
     # Date and time information - END
 
     # Passenger and luggage information
@@ -153,12 +156,12 @@ class Trip(Base):
     )  # Interstate permit fee for outstation trips
     platform_fee = Column(
         Float, nullable=True, default=0.0
-    )  # Platform fee charged by the system
+    )  # Platform fee charged by the system is the fixed plus dynamic convenience fee
     quoted_price = Column(Float, nullable=True)  # Customer's counter-quote
     final_price = Column(Float, nullable=True, default=0.0)  # System-calculated
     final_display_price = Column(
         Float, nullable=True, default=0.0
-    )  # Price shown to driver admin (final or quoted) w/o platform fee/convenience fee
+    )  # Price shown to driver admin (final) w/o platform fee/convenience fee
     advance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Advance payment made by customer(generally the platform fee/convenience fee), if any

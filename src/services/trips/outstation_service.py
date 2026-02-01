@@ -1,23 +1,36 @@
 import json
+from sqlalchemy.orm import Session
 import math
 from typing import List
+from core.constants import APP_NAME
 from core.exceptions import CabboException
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
-from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
+from core.trip_helpers import (
+    derive_trip_sort_priority,
+    generate_trip_field_dictionary,
+    generate_trip_hash,
+    get_default_trip_amenities,
+)
+from core.config import settings
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     OutstationCabPricingSchema,
     OutstationPricingBreakdownSchema,
     OveragesSchema,
 )
+from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
     TripSearchOption,
     TripSearchRequest,
     TripSearchResponse,
 )
+from services.customer_service import get_customer_by_id
+from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km, get_state_from_location
+from services.passenger_service import get_passenger_by_id
 from services.pricing_service import get_preauthorized_minimum_wallet_amount
 
 from services.validation_service import validate_outstation_trip_schedule
@@ -153,17 +166,13 @@ def _get_outstation_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for outstation trips.
     """
-    non_refund_line = (
-        "If you do not utilise the full included days for your outstation package, the full package amount will still be charged; unused days/kilometres are non-refundable."
-    )
+    non_refund_line = "If you do not utilise the full included days for your outstation package, the full package amount will still be charged; unused days/kilometres are non-refundable."
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
         "If total tolls and/or parking costs exceed the included wallet amount, the excess will be charged. If you use less, the unused balance will be refunded at trip end by adjusting the final fare.",
         "All extra charges are based on actual usage and will be clearly shown on your invoice.",
     ]
-
-    
 
 
 def _get_outstation_pricing_configuration_by_state(
@@ -196,7 +205,7 @@ def get_allowed_outstation_states(config_store: ConfigStore) -> set:
 
 def get_outstation_trip_options(
     search_in: TripSearchRequest, config_store: ConfigStore
-)->TripSearchResponse:
+) -> TripSearchResponse:
     """
     Retrieves outstation trip options based on the search request and configuration store.
     Args:
@@ -267,7 +276,13 @@ def get_outstation_trip_options(
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
         # Calculate interstate permit fee if applicable per cab type and fuel type for the unique states crossed
         if is_interstate and unique_states:
-            permit_fee = configuration.auxiliary_pricing.permit.permit_fee
+            if total_trip_days<=7: #If the trip is less than or equal to 7 days, charge permit fee once as permit fee is configured per week basis
+                permit_fee = configuration.auxiliary_pricing.permit.permit_fee
+            else:
+                weekly_fee = configuration.auxiliary_pricing.permit.permit_fee
+                # Calculate pro-rata fee for days beyond the first week
+                permit_fee = weekly_fee + ((total_trip_days - 7) * (weekly_fee / 7))
+
         base_fare_per_km = pricing_schema.base_fare_per_km
         min_included_km_per_day = pricing_schema.min_included_km_per_day
         overage_amount_per_km = pricing_schema.overage_amount_per_km
@@ -325,7 +340,7 @@ def get_outstation_trip_options(
                 total_price_before_platform_fee + platform_fee_amount
             ),
             price_breakdown=price_breakdown,
-            included_km=included_km,
+            included_kms=included_km,
             package=package_label,
             package_short_label=package_short_label,
             overages=(
@@ -368,9 +383,9 @@ def get_outstation_trip_options(
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
         estimated_km=est_km,
-        included_km=(
-            _options[0].included_km
-            if _options and len(_options) > 0 and _options[0].included_km
+        included_kms=(
+            _options[0].included_kms
+            if _options and len(_options) > 0 and _options[0].included_kms
             else None
         ),
         choices=len(_options),  # Total number of options returned
@@ -380,10 +395,113 @@ def get_outstation_trip_options(
         unique_states=unique_states if is_interstate else None,
     )
 
-   
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
     )
-   
+
+
+def get_kwargs_for_outstation_trip(
+    customer_email: str,
+    trip: Trip,
+    currency: str,
+    db: Session,
+) -> dict:
+    try:
+        if not trip or not trip.booking_id:
+            print("Invalid trip information.")
+            return {}  # Do not proceed if trip info is invalid
+
+        app_name = APP_NAME.capitalize()
+        app_url = settings.APP_URL
+
+        # Validate and extract origin and destination
+        origin = LocationInfo.model_validate(trip.origin)
+        destination = LocationInfo.model_validate(trip.destination)
+
+        if not origin or not destination:
+            print("Invalid origin or destination for trip:", trip.booking_id)
+            return {}  # Do not proceed if origin or destination is invalid
+
+        customer_id = trip.creator_id
+
+        if not customer_id or not customer_email:
+            print("Invalid customer information for trip:", trip.booking_id)
+            return {}  # Do not proceed if customer info is invalid
+
+        # Get customer from customer_id
+        customer = get_customer_by_id(customer_id, db)
+
+        if not customer:
+            print("Customer not found for trip:", trip.booking_id)
+            return {}  # Do not proceed if customer not found
+
+        customer_name = customer.name or customer_email.split("@")[0] or "Valued Customer"
+
+        driver = get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
+
+        passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
+        passenger_name = passenger.name if passenger else None
+
+        # Prepare inclusions and exclusions
+        inclusions, exclusions = _get_inclusions_exclusions_for_outstation_trip(
+            is_interstate=trip.is_interstate
+        )
+
+        # Prepare in-car amenities
+        in_car_amenities = None
+        if driver and driver.cab_amenities:
+            in_car_amenities = driver.cab_amenities
+        else:
+            # Fallback to trip's in-car amenities itself, if driver's cab amenities are not available
+            in_car_amenities = trip.in_car_amenities or {}
+
+        in_car_amenities = {key: value for key, value in in_car_amenities.items() if value}
+
+        # Prepare overages disclaimer
+        overages = trip.overages or {}
+        overages_disclaimer = overages.get("disclaimer") if overages else None
+        extra_charges_disclaimers = overages.get("extra_charges_disclaimers") if overages else None
+
+        # Prepare kwargs for the Jinja template
+        kwargs = {
+            "customer_name": customer_name,
+            "app_name": app_name,
+            "app_url": app_url,
+            "pickup_location": origin.address,
+            "hops": trip.hops,
+            "drop_location": destination.address,
+            "start_date": trip.start_datetime.strftime("%d %b %Y, %I:%M %p"),
+            "end_date": trip.end_datetime.strftime("%d %b %Y, %I:%M %p") if trip.end_datetime else None,
+            "total_trip_days": trip.total_days or "-",
+            "estimated_km": trip.estimated_km,
+            "included_km": trip.included_kms,
+            "booking_id": trip.booking_id,
+            "package_label": trip.package_label,
+            "driver_name": driver.name if driver else None,
+            "driver_contact": driver.phone if driver else None,
+            "cab_number": driver.cab_registration_number if driver else None,
+            "cab_type": driver.cab_type if driver else None,
+            "model": driver.cab_model_and_make if driver else None,
+            "fuel_type": driver.fuel_type if driver else None,
+            "passenger_name": passenger_name,
+            "currency": currency,
+            "total_fare": trip.final_price,
+            "amount_paid": trip.advance_payment,
+            "amount_due": trip.balance_payment,
+            "in_car_amenities": in_car_amenities,
+            "inclusions": inclusions,
+            "exclusions": exclusions,
+            "overages": {
+                "disclaimer": overages_disclaimer,
+                "extra_charges_disclaimers": extra_charges_disclaimers,
+            },
+           
+        }
+
+        
+        return kwargs
+    except Exception as e:
+        print("Error preparing kwargs for outstation trip:", str(e))
+        return {}  # Return empty dict on error to avoid breaking email notifications

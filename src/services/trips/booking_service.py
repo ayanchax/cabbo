@@ -162,6 +162,7 @@ def _create_confirmed_trip_from_temp_trip(
         end_datetime=temp_trip.end_datetime,
         expected_end_datetime=temp_trip.expected_end_datetime,
         total_days=temp_trip.total_days,
+        included_kms=temp_trip.included_kms,
         num_adults=temp_trip.num_adults,
         num_children=temp_trip.num_children,
         num_passengers=temp_trip.num_passengers,

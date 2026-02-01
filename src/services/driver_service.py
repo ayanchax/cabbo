@@ -36,9 +36,9 @@ def create_driver(
             emergency_contact_number=payload.emergency_contact_number,
             nationality=payload.nationality,
             religion=payload.religion,
-            car_type=payload.car_type,
-            car_model=payload.car_model,
-            car_registration_number=payload.car_registration_number,
+            car_type=payload.cab_type,
+            car_model=payload.cab_model_and_make,
+            car_registration_number=payload.cab_registration_number,
             payment_mode=payload.payment_mode,
             payment_phone_number=payload.payment_phone_number,
             bank_details=(

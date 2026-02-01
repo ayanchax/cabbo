@@ -331,6 +331,7 @@ def create_temporary_trip(
             if hasattr(booking_request.metadata, "total_trip_days")
             else None
         ),
+        included_kms= booking_request.metadata.included_kms if hasattr(booking_request.metadata, "included_kms") else None,
         num_adults=booking_request.preferences.num_adults,
         num_children=booking_request.preferences.num_children,
         num_passengers=booking_request.preferences.num_adults

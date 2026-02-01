@@ -41,17 +41,6 @@ def create_passenger(
         )
 
 
-def _get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
-    """Retrieve a passenger by their ID.
-    Args:
-        passenger_id (str): The UUID of the passenger.
-        db (Session): The database session.
-    Returns:
-        Passenger: The passenger object if found, otherwise None.
-    """
-    return db.query(Passenger).filter(Passenger.id == passenger_id).first()
-
-
 def get_all_passengers_by_customer_id(customer_id: str, db: Session):
     """Retrieve all passengers for a given customer.
     Args:
@@ -110,7 +99,7 @@ def update_passenger(
         Passenger: The updated passenger object.
     """
     try:
-        passenger = _get_passenger_by_id(passenger_id, db)
+        passenger = get_passenger_by_id(passenger_id, db)
         if not passenger:
             raise CabboException("Passenger not found", status_code=404)
 
@@ -133,7 +122,7 @@ def delete_passenger(passenger_id: str, db: Session) -> bool:
         bool: True if deletion was successful, False otherwise.
     """
     try:
-        passenger = _get_passenger_by_id(passenger_id, db)
+        passenger = get_passenger_by_id(passenger_id, db)
         if not passenger:
             raise CabboException("Passenger not found", status_code=404)
         db.delete(passenger)
@@ -152,7 +141,7 @@ def deactivate_passenger(passenger_id: str, db: Session) -> Passenger:
     Returns:
         Passenger: The deactivated passenger object.
     """
-    passenger = _get_passenger_by_id(passenger_id, db)
+    passenger = get_passenger_by_id(passenger_id, db)
     if not passenger:
         raise CabboException("Passenger not found", status_code=404)
 
@@ -170,7 +159,7 @@ def activate_passenger(passenger_id: str, db: Session) -> Passenger:
     Returns:
         Passenger: The activated passenger object.
     """
-    passenger = _get_passenger_by_id(passenger_id, db)
+    passenger = get_passenger_by_id(passenger_id, db)
     if not passenger:
         raise CabboException("Passenger not found", status_code=404)
 
@@ -212,7 +201,7 @@ def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Sess
         and search_in.passenger.id
     ):
         search_in.passenger.id = search_in.passenger.id.strip()
-        passenger = _get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
+        passenger = get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
         if not passenger:
             raise CabboException("Invalid passenger ID provided", status_code=400)
         if passenger.customer_id != requestor:
@@ -232,7 +221,7 @@ def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Sess
 
         search_in.passenger = "self"  # Use a string to indicate self-booking
 
-def _get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
+def get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
     """Retrieve a passenger by their ID.
     Args:
         passenger_id (str): The UUID of the passenger.
@@ -249,7 +238,7 @@ def populate_passenger_details(passenger_id:str, db:Session):
     """
     if passenger_id:
               # Validate passenger details
-            passenger=_get_passenger_by_id(passenger_id=passenger_id, db=db)
+            passenger=get_passenger_by_id(passenger_id=passenger_id, db=db)
             if passenger:
                 return PassengerRequest.model_validate(passenger)
     return None
@@ -280,7 +269,7 @@ def is_passenger_belongs_to_customer(passenger_id:str, customer_id:str, db:Sessi
     Returns:
         Union[Passenger, bool]: The passenger object if they belong to the customer, False otherwise.
     """
-    passenger = _get_passenger_by_id(passenger_id=passenger_id, db=db)
+    passenger = get_passenger_by_id(passenger_id=passenger_id, db=db)
     if not passenger:
         return False
     return passenger if passenger.customer_id == customer_id else False

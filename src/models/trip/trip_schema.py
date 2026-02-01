@@ -240,7 +240,7 @@ class TripSearchOption(BaseModel):
         OutstationPricingBreakdownSchema,
         LocalPricingBreakdownSchema,
     ]  # Trip type specific pricing breakdown
-    included_km: Optional[float] = None
+    included_kms: Optional[float] = None
     included_hours: Optional[int] = None  # For local trips
     package_short_label: Optional[str] = (
         None  # Short label for the package, e.g., "4 Hours / 40 KM"
@@ -265,13 +265,14 @@ class TripSearchAdditionalData(BaseModel):
     total_trip_days: Optional[int] = (
         None  # Total number of days for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
+    
     estimated_km: Optional[float] = (
         None  # Estimated kilometers for the trip, mainly applicable for outstation trips  # This is used to calculate the total price for outstation trips which are multi-day trips
     )
 
     included_hours: Optional[float] = None  # Included hours for the trip, mainly applicable for local trips
 
-    included_km: Optional[float] = None  # Included kilometers for the trip, mainly applicable for outstation and local trips
+    included_kms: Optional[float] = None  # Included kilometers for the trip, mainly applicable for outstation and local trips
     choices:Optional[int] = None  # Number of choices available for the user to book from
     
     is_interstate: Optional[bool] = (

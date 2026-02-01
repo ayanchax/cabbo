@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>✈️ Cabbo Airport Transfer Booking Confirmed!</title>
+    <title>✈️ {{ app_name }} Airport Transfer Booking Confirmed!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
         body {
@@ -140,7 +140,17 @@
     </style>
 </head>
 
+
 <body>
+    <!-- Expected JINJA Variables
+     app_logo_url, app_name, app_url,
+         customer_name, booking_id,
+         trip_date, trip_time,
+         pickup_location, drop_location, flight_number,placard_name, trip_type
+         driver_name, driver_contact, cab_number, cab_type,
+         total_fare, amount_paid, amount_due, currency
+            passenger_name (optional)
+     -->
     <div class="container">
         <!-- Logo -->
         <div class="logo">
@@ -308,16 +318,24 @@
                 <div class="detail-row"><span class="label">Date & Time</span><span class="value">{{ trip_date }} at {{
                         trip_time }}</span></div>
 
-                <div class="detail-row"><span class="label">Passengers</span><span class="value">{{ num_passengers
-                        }}</span>
-                </div>
+
+                {% if luggage_info %}
                 <div class="detail-row"><span class="label">Luggage</span><span class="value">{{ luggage_info }}</span>
                 </div>
+                {% endif %}
                 {% if flight_number %}
                 <div class="detail-row"><span class="label">Flight No.</span><span class="value">{{ flight_number
                         }}</span>
                 </div>
                 {% endif %}
+
+                {% if placard_name %}
+                <div class="detail-row"><span class="label">Name on placard</span><span class="value">{{
+                        placard_name
+                        }}</span></div>
+                {% endif %}
+
+
                 {% if special_requests %}
                 <div class="detail-row"><span class="label">Special Requests</span><span class="value">{{
                         special_requests
@@ -333,9 +351,10 @@
                 <div class="detail-row"><span class="label">Contact</span><span class="value">{{ driver_contact
                         }}</span>
                 </div>
-                <div class="detail-row"><span class="label">Cab Number</span><span class="value">{{ cab_number }}</span>
-                </div>
-                <div class="detail-row"><span class="label">Cab Type</span><span class="value">{{ cab_type }}</span>
+                <div class="detail-row"><span class="label">Cab</span><span class="value">{{ cab_type or 'Sedan' }} - {{
+                        fuel_type or 'Diesel' }} - {{ model or 'Unknown model' }}</span></div>
+                <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-'
+                        }}</span>
                 </div>
             </div>
 
@@ -352,6 +371,17 @@
                         amount_due }}</span>
                 </div>
             </div>
+
+            <!-- If there is passenger info, then it means trip has been booked by user for someone else -->
+
+            {% if passenger_name %}
+            <div class="card" style="background: #f4f8ff; padding: 16px; margin-top: 16px;">
+                <h3>👤 Passenger: {{ passenger_name }}</h3>
+                <div class="sub" style="font-size: 0.9rem; color: #6b7280; text-align: left;">You booked this trip for
+                    someone else.</div>
+            </div>
+            {% endif %}
+
 
             <!-- Trip CTA -->
             <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta"

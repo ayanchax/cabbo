@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>⏱️ Cabbo Hourly Rental Booking Confirmed</title>
+    <title>⏱️ {{app_name}} Hourly Rental Booking Confirmed</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
         body {
@@ -189,12 +189,12 @@
          start_date, expected_end_date (or end_date),
          included_hours, included_km,
          package_label,
-         options -> (car_type, fuel_type),
          overages -> (disclaimer, extra_charges_disclaimers),
          in_car_amenities -> ac, music_system, water_bottle, tissues, candies, snacks, phone_charger, aux_cable, bluetooth, wifi
          inclusions (list), exclusions (list),
          driver_name, driver_contact, cab_number, cab_type,
-         total_fare, amount_paid, amount_due, currency, is_round_trip
+         total_fare, amount_paid, amount_due, currency
+        passenger_name (optional)
     -->
     <div class="container">
         <!-- Logo -->
@@ -319,14 +319,19 @@
         <!-- Cab & Driver -->
         <div class="card">
             <h3>🚕 Cab & Driver</h3>
-            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ cab_type }}{% if options %} —
-                    {{ options.car_type }} / {{ options.fuel_type }}{% endif %}</span></div>
-            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-' }}</span>
-            </div>
+
             <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name or '-' }}</span>
             </div>
             <div class="detail-row"><span class="label">Driver Contact</span><span class="value">{{ driver_contact or
                     '-' }}</span></div>
+
+            <!-- We are having only model (e.g, Maruti Suzuki Alto) because the package label contains the car type and fuel type -->
+            {% if model %}
+            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ model or 'Unknown model'
+                    }}</span></div>
+            {% endif %}
+            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-' }}</span>
+            </div>
         </div>
 
         <!-- Fare Summary -->
@@ -341,6 +346,7 @@
         </div>
 
         <!-- Inclusions & Amenities and Exclusions -->
+        {% if inclusions and exclusions and in_car_amenities %}
         <div class="card">
             <h3>🧰 In-car amenities & inclusions</h3>
             <div class="badges">
@@ -355,13 +361,16 @@
                 {% if in_car_amenities.bluetooth %}<div class="badge">Bluetooth</div>{% endif %}
                 {% if in_car_amenities.wifi %}<div class="badge">Wi‑Fi</div>{% endif %}
             </div>
+            {% if inclusions and exclusions %}
             <div style="margin-top:10px">
                 <div style="font-weight:600;color:#2d7ff9">What's included</div>
                 <ul>{% for inc in inclusions %}<li>{{ inc }}</li>{% endfor %}</ul>
                 <div style="font-weight:600;color:#f05555;margin-top:8px">What's excluded</div>
                 <ul>{% for ex in exclusions %}<li>{{ ex }}</li>{% endfor %}</ul>
             </div>
+            {% endif %}
         </div>
+        {% endif %}
 
         <!-- Overages Disclaimer Terms and Conditions -->
         {% if overages and overages.disclaimer %}
@@ -369,6 +378,16 @@
             <h3>⚠️ Important</h3>
             <div style="color:#7a5a00;white-space:pre-line;font-size:13px">{{ overages.extra_charges_disclaimers }}
             </div>
+        </div>
+        {% endif %}
+
+        <!-- If there is passenger info, then it means trip has been booked by user for someone else -->
+
+        {% if passenger_name %}
+        <div class="card" style="background: #f4f8ff; padding: 16px; margin-top: 16px;">
+            <h3>👤 Passenger: {{ passenger_name }}</h3>
+            <div class="sub" style="font-size: 0.9rem; color: #6b7280; text-align: left;">You booked this trip for
+                someone else.</div>
         </div>
         {% endif %}
 

@@ -5,7 +5,8 @@ from core.exceptions import CabboException
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
 from models.map.location_schema import Address
-from models.trip.trip_enums import CarTypeEnum
+from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
+from models.trip.trip_schema import AmenitiesSchema
 from models.user.user_enum import GenderEnum, NationalityEnum, ReligionEnum
 from datetime import datetime
 
@@ -30,9 +31,11 @@ class DriverBaseSchema(BaseModel):
         exclude_none = True  # Exclude fields with None values from the model dump
 
 class DriverCreateSchema(DriverBaseSchema):
-    car_type: CarTypeEnum  # Type of car (e.g., sedan, SUV)
-    car_model: str  # Model of the car (e.g., Maruti Swift)
-    car_registration_number: str  # Registration number of the car
+    cab_type: CarTypeEnum  # Type of car (e.g., sedan, SUV)
+    fuel_type: FuelTypeEnum  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
+    cab_model_and_make: str  # Model of the car (e.g., Maruti Swift)
+    cab_registration_number: str  # Registration number of the car
+    amenities:Optional[AmenitiesSchema]=None # Cab amenities details
     payment_mode: PaymentModeEnum  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str]  # Alternate payment phone number for UPI payments
     bank_details: Optional[BankDetailsSchema] = None  # Bank details for bank transfer payments
@@ -63,9 +66,11 @@ class DriverCreateSchema(DriverBaseSchema):
 
 
 class DriverUpdateSchema(DriverBaseSchema):
-    car_type: Optional[CarTypeEnum] = None  # Type of car (e.g., sedan, SUV)
-    car_model: Optional[str] = None  # Model of the car (e.g., Maruti Swift)
-    car_registration_number: Optional[str] = None  # Registration number of the car
+    cab_type: Optional[CarTypeEnum] = None  # Type of car (e.g., sedan, SUV)
+    fuel_type: Optional[FuelTypeEnum] = None  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
+    cab_model_and_make: Optional[str] = None  # Model of the car (e.g., Maruti Swift)
+    cab_registration_number: Optional[str] = None  # Registration number of the car
+    amenities:Optional[AmenitiesSchema]=None # Cab amenities details
     payment_mode: Optional[PaymentModeEnum] = None  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str] = None  # Alternate payment phone number for UPI payments
     bank_details: Optional[BankDetailsSchema] = None  # Bank details for bank transfer payments

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>🚗 Cabbo Outstation Booking Confirmed</title>
+    <title>🚗 {{ app_name }} Outstation Booking Confirmed</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
         body {
@@ -364,20 +364,18 @@
 
 <body>
     <!-- Expected Jinja fields (examples):
-         app_logo_url, app_name, app_url,
+         app_name, app_url,
          customer_name, booking_id,
          pickup_location, drop_location,
          start_date, end_date, trip_time,
-         total_trip_days, estimated_km, included_km,
-         package_label, package_short_label,
-         options -> (car_type, fuel_type, total_price, price_breakdown),
-         price_breakdown.base_fare, driver_allowance, minimum_toll_wallet, minimum_parking_wallet, permit_fee, platform_fee,
-         overages -> (overage_amount_per_km, overage_estimate_amount, disclaimer, extra_charges_disclaimers),
+         total_trip_days, included_km,
+         package_label,
+         overages -> (disclaimer, extra_charges_disclaimers),
          in_car_amenities -> ac, music_system, water_bottle, tissues, candies, snacks, phone_charger, aux_cable, bluetooth, wifi
          inclusions (list), exclusions (list),
-         is_interstate, unique_states (list),
-         driver_name, driver_contact, cab_number, cab_type,
+         driver_name, driver_contact, cab_number, cab_type, model, fuel_type,
          total_fare, amount_paid, amount_due
+         passenger_name (optional)
     -->
     <div class="container">
         <div class="logo">
@@ -473,11 +471,13 @@
         <div class="header">🎉 Booking Confirmed</div>
         <div class="sub">Hi {{ customer_name }}, your outstation trip with <strong>{{ app_name }}</strong> is confirmed.
         </div>
+
+
         <!-- Route  -->
         <div class="card">
-            <h3>📍 Route {% if is_round_trip %}<span
+            <h3>📍 Route<span
                     style="display:inline-block;background:rgba(45,127,249,0.12);color:#2d7ff9;padding:6px 8px;border-radius:999px;font-weight:700;font-size:12px;margin-left:8px;vertical-align:middle;">Round
-                    trip</span>{% endif %}</h3>
+                    trip</span></h3>
 
             <table class="route-table" cellpadding="0" cellspacing="0">
                 <tr>
@@ -554,6 +554,9 @@
             </table>
         </div>
 
+
+      
+
         <!-- TRIP & PACKAGE: use email-friendly detail rows (label/value) -->
         <div class="card">
             <h3>📅 Trip & Package</h3>
@@ -561,27 +564,27 @@
             </div>
             <div class="detail-row"><span class="label">Start — End</span><span class="value">{{ start_date }}{% if
                     end_date %} — {{ end_date }}{% endif %}</span></div>
-            <div class="detail-row"><span class="label">Time</span><span class="value">{{ trip_time or '-' }}</span>
-            </div>
+            <!-- Example 1200 km | Round trip | (4 days) - AC Sedan(4+1) - (petrol) -->
             <div class="detail-row"><span class="label">Package</span><span class="value">{{ package_label }}</span>
             </div>
-            <div class="detail-row"><span class="label">Days</span><span class="value">{{ total_trip_days }}</span>
-            </div>
-            <div class="detail-row"><span class="label">Included km</span><span class="value">{{ included_km }}
-                    km</span></div>
+
         </div>
 
         <!-- CAB & DRIVER -->
         <div class="card">
             <h3>🚕 Cab & Driver</h3>
-            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ cab_type }}{% if options %} —
-                    {{ options.car_type }} / {{ options.fuel_type }}{% endif %}</span></div>
-            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-' }}</span>
-            </div>
             <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name or '-' }}</span>
             </div>
             <div class="detail-row"><span class="label">Driver Contact</span><span class="value">{{ driver_contact or
                     '-' }}</span></div>
+
+            <!-- We are having only model (e.g, Maruti Suzuki Alto) because the package label contains the car type and fuel type -->
+            {% if model %}
+            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ model or 'Unknown model'
+                    }}</span></div>
+            {% endif %}
+            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-' }}</span>
+            </div>
         </div>
 
         <!-- FARE SUMMARY -->
@@ -597,6 +600,7 @@
 
 
         <!-- Inclusions & Amenities and Exclusions -->
+        {% if inclusions and exclusions and in_car_amenities %}
         <div class="card">
             <h3>🧰 In-car amenities & inclusions</h3>
             <div class="badges">
@@ -618,6 +622,7 @@
                 <ul>{% for ex in exclusions %}<li>{{ ex }}</li>{% endfor %}</ul>
             </div>
         </div>
+        {% endif %}
 
         <!-- Overages Disclaimer Terms and Conditions -->
         {% if overages and overages.disclaimer %}
@@ -625,6 +630,15 @@
             <h3>⚠️ Important</h3>
             <div style="color:#7a5a00;white-space:pre-line;font-size:13px">{{ overages.extra_charges_disclaimers }}
             </div>
+        </div>
+        {% endif %}
+
+  <!-- If there is passenger info, then it means trip has been booked by user for someone else -->
+
+        {% if passenger_name %}
+        <div class="card" style="background: #f4f8ff; padding: 16px; margin-top: 16px;">
+            <h3>👤 Passenger: {{ passenger_name }}</h3>
+            <div class="sub" style="font-size: 0.9rem; color: #6b7280; text-align: left;">You booked this trip for someone else.</div>
         </div>
         {% endif %}
 

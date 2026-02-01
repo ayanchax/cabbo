@@ -1,6 +1,5 @@
 from typing import List
 
-from sqlalchemy import func
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.state_orm import StateModel
 from models.policies.cancelation_orm import CancellationPolicy
@@ -32,82 +31,7 @@ from core.exceptions import CabboException
 from models.trip.trip_schema import TripBookRequest, TripSearchOption
 
 APP_COUNTRY_CURRENCY_SYMBOL = "₹"  # Placeholder for currency symbol, adjust as needed
-def retrieve_interstate_permit_fee(
-    unique_states: List[str],
-    trip_days: int,
-    cab_type_id: str,
-    fuel_type_id: str,
-    db: Session,
-):
-    """
-    Calculates and returns the total interstate permit fee for a list of unique states crossed during a trip,
-    based on the total trip duration in days, cab type, and fuel type.
-
-    For each unique state, the permit fee is charged for a minimum of 7 days (weekly fee).
-    If the trip is longer than 7 days, a pro-rata fee is added for the extra days.
-
-    Args:
-        unique_states (List[str]): List of unique state names (case-insensitive) crossed during the trip.
-        trip_days (int): Total number of days for the trip (inclusive).
-        cab_type_id (str): The cab type ID for which to fetch permit fees.
-        fuel_type_id (str): The fuel type ID for which to fetch permit fees.
-        db (Session): SQLAlchemy database session for ORM queries.
-
-    Returns:
-        float: The total permit fee for all unique states crossed.
-
-    Raises:
-        CabboException: If any of the provided states are not found in the database or required parameters are missing.
-    """
-    unique_states_lower = [s.lower() for s in unique_states]
-    if not unique_states_lower or trip_days <= 0:
-        # If no states provided or trip days is 0 or less, return 0
-        return 0.0
-    # Fetch all states with permit fees that match the unique states and are valid for the given cab and fuel type
-    if not cab_type_id or not fuel_type_id:
-        return 0.0
-
-    # Initialize permit fee to 0
-    permit_fee = 0.0
-
-    all_states = (
-        db.query(RegionModel, PermitFeeConfiguration, CabType, FuelType)
-        .join(
-            PermitFeeConfiguration,
-            PermitFeeConfiguration.state_id == RegionModel.id,
-        )
-        .join(CabType, PermitFeeConfiguration.cab_type_id == CabType.id)
-        .join(FuelType, PermitFeeConfiguration.fuel_type_id == FuelType.id)
-        .filter(
-            func.lower(RegionModel.region_name).in_(unique_states_lower),
-            PermitFeeConfiguration.permit_fee != None,
-            PermitFeeConfiguration.permit_fee > 0,
-            PermitFeeConfiguration.cab_type_id == cab_type_id,
-            PermitFeeConfiguration.fuel_type_id == fuel_type_id,
-        )
-        .all()
-    )
-    if not all_states:
-        # If no states found with permit fees, return 0
-        return 0.0
-    for _, permit_fee_config, _, _ in all_states:
-        permit_fee_config_schema = PermitFeeConfigurationSchema.model_validate(
-            permit_fee_config
-        )
-        if (
-            permit_fee_config_schema.permit_fee is not None
-            and permit_fee_config_schema.permit_fee > 0
-        ):
-            weekly_fee = permit_fee_config_schema.permit_fee
-            if trip_days <= 7:
-                # If the trip is 7 days or less, charge only the weekly fee
-                state_permit_fee = weekly_fee
-            else:
-                # Calculate pro-rata fee for days beyond the first week
-                state_permit_fee = weekly_fee + ((trip_days - 7) * (weekly_fee / 7))
-            permit_fee += state_permit_fee
-    return permit_fee
-
+ 
 
 def retrieve_trip_wise_pricing_config(
     db: Session, trip_type: TripTypeEnum

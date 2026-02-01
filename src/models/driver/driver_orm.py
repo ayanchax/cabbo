@@ -1,7 +1,9 @@
 from core.security import RoleEnum
+from core.trip_helpers import get_default_trip_amenities
 from models.financial.payments_enum import PaymentModeEnum
 from models.trip.trip_enums import (
     CarTypeEnum,
+    FuelTypeEnum,
 )
 import uuid
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -45,13 +47,18 @@ class Driver(Base):
     religion = Column(Enum(ReligionEnum), nullable=True)  # e.g., Hindu, Muslim, Christian
     address=Column(JSON, nullable=True) # We will store the address as a JSON object and validate with Address Schema 
     # e.g., {"address_line1": "123 Main St", "address_line2": "Apt 4B", "region_id": "uuid from regions_master", "state_id": "uuid from states_master", "country_id": "uuid from countries_master", "postal_code": "560001"}
-    #Car details
-    car_type = Column(
+    
+    #Cab, fuel details
+    cab_type = Column(
         Enum(CarTypeEnum), nullable=False, default=CarTypeEnum.sedan
     )  # sedan, suv, hatchback, etc.
-    car_model = Column(String(255), nullable=False) # Car model (e.g., Maruti Swift)
-    car_registration_number = Column(String(32), nullable=False, unique=True) # e.g., KA-01-AB-1234
-    
+    fuel_type = Column(Enum(FuelTypeEnum), nullable=False, default=FuelTypeEnum.diesel)  # petrol, diesel, electric, hybrid
+    cab_model_and_make = Column(String(255), nullable=False) # Cab model and make free text (e.g., Maruti Swift) 
+    cab_registration_number = Column(String(32), nullable=False, unique=True) # e.g., KA-01-AB-1234
+    cab_amenities= Column(
+        JSON, default=get_default_trip_amenities().model_dump(), nullable=True # e.g., {"ac": true, "music_system": true, "wifi": false, "phone_charger": true}
+    )  # Cab amenities details
+
     #Payment intake details
     payment_mode = Column(Enum(PaymentModeEnum), nullable=False)  # gpay, phonepe, paytm
     payment_phone_number = Column(String(32), nullable=True)  # Alternate payment phone number for upi payments like gpay, phonepe, paytm, if not provided, use phone number

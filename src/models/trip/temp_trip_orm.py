@@ -13,9 +13,7 @@ from sqlalchemy import (
     Enum,
     Float,
     DateTime,
-    ForeignKey,
     Boolean,
-    Text,
 )
 from sqlalchemy.sql import func
 from db.database import Base
@@ -81,6 +79,10 @@ class TempTrip(Base):
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
+    included_kms = Column(
+        Float, nullable=True, default=0.0
+    )  # Included km for hourly rental trips and outstation trips
+     
     # Date and time information - END
 
     # Passenger and luggage information
