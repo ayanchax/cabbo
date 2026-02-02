@@ -49,4 +49,3 @@ python main.py
 
 ---
 
-You can now start building out the API endpoints and models for Cabbo!
