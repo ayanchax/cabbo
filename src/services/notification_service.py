@@ -1,7 +1,6 @@
 from core.constants import APP_NAME
 from core.security import RoleEnum
 from core.trip_helpers import get_trip_type_by_trip_type_id
-from models.customer.customer_orm import Customer, CustomerEmailVerification
 from models.customer.customer_schema import CustomerRead
 from models.driver.driver_orm import Driver
 from models.trip.trip_enums import TripTypeEnum
@@ -108,7 +107,7 @@ async def notify_customer_booking_confirmed(booking: Trip, db: Session) -> bool:
             return True
     return False
 
-def notify_customer_onboarded(customer:Customer) -> bool:
+def notify_customer_onboarded(customer:CustomerRead) -> bool:
     if not customer.email:
         return False  # No email to send notification, do not proceed
     name = customer.name if customer.name else customer.email.split("@")[0]

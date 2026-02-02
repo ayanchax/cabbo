@@ -15,6 +15,7 @@ from models.customer.customer_schema import (
     CustomerOnboardInitiationRequest,
     CustomerLoginRequest,
     CustomerLoginResponse,
+    CustomerRead,
 )
 from services.customer_service import (
     is_existing_customer,
@@ -76,8 +77,9 @@ def register(
     
     # Send welcome email in background if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    customer_schema = CustomerRead.model_validate(customer)
     orchestrator.add_task(
-        notify_customer_onboarded, task_name="notify_customer_onboarded", customer=customer
+        notify_customer_onboarded, task_name="notify_customer_onboarded", customer= customer_schema
     )
 
     
