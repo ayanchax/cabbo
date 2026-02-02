@@ -14,10 +14,10 @@ from .user.user_orm import User
 
 __all__ = [
     "AirportModel", "CabType", "FuelType", "Customer", "PreOnboardingCustomer", "CustomerEmailVerification",
-    "KYCDocumentTypes", "Driver","DriverEarning","DriverRating",
+    "KYCDocumentTypes",
     "CountryModel", "StateModel", "RegionModel", "CancellationPolicy",
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",
     "CommonPricingConfiguration", "FixedPlatformPricingConfiguration", "PermitFeeConfiguration",
-    "Trip", "TripTypeMaster", "TripStatusAudit", "OutstandingDue","TripPackageConfig",
+    "Trip", "Driver","DriverEarning","DriverRating","TripTypeMaster", "TripStatusAudit", "OutstandingDue","TripPackageConfig",
     "TempTrip", "User"
 ]

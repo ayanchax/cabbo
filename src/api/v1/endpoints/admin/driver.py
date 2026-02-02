@@ -12,7 +12,6 @@ from core.exceptions import CabboException
 from core.security import ActiveInactiveStatusEnum, RoleEnum, validate_user_token
 from db.database import yield_mysql_session
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
-from models.documents.kyc_document_schema import KYCDocumentSchema
 from models.driver.driver_schema import (
     DriverBaseSchema,
     DriverCreateSchema,
@@ -22,7 +21,6 @@ from models.driver.driver_schema import (
 )
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
-from core.constants import APP_NAME
 from services.kyc_service import (
     list_kyc_documents,
     mark_kyc_verification_status_for_driver_document,
@@ -35,11 +33,9 @@ from services.driver_service import (
     create_driver,
     deactivate_driver,
     delete_driver,
-    get_all_active_drivers,
     get_all_drivers,
     get_all_drivers_by_availability,
     get_all_drivers_by_status,
-    get_all_inactive_drivers,
     get_driver_by_id,
     update_driver,
     update_driver_last_modified,
@@ -48,8 +44,7 @@ from services.file_service import (
     remove_driver_profile_picture,
     save_driver_profile_picture,
 )
-from services.message_service import WELCOME_EMAIL_FILE, send_email
-from services.notification_service import notify_customer_booking_confirmed
+from services.notification_service import notify_customer_booking_confirmed, notify_driver_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import get_trip_by_id
 from services.validation_service import validate_driver_payload
@@ -74,18 +69,9 @@ def add_driver(
 
     driver = create_driver(payload=payload, db=db, created_by=current_user_role)
     # Send welcome email in background if email is provided
-    if driver.email and driver.name:
-        subject = f"Welcome to {APP_NAME}!"
-        from services.message_service import render_email_template
-
-        html_content = render_email_template(
-            WELCOME_EMAIL_FILE,
-            for_driver=True,
-            name=driver.name,
-            app_name=APP_NAME.capitalize(),
-        )
-        background_tasks.add_task(send_email, driver.email, subject, html_content)
-
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(notify_driver_onboarded, task_name="NotifyDriverOnboarded", driver=driver)
+   
     return DriverBaseSchema.model_validate(driver)
 
 
@@ -462,7 +448,7 @@ def assign_driver(
     """Assign a driver to a trip."""
     current_user_role = current_user.role
     trip = get_trip_by_id(trip_id, db)
-    
+
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
     driver = get_driver_by_id(driver_id, db)
@@ -479,9 +465,12 @@ def assign_driver(
 
     # Background job to notify customer via email, if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
-    orchestrator.add_task(notify_customer_booking_confirmed, assigned_trip, db)
-
-    
+    orchestrator.add_task(
+        notify_customer_booking_confirmed,
+        task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
+        booking=assigned_trip,
+        db=db,
+    )
 
     #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
     #  Not implementing extra notification system for driver at the moment to save cost.

@@ -33,6 +33,7 @@ from services.file_service import (
 )
 
 from models.customer.customer_schema import (
+    CustomerRead,
     CustomerReadWithProfilePicture,
     CustomerUpdate,
     CustomerReadAfterUpdate,
@@ -40,14 +41,9 @@ from models.customer.customer_schema import (
 )
 from core.security import validate_customer_token
 from core.exceptions import CabboException
-from core.config import settings
-from services.message_service import (
-    send_email,
-    EMAIL_VERIFY_EXPIRY_UNIT,
-    EMAIL_VERIFICATION_FILE,
-)
-from core.constants import APP_NAME
-from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_any_trip, is_passenger_belongs_to_customer, update_passenger
+from services.notification_service import notify_verification_email_to_customer
+from services.orchestration_service import BackgroundTaskOrchestrator
+from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_customer, update_passenger
 from services.validation_service import validate_customer_payload, validate_passenger_payload
 
 router = APIRouter()
@@ -159,21 +155,15 @@ def trigger_email_verification(
         raise CabboException(
             "Failed to create email verification link", status_code=500
         )
-
-    # Send email in background
-    subject = f"Verify your email for {customer.name or APP_NAME}"
-    from services.message_service import render_email_template
-
-    html_content = render_email_template(
-        EMAIL_VERIFICATION_FILE,
-        for_customer=True,
-        name=customer.name or "User",
-        verification_link=customer_email_verification.verification_url,
-        expiry_hours=str(EMAIL_VERIFY_EXPIRY_UNIT),
-        app_name=APP_NAME.capitalize(),
-        app_url=settings.APP_URL,
+    
+    customer_schema = CustomerRead.model_validate(customer)
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(
+        notify_verification_email_to_customer,
+        task_name="notify_verification_email_to_customer",
+        customer=customer_schema,
+        verification_url=customer_email_verification.verification_url,
     )
-    background_tasks.add_task(send_email, customer.email, subject, html_content)
     return {"message": "Verification email sent. Please check your inbox."}
 
 

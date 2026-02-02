@@ -229,7 +229,7 @@ class Trip(Base):
     status_audits = relationship("TripStatusAudit", back_populates="trip")
     driver = relationship("Driver", back_populates="trips")
     driver_earnings = relationship(
-        "DriverEarnings",
+        "DriverEarning",
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,

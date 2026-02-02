@@ -109,6 +109,7 @@ async def _brevo_send_email(
             password=settings.BREVO_SMTP_PASSWORD,
             timeout=20,
         )
+        print(f"Brevo email sent to {to_email}")
         return True
 
     except Exception as e:

@@ -777,7 +777,7 @@ def validate_phone_by_country(phone: str, country: CountrySchema) -> str:
             status_code=422,
         )
 
-    return country.phone_code + num
+    return country.phone_code+" "+num
 
 
 def validate_postal_code_by_country(postal_code: str, country: CountrySchema) -> str:

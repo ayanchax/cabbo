@@ -58,7 +58,6 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
         [
             "Self sponsored driver accomodation",
             "Night surcharges(if applicable)",
-            "Tolls and parking charges(if applicable)",
         ]
     )
     if is_interstate:
@@ -492,7 +491,6 @@ def get_kwargs_for_outstation_trip(
            
         }
 
-        
         return kwargs
     except Exception as e:
         print("Error preparing kwargs for outstation trip:", str(e))

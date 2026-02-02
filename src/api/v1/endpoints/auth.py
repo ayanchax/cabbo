@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Body, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from db.database import yield_mysql_session
 from services.customer_service import create_customer
+from services.notification_service import notify_customer_onboarded
+from services.orchestration_service import BackgroundTaskOrchestrator
 from services.otp_service import (
     generate_otp,
     verify_otp,
@@ -23,10 +25,7 @@ from services.customer_service import (
 )
 from services.message_service import (
     send_otp,
-    send_email,
-    WELCOME_EMAIL_FILE,
 )
-from core.config import settings
 from core.exceptions import CabboException
 from core.constants import APP_NAME
 from services.validation_service import validate_customer_login_payload, validate_customer_onboarding_payload, validate_customer_payload
@@ -74,20 +73,14 @@ def register(
         raise CabboException(message, status_code=400)
 
     customer = create_customer(data=payload, db=db, phone_verified=True, activate=True)
+    
     # Send welcome email in background if email is provided
-    if customer.email and customer.name:
-        subject = f"Welcome to {APP_NAME}!"
-        from services.message_service import render_email_template
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(
+        notify_customer_onboarded, task_name="notify_customer_onboarded", customer=customer
+    )
 
-        html_content = render_email_template(
-            WELCOME_EMAIL_FILE,
-            for_customer=True,
-            name=customer.name,
-            app_name=APP_NAME.capitalize(),
-            app_url=settings.APP_URL,
-        )
-        background_tasks.add_task(send_email, customer.email, subject, html_content)
-
+    
     # Give login token directly after registration
     token = persist_bearer_token(
         customer=customer, token=generate_customer_jwt(customer=customer), db=db
@@ -107,7 +100,6 @@ def initiate_login(
     db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
-    
     if not is_existing_customer(phone_number, db):
         raise CabboException("Phone number not registered.", status_code=404)
     otp = generate_otp(phone_number, db)

@@ -194,9 +194,21 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
                 "Trip must have a non-zero advance payment to assign a driver.",
                 status_code=400,
             )
+        # Check Driver is not already assigned to the trip
+        if trip.driver_id==driver.id:
+            raise CabboException("Driver is already assigned to this trip.", status_code=400)
+
+        # Free up the currently assigned driver (if any)
+        if trip.driver_id:
+            current_driver = db.query(Driver).filter(Driver.id == trip.driver_id, Driver.is_available == False).first()
+            if current_driver:
+                current_driver.is_available = True  # Mark the current driver as available
+                db.add(current_driver)  # Add the updated driver back to the session
+
         # Check Driver is active
         if not driver.is_active:
             raise CabboException("Driver is not active.", status_code=400)
+        
         
         # Check Driver is available
         if not driver.is_available:
@@ -206,10 +218,6 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         if not driver.phone or driver.phone.strip() == "":
             raise CabboException("Driver does not have a valid phone number.", status_code=400)
         
-        # Check Driver is not already assigned to the trip
-        if trip.driver_id==driver.id:
-            raise CabboException("Driver is already assigned to this trip.", status_code=400)
-
         # When we have the driver app we will also check if the driver is kyc_verified or not.
 
         # Assign Driver to Trip
@@ -219,6 +227,8 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         trip.driver_id = driver.id 
         # Update Driver availability to False
         driver.is_available = False
+
+        
         db.commit()
         db.refresh(trip)
         db.refresh(driver)

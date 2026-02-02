@@ -103,7 +103,7 @@ class Driver(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     ) 
-    earnings = relationship("DriverEarnings", back_populates="driver", cascade="all, delete-orphan", passive_deletes=True)
+    earnings = relationship("DriverEarning", back_populates="driver", cascade="all, delete-orphan", passive_deletes=True)
     ratings = relationship(
         "DriverRating",
         back_populates="driver",
