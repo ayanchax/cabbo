@@ -220,6 +220,9 @@ def mark_kyc_verification_status_for_driver_document(
 ) -> KYCDocumentSchema:
     """
     Mark a specific KYC document as verified for the given driver.
+    Also updates driver's overall kyc_verified status.
+    If any document is unverified, driver's kyc_verified is set to False.
+    If all documents are verified, driver's kyc_verified is set to True.
     """
     try:
         kyc_docs = driver.kyc_documents or []

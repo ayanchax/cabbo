@@ -480,13 +480,7 @@ def assign_driver(
     }
 
 
-# Unassign driver from trip
-@router.post("/{driver_id}/trips/{trip_id}/unassign")
-def unassign_driver_from_trip(trip_id: str):
-    """Unassign driver from a trip."""
-    return {"message": f"Driver unassigned from trip {trip_id}"}
-
-
+ 
 # View driver lifetime trips
 @router.get("/{driver_id}/trips")
 def view_driver_trips_history(driver_id: str):

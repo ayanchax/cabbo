@@ -3,6 +3,7 @@ from sqlalchemy import (
     String,
     DateTime,
     Enum as SAEnum,
+    Boolean
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
@@ -41,6 +42,7 @@ class CabType(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    is_active=Column(Boolean, nullable=False, default=True)
 
 
 class FuelType(Base):
@@ -61,3 +63,4 @@ class FuelType(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    is_active=Column(Boolean, nullable=False, default=True)

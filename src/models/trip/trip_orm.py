@@ -320,6 +320,7 @@ class TripTypeMaster(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    is_active=Column(Boolean, nullable=False, default=True)
 
 
 class TripPackageConfig(Base):
