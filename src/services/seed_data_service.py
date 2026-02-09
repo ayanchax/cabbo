@@ -110,32 +110,32 @@ TRIP_TYPE_SEED_DATA = [
 CAB_TYPES_SEED_DATA = {
     CarTypeEnum.hatchback: {
         "description": "Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
-        "cab_names": "WagonR, Celerio, Tiago, Santro, i10, Swift",
-        "inventory_cab_names": "WagonR",
+        "cab_names": ["WagonR", "Celerio", "Tiago", "Santro", "i10", "Swift"],
+        "inventory_cab_names": ["WagonR"],
         "capacity": "4+1",
     },
     CarTypeEnum.sedan: {
         "description": "Comfortable sedans, suitable for city and outstation travel.",
-        "cab_names": "Dzire, Amaze, Indigo",
-        "inventory_cab_names": "Dzire",
+        "cab_names": ["Dzire", "Amaze", "Indigo"],
+        "inventory_cab_names": ["Dzire"],
         "capacity": "4+1",
     },
     CarTypeEnum.sedan_plus: {
         "description": "Premium sedans for extra comfort and luxury.",
-        "cab_names": "Honda City, Etios, Dzire Plus, Aura, Xcent, Verna, Ciaz, Yaris, Slavia",
-        "inventory_cab_names": "Etios, Dzire Plus, Xcent, Aura",
+        "cab_names": ["Honda City", "Etios", "Dzire Plus", "Aura", "Xcent", "Verna", "Ciaz", "Yaris", "Slavia"],
+        "inventory_cab_names": ["Etios", "Dzire Plus", "Xcent", "Aura"],
         "capacity": "4+1",
     },
     CarTypeEnum.suv: {
         "description": "Spacious SUVs, good for family/group travel and rough roads.",
-        "cab_names": "Ertiga, Innova, Marazzo, XL6, Mobilio",
-        "inventory_cab_names": "Ertiga, Innova",
+        "cab_names": ["Ertiga", "Innova", "Marazzo", "XL6", "Mobilio"],
+        "inventory_cab_names": ["Ertiga", "Innova"],
         "capacity": "6+1",
     },
     CarTypeEnum.suv_plus: {
         "description": "Premium SUVs with extra comfort and luggage space.",
-        "cab_names": "Innova Crysta, Hexa, Fortuner, XUV500, Alcazar",
-        "inventory_cab_names": "Innova Crysta",
+        "cab_names": ["Innova Crysta", "Hexa", "Fortuner", "XUV500", "Alcazar"],
+        "inventory_cab_names": ["Innova Crysta"],
         "capacity": "7+1",
     },
 }

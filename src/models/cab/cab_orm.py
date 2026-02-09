@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    JSON,
     Column,
     String,
     DateTime,
@@ -29,11 +30,11 @@ class CabType(Base):
     description = Column(String(255), nullable=True)  # Description of cab type
     capacity = Column(String(20), nullable=True)  # Passenger capacity e.g, "4+1",
     cab_names = Column(
-        String(255), nullable=True
-    )  # Comma-separated example cab model names
+        JSON, nullable=True
+    )  # JSON list of cab model names
     inventory_cab_names = Column(
-        String(255), nullable=True
-    )  # Comma-separated actual inventory cab model names
+        JSON, nullable=True
+    )  # JSON list of actual inventory cab model names
     created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
