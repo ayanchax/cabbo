@@ -4,13 +4,14 @@ import json
 from typing import Optional
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.geography.country_orm import CountryModel
 from models.geography.country_schema import CountrySchema, CountryUpdateSchema
 from models.geography.region_orm import RegionModel
 from models.geography.region_schema import RegionSchema, RegionUpdate
 from models.geography.state_orm import StateModel
-from models.geography.state_schema import StateSchema
+from models.geography.state_schema import StateSchema, StateUpdateSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -951,6 +952,80 @@ async def async_update_country(payload:CountryUpdateSchema, db:AsyncSession) -> 
         await db.commit()
         await db.refresh(country_model)
         return CountrySchema.model_validate(country_model), None
+    except Exception as e:
+        await db.rollback()
+        return None, str(e)
+    
+
+async def async_add_state(payload: StateSchema, db: AsyncSession, created_by: RoleEnum=RoleEnum.system) -> StateSchema:
+    """Asynchronously add a new state to the system configuration."""
+    try:
+        # Fetch country model
+        result = await db.execute(select(CountryModel).filter(CountryModel.country_code == payload.country_code.upper()))
+        country_model = result.scalars().first()
+        if not country_model:
+            raise CabboException(f"Country with code {payload.country_code} not found.", status_code=404)
+
+        state_model = StateModel(
+            state_name=payload.state_name,
+            state_code=payload.state_code.upper(),
+            country_id=country_model.id,
+            created_by=created_by
+        )
+        db.add(state_model)
+        await db.commit()
+        await db.refresh(state_model)
+        return StateSchema.model_validate(state_model)
+    except Exception as e:
+        await db.rollback()
+        return None
+    
+async def async_get_all_states(db: AsyncSession) -> list[StateSchema]:
+    """Asynchronously fetch all states as a list of StateSchema."""
+    result = await db.execute(select(StateModel))
+    state_models = result.scalars().all()
+    state_schemas = []
+    for s_model in state_models:
+        try:
+            state_schema = StateSchema.model_validate(s_model)
+            state_schemas.append(state_schema)
+        except ValidationError:
+            continue
+    return state_schemas
+
+async def async_delete_state(state_id: str, db: AsyncSession) -> tuple[bool, Optional[str]]:
+    """Asynchronously delete a state from the database."""
+    result = await db.execute(select(StateModel).filter(StateModel.id == state_id))
+    state_model = result.scalars().first()
+    if not state_model:
+        return False, "State not found or already disabled"
+    if state_model.created_by == RoleEnum.system:
+        return False, "System-created states cannot be deleted"
+    try:
+        state_model.is_serviceable = False # Soft delete by marking as not serviceable
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+    
+async def async_update_state(payload: StateUpdateSchema, db: AsyncSession) -> tuple[Optional[StateSchema], Optional[str]]:
+    """Asynchronously update an existing state in the database."""
+    if not payload.id:
+        return None, "State ID is required for update"
+    result = await db.execute(select(StateModel).filter(StateModel.id == payload.id))
+    state_model = result.scalars().first()
+    if not state_model:
+        return None, "State not found or already disabled"
+    if state_model.created_by == RoleEnum.system:
+        return None, "System-created states cannot be updated"
+    try:
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(state_model, field, value)
+
+        await db.commit()
+        await db.refresh(state_model)
+        return StateSchema.model_validate(state_model), None
     except Exception as e:
         await db.rollback()
         return None, str(e)
