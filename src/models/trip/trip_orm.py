@@ -157,7 +157,6 @@ class Trip(Base):
     platform_fee = Column(
         Float, nullable=True, default=0.0
     )  # Platform fee charged by the system is the fixed plus dynamic convenience fee
-    quoted_price = Column(Float, nullable=True)  # Customer's counter-quote
     final_price = Column(Float, nullable=True, default=0.0)  # System-calculated
     final_display_price = Column(
         Float, nullable=True, default=0.0
@@ -320,6 +319,7 @@ class TripTypeMaster(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    is_active=Column(Boolean, nullable=False, default=True)
 
 
 class TripPackageConfig(Base):

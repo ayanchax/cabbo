@@ -94,11 +94,59 @@ class RegionSchema(BaseModel):
         return v
 
 class RegionUpdate(BaseModel):
+    id:Optional[str] = Field(None, description="Unique identifier for the region")  # UUID
     region_name: Optional[str] = Field(None, description="Name of the region/city") # e.g. Bangalore, Chennai
+    region_code: Optional[str] = Field(None, description="Region code, e.g., 'BLR' for Bangalore") # e.g. BLR, MAA
+
     alt_region_names: Optional[List[str]] = Field(
         None, description="List of alternative names for the region"
     )
     alt_region_codes: Optional[List[str]] = Field(
         None, description="List of alternative region codes")
+    trip_types: Optional[List[str]] = Field(
+        None, description="List of supported trip types in the region" 
+    )
+    fuel_types: Optional[List[str]] = Field(
+        None, description="List of supported fuel types in the region"
+    )
+    car_types: Optional[List[str]] = Field(
+        None, description="List of supported car types in the region"
+    )
+    airport_locations: Optional[List[str]] = Field(
+        None,
+        description="Dictionary of airport locations with details like display name, lat, lng, place_id, address",
+    ) # JSON string of airport locations validated by LocationInfo schema
     class Config:
         from_attributes = True
+
+    @field_validator('alt_region_names', 'alt_region_codes', 'trip_types', 'fuel_types', 'car_types', mode='before')
+    @classmethod
+    def parse_json_list_fields(cls, v):
+        """Parse JSON string fields to lists."""
+        if v is None :
+            return None
+        if isinstance(v, list):
+            if len(v) == 0:
+                return None
+            return v
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return v
+    
+    @field_validator('airport_locations', mode='before')
+    @classmethod
+    def parse_airport_locations(cls, v):
+        """Parse airport_locations if it's a JSON string."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return v
+
+ 

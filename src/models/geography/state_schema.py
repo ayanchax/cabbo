@@ -18,3 +18,9 @@ class StateSchema(BaseModel):
     class Config:
         from_attributes = True
         extra = "allow"
+
+class StateUpdateSchema(BaseModel):
+    id: str = Field(..., description="Unique identifier for the state")  # UUID
+    state_name: Optional[str] = Field(None, description="Full name of the state") # e.g. Karnataka
+    state_code: Optional[str] = Field(None, description="ISO state code, e.g., 'KA' for Karnataka") # e.g. KA
+    

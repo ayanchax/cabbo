@@ -135,7 +135,7 @@ class TempTrip(Base):
     final_price = Column(Float, nullable=True, default=0.0)  # System-calculated
     final_display_price = Column(
         Float, nullable=True, default=0.0
-    )  # Price shown to driver admin (final or quoted) w/o platform fee/convenience fee
+    )  # Price shown to driver admin (final) w/o platform fee/convenience fee
     payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
