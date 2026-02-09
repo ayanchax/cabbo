@@ -6,7 +6,6 @@ import enum
 
 # Happy Path transition flow for trip status:
 # created -> confirmed(driver_admin) -> assigned -> ongoing -> completed -> closed
-# quoted  -> quote_accepted -> confirmed(by customer) -> assigned -> ongoing -> completed -> closed
 
 # Worst Case transition flow for trip status:
 # created -> cancelled(by admin)

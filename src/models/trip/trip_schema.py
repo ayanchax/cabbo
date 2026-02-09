@@ -171,7 +171,7 @@ class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
     origin: Optional[LocationInfo] = None  # For airport trips, this is the pickup location
     hops: Optional[Union[List[str], List[LocationInfo]]] = (
-        None  # Available for outstation and hourly rental multi-hop trips [Providing hops by customer helps us approximate the overages more efficiently and helps the customer get almost accurate quotes upfront]
+        None  # Available for outstation and hourly rental multi-hop trips [Providing hops by customer helps us approximate the overages more efficiently and helps the customer get almost accurate rates upfront]
     )
     destination: Optional[LocationInfo] = None
     start_date: str  # ISO date or datetime string
