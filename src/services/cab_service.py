@@ -82,6 +82,8 @@ async def async_delete_cab_type(cab_type_id: str, db: AsyncSession) -> tuple[boo
 async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSession) -> Union[CabTypeSchema, None]:
     """Update an existing cab type in the database."""
     try:
+        if not cab_type_data.id:
+            return None  # ID is required for update
         result = await db.execute(select(CabType).where(CabType.id == cab_type_data.id))
         cab = result.scalar_one_or_none()
         if cab is None:

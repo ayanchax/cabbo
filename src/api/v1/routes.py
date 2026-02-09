@@ -3,8 +3,8 @@
 from fastapi import APIRouter
 
 from api.v1.endpoints.admin import seed as seed_ep
-from api.v1.endpoints.admin import geography as geography_config_ep, cab as cab_config_ep, fuel as fuel_config_ep
-
+from api.v1.endpoints.admin import  cab as cab_config_ep, fuel as fuel_config_ep
+from api.v1.endpoints.admin.geography.geo_routes import router as geography_config_ep
 router = APIRouter()
 
 # Core endpoints
@@ -25,6 +25,6 @@ router.include_router(admin_user_ep.router, prefix="/admin/users", tags=["admin-
 
 
 router.include_router(seed_ep.router, prefix="/admin/seed", tags=["admin-seed"])
-router.include_router(geography_config_ep.router, prefix="/admin/config/geography", tags=["admin-geography-configuration"])
+router.include_router(geography_config_ep, prefix="/admin/config/geography")
 router.include_router(cab_config_ep.router, prefix="/admin/config/cab", tags=["admin-cab-configuration"])
 router.include_router(fuel_config_ep.router, prefix="/admin/config/fuel", tags=["admin-fuel-configuration"])

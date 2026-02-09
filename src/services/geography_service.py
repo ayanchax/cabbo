@@ -4,12 +4,15 @@ import json
 from typing import Optional
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from core.security import RoleEnum
 from models.geography.country_orm import CountryModel
-from models.geography.country_schema import CountrySchema
+from models.geography.country_schema import CountrySchema, CountryUpdateSchema
 from models.geography.region_orm import RegionModel
 from models.geography.region_schema import RegionSchema, RegionUpdate
 from models.geography.state_orm import StateModel
 from models.geography.state_schema import StateSchema
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 
 def get_region(
@@ -871,3 +874,84 @@ def lookup_country_by_country_id(countries:Dict[str, CountrySchema], country_id:
         if country.id == country_id:
             return country
     return None #If we reach here, no matching country found or country is not serviceable
+
+async def async_add_country(payload: CountrySchema, db:AsyncSession, created_by:RoleEnum) -> CountrySchema:
+    """Asynchronously add a new country to the system configuration."""
+    try:
+        country_model = CountryModel(
+            country_name=payload.country_name,
+                country_code=payload.country_code.upper(),
+                currency=payload.currency,
+                currency_symbol=payload.currency_symbol,
+                flag=payload.flag,
+                time_zone=payload.time_zone,
+                locale=payload.locale,
+                phone_code=payload.phone_code,
+                phone_number_regex=payload.phone_regex,
+                postal_code_regex=payload.postal_code_regex,
+                min_age_for_drivers=payload.min_age_for_drivers,
+                min_age_for_customers=payload.min_age_for_customers,
+                max_age_for_drivers=payload.max_age_for_drivers,
+                max_age_for_customers=payload.max_age_for_customers,
+                min_age_for_system_users=payload.min_age_for_system_users,
+                max_age_for_system_users=payload.max_age_for_system_users,
+                created_by=created_by
+        )
+        db.add(country_model)
+        await db.commit()
+        await db.refresh(country_model)
+        return CountrySchema.model_validate(country_model)
+    except Exception as e:
+        await db.rollback()
+        return None
+
+async def async_get_all_countries(db:AsyncSession) -> list[CountrySchema]:
+    """Asynchronously fetch all countries as a list of CountrySchema."""
+    result = await db.execute(select(CountryModel))
+    country_models = result.scalars().all()
+    country_schemas = []
+    for c_model in country_models:
+        try:
+            country_schema = CountrySchema.model_validate(c_model)
+            country_schemas.append(country_schema)
+        except ValidationError:
+            continue
+    return country_schemas
+
+async def async_delete_country(country_id: str, db: AsyncSession) -> tuple[bool, Optional[str]]:
+    """Asynchronously delete a country from the database."""
+    result = await db.execute(select(CountryModel).filter(CountryModel.id == country_id))
+    country_model = result.scalars().first()
+    if not country_model:
+        return False, "Country not found or already disabled"
+    if country_model.created_by == RoleEnum.system:
+        return False, "System-created countries cannot be deleted"
+    try:
+        country_model.is_serviceable = False # Soft delete by marking as not serviceable
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+    
+async def async_update_country(payload:CountryUpdateSchema, db:AsyncSession) -> tuple[Optional[CountrySchema], Optional[str]]:
+    """Asynchronously update an existing country in the database."""
+    if not payload.id:
+        return None, "Country ID is required for update"
+    result = await db.execute(select(CountryModel).filter(CountryModel.id == payload.id))
+    country_model = result.scalars().first()
+    if not country_model:
+        return None, "Country not found or already disabled"
+    if country_model.created_by == RoleEnum.system:
+        return None, "System-created countries cannot be updated"
+    try:
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(country_model, field, value)
+
+        await db.commit()
+        await db.refresh(country_model)
+        return CountrySchema.model_validate(country_model), None
+    except Exception as e:
+        await db.rollback()
+        return None, str(e)
+                
