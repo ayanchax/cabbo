@@ -35,7 +35,7 @@ async def add_state(
         )
     result = await async_add_state(payload=state, db=db, created_by=current_user_role)
     if not result:
-        raise CabboException(status_code=500, detail="Failed to add new state")
+        raise CabboException(status_code=500, message="Failed to add new state")
     return result
 
 
@@ -78,7 +78,7 @@ async def update_state(
         )
     result, error = await async_update_state(payload=state, db=db)
     if error:
-        raise CabboException(status_code=500, detail=error or "Failed to update state")
+        raise CabboException(status_code=500, message=error or "Failed to update state")
     return result
 
 

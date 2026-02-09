@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     DateTime,
     Enum as SAEnum,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
@@ -295,4 +296,8 @@ class PermitFeeConfiguration(Base):
         nullable=False,
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
+    )
+    # Add a composite unique constraint
+    __table_args__ = (
+        UniqueConstraint("cab_type_id", "fuel_type_id", "state_id", name="uq_cab_fuel_state"),
     )

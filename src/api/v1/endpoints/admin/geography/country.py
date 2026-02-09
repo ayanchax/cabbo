@@ -23,7 +23,7 @@ async def add_country(country: CountrySchema, db: AsyncSession = Depends(a_yield
         )
     result = await async_add_country(payload=country, db=db, created_by=current_user_role)
     if not result:
-        raise CabboException(status_code=500, detail="Failed to add new country")
+        raise CabboException(status_code=500, message="Failed to add new country")
     return result
 
 
@@ -57,7 +57,7 @@ async def update_country(country: CountryUpdateSchema, db: AsyncSession = Depend
         )
     result, error = await async_update_country(payload=country, db=db)
     if not result:
-        raise CabboException(status_code=500, detail=error or "Failed to update country")
+        raise CabboException(status_code=500, message=error or "Failed to update country")
     return result
 
 
@@ -71,6 +71,6 @@ async def delete_country(country_id: str, db: AsyncSession = Depends(a_yield_mys
         )
     result, error = await async_delete_country(country_id=country_id, db=db)
     if not result:
-        raise CabboException(status_code=500, detail=error or "Failed to delete country")
+        raise CabboException(status_code=500, message=error or "Failed to delete country")
     return {"detail": f"Country {country_id} deleted successfully."}
 

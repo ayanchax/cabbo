@@ -74,14 +74,14 @@ async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSessio
     """Asynchronously update an existing fuel type in the database."""
     try:
         if not fuel_type_data.id:
-            raise CabboException(status_code=400, detail="Fuel type ID is required for update") 
+            raise CabboException(status_code=400, message="Fuel type ID is required for update") 
         
         result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_data.id))
         fuel_type = result.scalar_one_or_none()
         if fuel_type is None:
             return None
         if fuel_type.created_by == RoleEnum.system:
-            raise CabboException(status_code=403, detail="Cannot update system-defined fuel types")
+            raise CabboException(status_code=403, message="Cannot update system-defined fuel types")
         
         fuel_type.name = fuel_type_data.name
         await db.commit()

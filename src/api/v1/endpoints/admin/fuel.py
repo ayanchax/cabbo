@@ -36,7 +36,7 @@ async def add_fuel_type(
         fuel_type=fuel_type, db=db, created_by=current_user_role
     )
     if not result:
-        raise CabboException(status_code=500, detail="Failed to add new fuel type")
+        raise CabboException(status_code=500, message="Failed to add new fuel type")
     return result
 
 
@@ -66,7 +66,7 @@ async def update_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession = Depends
         )
     result = await async_update_fuel_type(fuel_type_data=fuel_type, db=db)
     if not result:
-        raise CabboException(status_code=500, detail="Failed to update fuel type")
+        raise CabboException(status_code=500, message="Failed to update fuel type")
     return result
 
 # Delete fuel type
@@ -86,7 +86,7 @@ async def delete_fuel_type(
 
     if not is_deleted:
         raise CabboException(
-            status_code=500, detail=error or "Failed to delete fuel type"
+            status_code=500, message=error or "Failed to delete fuel type"
         )
 
     return {"detail": f"Fuel type {fuel_type_id} deleted successfully."}

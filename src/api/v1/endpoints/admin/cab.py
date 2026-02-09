@@ -26,7 +26,7 @@ async def add_cab_type(cab_type: CabTypeSchema, db: AsyncSession = Depends(a_yie
     
     result = await add_new_cab_type(cab_type=cab_type, db=db, created_by=current_user_role)
     if not result:
-        raise CabboException(status_code=500, detail="Failed to add new cab type")
+        raise CabboException(status_code=500, message="Failed to add new cab type")
     return result
 
 # List cab types
@@ -52,7 +52,7 @@ async def update_cab_type(cab_type: CabTypeUpdateSchema, db: AsyncSession = Depe
     # Implementation to update cab type goes here
     result = await async_update_cab_type(cab_type_data=cab_type, db=db)
     if not result:
-        raise CabboException(status_code=500, detail="Failed to update cab type")
+        raise CabboException(status_code=500, message="Failed to update cab type")
     return result
     
 
@@ -67,7 +67,7 @@ async def delete_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_m
         )
     success, error_message = await async_delete_cab_type(cab_type_id=cab_type_id, db=db)
     if not success:
-        raise CabboException(status_code=400, detail=error_message or "Failed to delete cab type")
+        raise CabboException(status_code=400, message=error_message or "Failed to delete cab type")
     
     return {"detail": f"Cab type {cab_type_id} deleted successfully."}
     

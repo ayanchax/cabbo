@@ -90,7 +90,7 @@ async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSes
             return None
         if cab.created_by==RoleEnum.system:
             return None  # Prevent updates to system-defined cab types
-        for field, value in cab_type_data.model_dump(exclude_unset=True).items():
+        for field, value in cab_type_data.model_dump(exclude_unset=True, exclude={"id"}).items():
             setattr(cab, field, value)
         await db.commit()
         await db.refresh(cab)
