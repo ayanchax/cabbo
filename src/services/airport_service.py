@@ -1,6 +1,7 @@
 from typing import List
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from core.security import RoleEnum
 from core.store import ConfigStore
 from models.airport.airport_orm import AirportModel
 from models.airport.airport_schema import AirportSchema, AirportUpdateSchema
@@ -128,8 +129,8 @@ def get_airport_by_region_code(
 
 
 async def async_add_airport(
-    airport_data: AirportSchema, db: AsyncSession
-) -> AirportSchema:
+    airport_data: AirportSchema, db: AsyncSession, created_by: RoleEnum = RoleEnum.system
+) -> tuple[AirportSchema | None, str | None]:
     """Add a new airport to the database."""
     try:
         if not airport_data.region_code:
@@ -194,30 +195,16 @@ async def async_add_airport(
             region=region.region_name,
             region_code=region.region_code.upper(),
             postal_code=airport_data.postal_code,
+            created_by=created_by,
         )
         db.add(new_airport)
         await db.commit()
         await db.refresh(new_airport)
-        return AirportSchema.model_validate(new_airport)
+        return AirportSchema.model_validate(new_airport), None
     except Exception as e:
         await db.rollback()
         print(f"Error adding airport: {e}")
-        return None
-
-
-async def async_get_all_airports_in_region(
-    region_code: str, db: AsyncSession
-) -> List[AirportSchema]:
-    """Get all airports in a specific region."""
-    region_code = region_code.upper()
-    airports = await db.execute(
-        select(AirportModel)
-        .filter(
-            AirportModel.region_code == region_code, AirportModel.is_serviceable == True
-        )
-        .all()
-    )
-    return [AirportSchema.model_validate(airport) for airport in airports]
+        return False, "Failed to add airport due to an internal error."
 
 
 async def async_get_all_airports_in_state(
@@ -322,7 +309,7 @@ async def async_delete_airport(
 
 async def async_update_airport(
     airport_id: str, airport_data: AirportUpdateSchema, db: AsyncSession
-) -> AirportSchema | None:
+) -> tuple[AirportSchema | None, str | None]:
     """Update an existing airport's configuration."""
     try:
         result = await db.execute(
@@ -332,7 +319,7 @@ async def async_update_airport(
         )
         airport = result.scalars().first()
         if airport is None:
-            return False, "Airport not found"
+            return None, "Airport not found"
 
         for field, value in airport_data.model_dump(
             exclude_unset=True, exclude={"id"}
@@ -344,4 +331,4 @@ async def async_update_airport(
     except Exception as e:
         await db.rollback()
         print(f"Error updating airport: {e}")
-        return False, "Failed to update airport"
+        return None, "Failed to update airport"
