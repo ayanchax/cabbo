@@ -9,6 +9,7 @@ from models.user.user_orm import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.fuel_service import (
+    async_activate_fuel_type,
     async_add_fuel_type,
     async_delete_fuel_type,
     async_get_all_fuel_types,
@@ -68,6 +69,19 @@ async def update_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession = Depends
     if not result:
         raise CabboException(status_code=500, message="Failed to update fuel type")
     return result
+
+@router.patch("/type/{fuel_type_id}/activate")
+async def activate_fuel_type(fuel_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)): 
+    """Activate a fuel type in the system configuration."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+            raise CabboException( "You do not have permission to activate fuel types.", status_code=403 ) 
+    is_activated, error = await async_activate_fuel_type(fuel_type_id=fuel_type_id, db=db) 
+    if not is_activated: 
+        raise CabboException(status_code=500, message=error or "Failed to activate fuel type") 
+    return {"detail": f"Fuel type {fuel_type_id} activated successfully."}
+
+
 
 # Delete fuel type
 @router.delete("/type/{fuel_type_id}")

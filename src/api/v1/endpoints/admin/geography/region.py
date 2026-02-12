@@ -8,6 +8,7 @@ from models.user.user_orm import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.geography_service import (
+    async_activate_region,
     async_add_region,
     async_delete_region,
     async_get_all_regions,
@@ -80,6 +81,20 @@ async def update_region(
             status_code=500, message=error or "Failed to update region"
         )
     return result
+
+#Activate a region
+@router.patch("/{region_id}/activate")
+async def activate_region(region_id:str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Activate a region/city in the system configuration."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to activate regions.", status_code=403
+        )
+    result, error = await async_activate_region(region_id=region_id, db=db)
+    if not result:
+        raise CabboException(status_code=500, message=error or "Failed to activate region")
+    return {"detail": f"Region {region_id} activated successfully."}
 
 
 @router.delete(

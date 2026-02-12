@@ -71,6 +71,8 @@ async def async_delete_cab_type(cab_type_id: str, db: AsyncSession) -> tuple[boo
             return False, f"Cab type with id {cab_type_id} not found."
         if cab.created_by==RoleEnum.system:
             return False, "Cannot delete system-defined cab types."  # Prevent deletion of system-defined cab types
+        if cab.is_active == False:
+            return False, "Cab type is already inactive."
         cab.is_active=False  # Soft delete by marking as inactive
         await db.commit()
         return True, None
@@ -99,3 +101,35 @@ async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSes
         await db.rollback()
         print(f"Error updating cab type: {e}")
         return None
+
+async def async_activate_cab(cab_type_id:str, db:AsyncSession):
+     try:
+        result = await db.execute(select(CabType).where(CabType.id == cab_type_id))
+        cab = result.scalar_one_or_none()
+        if cab is None:
+            return False, f"Cab type with id {cab_type_id} not found."
+        if cab.is_active:
+            return False, f"Cab type with id {cab_type_id} is already active."
+        cab.is_active=True
+        await db.commit()
+        return True, None
+     except Exception as e:
+        await db.rollback()
+        print(f"Error activating cab type: {e}")
+        return False, str(e)
+     
+ 
+     try:
+        result = await db.execute(select(CabType).where(CabType.id == cab_type_id))
+        cab = result.scalar_one_or_none()
+        if cab is None:
+            return False, f"Cab type with id {cab_type_id} not found."
+        if not cab.is_active:
+            return False, f"Cab type with id {cab_type_id} is already inactive."
+        cab.is_active=False
+        await db.commit()
+        return True, None
+     except Exception as e:
+        await db.rollback()
+        print(f"Error deactivating cab type: {e}")
+        return False, str(e)

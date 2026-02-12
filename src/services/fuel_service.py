@@ -61,7 +61,8 @@ async def async_delete_fuel_type(fuel_type_id: str, db: AsyncSession)-> tuple[bo
             return False, "Fuel type not found"
         if fuel_type.created_by == RoleEnum.system:
             return False , "Cannot delete system-defined fuel types"
-        
+        if fuel_type.is_active == False:
+            return False, "Fuel type is already inactive."
         fuel_type.is_active = False  # Soft delete by marking as inactive
         await db.commit()
         return True, None
@@ -91,3 +92,37 @@ async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSessio
         await db.rollback()
         print(f"Error updating fuel type: {e}")
         return None
+
+async def async_activate_fuel_type(fuel_type_id: str, db: AsyncSession) -> tuple[bool, str | None]:
+    """Asynchronously activate a fuel type in the database."""
+    try:
+        result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_id))
+        fuel_type = result.scalar_one_or_none()
+        if fuel_type is None:
+            return False, "Fuel type not found"
+        if fuel_type.is_active:
+            return False, "Fuel type is already active"
+        fuel_type.is_active = True  # Activate the fuel type
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error activating fuel type: {e}")
+        return False, str(e)
+
+ 
+    """Asynchronously deactivate a fuel type in the database."""
+    try:
+        result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_id))
+        fuel_type = result.scalar_one_or_none()
+        if fuel_type is None:
+            return False, "Fuel type not found"
+        if not fuel_type.is_active:
+            return False, "Fuel type is already inactive"
+        fuel_type.is_active = False  # Deactivate the fuel type
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error deactivating fuel type: {e}")
+        return False, str(e)

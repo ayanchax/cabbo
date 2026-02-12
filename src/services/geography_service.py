@@ -13,7 +13,7 @@ from models.geography.region_schema import RegionSchema, RegionUpdate
 from models.geography.state_orm import StateModel
 from models.geography.state_schema import StateSchema, StateUpdateSchema
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 
 def get_region(
@@ -879,6 +879,9 @@ def lookup_country_by_country_id(countries:Dict[str, CountrySchema], country_id:
 async def async_add_country(payload: CountrySchema, db:AsyncSession, created_by:RoleEnum) -> CountrySchema:
     """Asynchronously add a new country to the system configuration."""
     try:
+        if payload.is_default: # If the new country is marked as default, unset the default flag from all other countries 
+            await db.execute(update(CountryModel).where(CountryModel.is_default == True).values(is_default=False) )
+        
         country_model = CountryModel(
             country_name=payload.country_name,
                 country_code=payload.country_code.upper(),
@@ -896,7 +899,9 @@ async def async_add_country(payload: CountrySchema, db:AsyncSession, created_by:
                 max_age_for_customers=payload.max_age_for_customers,
                 min_age_for_system_users=payload.min_age_for_system_users,
                 max_age_for_system_users=payload.max_age_for_system_users,
-                created_by=created_by
+                created_by=created_by,
+                is_default=payload.is_default if payload.is_default else False,
+
         )
         db.add(country_model)
         await db.commit()
@@ -928,6 +933,10 @@ async def async_delete_country(country_id: str, db: AsyncSession) -> tuple[bool,
     if country_model.created_by == RoleEnum.system:
         return False, "System-created countries cannot be deleted"
     try:
+        if country_model.is_default:
+            return False, "Default country cannot be deleted. Please set another country as default before deleting this country."
+        if country_model.is_serviceable == False:
+            return False, "Country is already disabled"
         country_model.is_serviceable = False # Soft delete by marking as not serviceable
         await db.commit()
         return True, None
@@ -1139,3 +1148,88 @@ async def async_update_region(payload: RegionUpdate, db: AsyncSession) -> tuple[
     except Exception as e:
         await db.rollback()
         return None, str(e)
+
+async def async_set_default_country(country_id: str, db: AsyncSession) -> tuple[bool, Optional[str]]:
+    """Asynchronously set a country as the default country in the database.""" 
+    result = await db.execute(select(CountryModel).filter(CountryModel.id == country_id)) 
+    country_model = result.scalars().first() 
+    if not country_model: 
+        return False, "Country not found" 
+    if country_model.is_default: 
+        return False, "Country is already set as default"
+    try: 
+        # Unset default flag from all other countries 
+        await db.execute(update(CountryModel).where(CountryModel.is_default == True).values(is_default=False)) 
+        # Set default flag for the specified country 
+        country_model.is_default = True
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+async def async_activate_country(country_id: str, db: AsyncSession) -> tuple[bool, Optional[str]]:
+    """Asynchronously activate a country in the database."""
+    result = await db.execute(select(CountryModel).filter(CountryModel.id == country_id))
+    country_model = result.scalars().first()
+    if not country_model:
+        return False, "Country not found"
+    try:
+        if country_model.is_serviceable:
+            return False, "Country is already active"
+        country_model.is_serviceable = True
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+    
+
+async def async_activate_state(state_id: str, db: AsyncSession) -> tuple[bool, Optional[str]]:
+    """Asynchronously activate a state in the database."""
+    result = await db.execute(select(StateModel).filter(StateModel.id == state_id))
+    state_model = result.scalars().first()
+    if not state_model:
+        return False, "State not found"
+    try:
+        if state_model.is_serviceable:
+            return False, "State is already active"
+        state_model.is_serviceable = True
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+  
+async def async_activate_region(region_id: str, db: AsyncSession) -> tuple[bool, Optional[str]]:
+    """Asynchronously activate a region in the database."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+    try:
+        if region_model.is_serviceable:
+            return False, "Region is already active"
+        region_model.is_serviceable = True
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+ 
+    """Asynchronously deactivate a region in the database."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+    try:
+        if not region_model.is_serviceable:
+            return False, "Region is already inactive"
+        region_model.is_serviceable = False
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
