@@ -8,9 +8,11 @@ from models.user.user_orm import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.geography_service import (
+    async_activate_state,
     async_add_state,
     async_delete_state,
     async_get_all_states,
+    async_get_state_by_id,
     async_update_state,
 )
 
@@ -61,6 +63,24 @@ def list_states(
     return async_get_all_states(db=db)
 
 
+#Get state by id
+@router.get("/{state_id}", response_model=StateSchema)
+async def get_state(state_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Retrieve a state by its ID."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.customer_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view states.", status_code=403
+        )
+    state = await async_get_state_by_id(state_id=state_id, db=db)
+    if not state:
+        raise CabboException(status_code=404, message="State not found")
+    return state
+
 @router.put(
     "/{state_id}",
     response_model=StateSchema,
@@ -81,6 +101,17 @@ async def update_state(
         raise CabboException(status_code=500, message=error or "Failed to update state")
     return result
 
+#Activate a state
+@router.patch("/{state_id}/activate")
+async def activate_state(state_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Activate a state in the system configuration.""" 
+    current_user_role = current_user.role 
+    if current_user_role not in [RoleEnum.super_admin]: 
+        raise CabboException( "You do not have permission to activate states.", status_code=403 ) 
+    result, error = await async_activate_state(state_id=state_id, db=db)
+    if error: 
+        raise CabboException(status_code=500, message=error or "Failed to activate state") 
+    return {"detail": f"State {state_id} activated successfully."}
 
 @router.delete("/{state_id}")
 def delete_state(

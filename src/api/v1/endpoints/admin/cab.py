@@ -3,10 +3,10 @@ from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
-from db.database import a_yield_mysql_session, yield_mysql_session
+from db.database import a_yield_mysql_session
 from models.cab.cab_schema import CabTypeSchema, CabTypeUpdateSchema
 from models.user.user_orm import User
-from services.cab_service import add_new_cab_type, async_delete_cab_type, async_get_all_cabs, async_update_cab_type
+from services.cab_service import add_new_cab_type, async_activate_cab, async_delete_cab_type, async_get_all_cabs, async_update_cab_type, get_cab_type_by_id
 
 
 router = APIRouter()
@@ -40,6 +40,20 @@ async def list_cab_types(db:AsyncSession = Depends(a_yield_mysql_session), curre
         )
     return await async_get_all_cabs(db=db)
 
+#Get cab type by id
+@router.get("/type/{cab_type_id}", response_model=CabTypeSchema)
+async def get_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Retrieve a cab type by its ID."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to view cab types.", status_code=403
+        )
+    cab_type = await get_cab_type_by_id(cab_type_id=cab_type_id, db=db)
+    if not cab_type:
+        raise CabboException(status_code=404, message="Cab type not found")
+    return cab_type
+
 # Update cab type
 @router.put("/type", response_model=CabTypeSchema)
 async def update_cab_type(cab_type: CabTypeUpdateSchema, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
@@ -54,7 +68,21 @@ async def update_cab_type(cab_type: CabTypeUpdateSchema, db: AsyncSession = Depe
     if not result:
         raise CabboException(status_code=500, message="Failed to update cab type")
     return result
-    
+
+@router.patch("/type/{cab_type_id}/activate")
+async def activate_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Activate a cab type in the system configuration."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to activate cab types.", status_code=403
+        )
+    success, error_message = await async_activate_cab(cab_type_id=cab_type_id, db=db)
+    if not success:
+        raise CabboException(status_code=400, message=error_message or "Failed to activate cab type")
+    return {"detail": f"Cab type {cab_type_id} activated successfully."}
+
+
 
 # Delete cab type
 @router.delete("/type/{cab_type_id}")

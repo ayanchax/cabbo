@@ -62,6 +62,14 @@ async def async_get_all_cabs(db: AsyncSession) -> list[CabTypeSchema]:
     cabs = result.scalars().all()
     return [CabTypeSchema.model_validate(cab) for cab in cabs]
 
+async def get_cab_type_by_id(cab_type_id: str, db: AsyncSession) -> Union[CabTypeSchema, None]:
+    """Retrieve a cab type by its ID."""
+    result = await db.execute(select(CabType).where(CabType.id == cab_type_id))
+    cab = result.scalar_one_or_none()
+    if cab:
+        return CabTypeSchema.model_validate(cab)
+    return None
+
 async def async_delete_cab_type(cab_type_id: str, db: AsyncSession) -> tuple[bool, Union[str, None]]:
     """Delete a cab type from the database."""
     try:
@@ -69,8 +77,8 @@ async def async_delete_cab_type(cab_type_id: str, db: AsyncSession) -> tuple[boo
         cab = result.scalar_one_or_none()
         if cab is None:
             return False, f"Cab type with id {cab_type_id} not found."
-        if cab.created_by==RoleEnum.system:
-            return False, "Cannot delete system-defined cab types."  # Prevent deletion of system-defined cab types
+        if cab.is_active == False:
+            return False, "Cab type is already inactive."
         cab.is_active=False  # Soft delete by marking as inactive
         await db.commit()
         return True, None
@@ -88,8 +96,7 @@ async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSes
         cab = result.scalar_one_or_none()
         if cab is None:
             return None
-        if cab.created_by==RoleEnum.system:
-            return None  # Prevent updates to system-defined cab types
+    
         for field, value in cab_type_data.model_dump(exclude_unset=True, exclude={"id"}).items():
             setattr(cab, field, value)
         await db.commit()
@@ -99,3 +106,20 @@ async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSes
         await db.rollback()
         print(f"Error updating cab type: {e}")
         return None
+
+async def async_activate_cab(cab_type_id:str, db:AsyncSession):
+     try:
+        result = await db.execute(select(CabType).where(CabType.id == cab_type_id))
+        cab = result.scalar_one_or_none()
+        if cab is None:
+            return False, f"Cab type with id {cab_type_id} not found."
+        if cab.is_active:
+            return False, f"Cab type with id {cab_type_id} is already active."
+        cab.is_active=True
+        await db.commit()
+        return True, None
+     except Exception as e:
+        await db.rollback()
+        print(f"Error activating cab type: {e}")
+        return False, str(e)
+   
