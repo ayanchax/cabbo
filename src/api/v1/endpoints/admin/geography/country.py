@@ -7,7 +7,7 @@ from models.geography.country_schema import CountrySchema, CountryUpdateSchema
 from models.user.user_orm import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.geography_service import async_activate_country, async_add_country, async_delete_country, async_get_all_countries, async_update_country
+from services.geography_service import async_activate_country, async_add_country, async_delete_country, async_get_all_countries, async_get_country_by_id, async_update_country
 
 router = APIRouter()
 # Country Management
@@ -42,6 +42,20 @@ def list_countries(db: AsyncSession = Depends(a_yield_mysql_session), current_us
     # Implementation to fetch and return list of countries goes here
     return async_get_all_countries(db=db)
 
+#Get country by id
+@router.get("/{country_id}", response_model=CountrySchema)
+async def get_country(country_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Retrieve a country by its ID."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin, RoleEnum.customer_admin]:
+        raise CabboException(
+            "You do not have permission to view countries.", status_code=403
+        )
+    country = await async_get_country_by_id(country_id=country_id, db=db)
+    
+    if not country:
+        raise CabboException(status_code=404, message="Country not found")
+    return country
 
 @router.put(
     "/{country_id}",

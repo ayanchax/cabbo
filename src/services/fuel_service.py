@@ -52,6 +52,14 @@ async def async_get_all_fuel_types(db: AsyncSession) -> list[FuelTypeSchema]:
     fuel_type_schemas = [FuelTypeSchema.model_validate(fuel) for fuel in fuel_types]
     return fuel_type_schemas
 
+async def async_get_fuel_type_by_id(fuel_type_id: str, db: AsyncSession) -> FuelTypeSchema | None:
+    """Asynchronously retrieve a fuel type by its ID."""
+    result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_id))
+    fuel_type = result.scalar_one_or_none()
+    if fuel_type:
+        return FuelTypeSchema.model_validate(fuel_type)
+    return None
+
 async def async_delete_fuel_type(fuel_type_id: str, db: AsyncSession)-> tuple[bool, str | None]:
     """Asynchronously delete a fuel type from the database."""
     try:
@@ -59,8 +67,7 @@ async def async_delete_fuel_type(fuel_type_id: str, db: AsyncSession)-> tuple[bo
         fuel_type = result.scalar_one_or_none()
         if fuel_type is None:
             return False, "Fuel type not found"
-        if fuel_type.created_by == RoleEnum.system:
-            return False , "Cannot delete system-defined fuel types"
+         
         if fuel_type.is_active == False:
             return False, "Fuel type is already inactive."
         fuel_type.is_active = False  # Soft delete by marking as inactive
@@ -81,9 +88,7 @@ async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSessio
         fuel_type = result.scalar_one_or_none()
         if fuel_type is None:
             return None
-        if fuel_type.created_by == RoleEnum.system:
-            raise CabboException(status_code=403, message="Cannot update system-defined fuel types")
-        
+         
         fuel_type.name = fuel_type_data.name
         await db.commit()
         await db.refresh(fuel_type)
@@ -111,18 +116,3 @@ async def async_activate_fuel_type(fuel_type_id: str, db: AsyncSession) -> tuple
         return False, str(e)
 
  
-    """Asynchronously deactivate a fuel type in the database."""
-    try:
-        result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_id))
-        fuel_type = result.scalar_one_or_none()
-        if fuel_type is None:
-            return False, "Fuel type not found"
-        if not fuel_type.is_active:
-            return False, "Fuel type is already inactive"
-        fuel_type.is_active = False  # Deactivate the fuel type
-        await db.commit()
-        return True, None
-    except Exception as e:
-        await db.rollback()
-        print(f"Error deactivating fuel type: {e}")
-        return False, str(e)

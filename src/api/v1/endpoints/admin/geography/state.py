@@ -12,6 +12,7 @@ from services.geography_service import (
     async_add_state,
     async_delete_state,
     async_get_all_states,
+    async_get_state_by_id,
     async_update_state,
 )
 
@@ -61,6 +62,24 @@ def list_states(
     # Implementation to fetch and return list of states goes here
     return async_get_all_states(db=db)
 
+
+#Get state by id
+@router.get("/{state_id}", response_model=StateSchema)
+async def get_state(state_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Retrieve a state by its ID."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.customer_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view states.", status_code=403
+        )
+    state = await async_get_state_by_id(state_id=state_id, db=db)
+    if not state:
+        raise CabboException(status_code=404, message="State not found")
+    return state
 
 @router.put(
     "/{state_id}",

@@ -13,6 +13,7 @@ from services.fuel_service import (
     async_add_fuel_type,
     async_delete_fuel_type,
     async_get_all_fuel_types,
+    async_get_fuel_type_by_id,
     async_update_fuel_type,
 )
 
@@ -69,6 +70,20 @@ async def update_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession = Depends
     if not result:
         raise CabboException(status_code=500, message="Failed to update fuel type")
     return result
+
+#Get fuel type by id
+@router.get("/type/{fuel_type_id}", response_model=FuelTypeSchema)
+async def get_fuel_type(fuel_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+    """Retrieve a fuel type by its ID."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to view fuel types.", status_code=403
+        )
+    fuel_type = await async_get_fuel_type_by_id(fuel_type_id=fuel_type_id, db=db)
+    if not fuel_type:
+        raise CabboException(status_code=404, message="Fuel type not found")
+    return fuel_type
 
 @router.patch("/type/{fuel_type_id}/activate")
 async def activate_fuel_type(fuel_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)): 
