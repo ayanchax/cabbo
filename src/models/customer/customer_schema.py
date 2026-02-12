@@ -92,3 +92,7 @@ class CustomerLoginResponse(BaseModel):
     expires_in: int
     customer_id: str
     first_time_login: Optional[bool] = None
+
+class CustomerSuspensionRequest(BaseModel):
+    customer_id: Optional[str] = None
+    reason: Optional[str] = None

@@ -52,6 +52,8 @@ class Customer(Base):
     )
     bearer_token = Column(Text, nullable=True)
     last_seen = Column(DateTime, nullable=True)
+    is_suspended = Column(Boolean, default=False, nullable=False, comment="Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.")
+    suspension_reason = Column(Text, nullable=True, comment="If the customer is suspended, this field can store the reason for suspension.")
     driver_ratings = relationship(
         "DriverRating", back_populates="customer", cascade="all, delete-orphan",
         passive_deletes=True

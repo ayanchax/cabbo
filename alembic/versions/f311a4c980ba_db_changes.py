@@ -1,8 +1,8 @@
-"""database-changes-with-quotes-removal-and-serviceability
+"""db changes
 
-Revision ID: ee73ec77114d
-Revises: 8bbd84f388b2
-Create Date: 2026-02-09 21:47:44.159527
+Revision ID: f311a4c980ba
+Revises: 
+Create Date: 2026-02-13 02:56:49.715257
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision: str = 'ee73ec77114d'
-down_revision: Union[str, Sequence[str], None] = '8bbd84f388b2'
+revision: str = 'f311a4c980ba'
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

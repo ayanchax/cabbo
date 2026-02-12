@@ -6,7 +6,7 @@ from api.v1.endpoints.admin import seed as seed_ep
 from api.v1.endpoints.admin import  cab as cab_config_ep, fuel as fuel_config_ep
 from api.v1.endpoints.admin.geography.geo_routes import router as geography_config_ep
 from api.v1.endpoints import auth as auth_ep, customer as customer_ep, location as location_ep, trip as trip_ep
-from api.v1.endpoints.admin import auth as admin_auth_ep, driver as admin_driver_ep, user as admin_user_ep, airport as admin_airport_ep
+from api.v1.endpoints.admin import auth as admin_auth_ep, driver as admin_driver_ep, user as admin_user_ep, airport as admin_airport_ep, customer as admin_customer_ep
 
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
@@ -16,7 +16,7 @@ router.include_router(trip_ep.router, prefix="/trips", tags=["trips"])
 
 
 router.include_router(admin_auth_ep.router, prefix="/admin/auth", tags=["admin-auth"])
-#router.include_router(admin_customer_ep.router, prefix="/admin/customers", tags=["admin-customers"])
+router.include_router(admin_customer_ep.router, prefix="/admin/customers", tags=["admin-customers"])
 router.include_router(admin_driver_ep.router, prefix="/admin/drivers", tags=["admin-drivers"])
 router.include_router(admin_user_ep.router, prefix="/admin/users", tags=["admin-users"])
 
