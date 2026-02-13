@@ -27,3 +27,9 @@ class KYCSchema(BaseModel):
         from_attributes = True
 
 
+class KYCDocumentUpdateSchema(BaseModel):
+    document_id: Optional[str] = None  # Unique identifier for the document
+    document_alias: Optional[str] = None  # Alias for the document type (e.g., Driver License, Aadhar Card)
+    document_description: Optional[str] = None  # Description of the document
+     
+

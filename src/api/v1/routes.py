@@ -6,7 +6,8 @@ from api.v1.endpoints.admin import seed as seed_ep
 from api.v1.endpoints.admin import  cab as cab_config_ep, fuel as fuel_config_ep
 from api.v1.endpoints.admin.geography.geo_routes import router as geography_config_ep
 from api.v1.endpoints import auth as auth_ep, customer as customer_ep, location as location_ep, trip as trip_ep
-from api.v1.endpoints.admin import auth as admin_auth_ep, driver as admin_driver_ep, user as admin_user_ep, airport as admin_airport_ep, customer as admin_customer_ep
+from api.v1.endpoints.admin import auth as admin_auth_ep, driver as admin_driver_ep, user as admin_user_ep, airport as admin_airport_ep, customer as admin_customer_ep, kyc_document_types as admin_kyc_document_types_ep
+
 
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
@@ -26,3 +27,4 @@ router.include_router(geography_config_ep, prefix="/admin/config/geography")
 router.include_router(cab_config_ep.router, prefix="/admin/config/cab", tags=["admin-cab-configuration"])
 router.include_router(fuel_config_ep.router, prefix="/admin/config/fuel", tags=["admin-fuel-configuration"])
 router.include_router(admin_airport_ep.router, prefix="/admin/config/airport", tags=["admin-airport-configuration"])
+router.include_router(admin_kyc_document_types_ep.router, prefix="/admin/config/kyc-document-types", tags=["admin-kyc-document-types-configuration"])

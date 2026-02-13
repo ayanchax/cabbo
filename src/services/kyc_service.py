@@ -1,14 +1,17 @@
 from uuid import uuid4
 from core.exceptions import CabboException
+from core.security import RoleEnum
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_orm import KYCDocumentTypes
 from sqlalchemy.orm import Session
 import os
 from fastapi import UploadFile
 from core.config import settings
-from models.documents.kyc_document_schema import KYCDocumentSchema
+from models.documents.kyc_document_schema import KYCDocumentSchema, KYCDocumentUpdateSchema
 from models.driver.driver_orm import Driver
 from services.file_service import create_directory
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 ALLOWED_EXTENSIONS = [".pdf"]
 
@@ -173,7 +176,7 @@ def remove_kyc_document_by_id_for_driver(
     try:
         kyc_docs = driver.kyc_documents or []
         if len(kyc_docs) == 0:
-            return False , "No KYC documents to remove"
+            return False, "No KYC documents to remove"
 
         kyc_docs_dict = {
             doc["document_id"]: KYCDocumentSchema.model_validate(doc)
@@ -196,7 +199,10 @@ def remove_kyc_document_by_id_for_driver(
             db.refresh(driver)
             return True, None
         else:
-            return False, "Document ID not found"  # Document ID not found; nothing to remove
+            return (
+                False,
+                "Document ID not found",
+            )  # Document ID not found; nothing to remove
 
     except Exception as e:
         db.rollback()
@@ -206,11 +212,13 @@ def remove_kyc_document_by_id_for_driver(
             include_traceback=True,
         )
 
-def list_kyc_documents(driver:Driver, db: Session) -> list[KYCDocumentSchema]:
+
+def list_kyc_documents(driver: Driver, db: Session) -> list[KYCDocumentSchema]:
     """
     Retrieve all KYC document types from the database.
     """
     return [KYCDocumentSchema.model_validate(doc) for doc in driver.kyc_documents]
+
 
 def mark_kyc_verification_status_for_driver_document(
     driver: Driver,
@@ -227,7 +235,9 @@ def mark_kyc_verification_status_for_driver_document(
     try:
         kyc_docs = driver.kyc_documents or []
         if len(kyc_docs) == 0:
-            raise CabboException("No KYC documents found for this driver.", status_code=404)
+            raise CabboException(
+                "No KYC documents found for this driver.", status_code=404
+            )
 
         kyc_docs_dict = {
             doc["document_id"]: KYCDocumentSchema.model_validate(doc)
@@ -250,7 +260,7 @@ def mark_kyc_verification_status_for_driver_document(
                 # If any document is unverified, set driver's kyc_verified to False
                 driver.kyc_verified = False
             elif all(doc.verified for doc in kyc_docs_dict.values()):
-                driver.kyc_verified = True # All documents verified
+                driver.kyc_verified = True  # All documents verified
 
             db.commit()
             db.refresh(driver)
@@ -266,3 +276,94 @@ def mark_kyc_verification_status_for_driver_document(
             status_code=500,
             include_traceback=True,
         )
+
+
+async def async_add_kyc_document_record(
+    payload: KYCDocumentSchema, db: AsyncSession, created_by: RoleEnum = RoleEnum.system
+):
+    """
+    Async function to add a KYC document record to the database.
+    """
+    new_record = KYCDocumentTypes(
+        document_type=payload.document_type,
+        document_alias=payload.document_alias,
+        document_description=payload.document_description,
+        created_by=created_by,
+    )
+    try:
+        db.add(new_record)
+        await db.commit()
+        await db.refresh(new_record)
+        return KYCDocumentSchema.model_validate(new_record), None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error adding KYC document record: {e}")
+        return None, str(e)
+
+async def async_get_all_kyc_document_records(db: AsyncSession) -> list[KYCDocumentSchema]:
+    """Async function to retrieve all KYC document records from the database."""
+    result = await db.execute(select(KYCDocumentTypes))
+    records = result.scalars().all()
+    return [KYCDocumentSchema.model_validate(record) for record in records]
+
+async def async_get_kyc_document_record_by_id(document_id: str, db: AsyncSession) -> KYCDocumentSchema | None:
+    """Async function to retrieve a KYC document record by its ID."""
+    result = await db.execute(select(KYCDocumentTypes).where(KYCDocumentTypes.id == document_id))
+    record = result.scalar_one_or_none()
+    if record:
+        return KYCDocumentSchema.model_validate(record)
+    return None
+
+async def async_delete_kyc_document_record(document_id: str, db: AsyncSession) -> tuple[bool, str | None]:
+    """Async function to delete a KYC document record from the database."""
+    try:
+        result = await db.execute(select(KYCDocumentTypes).where(KYCDocumentTypes.id == document_id))
+        record = result.scalar_one_or_none()
+        if record is None:
+            return False, f"KYC document record with id {document_id} not found."
+        if record.is_active == False:
+            return False, "KYC document record is already inactive."
+        record.is_active=False  # Soft delete by marking as inactive
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error deleting KYC document record: {e}")
+        return False, str(e)
+
+
+async def async_update_kyc_document_record(document_id: str, payload: KYCDocumentUpdateSchema, db: AsyncSession) -> tuple[KYCDocumentSchema | None, str | None]:
+    """Async function to update an existing KYC document record in the database."""
+    try:
+        result = await db.execute(select(KYCDocumentTypes).where(KYCDocumentTypes.id == document_id))
+        record = result.scalar_one_or_none()
+        if record is None:
+            return None, f"KYC document record with id {document_id} not found."
+        if payload.document_alias is not None:
+            record.document_alias = payload.document_alias
+        if payload.document_description is not None:
+            record.document_description = payload.document_description
+        await db.commit()
+        await db.refresh(record)
+        return KYCDocumentSchema.model_validate(record), None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error updating KYC document record: {e}")
+        return None, str(e)
+    
+async def async_activate_kyc_document_record(document_id:str, db:AsyncSession) -> tuple[bool, str | None]:
+    """Async function to activate a KYC document record in the database."""
+    try:
+        result = await db.execute(select(KYCDocumentTypes).where(KYCDocumentTypes.id == document_id))
+        record = result.scalar_one_or_none()
+        if record is None:
+            return False, f"KYC document record with id {document_id} not found."
+        if record.is_active == True:
+            return False, "KYC document record is already active."
+        record.is_active=True  # Activate the document type
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error activating KYC document record: {e}")
+        return False, str(e)
