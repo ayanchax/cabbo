@@ -1077,13 +1077,14 @@ async def async_delete_country(
 
 
 async def async_update_country(
+        country_id: str,
     payload: CountryUpdateSchema, db: AsyncSession
 ) -> tuple[Optional[CountrySchema], Optional[str]]:
     """Asynchronously update an existing country in the database."""
     if not payload.id:
         return None, "Country ID is required for update"
     result = await db.execute(
-        select(CountryModel).filter(CountryModel.id == payload.id)
+        select(CountryModel).filter(CountryModel.id == country_id)
     )
     country_model = result.scalars().first()
     if not country_model:

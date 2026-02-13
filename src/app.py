@@ -82,7 +82,7 @@ copy_file(
     overwrite=False,
 )
 
-# ...existing code...
+ 
 
 # Mount the static images directory
 app.mount("/images", StaticFiles(directory=SHARE_IMAGES_DIR), name="images")
