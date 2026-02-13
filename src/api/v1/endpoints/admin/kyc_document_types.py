@@ -1,10 +1,3 @@
-# - KYC documents management by super_admin.
-#    - Add a kyc document in master table kyc_document_types
-#    - Soft delete a kyc document
-#    - Activate a kyc document
-#    - Get a kyc document
-#    - Get all kyc documents in system
-#    - Update a kyc document fields
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.v1.endpoints.admin.airport import validate_user_token, a_yield_mysql_session
 from fastapi import APIRouter, Depends
