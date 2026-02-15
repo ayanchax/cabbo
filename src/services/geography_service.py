@@ -1550,6 +1550,25 @@ async def async_activate_region(
     try:
         if region_model.is_serviceable:
             return False, "Region is already active"
+        # Region can be activated if there is atleast one airport associated with the region and all associated airports are active
+        airport_locations = (
+            json.loads(region_model.airport_locations)
+            if region_model.airport_locations
+            else []
+        )
+        if len(airport_locations) == 0:
+            return False, "Region cannot be activated without at least one associated airport"
+        
+        has_atleast_one_active_airport = False
+        for airport_id in airport_locations:
+            airport_schema = await async_get_airport_by_id(airport_id=airport_id, db=db)
+            if airport_schema and airport_schema.is_serviceable:
+                has_atleast_one_active_airport = True
+                break;
+        
+        if not has_atleast_one_active_airport:
+            return False, "Region cannot be activated without at least one active associated airport"
+        
         region_model.is_serviceable = True
         await db.commit()
         return True, None
@@ -1589,7 +1608,7 @@ async def async_add_airport_to_region(
     except Exception as e:
         await db.rollback()
         return False, str(e)
-    
+
 async def async_remove_airport_from_region(
     region_id: str,
     airport_id: str,
@@ -1622,7 +1641,7 @@ async def async_remove_airport_from_region(
     except Exception as e:
         await db.rollback()
         return False, str(e)
-    
+
 async def async_add_trip_type_to_region(
     region_id: str,
     trip_type_id: str,
@@ -1717,7 +1736,7 @@ async def async_add_fuel_type_to_region(
     except Exception as e:
         await db.rollback()
         return False, str(e)
-    
+
 async def async_remove_fuel_type_from_region(
     region_id: str,
     fuel_type_id: str,
@@ -1748,7 +1767,7 @@ async def async_remove_fuel_type_from_region(
     except Exception as e:
         await db.rollback()
         return False, str(e)
-    
+
 async def async_add_car_type_to_region(
     region_id: str,
     car_type_id: str,
@@ -1779,7 +1798,7 @@ async def async_add_car_type_to_region(
     except Exception as e:
         await db.rollback()
         return False, str(e)
-    
+
 async def async_remove_car_type_from_region(
     region_id: str,
     car_type_id: str,

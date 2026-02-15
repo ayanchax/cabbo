@@ -31,6 +31,16 @@ class TripTypeSchema(BaseModel):
         from_attributes = True
         extra = "allow"
 
+class TripTypeUpdateSchema(BaseModel):
+    id:Optional[str]=None
+    trip_type: Optional[TripTypeEnum] = None
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+        extra = "allow"
+
 class TripDetails(BaseModel):
     # Trip type and package
     trip_type: Optional[TripTypeEnum] = None

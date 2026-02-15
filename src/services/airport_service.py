@@ -293,6 +293,7 @@ async def async_activate_airport(
             return False, "Airport not found"
         if airport.is_serviceable:
             return False, "Airport is already active."
+        
         airport.is_serviceable = True
         await db.commit()
         return True, None
