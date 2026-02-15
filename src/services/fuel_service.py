@@ -115,4 +115,6 @@ async def async_activate_fuel_type(fuel_type_id: str, db: AsyncSession) -> tuple
         print(f"Error activating fuel type: {e}")
         return False, str(e)
 
+
+
  

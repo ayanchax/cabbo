@@ -6,8 +6,6 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.security import RoleEnum
-from models.airport.airport_orm import AirportModel
-from models.cab.cab_orm import CabType, FuelType
 from models.geography.country_orm import CountryModel
 from models.geography.country_schema import CountrySchema, CountryUpdateSchema
 from models.geography.region_orm import RegionModel
@@ -18,6 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
 from models.trip.trip_orm import TripTypeMaster
+from services.airport_service import async_get_airport_by_id
+from services.cab_service import get_cab_type_by_id
+from services.fuel_service import async_get_fuel_type_by_id
 
 
 def get_region(
@@ -1577,12 +1578,11 @@ async def async_add_airport_to_region(
             return False, "Airport is already associated with the region"
         
         #Check if the airport exists in the system before adding it to the region
-        result = await db.execute(select(AirportModel).filter(AirportModel.id == airport_id, AirportModel.is_serviceable == True))
-        airport_model = result.scalars().first()
-        if not airport_model:
+        airport_schema = await async_get_airport_by_id(airport_id=airport_id, db=db)
+        if not airport_schema or not airport_schema.is_serviceable:
             return False, "Airport not found or not serviceable"
 
-        airport_locations.append(airport_model.id)
+        airport_locations.append(airport_schema.id)
         region_model.airport_locations = json.dumps(airport_locations)
         await db.commit()
         return True, None
@@ -1611,12 +1611,11 @@ async def async_remove_airport_from_region(
             return False, "Airport is not associated with the region"
         
         #Check if the airport exists in the system before removing it from the region
-        result = await db.execute(select(AirportModel).filter(AirportModel.id == airport_id, AirportModel.is_serviceable == True))
-        airport_model = result.scalars().first()
-        if not airport_model:
+        airport_schema = await async_get_airport_by_id(airport_id=airport_id, db=db)
+        if not airport_schema or not airport_schema.is_serviceable:
             return False, "Airport not found or not serviceable"
 
-        airport_locations.remove(airport_model.id)
+        airport_locations.remove(airport_schema.id)
         region_model.airport_locations = json.dumps(airport_locations)
         await db.commit()
         return True, None
@@ -1708,12 +1707,10 @@ async def async_add_fuel_type_to_region(
         if fuel_type_id in fuel_types:
             return False, "Fuel type is already associated with the region"
         #Check if the fuel type exists in the system before adding it to the region
-        # Assuming there is a FuelTypeMaster model similar to TripTypeMaster
-        result = await db.execute(select(FuelType).filter(FuelType.id == fuel_type_id, FuelType.is_active == True))
-        fuel_type_model = result.scalars().first()
-        if not fuel_type_model:
+        fuel_schema = await async_get_fuel_type_by_id(fuel_type_id=fuel_type_id, db=db)
+        if not fuel_schema or not fuel_schema.is_active:
             return False, "Fuel type not found or not serviceable"
-        fuel_types.append(fuel_type_model.id)
+        fuel_types.append(fuel_schema.id)
         region_model.fuel_types = json.dumps(fuel_types)
         await db.commit()
         return True, None
@@ -1741,11 +1738,10 @@ async def async_remove_fuel_type_from_region(
         if fuel_type_id not in fuel_types:
             return False, "Fuel type is not associated with the region"
         #Check if the fuel type exists in the system before removing it from the region
-        result = await db.execute(select(FuelType).filter(FuelType.id == fuel_type_id, FuelType.is_active == True))
-        fuel_type_model = result.scalars().first()
-        if not fuel_type_model:
+        fuel_schema = await async_get_fuel_type_by_id(fuel_type_id=fuel_type_id, db=db)
+        if not fuel_schema or not fuel_schema.is_active:
             return False, "Fuel type not found or not serviceable"
-        fuel_types.remove(fuel_type_model.id)
+        fuel_types.remove(fuel_schema.id)
         region_model.fuel_types = json.dumps(fuel_types)
         await db.commit()
         return True, None
@@ -1773,11 +1769,10 @@ async def async_add_car_type_to_region(
         if car_type_id in car_types:
             return False, "Car type is already associated with the region"
         #Check if the car type exists in the system before adding it to the region
-        result = await db.execute(select(CabType).filter(CabType.id == car_type_id, CabType.is_active == True))
-        car_type_model = result.scalars().first()
-        if not car_type_model:
+        car_type_schema = await get_cab_type_by_id(cab_type_id=car_type_id, db=db)
+        if not car_type_schema or not car_type_schema.is_active:
             return False, "Car type not found or not serviceable"
-        car_types.append(car_type_model.id)
+        car_types.append(car_type_schema.id)
         region_model.car_types = json.dumps(car_types)
         await db.commit()
         return True, None
@@ -1805,11 +1800,10 @@ async def async_remove_car_type_from_region(
         if car_type_id not in car_types:
             return False, "Car type is not associated with the region"
         #Check if the car type exists in the system before removing it from the region
-        result = await db.execute(select(CabType).filter(CabType.id == car_type_id, CabType.is_active == True))
-        car_type_model = result.scalars().first()
-        if not car_type_model:
+        car_type_schema = await get_cab_type_by_id(cab_type_id=car_type_id, db=db)
+        if not car_type_schema or not car_type_schema.is_active:
             return False, "Car type not found or not serviceable"
-        car_types.remove(car_type_model.id)
+        car_types.remove(car_type_schema.id)
         region_model.car_types = json.dumps(car_types)
         await db.commit()
         return True, None

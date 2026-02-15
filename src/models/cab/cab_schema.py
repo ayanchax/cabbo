@@ -34,7 +34,7 @@ class CabTypeUpdateSchema(BaseModel):
 class FuelTypeSchema(BaseModel):
     id: Optional[str]= Field(None, description="Unique identifier for the fuel type")
     name: str= Field(..., description="Name of the fuel type, e.g., 'petrol', 'diesel', 'electric'")
-
+    is_active: Optional[bool] = Field(default=True, description="Indicates if the fuel type is active or not")
     class Config:
         from_attributes = True
         extra = "allow"

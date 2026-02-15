@@ -350,3 +350,14 @@ async def async_update_airport(
         print(f"Error updating airport: {e}")
         return None, "Failed to update airport"
 
+async def async_get_airport_by_id(airport_id: str, db: AsyncSession) -> AirportSchema | None:
+    """Retrieve an airport by its ID."""
+    result = await db.execute(
+        select(AirportModel).filter(
+            AirportModel.id == airport_id, AirportModel.is_serviceable == True
+        )
+    )
+    airport = result.scalars().first()
+    if airport:
+        return AirportSchema.model_validate(airport)
+    return None
