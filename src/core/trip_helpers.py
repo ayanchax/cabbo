@@ -234,7 +234,7 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
         CabboException: If the trip type ID is not found in the database.
     """
     trip_type_obj = (
-        db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id).first()
+        db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id, TripTypeMaster.is_active).first()
     )
     if not trip_type_obj:
         raise CabboException(

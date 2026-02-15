@@ -166,7 +166,6 @@ def _get_airport_trips_disclaimer_lines(
     """
     return [
         f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{overage_amount_per_km} per kilometre will apply.",
-        #Tolls and parking disclaimers are not needed as they are included in the trip fare
     ]
     
 

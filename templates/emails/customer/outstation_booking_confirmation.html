@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
         body {
-            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f6f8fb;
             color: #23272f;
             margin: 0;
@@ -30,16 +30,17 @@
 
         .header {
             text-align: center;
-            font-size: 1.8rem;
+            font-size: 1.3rem;
             color: #2d7ff9;
-            font-weight: 700;
+            font-weight: 500;
             margin-bottom: 6px
         }
 
         .sub {
             color: #4a5568;
             text-align: center;
-            margin-bottom: 20px
+            margin-bottom: 20px;
+            font-size: 0.9rem;
         }
 
         .row {
@@ -271,7 +272,7 @@
         .detail-row {
             width: 100%;
             margin-bottom: 10px;
-            font-size: 15px;
+            font-size: 13px;
             clear: both;
         }
 
@@ -342,11 +343,13 @@
             font-weight: 600;
             margin-bottom: 6px;
             display: block;
+            font-size: 0.95rem;
         }
 
         .route-sub {
             color: #6b7280;
             font-weight: 600;
+            font-size: 0.85rem;
         }
 
         @media (max-width:600px) {
@@ -596,7 +599,7 @@
                     or 0 }}</span></div>
             <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{ amount_due
                     or (total_fare - (amount_paid or 0)) }}</span></div>
-            <div style="margin-top: 12px; font-size: 0.9rem; color: #6b7280;">
+            <div style="margin-top: 12px; font-size: 0.7rem; color: #6b7280;">
                 For a detailed price breakdown, please refer to your trip details in the app.
             </div>
         </div>
@@ -629,10 +632,14 @@
 
         <!-- Overages Disclaimer Terms and Conditions -->
         {% if overages and overages.disclaimer %}
-        <div class="card" style="background:#fff8e8">
-            <h3>⚠️ Important</h3>
-            <div style="color:#7a5a00;white-space:pre-line;font-size:13px">{{ overages.extra_charges_disclaimers }}
-            </div>
+        <div class="card" style="background:#fff8e8;">
+            <h3>⚠️ Important Terms and Conditions</h3>
+            <ul
+                style="margin: 0; padding: 0 0 0 20px; list-style: none; color: #4a5568; font-size: 0.7rem; line-height: 1.6;">
+                {% for item in overages.disclaimer %}
+                <li style="margin-bottom: 8px;">{{ item }}</li>
+                {% endfor %}
+            </ul>
         </div>
         {% endif %}
 
@@ -652,19 +659,7 @@
 
         <!-- Footer with terms and conditions -->
         <div class="footer">
-            <div class="tnc">
-                <strong>Other Terms &amp; conditions</strong>
-                <ul>
-                    <li>The total / final kilometre reading may vary from the calculated kilometres due to unplanned
-                        events (e.g. sightseeing, extra stops, route changes).</li>
-                    <li>Toll fares may vary slightly depending on the route taken and time of passing through toll
-                        gates.</li>
-                    <li>Nightly driving charge (optional) applies for driver hours between 8:00 PM and 6:00 AM on any
-                        trip day.</li>
-                    <li>If the trip includes hill climbs, the cab AC may be switched off during such climbs.</li>
-                </ul>
-            </div>
-            <br>
+
             If you have any questions or need to make changes, please contact our support team.<br>
             Wishing you a pleasant journey!<br><br>
             This email was sent by <b>{{ app_name }}</b>.<br>

@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
         body {
-            font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f6f8fb;
             color: #23272f;
             margin: 0;
@@ -30,8 +30,8 @@
 
         .header {
             text-align: center;
-            font-size: 2rem;
-            font-weight: 700;
+            font-size: 1.4rem;
+            font-weight: 500;
             color: #2d7ff9;
             margin-bottom: 8px;
             letter-spacing: 0.5px;
@@ -39,7 +39,7 @@
 
         .sub-header {
             text-align: center;
-            font-size: 1.1rem;
+            font-size: 0.5rem;
             color: #4a5568;
             margin-bottom: 24px;
         }
@@ -47,7 +47,8 @@
         .sub {
             color: #4a5568;
             text-align: center;
-            margin-bottom: 20px
+            margin-bottom: 20px;
+            font-size: 0.9rem;
         }
 
         .card {
@@ -62,7 +63,7 @@
             color: #2d7ff9;
             margin-top: 0;
             margin-bottom: 14px;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
         }
 
@@ -71,7 +72,7 @@
         .detail-row {
             width: 100%;
             margin-bottom: 10px;
-            font-size: 15px;
+            font-size: 13px;
             clear: both;
         }
 
@@ -246,6 +247,8 @@
         <div class="header">🎉 Booking Confirmed!</div>
         <div class="sub">Hi {{ customer_name }}, your airport transfer booking with <strong>{{ app_name }}</strong> is
             confirmed.
+        </div>
+
 
             <!-- Route timeline -->
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
@@ -280,30 +283,30 @@
                     <td valign="top">
                         {% if trip_type == "airport_pickup" %}
                         <div style="margin-bottom:18px;">
-                            <div style="color:#2d7ff9;font-weight:600;">Pickup (Airport)</div>
-                            <div style="font-weight:600;">{{ pickup_location }}</div>
+                            <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup (Airport)</div>
+                            <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
                         </div>
                         <div>
-                            <div style="color:#22bb33;font-weight:600;">Drop</div>
-                            <div style="font-weight:600;">{{ drop_location }}</div>
+                            <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop</div>
+                            <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
                         </div>
                         {% elif trip_type == "airport_drop" %}
                         <div style="margin-bottom:18px;">
-                            <div style="color:#2d7ff9;font-weight:600;">Pickup</div>
-                            <div style="font-weight:600;">{{ pickup_location }}</div>
+                            <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup</div>
+                            <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
                         </div>
                         <div>
-                            <div style="color:#22bb33;font-weight:600;">Drop (Airport)</div>
-                            <div style="font-weight:600;">{{ drop_location }}</div>
+                            <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop (Airport)</div>
+                            <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
                         </div>
                         {% else %}
                         <div style="margin-bottom:18px;">
-                            <div style="color:#2d7ff9;font-weight:600;">Pickup</div>
-                            <div style="font-weight:600;">{{ pickup_location }}</div>
+                            <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup</div>
+                            <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
                         </div>
                         <div>
-                            <div style="color:#22bb33;font-weight:600;">Drop</div>
-                            <div style="font-weight:600;">{{ drop_location }}</div>
+                            <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop</div>
+                            <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
                         </div>
                         {% endif %}
                     </td>
@@ -370,7 +373,7 @@
                 <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{
                         amount_due }}</span>
                 </div>
-                <div style="margin-top: 12px; font-size: 0.9rem; color: #6b7280;">
+                <div style="margin-top: 12px; font-size: 0.7rem; color: #6b7280;">
                     For a detailed price breakdown, please refer to your trip details in the app.
                 </div>
             </div>
@@ -400,7 +403,7 @@
                 Maa Sarada Tours and Travels, Bangalore, India<br>
                 &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
             </div>
-        </div>
+         
 </body>
 
 </html>

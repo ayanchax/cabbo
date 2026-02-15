@@ -169,6 +169,7 @@ def _get_outstation_trips_disclaimer_lines(
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
         "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
+        "If the trip includes hill climbs, the cab AC may be switched off during such climbs."
     ]
 
 
@@ -451,8 +452,8 @@ def get_kwargs_for_outstation_trip(
 
         # Prepare overages disclaimer
         overages = trip.overages or {}
-        overages_disclaimer = overages.get("disclaimer") if overages else None
-        extra_charges_disclaimers = overages.get("extra_charges_disclaimers") if overages else None
+        overages_disclaimer: Optional[List[str]] = overages.get("disclaimer", []) if overages else None
+        extra_charges_disclaimers :Optional[str] = overages.get("extra_charges_disclaimers") if overages else None
 
         # Prepare kwargs for the Jinja template
         kwargs = {

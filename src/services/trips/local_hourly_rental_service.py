@@ -370,8 +370,8 @@ def get_kwargs_for_local_hourly_rental(
 
         # Prepare overages disclaimer
         overages = trip.overages or {}
-        overages_disclaimer = overages.get("disclaimer") if overages else None
-        extra_charges_disclaimers = overages.get("extra_charges_disclaimers") if overages else None
+        overages_disclaimer :Optional[List[str]] = overages.get("disclaimer", []) if overages else None
+        extra_charges_disclaimers:Optional[str] = overages.get("extra_charges_disclaimers") if overages else None
         passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
         passenger_name = passenger.name if passenger else None
         # Prepare kwargs for the Jinja template
