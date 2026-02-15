@@ -191,6 +191,8 @@ def render_email_template(
         now = datetime.now(timezone.utc)
         kwargs["current_year"] = now.year
     
+    kwargs["app_logo_url"] = settings.APP_LOGO_URL
+    
     return template.render(**kwargs)
 
 
