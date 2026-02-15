@@ -42,7 +42,7 @@ async def add_trip_type(
         raise CabboException(error, status_code=400)
     if not new_trip_type:
         raise CabboException("Failed to add new trip type", status_code=500)
-    return TripTypeSchema.model_validate(new_trip_type)
+    return new_trip_type
 
 
 # List all trip types
@@ -124,7 +124,7 @@ async def delete_trip_type(
 
 
 # Activate a trip type
-@router.post("/{trip_type_id}/activate")
+@router.patch("/{trip_type_id}/activate")
 async def activate_trip_type(
     trip_type_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),

@@ -21,7 +21,7 @@ async def async_add_trip_type(
         db.add(new_trip_type)
         await db.commit()
         await db.refresh(new_trip_type)
-        return new_trip_type, None
+        return TripTypeSchema.model_validate(new_trip_type), None
     except Exception as e:
         await db.rollback()
         return None, str(e)

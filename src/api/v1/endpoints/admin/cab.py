@@ -14,7 +14,7 @@ router = APIRouter()
 # ====== Cab Configuration Endpoints ================
 
 # Add cab type 
-@router.post("/type", response_model=CabTypeSchema)
+@router.post("/add", response_model=CabTypeSchema)
 async def add_cab_type(cab_type: CabTypeSchema, db: AsyncSession = Depends(a_yield_mysql_session),current_user: User = Depends(validate_user_token),):
     """Add a new cab type to the system configuration."""
     current_user_role = current_user.role
@@ -30,7 +30,7 @@ async def add_cab_type(cab_type: CabTypeSchema, db: AsyncSession = Depends(a_yie
     return result
 
 # List cab types
-@router.get("/types", response_model=list[CabTypeSchema])
+@router.get("/list", response_model=list[CabTypeSchema])
 async def list_cab_types(db:AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """List all cab types in the system configuration."""
     current_user_role = current_user.role
@@ -41,7 +41,7 @@ async def list_cab_types(db:AsyncSession = Depends(a_yield_mysql_session), curre
     return await async_get_all_cabs(db=db)
 
 #Get cab type by id
-@router.get("/type/{cab_type_id}", response_model=CabTypeSchema)
+@router.get("/{cab_type_id}", response_model=CabTypeSchema)
 async def get_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """Retrieve a cab type by its ID."""
     current_user_role = current_user.role
@@ -55,21 +55,21 @@ async def get_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_mysq
     return cab_type
 
 # Update cab type
-@router.put("/type", response_model=CabTypeSchema)
-async def update_cab_type(cab_type: CabTypeUpdateSchema, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+@router.put("/{cab_type_id}", response_model=CabTypeSchema)
+async def update_cab_type(cab_type_id: str, payload: CabTypeUpdateSchema, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """Update an existing cab type's configuration."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
             "You do not have permission to update cab types.", status_code=403
         )
-    # Implementation to update cab type goes here
-    result = await async_update_cab_type(cab_type_data=cab_type, db=db)
+    payload.id = cab_type_id
+    result = await async_update_cab_type(cab_type_data=payload, db=db)
     if not result:
         raise CabboException(status_code=500, message="Failed to update cab type")
     return result
 
-@router.patch("/type/{cab_type_id}/activate")
+@router.patch("/{cab_type_id}/activate")
 async def activate_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """Activate a cab type in the system configuration."""
     current_user_role = current_user.role
@@ -85,7 +85,7 @@ async def activate_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield
 
 
 # Delete cab type
-@router.delete("/type/{cab_type_id}")
+@router.delete("/{cab_type_id}")
 async def delete_cab_type(cab_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
     """Delete a cab type from the system configuration."""
     current_user_role = current_user.role

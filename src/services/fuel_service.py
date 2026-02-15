@@ -78,7 +78,7 @@ async def async_delete_fuel_type(fuel_type_id: str, db: AsyncSession)-> tuple[bo
         print(f"Error deleting fuel type: {e}")
         return False, str(e)
 
-async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSession) -> FuelTypeSchema | None:
+async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSession) -> tuple[FuelTypeSchema | None, str | None]:
     """Asynchronously update an existing fuel type in the database."""
     try:
         if not fuel_type_data.id:
@@ -87,16 +87,16 @@ async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSessio
         result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_data.id))
         fuel_type = result.scalar_one_or_none()
         if fuel_type is None:
-            return None
+            return None, "Fuel type not found"
          
         fuel_type.name = fuel_type_data.name
         await db.commit()
         await db.refresh(fuel_type)
-        return FuelTypeSchema.model_validate(fuel_type)
+        return FuelTypeSchema.model_validate(fuel_type), None
     except Exception as e:
         await db.rollback()
         print(f"Error updating fuel type: {e}")
-        return None
+        return None, str(e)
 
 async def async_activate_fuel_type(fuel_type_id: str, db: AsyncSession) -> tuple[bool, str | None]:
     """Asynchronously activate a fuel type in the database."""

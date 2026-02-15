@@ -62,8 +62,8 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-def read_root():
+@app.get("/", tags=["Health"])
+def health():
     return {"message": f"Welcome to {APP_NAME.capitalize()} API!"}
 
 
@@ -94,12 +94,21 @@ app.mount("/documents", StaticFiles(directory=SHARE_DOCUMENTS_DIR), name="docume
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
+
+    # Generate the default OpenAPI schema
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
         description=app.description,
         routes=app.routes,
     )
+
+    # Count the number of endpoints
+    endpoint_count = sum(1 for route in app.routes if hasattr(route, "endpoint"))
+
+    # Add the endpoint count to the description
+    openapi_schema["info"]["description"] += f"\n\nThis API has **{endpoint_count} endpoints**."
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
