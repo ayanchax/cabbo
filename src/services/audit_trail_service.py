@@ -16,7 +16,6 @@ def log_trip_audit(
     changed_by: Optional[RoleEnum] = RoleEnum.customer,
     reason: Optional[str] = None,
     cancellation_sub_status: Optional[CancellationSubStatusEnum] = None,
-    responsible_preference_keys_for_cancelation: Optional[str] = None,
     commit: bool = True
 ):
     """
@@ -29,7 +28,6 @@ def log_trip_audit(
         changed_by (Optional[RoleEnum]): The role of the user making the change.
         reason (Optional[str]): Reason for the status change, if applicable.
         cancellation_sub_status (Optional[CancellationSubStatusEnum]): Sub-status for cancellations, if applicable.
-        responsible_preference_keys_for_cancelation (Optional[str]): Preference keys responsible for cancellation, if applicable.
         commit (bool): Whether to commit the transaction after logging.
     Returns:
         TripStatusAudit: The created audit log entry.
@@ -44,7 +42,6 @@ def log_trip_audit(
             changed_by=changed_by,
             reason=reason,
             cancellation_sub_status=cancellation_sub_status,
-            responsible_preference_keys_for_cancelation=responsible_preference_keys_for_cancelation,
         )
         db.add(audit)
         if commit:

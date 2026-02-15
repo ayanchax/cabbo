@@ -264,6 +264,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
                 OveragesSchema(
                     disclaimer=disclaimer_lines,
                     extra_charges_disclaimers=disclaimer_message,
+                    overage_amount_per_hour=overage_amount_per_hour,
+                    overage_amount_per_km=overage_amount_per_km,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
         )

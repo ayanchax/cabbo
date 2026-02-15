@@ -119,7 +119,7 @@
             font-size: 12px;
             color: #a0aec0;
             text-align: center;
-            margin-top: 36px;
+            margin-top: 10px;
             line-height: 1.7;
         }
 
@@ -151,6 +151,7 @@
          driver_name, driver_contact, cab_number, cab_type,
          total_fare, amount_paid, amount_due, currency
             passenger_name (optional)
+            current_year (injected from message_service.py)
      -->
     <div class="container">
         <!-- Logo -->
@@ -250,160 +251,159 @@
         </div>
 
 
-            <!-- Route timeline -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
-                <tr>
-                    <!-- LEFT COLUMN: DOTS -->
-                    <td width="24" valign="top" style="padding-right:10px;">
-                        <table cellpadding="0" cellspacing="0" align="center">
-                            <!-- Pickup dot -->
-                            <tr>
-                                <td align="center">
-                                    <div style="width:12px;height:12px;background:#2d7ff9;border-radius:50%;"></div>
-                                </td>
-                            </tr>
+        <!-- Route timeline -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
+            <tr>
+                <!-- LEFT COLUMN: DOTS -->
+                <td width="24" valign="top" style="padding-right:10px;">
+                    <table cellpadding="0" cellspacing="0" align="center">
+                        <!-- Pickup dot -->
+                        <tr>
+                            <td align="center">
+                                <div style="width:12px;height:12px;background:#2d7ff9;border-radius:50%;"></div>
+                            </td>
+                        </tr>
 
-                            <!-- Vertical line -->
-                            <tr>
-                                <td align="center">
-                                    <div style="width:2px;height:44px;background:#bcd3f7;"></div>
-                                </td>
-                            </tr>
+                        <!-- Vertical line -->
+                        <tr>
+                            <td align="center">
+                                <div style="width:2px;height:70px;background:#bcd3f7;"></div> <!-- Adjusted height -->
+                            </td>
+                        </tr>
 
-                            <!-- Drop dot -->
-                            <tr>
-                                <td align="center">
-                                    <div style="width:12px;height:12px;background:#22bb33;border-radius:50%;"></div>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
+                        <!-- Drop dot -->
+                        <tr>
+                            <td align="center">
+                                <div style="width:12px;height:12px;background:#22bb33;border-radius:50%;"></div>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
 
-                    <!-- RIGHT COLUMN: TEXT -->
-                    <td valign="top">
-                        {% if trip_type == "airport_pickup" %}
-                        <div style="margin-bottom:18px;">
-                            <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup (Airport)</div>
-                            <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
-                        </div>
-                        <div>
-                            <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop</div>
-                            <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
-                        </div>
-                        {% elif trip_type == "airport_drop" %}
-                        <div style="margin-bottom:18px;">
-                            <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup</div>
-                            <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
-                        </div>
-                        <div>
-                            <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop (Airport)</div>
-                            <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
-                        </div>
-                        {% else %}
-                        <div style="margin-bottom:18px;">
-                            <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup</div>
-                            <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
-                        </div>
-                        <div>
-                            <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop</div>
-                            <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
-                        </div>
-                        {% endif %}
-                    </td>
-                </tr>
-            </table>
+                <!-- RIGHT COLUMN: TEXT -->
+                <td valign="top">
+                    {% if trip_type == "airport_pickup" %}
+                    <div style="margin-bottom:18px;">
+                        <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup (Airport)</div>
+                        <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
+                    </div>
+                    <div>
+                        <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop</div>
+                        <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
+                    </div>
+                    {% elif trip_type == "airport_drop" %}
+                    <div style="margin-bottom:18px;">
+                        <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup</div>
+                        <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
+                    </div>
+                    <div>
+                        <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop (Airport)</div>
+                        <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
+                    </div>
+                    {% else %}
+                    <div style="margin-bottom:18px;">
+                        <div style="color:#2d7ff9;font-weight:600; font-size: medium;">Pickup</div>
+                        <div style="font-weight:600; font-size: small;">{{ pickup_location }}</div>
+                    </div>
+                    <div>
+                        <div style="color:#22bb33;font-weight:600; font-size: medium;">Drop</div>
+                        <div style="font-weight:600; font-size: small;">{{ drop_location }}</div>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
 
-            <!-- Trip Details -->
-            <div class="card">
-                <h3>🚕 Trip Details</h3>
-                <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
-                </div>
-                <div class="detail-row"><span class="label">Date & Time</span><span class="value">{{ trip_date }} at {{
-                        trip_time }}</span></div>
-
-
-                {% if luggage_info %}
-                <div class="detail-row"><span class="label">Luggage</span><span class="value">{{ luggage_info }}</span>
-                </div>
-                {% endif %}
-                {% if flight_number %}
-                <div class="detail-row"><span class="label">Flight No.</span><span class="value">{{ flight_number
-                        }}</span>
-                </div>
-                {% endif %}
-
-                {% if placard_name %}
-                <div class="detail-row"><span class="label">Name on placard</span><span class="value">{{
-                        placard_name
-                        }}</span></div>
-                {% endif %}
-
-
-                {% if special_requests %}
-                <div class="detail-row"><span class="label">Special Requests</span><span class="value">{{
-                        special_requests
-                        }}</span></div>
-                {% endif %}
+        <!-- Trip Details -->
+        <div class="card">
+            <h3>🚕 Trip Details</h3>
+            <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
             </div>
+            <div class="detail-row"><span class="label">Date & Time</span><span class="value">{{ trip_date }} at {{
+                    trip_time }}</span></div>
 
-            <!-- Driver & Cab -->
-            <div class="card">
-                <h3>🧑‍✈️ Driver & Cab</h3>
-                <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name }}</span>
-                </div>
-                <div class="detail-row"><span class="label">Contact</span><span class="value">{{ driver_contact
-                        }}</span>
-                </div>
-                <div class="detail-row"><span class="label">Cab</span><span class="value">{{ cab_type or 'Sedan' }} - {{
-                        fuel_type or 'Diesel' }} - {{ model or 'Unknown model' }}</span></div>
-                <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-'
-                        }}</span>
-                </div>
+
+            {% if luggage_info %}
+            <div class="detail-row"><span class="label">Luggage</span><span class="value">{{ luggage_info }}</span>
             </div>
-
-            <!-- Fare summary -->
-            <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#f4f8ff 100%);">
-                <h3>💳 Fare Summary</h3>
-                <div class="detail-row"><span class="label">Total Fare</span><span class="value">{{currency}}{{
-                        total_fare }}</span>
-                </div>
-                <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{
-                        amount_paid }}</span>
-                </div>
-                <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{
-                        amount_due }}</span>
-                </div>
-                <div style="margin-top: 12px; font-size: 0.7rem; color: #6b7280;">
-                    For a detailed price breakdown, please refer to your trip details in the app.
-                </div>
-            </div>
-
-            <!-- If there is passenger info, then it means trip has been booked by user for someone else -->
-
-            {% if passenger_name %}
-            <div class="card" style="background: #f4f8ff; padding: 16px; margin-top: 16px;">
-                <h3>👤 Passenger: {{ passenger_name }}</h3>
-                <div class="sub" style="font-size: 0.9rem; color: #6b7280; text-align: left;">You booked this trip for
-                    someone else.</div>
+            {% endif %}
+            {% if flight_number %}
+            <div class="detail-row"><span class="label">Flight No.</span><span class="value">{{ flight_number
+                    }}</span>
             </div>
             {% endif %}
 
+            {% if placard_name %}
+            <div class="detail-row"><span class="label">Name on placard</span><span class="value">{{
+                    placard_name
+                    }}</span></div>
+            {% endif %}
 
-            <!-- Trip CTA -->
-            <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta"
-                style="color:#fff!important;text-decoration:none;">📲
-                View Trip in App</a>
 
-            <hr>
-            <!-- Footer -->
-            <div class="footer">
-                If you have any questions or need to make changes, please contact our support team.<br>
-                Wishing you a pleasant journey!<br><br>
-                This email was sent by <b>{{ app_name }}</b>.<br>
-                Maa Sarada Tours and Travels, Bangalore, India<br>
-                &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
+            {% if special_requests %}
+            <div class="detail-row"><span class="label">Special Requests</span><span class="value">{{
+                    special_requests
+                    }}</span></div>
+            {% endif %}
+        </div>
+
+        <!-- Driver & Cab -->
+        <div class="card">
+            <h3>🧑‍✈️ Driver & Cab</h3>
+            <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name }}</span>
             </div>
-         
+            <div class="detail-row"><span class="label">Contact</span><span class="value">{{ driver_contact
+                    }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ cab_type or 'Sedan' }} - {{
+                    fuel_type or 'Diesel' }} - {{ model or 'Unknown model' }}</span></div>
+            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-'
+                    }}</span>
+            </div>
+        </div>
+
+        <!-- Fare summary -->
+        <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#f4f8ff 100%);">
+            <h3>💳 Fare Summary</h3>
+            <div class="detail-row"><span class="label">Total Fare</span><span class="value">{{currency}}{{
+                    total_fare }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{
+                    amount_paid }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{
+                    amount_due }}</span>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.7rem; color: #6b7280;">
+                For a detailed price breakdown, please refer to your trip details in the app.
+            </div>
+        </div>
+
+        <!-- If there is passenger info, then it means trip has been booked by user for someone else -->
+
+        {% if passenger_name %}
+        <div class="card" style="background: #f4f8ff; padding: 16px; margin-top: 16px;">
+            <h3>👤 Passenger: {{ passenger_name }}</h3>
+            <div class="sub" style="font-size: 0.9rem; color: #6b7280; text-align: left;">You booked this trip for
+                someone else.</div>
+        </div>
+        {% endif %}
+
+
+        <!-- Trip CTA -->
+        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
+            View Trip in App</a>
+
+        <hr>
+        <!-- Footer -->
+        <div class="footer">
+            If you have any questions or need to make changes, please contact our support team.<br>
+            Wishing you a pleasant journey!<br><br>
+            This email was sent by <b>{{ app_name }}</b>.<br>
+            Maa Sarada Tours and Travels, Bangalore, India<br>
+            &copy; {{ current_year }} {{ app_name }}. All rights reserved.
+        </div>
+
 </body>
 
 </html>

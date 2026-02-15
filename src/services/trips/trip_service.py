@@ -31,8 +31,8 @@ from services.passenger_service import (
 )
 from services.pricing_service import (
     get_driver_allowance,
-    get_parking_estimate,
-    get_tolls_estimate,
+    get_parking,
+    get_tolls,
 )
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
@@ -365,8 +365,8 @@ def create_temporary_trip(
             in [TripTypeEnum.outstation, TripTypeEnum.local]
             else 0.0
         ),
-        tolls_estimate=get_tolls_estimate(booking_request=booking_request),
-        parking_estimate=get_parking_estimate(booking_request=booking_request),
+        tolls=get_tolls(booking_request=booking_request),
+        parking=get_parking(booking_request=booking_request),
         permit_fee=(
             booking_request.option.price_breakdown.permit_fee
             if booking_request.metadata.is_interstate

@@ -41,9 +41,6 @@ class CancellationSubStatusEnum(str, enum.Enum):
     driver_unavailable = "driver_unavailable"
     driver_no_show = "driver_no_show"
     finance_admin_cancelled = "finance_admin_cancelled"
-    customer_preferences_not_met = (
-        "customer_preferences_not_met"  # e.g., car type, fuel type, etc.
-    )
     other = "other"
 
 

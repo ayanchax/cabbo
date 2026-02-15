@@ -134,13 +134,13 @@ def get_driver_allowance(option: TripSearchOption):
     return 0.0
 
 
-def get_tolls_estimate(booking_request: TripBookRequest) -> float:
+def get_tolls(booking_request: TripBookRequest) -> float:
     """
-    Calculates the estimated tolls for the trip based on the booking request.
+    Calculates the tolls for the trip based on the booking request.
     Args:
         booking_request (TripBookRequest): The trip booking request containing toll details.
     Returns:
-        float: The estimated tolls for the trip.
+        float: The tolls for the trip.
     """
     if booking_request.preferences.trip_type in [TripTypeEnum.local, TripTypeEnum.outstation]:
         # For local trips and outstation trips, tolls are not estimated in advance
@@ -150,7 +150,7 @@ def get_tolls_estimate(booking_request: TripBookRequest) -> float:
         TripTypeEnum.airport_pickup,
         TripTypeEnum.airport_drop,
     ]:
-        # For airport trips, use the tolls estimate from the request if available
+        # For airport trips, use the tolls from the request if available
         return (
             booking_request.option.price_breakdown.toll
             if booking_request.preferences.toll_road_preferred
@@ -164,16 +164,16 @@ def get_tolls_estimate(booking_request: TripBookRequest) -> float:
         )
 
 
-def get_parking_estimate(booking_request: TripBookRequest) -> float:
+def get_parking(booking_request: TripBookRequest) -> float:
     """
-    Calculates the estimated parking charges for the trip based on the booking request.
+    Calculates the parking charges for the trip based on the booking request.
     Args:
         booking_request (TripBookRequest): The trip booking request containing parking details.
     Returns:
-        float: The estimated parking charges for the trip.
+        float: The parking charges for the trip.
     """
     if booking_request.preferences.trip_type == TripTypeEnum.airport_pickup:
-        # For airport pickup, use the parking estimate from the request if available
+        # For airport pickup, use the parking from the request if available
         return (
             booking_request.option.price_breakdown.parking
             if booking_request.option.price_breakdown.parking

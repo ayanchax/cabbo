@@ -191,8 +191,8 @@ def _create_confirmed_trip_from_temp_trip(
         overages=temp_trip.overages if temp_trip.overages else None,
         base_fare=temp_trip.base_fare,
         driver_allowance=temp_trip.driver_allowance,
-        tolls_estimate=temp_trip.tolls_estimate,
-        parking_estimate=temp_trip.parking_estimate,
+        tolls=temp_trip.tolls,
+        parking=temp_trip.parking,
         permit_fee=temp_trip.permit_fee,
         platform_fee=temp_trip.platform_fee,
         final_price=temp_trip.final_price,
@@ -252,7 +252,7 @@ def _create_confirmed_trip_from_temp_trip(
         )  # Populate the trip schema with necessary details
         return TripCreate(
             trip_id=trip.id,
-            booking_id=trip.id,
+            booking_id=trip.booking_id,
             payment_info=payment_info,
             status=trip.status,
             trip_details=trip_schema,

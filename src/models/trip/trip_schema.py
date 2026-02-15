@@ -71,8 +71,8 @@ class TripDetails(BaseModel):
     # Financials
     base_fare: Optional[float] = None
     driver_allowance: Optional[float] = None
-    tolls_estimate: Optional[float] = None
-    parking_estimate: Optional[float] = None
+    tolls: Optional[float] = None
+    parking: Optional[float] = None
     permit_fee: Optional[float] = None
     platform_fee: Optional[float] = None
     final_price: Optional[float] = None
@@ -130,10 +130,7 @@ class TripStatusAuditOut(BaseModel):
     reason: Optional[str] = None
     timestamp: datetime
     cancellation_sub_status: Optional[CancellationSubStatusEnum] = None
-    # Nullable: Only populated when cancellation_sub_status == CancellationSubStatusEnum.customer_preferences_not_met
-    responsible_preference_keys_for_cancelation: Optional[str] = (
-        None  # Comma-separated or JSON string of unmet preferences
-    )
+    
 
     class Config:
         from_attributes = True

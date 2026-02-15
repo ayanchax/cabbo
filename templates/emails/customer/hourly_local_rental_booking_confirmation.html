@@ -197,6 +197,7 @@
          driver_name, driver_contact, cab_number, cab_type,
          total_fare, amount_paid, amount_due, currency
         passenger_name (optional)
+        current_year (injected from message_service.py)
     -->
     <div class="container">
         <!-- Logo -->
@@ -297,6 +298,8 @@
         <div class="sub">Hi {{ customer_name }}, your hourly rental with <strong>{{ app_name }}</strong> is confirmed.
         </div>
 
+        <!-- No route timeline is needed for hourly rental as we do not have a defined route, and only have the pickup point. -->
+
         <!-- Pickup Details -->
         <div class="card" style="background:linear-gradient(135deg,#f4f8ff 60%,#fff 100%);">
             <h3>📍 Pickup</h3>
@@ -356,30 +359,39 @@
         <div class="card">
             <h3>🧰 In-car amenities & inclusions</h3>
             <div class="badges">
-                {% if in_car_amenities.ac %}<div class="badge">AC</div>{% endif %}
-                {% if in_car_amenities.music_system %}<div class="badge">Music</div>{% endif %}
-                {% if in_car_amenities.water_bottle %}<div class="badge">Water bottle</div>{% endif %}
-                {% if in_car_amenities.tissues %}<div class="badge">Tissues</div>{% endif %}
-                {% if in_car_amenities.candies %}<div class="badge">Candies</div>{% endif %}
-                {% if in_car_amenities.snacks %}<div class="badge">Snacks</div>{% endif %}
-                {% if in_car_amenities.phone_charger %}<div class="badge">Phone charger</div>{% endif %}
-                {% if in_car_amenities.aux_cable %}<div class="badge">Aux cable</div>{% endif %}
-                {% if in_car_amenities.bluetooth %}<div class="badge">Bluetooth</div>{% endif %}
-                {% if in_car_amenities.wifi %}<div class="badge">Wi‑Fi</div>{% endif %}
+                {% if in_car_amenities.ac %}<div class="badge"> ❄️ AC</div>{% endif %}
+                {% if in_car_amenities.music_system %}<div class="badge">🎵 Music</div>{% endif %}
+                {% if in_car_amenities.water_bottle %}<div class="badge">💧 Water bottle</div>{% endif %}
+                {% if in_car_amenities.tissues %}<div class="badge">🧻 Tissues</div>{% endif %}
+                {% if in_car_amenities.candies %}<div class="badge">🍬 Candies</div>{% endif %}
+                {% if in_car_amenities.snacks %}<div class="badge">🍿 Snacks</div>{% endif %}
+                {% if in_car_amenities.phone_charger %}<div class="badge">🔌 Phone charger</div>{% endif %}
+                {% if in_car_amenities.aux_cable %}<div class="badge">🔌 Aux cable</div>{% endif %}
+                {% if in_car_amenities.bluetooth %}<div class="badge">🔊 Bluetooth</div>{% endif %}
+                {% if in_car_amenities.wifi %}<div class="badge">🌐 Wi-Fi</div>{% endif %}
             </div>
             {% if inclusions and exclusions %}
             <div style="margin-top:10px">
-                <div style="font-weight:600;color:#2d7ff9">What's included</div>
-                <ul>{% for inc in inclusions %}<li>{{ inc }}</li>{% endfor %}</ul>
-                <div style="font-weight:600;color:#f05555;margin-top:8px">What's excluded</div>
-                <ul>{% for ex in exclusions %}<li>{{ ex }}</li>{% endfor %}</ul>
+                <div style="font-weight:600;color:#2d7ff9; font-size: 15px;">What's included</div>
+                <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
+                    {% for inc in inclusions %}
+                    <li style="margin-bottom: 8px; font-size: 12px;">
+                        <span style="margin-right: 8px;">✅</span>{{ inc }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div style="font-weight:600;color:#f05555;margin-top:8px; font-size: 15px;">What's excluded</div>
+                <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
+                    {% for ex in exclusions %}
+                    <li style="margin-bottom: 8px; font-size: 12px;">
+                        <span style="margin-right: 8px;">❌</span>{{ ex }}
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
             {% endif %}
         </div>
         {% endif %}
-
-
-
         <!-- Overages Disclaimer Terms and Conditions -->
         {% if overages and overages.disclaimer %}
         <div class="card" style="background:#fff8e8;">
@@ -387,7 +399,9 @@
             <ul
                 style="margin: 0; padding: 0 0 0 20px; list-style: none; color: #4a5568; font-size: 0.7rem; line-height: 1.6;">
                 {% for item in overages.disclaimer %}
-                <li style="margin-bottom: 8px;">{{ item }}</li>
+                <li style="margin-bottom: 8px;">
+                    <span style="margin-right: 8px;">➔</span>{{ item }}
+                </li>
                 {% endfor %}
             </ul>
         </div>
@@ -414,7 +428,7 @@
             Wishing you a pleasant journey!<br><br>
             This email was sent by <b>{{ app_name }}</b>.<br>
             Maa Sarada Tours and Travels, Bangalore, India<br>
-            &copy; {{ now().year if now is defined else '2025' }} {{ app_name }}. All rights reserved.
+            &copy; {{ current_year }} {{ app_name }}. All rights reserved.
 
         </div>
     </div>

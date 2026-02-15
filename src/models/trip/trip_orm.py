@@ -145,12 +145,12 @@ class Trip(Base):
     driver_allowance = Column(
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation trips
-    tolls_estimate = Column(
+    tolls = Column(
         Float, nullable=True, default=0.0
-    )  # Estimated tolls for the trip
-    parking_estimate = Column(
+    )  #  tolls for the trip
+    parking = Column(
         Float, nullable=True, default=0.0
-    )  # Estimated parking charges for the trip
+    )  #  parking charges for the trip
     permit_fee = Column(
         Float, nullable=True, default=0.0
     )  # Interstate permit fee for outstation trips
@@ -272,12 +272,7 @@ class TripStatusAudit(Base):
         default=None,
         comment="Detailed cancellation reason for analytics (nullable, only for cancelled trips)",
     )
-    # Nullable: Only populated when cancellation_sub_status == CancellationSubStatusEnum.customer_preferences_not_met
-    responsible_preference_keys_for_cancelation = Column(
-        Text,  # Use Text for flexibility; can store comma-separated or JSON string
-        nullable=True,
-        comment="Snapshot of preference keys/flags at status change (nullable)",
-    )
+    
 
     trip = relationship("Trip", back_populates="status_audits")
 

@@ -131,6 +131,7 @@ def _sendgrid_send_email(
             html_content=html_content,
         )
         response = sg_client.send(message)
+        print(f"SendGrid email sent to {to_email} with status code {response.status_code}")
         return 200 <= response.status_code < 300
     except Exception as e:
         # We will log audit logs later on failures of email sending
@@ -165,6 +166,7 @@ async def _aws_ses_send_email(
             password=settings.AWS_SES_SMTP_PASSWORD,
             timeout=20,
         )
+        print(f"AWS SES email sent to {to_email}")
         return True
 
     except Exception as e:
@@ -174,7 +176,7 @@ async def _aws_ses_send_email(
 
 
 def render_email_template(
-    template_name: str, for_customer=False, for_driver=False, **kwargs
+    template_name: str, for_customer=False, for_driver=False, include_year=True, **kwargs
 ) -> str:
     """
     Render an email template with the given context.
@@ -185,6 +187,10 @@ def render_email_template(
         template_name = f"driver/{template_name}"
 
     template = jinja_templates_env.get_template(template_name)
+    if include_year:
+        now = datetime.now(timezone.utc)
+        kwargs["current_year"] = now.year
+    
     return template.render(**kwargs)
 
 
