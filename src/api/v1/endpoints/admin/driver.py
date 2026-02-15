@@ -29,7 +29,6 @@ from services.kyc_service import (
 )
 from services.driver_service import (
     activate_driver,
-    assign_driver_to_trip,
     create_driver,
     deactivate_driver,
     delete_driver,
@@ -44,9 +43,8 @@ from services.file_service import (
     remove_driver_profile_picture,
     save_driver_profile_picture,
 )
-from services.notification_service import notify_customer_booking_confirmed, notify_driver_onboarded
+from services.notification_service import notify_driver_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.trips.trip_service import get_trip_by_id
 from services.validation_service import validate_driver_payload
 
 router = APIRouter()
@@ -436,51 +434,6 @@ def list_drivers(
     return get_all_drivers(db)
 
 
-# Assign driver to trip
-@router.post("/{driver_id}/trips/{trip_id}/assign")
-def assign_driver(
-    background_tasks: BackgroundTasks,
-    trip_id: str,
-    driver_id: str,
-    db: Session = Depends(yield_mysql_session),
-    current_user: User = Depends(validate_user_token),
-):
-    """Assign a driver to a trip."""
-    current_user_role = current_user.role
-    trip = get_trip_by_id(trip_id, db)
-
-    if trip is None:
-        raise CabboException("Trip not found", status_code=404)
-    driver = get_driver_by_id(driver_id, db)
-    if driver is None:
-        raise CabboException("Driver not found", status_code=404)
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        raise CabboException(
-            "You do not have permission to assign drivers to trips.", status_code=403
-        )
-
-    assigned_trip, assigned_driver = assign_driver_to_trip(
-        trip=trip, driver=driver, db=db, requestor=current_user
-    )
-
-    # Background job to notify customer via email, if email is provided
-    orchestrator = BackgroundTaskOrchestrator(background_tasks)
-    orchestrator.add_task(
-        notify_customer_booking_confirmed,
-        task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
-        booking=assigned_trip,
-        db=db,
-    )
-
-    #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
-    #  Not implementing extra notification system for driver at the moment to save cost.
-
-    return {
-        "message": f"Driver {assigned_driver.name} assigned to trip {assigned_trip.id}"
-    }
-
-
- 
 # View driver lifetime trips
 @router.get("/{driver_id}/trips")
 def view_driver_trips_history(driver_id: str):

@@ -15,6 +15,7 @@ from services.airport_service import (
     async_add_airport,
     async_delete_airport,
     async_get_airport_by_id,
+    async_get_airport_by_region_code,
     async_get_all_airports,
     async_get_all_airports_in_country,
     async_get_all_airports_in_state,
@@ -82,7 +83,7 @@ async def get_airport(
 
  
 
-#Get all airports in a state with a state code
+#Get all airports in a state with a state code. There can be multiple airports in a state.
 @router.get("/state/{state_code}", response_model=list[AirportSchema])
 async def get_airports_by_state(
     state_code: str,
@@ -98,7 +99,7 @@ async def get_airports_by_state(
     airports = await async_get_all_airports_in_state(state_code=state_code, db=db)
     return airports
 
-#Get all airports in a country with a country code
+#Get all airports in a country with a country code. There are multiple airports in a country.
 @router.get("/country/{country_code}", response_model=list[AirportSchema])
 async def get_airports_by_country(
     country_code: str,
@@ -112,6 +113,24 @@ async def get_airports_by_country(
             "You do not have permission to view airports.", status_code=403
         )
     airports = await async_get_all_airports_in_country(country_code=country_code, db=db)
+    return airports
+
+#Get all airports in a region with a region code. There can be multiple airports in a region.
+@router.get("/region/{region_code}", response_model=list[AirportSchema])
+async def get_airports_by_region(
+    region_code: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Retrieve all airports in a specific region by region code."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to view airports.", status_code=403
+        )
+    airports = await async_get_airport_by_region_code(region_code=region_code, db=db)
+    if not airports:
+        raise CabboException(status_code=404, message="No airports found for the specified region")
     return airports
 
 @router.put("/{airport_id}", response_model=AirportSchema)

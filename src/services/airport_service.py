@@ -238,6 +238,23 @@ async def async_get_all_airports_in_country(
     return [AirportSchema.model_validate(airport) for airport in airports]
 
 
+async def async_get_airport_by_region_code(
+    region_code: str, db: AsyncSession  ) -> list[AirportSchema] | None:
+    """Get all airports in a specific region using the region code."""
+    region_code = region_code.upper()
+    airports = await db.execute(
+        select(AirportModel)
+        .filter(
+            AirportModel.region_code == region_code,
+            AirportModel.is_serviceable == True,
+        )
+        .all()
+    )
+    if airports:
+        return [AirportSchema.model_validate(airport) for airport in airports]
+    return None
+
+
 async def async_get_all_airports(db: AsyncSession) -> List[AirportSchema]:
     """Retrieve all airports from the database."""
     result = await db.execute(
@@ -332,3 +349,4 @@ async def async_update_airport(
         await db.rollback()
         print(f"Error updating airport: {e}")
         return None, "Failed to update airport"
+
