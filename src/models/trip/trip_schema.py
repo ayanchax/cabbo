@@ -1,5 +1,5 @@
-from pydantic import BaseModel, field_validator
-from typing import Optional, List, Union
+from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
 from models.pricing.pricing_schema import (
@@ -310,3 +310,102 @@ class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book
     preferences: TripSearchRequest
     metadata: Optional[TripSearchAdditionalData] = None  # Additional metadata for the booking
+
+
+
+
+class TripDetailSchema(BaseModel):
+    id: Optional[str] = Field(None, description="Unique identifier for the trip")
+    booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
+    
+    # Creator information
+    creator_id: Optional[str] = Field(None, description="ID of the user who created the trip")
+    creator_type: Optional[RoleEnum] = Field(None, description="Role of the creator (customer, driver, admin)")
+
+    # Trip details
+    trip_type_id: Optional[str] = Field(None, description="ID of the trip type")
+    
+    # Location information
+    origin: Optional[LocationInfo] = Field(None, description="Origin city details")
+    destination: Optional[LocationInfo] = Field(None, description="Destination city details")
+    hops: Optional[List[LocationInfo]] = Field(None, description="List of hops for the trip")
+    is_interstate: Optional[bool] = Field(None, description="Indicates if the trip is interstate")
+    total_unique_states: Optional[int] = Field(None, description="Total unique states for interstate trips")
+    unique_states: Optional[List[str]] = Field(None, description="List of unique states for interstate trips")
+    is_round_trip: Optional[bool] = Field(None, description="Indicates if the trip is a round trip")
+
+    # Package information
+    package_id: Optional[str] = Field(None, description="ID of the package selected for the trip")
+    package_label: Optional[str] = Field(None, description="Label for the package (e.g., '4 Hours / 40 KM')")
+    package_label_short: Optional[str] = Field(None, description="Short label for the package (e.g., '4H/40KM')")
+
+    # Date and time information
+    start_datetime: Optional[datetime] = Field(None, description="Start date and time of the trip")
+    expected_end_datetime: Optional[datetime] = Field(None, description="Expected end date and time of the trip")
+    end_datetime: Optional[datetime] = Field(None, description="Actual end date and time of the trip")
+    total_days: Optional[int] = Field(None, description="Total days for outstation trips")
+    included_kms: Optional[float] = Field(None, description="Included kilometers for the trip")
+
+    # Passenger and luggage information
+    num_adults: Optional[int] = Field(None, description="Number of adults")
+    num_children: Optional[int] = Field(None, description="Number of children")
+    num_large_suitcases: Optional[int] = Field(None, description="Number of large suitcases")
+    num_carryons: Optional[int] = Field(None, description="Number of carry-on bags")
+    num_backpacks: Optional[int] = Field(None, description="Number of backpacks")
+    num_other_bags: Optional[int] = Field(None, description="Number of other bags")
+    num_luggages: Optional[int] = Field(None, description="Total luggage count")
+    num_passengers: Optional[int] = Field(None, description="Total number of passengers")
+
+    # Car and fuel preferences
+    preferred_car_type: Optional[CarTypeEnum] = Field(None, description="Preferred car type")
+    preferred_fuel_type: Optional[FuelTypeEnum] = Field(None, description="Preferred fuel type")
+    in_car_amenities: Optional[AmenitiesSchema] = Field(None, description="Dictionary of in-car amenities")
+
+    # Driver assignment fields
+    driver_id: Optional[str] = Field(None, description="ID of the assigned driver")
+    driver: Optional[Dict[str, Any]] = Field(None, description="Driver details of the assigned driver")
+
+    # Trip status
+    status: Optional[TripStatusEnum] = Field(None, description="Current status of the trip")
+
+    # Financial fields
+    base_fare: Optional[float] = Field(None, description="Base fare for the trip")
+    driver_allowance: Optional[float] = Field(None, description="Driver allowance for outstation trips")
+    tolls: Optional[float] = Field(None, description="Toll charges for the trip")
+    parking: Optional[float] = Field(None, description="Parking charges for the trip")
+    permit_fee: Optional[float] = Field(None, description="Interstate permit fee for outstation trips")
+    platform_fee: Optional[float] = Field(None, description="Platform fee charged by the system")
+    final_price: Optional[float] = Field(None, description="Final price calculated for the trip")
+    final_display_price: Optional[float] = Field(None, description="Final price shown to the driver admin")
+    advance_payment: Optional[float] = Field(None, description="Advance payment made by the customer")
+    balance_payment: Optional[float] = Field(None, description="Balance payment to be made by the customer")
+    payment_provider_metadata: Optional[Dict] = Field(None, description="Payment details (e.g., mode, transaction ID)")
+    price_breakdown: Optional[Dict] = Field(None, description="Detailed price breakdown")
+    overages: Optional[Dict] = Field(None, description="Details of overages (e.g., extra km charges)")
+
+    # Inclusions and exclusions
+    inclusions: Optional[List[str]] = Field(None, description="List of inclusions for the trip")
+    exclusions: Optional[List[str]] = Field(None, description="List of exclusions for the trip")
+
+    # Airport pickup/flight metadata
+    flight_number: Optional[str] = Field(None, description="Flight number for airport trips")
+    terminal_number: Optional[str] = Field(None, description="Terminal number for airport trips")
+    toll_road_preferred: Optional[bool] = Field(None, description="Indicates if toll roads are preferred")
+    placard_required: Optional[bool] = Field(None, description="Indicates if a placard is required")
+    placard_name: Optional[str] = Field(None, description="Name to be displayed on the placard")
+
+    # Additional metadata
+    special_needs_requests: Optional[str] = Field(None, description="Special needs or requests from the customer")
+    estimated_km: Optional[float] = Field(None, description="Estimated distance for the trip")
+    indicative_overage_warning: Optional[bool] = Field(None, description="Indicates if overage warnings are applicable")
+    alternate_customer_phone: Optional[str] = Field(None, description="Alternate phone number for the customer")
+    passenger_id: Optional[str] = Field(None, description="ID of the passenger (if trip is booked for someone else)")
+
+    # Metadata
+    created_at: Optional[datetime] = Field(None, description="Timestamp when the trip was created")
+    updated_at: Optional[datetime] = Field(None, description="Timestamp when the trip was last updated")
+
+    class Config:
+        from_attributes = True
+        extra = "allow"  # Allow extra fields not defined in the model
+        exclude_none = True  # Exclude fields with None values from the model dump

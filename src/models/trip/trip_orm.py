@@ -227,6 +227,7 @@ class Trip(Base):
     # Audit fields
     status_audits = relationship("TripStatusAudit", back_populates="trip")
     driver = relationship("Driver", back_populates="trips")
+    trip_type_master = relationship("TripTypeMaster", back_populates="trips")
     driver_earnings = relationship(
         "DriverEarning",
         back_populates="trip",
@@ -315,6 +316,7 @@ class TripTypeMaster(Base):
         onupdate=func.utc_timestamp(),
     )
     is_active=Column(Boolean, nullable=False, default=True)
+    trips = relationship("Trip", back_populates="trip_type_master")
 
 
 class TripPackageConfig(Base):

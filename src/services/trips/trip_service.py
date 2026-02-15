@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
 import json
 from typing import Union
+from unittest import result
 from core.exceptions import CabboException
-from core.security import verify_hash
+from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES
 from core.trip_helpers import generate_trip_field_dictionary, get_trip_type_id_by_trip_type
+from models.driver.driver_schema import DriverReadSchema
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
@@ -19,6 +21,7 @@ from models.trip.trip_enums import (
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     TripBookRequest,
+    TripDetailSchema,
     TripDetails,
     TripSearchRequest,
 )
@@ -36,6 +39,22 @@ from services.pricing_service import (
 )
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
+
+def serialize_trip(trip:Trip):
+    trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
+    if trip.driver:  # Serialize the driver if it exists
+            driver_data = DriverReadSchema.model_validate(trip.driver).model_dump()
+            trip_dict["driver"] = driver_data
+    else:
+            trip_dict["driver"] = None
+    
+    #if trip.trip_type_master:  # Serialize the trip type if it exists
+        
+    trip_dict.pop("_sa_instance_state", None)
+    return TripDetailSchema.model_validate(trip_dict)
 
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
@@ -471,3 +490,42 @@ def populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetail
 def get_trip_by_id(trip_id: str, db: Session) -> Trip:
     """Retrieve a trip by its ID."""
     return db.query(Trip).filter(Trip.id == trip_id).first()
+
+async def async_get_trip_by_id(trip_id: str, db: AsyncSession, load_driver: bool = False, load_trip_type: bool = False) -> Trip:
+    """Asynchronously retrieve a trip by its ID."""
+    query = select(Trip).filter(Trip.id == trip_id)
+    if load_driver:
+        query = query.options(joinedload(Trip.driver))  # Eagerly load the driver relationship
+    if load_trip_type:
+        query =  query.options(joinedload(Trip.trip_type_master))  # Eagerly load the trip type relationship
+    result = await db.execute(query)
+    return result.scalars().first()
+
+async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Trip:
+    """Asynchronously retrieve a trip by its booking ID."""
+    result = await db.execute(select(Trip).filter(Trip.booking_id == booking_id))
+    return result.scalars().first()
+
+async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
+    """Asynchronously retrieve all trips."""
+    result = await db.execute(select(Trip))
+    return result.scalars().all()
+
+async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession, load_driver: bool = False) -> list[Trip]:
+    """Asynchronously retrieve trips by driver ID."""
+    query = select(Trip).filter(Trip.driver_id == driver_id)
+    if load_driver:
+        query = query.options(joinedload(Trip.driver))  # Eagerly load the driver relationship
+    result = await db.execute(query)
+    return result.scalars().all()
+
+def serialize_trips(trips: list[Trip])-> list[TripDetailSchema]:
+    serialized_trips = []
+    for trip in trips:
+        serialized_trips.append(serialize_trip(trip))
+    return serialized_trips
+
+async def async_get_trips_by_customer_id(customer_id: str, db: AsyncSession) -> list[Trip]:
+    """Asynchronously retrieve trips by customer ID."""
+    result = await db.execute(select(Trip).filter(Trip.creator_id == customer_id, Trip.creator_type== RoleEnum.customer.value))
+    return result.scalars().all()
