@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 import math
-from typing import List, Optional
+from typing import List, Optional, Union
 from core.constants import APP_NAME
 from core.exceptions import CabboException
 from core.store import ConfigStore
@@ -14,6 +14,9 @@ from core.trip_helpers import (
 from core.config import settings
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.customer.customer_orm import Customer
+from models.customer.customer_schema import CustomerRead
+from models.customer.passenger_schema import PassengerRequest
+from models.driver.driver_schema import DriverReadSchema
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     OutstationCabPricingSchema,
@@ -391,8 +394,7 @@ def get_outstation_trip_options(
 def get_kwargs_for_outstation_trip(
     trip: Trip,
     currency: str,
-    db: Session,
-    customer:Optional[Customer]=None
+    customer:Optional[Union[Customer, CustomerRead]]=None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -418,7 +420,8 @@ def get_kwargs_for_outstation_trip(
                 return {}  # Do not proceed if customer info is invalid
 
             # Get customer from customer_id
-            customer = get_customer_by_id(customer_id, db)
+            customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
+            customer = CustomerRead.model_validate(customer) if customer else None
 
             if not customer:
                 print("Customer not found for trip:", trip.booking_id)
@@ -430,9 +433,11 @@ def get_kwargs_for_outstation_trip(
             customer_name = customer.name or "Valued Customer"
             customer_email = customer.email or None
 
-        driver = get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
+        driver = trip.driver if trip.driver_id else None
+        driver = DriverReadSchema.model_validate(driver) if driver else None  
 
-        passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
+        passenger = trip.passenger if trip.passenger_id else None
+        passenger = PassengerRequest.model_validate(passenger) if passenger else None
         passenger_name = passenger.name if passenger else None
 
         # Prepare inclusions and exclusions
@@ -443,7 +448,7 @@ def get_kwargs_for_outstation_trip(
         # Prepare in-car amenities
         in_car_amenities = None
         if driver and driver.cab_amenities:
-            in_car_amenities = driver.cab_amenities
+            in_car_amenities = driver.cab_amenities.model_dump(exclude_none=True, exclude_unset=True)
         else:
             # Fallback to trip's in-car amenities itself, if driver's cab amenities are not available
             in_car_amenities = trip.in_car_amenities or {}

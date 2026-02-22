@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
+from models.customer.customer_schema import CustomerRead
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
     LocalPricingBreakdownSchema,
@@ -9,7 +10,7 @@ from models.pricing.pricing_schema import (
     OveragesSchema,
     TripPackageConfigSchema,
 )
-from models.customer.passenger_schema import PassengerRequest
+from models.customer.passenger_schema import PassengerRead, PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.trip_enums import (
     TripStatusEnum,
@@ -20,6 +21,7 @@ from models.trip.trip_enums import (
 )
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_orm import RoleEnum
+from utils.utility import remove_none_recursive
 
 class TripTypeSchema(BaseModel):
     id: Optional[str]
@@ -319,11 +321,9 @@ class TripDetailSchema(BaseModel):
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
     
     # Creator information
-    creator_id: Optional[str] = Field(None, description="ID of the user who created the trip")
-    creator_type: Optional[RoleEnum] = Field(None, description="Role of the creator (customer, driver, admin)")
-
+    customer:Optional[CustomerRead] = Field(None, description="Customer details of the trip creator, included only if the creator is a customer and if the requesting user has permission to view customer details")
     # Trip details
-    trip_type_id: Optional[str] = Field(None, description="ID of the trip type")
+    trip_type: Optional[TripTypeSchema] = Field(None, description="Trip type details")
     
     # Location information
     origin: Optional[LocationInfo] = Field(None, description="Origin city details")
@@ -335,10 +335,9 @@ class TripDetailSchema(BaseModel):
     is_round_trip: Optional[bool] = Field(None, description="Indicates if the trip is a round trip")
 
     # Package information
-    package_id: Optional[str] = Field(None, description="ID of the package selected for the trip")
     package_label: Optional[str] = Field(None, description="Label for the package (e.g., '4 Hours / 40 KM')")
     package_label_short: Optional[str] = Field(None, description="Short label for the package (e.g., '4H/40KM')")
-
+    package: Optional[Union[TripPackageConfigSchema, str]] = Field(None, description="Package details for local trips")
     # Date and time information
     start_datetime: Optional[datetime] = Field(None, description="Start date and time of the trip")
     expected_end_datetime: Optional[datetime] = Field(None, description="Expected end date and time of the trip")
@@ -362,7 +361,6 @@ class TripDetailSchema(BaseModel):
     in_car_amenities: Optional[AmenitiesSchema] = Field(None, description="Dictionary of in-car amenities")
 
     # Driver assignment fields
-    driver_id: Optional[str] = Field(None, description="ID of the assigned driver")
     driver: Optional[Dict[str, Any]] = Field(None, description="Driver details of the assigned driver")
 
     # Trip status
@@ -399,8 +397,8 @@ class TripDetailSchema(BaseModel):
     estimated_km: Optional[float] = Field(None, description="Estimated distance for the trip")
     indicative_overage_warning: Optional[bool] = Field(None, description="Indicates if overage warnings are applicable")
     alternate_customer_phone: Optional[str] = Field(None, description="Alternate phone number for the customer")
-    passenger_id: Optional[str] = Field(None, description="ID of the passenger (if trip is booked for someone else)")
-
+    
+    passenger: Optional[PassengerRequest] = Field(None, description="Passenger details if the trip is booked for someone else")
     # Metadata
     created_at: Optional[datetime] = Field(None, description="Timestamp when the trip was created")
     updated_at: Optional[datetime] = Field(None, description="Timestamp when the trip was last updated")
@@ -409,3 +407,5 @@ class TripDetailSchema(BaseModel):
         from_attributes = True
         extra = "allow"  # Allow extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
+
+    

@@ -3,9 +3,9 @@
 #     See trip by booking_id done (booking_id is the unique id from the booking system, which is used to create a trip in our system) done
 #     List all trips in system done
 #     List trips by driver_id done
-#     List trips by customer_id
-#     List trips by status
-#     Update trip status
+#     List trips by customer_id done
+#     List trips by status --
+#     Update trip status --
 #     Assign driver to trip Done
 
 
@@ -13,22 +13,29 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
-from db.database import a_yield_mysql_session, yield_mysql_session
-from models.driver.driver_schema import DriverReadSchema
-from models.trip.trip_schema import TripDetailSchema
+from db.database import a_yield_mysql_session
 from models.user.user_orm import User
-from services.driver_service import assign_driver_to_trip, get_driver_by_id
+from services.driver_service import a_get_driver_by_id, assign_driver_to_trip, get_driver_by_id
 from services.notification_service import notify_customer_booking_confirmed
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.trips.trip_service import async_get_all_trips, async_get_trip_by_booking_id, async_get_trip_by_id, async_get_trips_by_customer_id, async_get_trips_by_driver_id, get_trip_by_id, serialize_trip, serialize_trips
-from sqlalchemy.orm import Session
+from services.trips.trip_service import (
+    async_get_all_trips,
+    async_get_trip_by_booking_id,
+    async_get_trip_by_id,
+    async_get_trips_by_customer_id,
+    async_get_trips_by_driver_id,
+    attach_relationships_to_trip,
+    get_trip_by_id,
+    serialize_trip,
+    serialize_trips,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
 # View trip details by trip_id
-@router.get("/{trip_id}", response_model=TripDetailSchema)
+@router.get("/{trip_id}")
 async def view_trip_details(
     trip_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -44,14 +51,15 @@ async def view_trip_details(
         raise CabboException(
             "You do not have permission to view trip details.", status_code=403
         )
-    trip = await async_get_trip_by_id(trip_id, db, load_driver=True, load_trip_type=True)
+    trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
-    
+
     return serialize_trip(trip)
 
+
 # View trip details by booking_id
-@router.get("/booking/{booking_id}", response_model=TripDetailSchema)   
+@router.get("/booking/{booking_id}")
 async def view_trip_details_by_booking_id(
     booking_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -72,11 +80,16 @@ async def view_trip_details_by_booking_id(
 
     if trip is None:
         raise CabboException("Trip booking not found", status_code=404)
-    return TripDetailSchema.model_validate(trip)
+    serialized_trip = serialize_trip(trip)
+    if "id" in serialized_trip:
+        serialized_trip.pop(
+            "id"
+        )  # Remove internal trip ID from the response for security reasons
+    return serialized_trip
 
 
-#List all trips in system
-@router.get("/list/all", response_model=list[TripDetailSchema])
+# List all trips in system
+@router.get("/list/all", response_model=list)
 async def list_all_trips(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
@@ -88,10 +101,11 @@ async def list_all_trips(
             "You do not have permission to view all trips.", status_code=403
         )
     trips = await async_get_all_trips(db)
-    return [TripDetailSchema.model_validate(trip) for trip in trips]
+    return serialize_trips(trips)
 
-#List trips by driver_id
-@router.get("/list/by/driver/{driver_id}", response_model=list[TripDetailSchema])
+
+# List trips by driver_id - this will be used by driver admin to see all trips that belong to a particular driver, and also by super admin for any driver
+@router.get("/list/by/driver/{driver_id}", response_model=list)
 async def list_trips_by_driver_id(
     driver_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -103,13 +117,13 @@ async def list_trips_by_driver_id(
         raise CabboException(
             "You do not have permission to view trips by driver.", status_code=403
         )
-    trips = await async_get_trips_by_driver_id(driver_id, db, load_driver=True)
+    trips = await async_get_trips_by_driver_id(driver_id, db)
     # Serialize trips and driver details
     return serialize_trips(trips)
-     
 
-#List trips by customer_id
-@router.get("/list/by/customer/{customer_id}", response_model=list[TripDetailSchema])
+
+# List trips by customer_id - this will be used by customer admin to see all trips that belong to a particular customer, and also by super admin for any customer, and also by customers to see their own trips
+@router.get("/list/by/customer/{customer_id}", response_model=list)
 async def list_trips_by_customer_id(
     customer_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -117,29 +131,41 @@ async def list_trips_by_customer_id(
 ):
     """List trips by customer_id."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.customer_admin, RoleEnum.customer]:
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.customer_admin,
+        RoleEnum.customer,
+    ]:
         raise CabboException(
             "You do not have permission to view trips by customer.", status_code=403
         )
+    can_expose_customer_details = current_user_role in [
+        RoleEnum.super_admin,
+        RoleEnum.customer_admin,
+    ]
     # Implementation to fetch and return trips by customer_id goes here
-    return await async_get_trips_by_customer_id(customer_id, db)
+    trips = await async_get_trips_by_customer_id(
+        customer_id, db, expose_customer_details=can_expose_customer_details
+    )
+    return serialize_trips(trips, expose_customer_details=can_expose_customer_details)
+
 
 # Assign driver to trip
 @router.post("/{trip_id}/assign-driver/{driver_id}")
-def assign_driver(
+async def assign_driver(
     background_tasks: BackgroundTasks,
     trip_id: str,
     driver_id: str,
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """Assign a driver to a trip."""
     current_user_role = current_user.role
-    trip = get_trip_by_id(trip_id, db)
-
+    trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
-    driver = get_driver_by_id(driver_id, db)
+    driver = await a_get_driver_by_id(driver_id, db)
+
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
@@ -147,9 +173,12 @@ def assign_driver(
             "You do not have permission to assign drivers to trips.", status_code=403
         )
 
-    assigned_trip, assigned_driver = assign_driver_to_trip(
+    assigned_trip, assigned_driver = await assign_driver_to_trip(
         trip=trip, driver=driver, db=db, requestor=current_user
     )
+
+    await attach_relationships_to_trip(assigned_trip, db, expose_customer_details=True)  # Expose customer details for notification
+
 
     # Background job to notify customer via email, if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
@@ -157,12 +186,12 @@ def assign_driver(
         notify_customer_booking_confirmed,
         task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
         booking=assigned_trip,
-        db=db,
+        
     )
 
     #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
-    #  Not implementing extra notification system for driver at the moment to save cost.
+    #  Not implementing extra notification system for driver at the moment to save cost. Driver admin can use the existing communication channels(phone) to inform the driver about the trip details and confirm  their availability before assignment
 
     return {
-        "message": f"Driver {assigned_driver.name} assigned to trip {assigned_trip.id}"
+        "message": f"Driver {assigned_driver.name} assigned to trip {assigned_trip.booking_id} successfully."
     }

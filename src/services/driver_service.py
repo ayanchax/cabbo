@@ -11,10 +11,12 @@ from models.map.location_schema import LocationInfo
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_orm import Trip
 from models.user.user_orm import User
-from services.audit_trail_service import log_trip_audit
+from services.audit_trail_service import a_log_trip_audit, log_trip_audit
 from services.customer_service import get_customer_by_id
 from services.geography_service import get_country_by_code
 from services.geography_service import get_country_by_code
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 
 def create_driver(
@@ -40,7 +42,7 @@ def create_driver(
             cab_type=payload.cab_type,
             cab_model_and_make=payload.cab_model_and_make,
             cab_registration_number=payload.cab_registration_number,
-            cab_amenities=payload.amenities.model_dump() if payload.amenities else None,
+            cab_amenities=payload.cab_amenities.model_dump() if payload.cab_amenities else None,
             payment_mode=payload.payment_mode,
             payment_phone_number=payload.payment_phone_number,
             bank_details=(
@@ -66,6 +68,10 @@ def get_driver_by_id(driver_id: str, db: Session) -> Driver:
     """Retrieve a driver by their ID."""
     return db.query(Driver).filter(Driver.id == driver_id).first()
 
+async def a_get_driver_by_id(driver_id: str, db: AsyncSession) -> Driver:
+    """Retrieve a driver by their ID."""
+    result = await db.execute(select(Driver).filter(Driver.id == driver_id))
+    return result.scalars().first()
 
 def get_driver_by_phone(phone: str, db: Session) -> Driver:
     """Retrieve a driver by their phone number."""
@@ -166,7 +172,7 @@ def update_driver_last_modified(driver: Driver, db: Session):
     return driver
 
 
-def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: User):
+async def assign_driver_to_trip(trip: Trip, driver: Driver, db: AsyncSession, requestor: User):
     try:
         # Check Trip is in confirmed status
         if trip.status != TripStatusEnum.confirmed.value:
@@ -200,7 +206,10 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
 
         # Free up the currently assigned driver (if any)
         if trip.driver_id:
-            current_driver = db.query(Driver).filter(Driver.id == trip.driver_id, Driver.is_available == False).first()
+            current_driver = await db.execute(
+                select(Driver).where(Driver.id == trip.driver_id, Driver.is_available == False)
+            )
+            current_driver = current_driver.scalars().first()
             if current_driver:
                 current_driver.is_available = True  # Mark the current driver as available
                 db.add(current_driver)  # Add the updated driver back to the session
@@ -229,10 +238,10 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         driver.is_available = False
 
         
-        db.commit()
-        db.refresh(trip)
-        db.refresh(driver)
-        log_trip_audit(
+        await db.commit()
+        await db.refresh(trip)
+        await db.refresh(driver)
+        await a_log_trip_audit(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor.id,
@@ -244,7 +253,7 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         
         return trip, driver
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise CabboException(
             f"Error assigning driver to trip: {str(e)}", status_code=500, include_traceback=True
         )

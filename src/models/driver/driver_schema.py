@@ -35,7 +35,7 @@ class DriverCreateSchema(DriverBaseSchema):
     fuel_type: FuelTypeEnum  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
     cab_model_and_make: str  # Model of the car (e.g., Maruti Swift)
     cab_registration_number: str  # Registration number of the car
-    amenities:Optional[AmenitiesSchema]=None # Cab amenities details
+    cab_amenities:Optional[AmenitiesSchema]=None # Cab amenities details
     payment_mode: PaymentModeEnum  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str]  # Alternate payment phone number for UPI payments
     bank_details: Optional[BankDetailsSchema] = None  # Bank details for bank transfer payments
@@ -70,7 +70,7 @@ class DriverUpdateSchema(DriverBaseSchema):
     fuel_type: Optional[FuelTypeEnum] = None  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
     cab_model_and_make: Optional[str] = None  # Model of the car (e.g., Maruti Swift)
     cab_registration_number: Optional[str] = None  # Registration number of the car
-    amenities:Optional[AmenitiesSchema]=None # Cab amenities details
+    cab_amenities:Optional[AmenitiesSchema]=None # Cab amenities details
     payment_mode: Optional[PaymentModeEnum] = None  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str] = None  # Alternate payment phone number for UPI payments
     bank_details: Optional[BankDetailsSchema] = None  # Bank details for bank transfer payments

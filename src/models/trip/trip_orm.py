@@ -40,7 +40,12 @@ class Trip(Base):
         String(64), nullable=False, unique=True, index=True
     )  # Unique booking reference ID which is shown to customer and driver
     #  Creator information
-    creator_id = Column(MySQL_CHAR(36), nullable=False, index=True)
+    creator_id = Column(
+    MySQL_CHAR(36),
+    ForeignKey("customers.id"),  # Explicitly define the foreign key
+    nullable=False,
+    index=True,
+)
     creator_type = Column(
         Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
         default=RoleEnum.customer,
@@ -227,7 +232,14 @@ class Trip(Base):
     # Audit fields
     status_audits = relationship("TripStatusAudit", back_populates="trip")
     driver = relationship("Driver", back_populates="trips")
+    package = relationship("TripPackageConfig", back_populates="trips")
     trip_type_master = relationship("TripTypeMaster", back_populates="trips")
+    passenger=relationship("Passenger", back_populates="trips")
+    customer = relationship(
+        "Customer",
+        back_populates="trips",
+        primaryjoin="and_(Trip.creator_id == Customer.id, Trip.creator_type == 'customer')",
+    )
     driver_earnings = relationship(
         "DriverEarning",
         back_populates="trip",
@@ -353,6 +365,9 @@ class TripPackageConfig(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    is_active = Column(Boolean, nullable=False, default=True)
+    # Relationship to Trip
+    trips = relationship("Trip", back_populates="package")
 
     # Add composite unique constraint: (trip_type_id, region_id, package_label)
     __table_args__ = (
