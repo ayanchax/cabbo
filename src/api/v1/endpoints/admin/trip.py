@@ -15,7 +15,7 @@ from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.user.user_orm import User
-from services.driver_service import a_get_driver_by_id, assign_driver_to_trip, get_driver_by_id
+from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
 from services.notification_service import notify_customer_booking_confirmed
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import (
@@ -24,8 +24,6 @@ from services.trips.trip_service import (
     async_get_trip_by_id,
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
-    attach_relationships_to_trip,
-    get_trip_by_id,
     serialize_trip,
     serialize_trips,
 )
@@ -174,12 +172,10 @@ async def assign_driver(
         )
 
     assigned_trip, assigned_driver = await assign_driver_to_trip(
-        trip=trip, driver=driver, db=db, requestor=current_user
-    )
+        trip=trip, driver=driver, db=db, requestor=current_user, attach_trip_relationships=True
+    ) #Attaching trip relationships with customer details exposed, so that it can be used in the notification task to notify customer about driver assignment and trip confirmation
 
-    await attach_relationships_to_trip(assigned_trip, db, expose_customer_details=True)  # Expose customer details for notification
-
-
+  
     # Background job to notify customer via email, if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
     orchestrator.add_task(

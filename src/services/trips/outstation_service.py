@@ -155,7 +155,10 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
 
 
 def _get_outstation_trips_disclaimer_lines(
-    night_hours_display_label: str, night_surcharge_per_hour: float, currency: str
+    night_hours_display_label: str, night_surcharge_per_hour: float, 
+    included_mileage_km: int,
+    overage_amount_per_km: float,
+    currency: str
 ):
     """
     Returns the disclaimer lines for outstation trips, including overage charges and parking fees.
@@ -171,6 +174,7 @@ def _get_outstation_trips_disclaimer_lines(
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
+        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{overage_amount_per_km} per km will be applied on the final fare - pay the driver directly.",
         "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
         "If the trip includes hill climbs, the cab AC may be switched off during such climbs."
     ]
@@ -317,6 +321,8 @@ def get_outstation_trip_options(
         disclaimer_lines = _get_outstation_trips_disclaimer_lines(
             night_hours_display_label=night_hours_display_label,
             night_surcharge_per_hour=night_surcharge_per_hour,
+            included_mileage_km=included_km,
+            overage_amount_per_km=overage_amount_per_km,
             currency=currency,
         )
         disclaimer_message = "Extra charges may apply:\n - " + "\n - ".join(

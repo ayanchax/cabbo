@@ -42,10 +42,11 @@ async def notify_customer_booking_confirmed(booking: Trip) -> bool:
         return False  # No email to send notification, do not proceed
     if not booking.trip_type_id:
         return False
-    trip_type = booking.trip_type_master or None
+    trip_type = booking.trip_type_master.trip_type if hasattr(booking.trip_type_master, "trip_type") else None
     if not trip_type:
         return False
     config_store = settings.get_config_store(db)
+   
     if trip_type == TripTypeEnum.local:
         # Notify customer about cab booking confirmation
         attrs = get_kwargs_for_local_hourly_rental(
@@ -114,6 +115,8 @@ async def notify_customer_booking_confirmed(booking: Trip) -> bool:
                 html_content=html_content,
             )
             return True
+    else:
+        print(f"Unsupported trip type for notification: {trip_type}")
     return False
 
 

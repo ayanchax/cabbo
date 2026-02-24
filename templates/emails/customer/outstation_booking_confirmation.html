@@ -114,12 +114,18 @@
         }
 
         .badge {
+            display: inline-flex;
+            /* Ensures emoji and text are on the same line */
+            align-items: center;
+            /* Vertically aligns emoji and text */
             background: #eef6ff;
             color: #1b5fd6;
             padding: 6px 8px;
             border-radius: 999px;
             font-weight: 600;
-            font-size: 12px
+            font-size: 11px;
+            white-space: nowrap;
+            /* Prevents text from wrapping to the next line */
         }
 
         ul {
