@@ -22,7 +22,7 @@ router = APIRouter()
 
 # ====== Fuel Configuration Endpoints ================
 # Add fuel type
-@router.post("/type", response_model=FuelTypeSchema)
+@router.post("/add", response_model=FuelTypeSchema)
 async def add_fuel_type(
     fuel_type: FuelTypeSchema,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -43,7 +43,7 @@ async def add_fuel_type(
 
 
 # List fuel types
-@router.get("/types", response_model=list[FuelTypeSchema])
+@router.get("/list", response_model=list[FuelTypeSchema])
 async def list_fuel_types(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
@@ -58,22 +58,33 @@ async def list_fuel_types(
 
 
 # Update fuel type
-@router.put("/type/{fuel_type_id}", response_model=FuelTypeSchema)
-async def update_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+@router.put("/{fuel_type_id}", response_model=FuelTypeSchema)
+async def update_fuel_type(
+    fuel_type_id: str,
+    payload: FuelTypeSchema,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """Update an existing fuel type's configuration."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
             "You do not have permission to update fuel types.", status_code=403
         )
-    result = await async_update_fuel_type(fuel_type_data=fuel_type, db=db)
-    if not result:
-        raise CabboException(status_code=500, message="Failed to update fuel type")
-    return result
+    payload.id = fuel_type_id
+    fuel_type, error  = await async_update_fuel_type(fuel_type_data=payload, db=db)
+    if not fuel_type:
+        raise CabboException(status_code=500, message=error or "Failed to update fuel type")
+    return fuel_type
 
-#Get fuel type by id
-@router.get("/type/{fuel_type_id}", response_model=FuelTypeSchema)
-async def get_fuel_type(fuel_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)):
+
+# Get fuel type by id
+@router.get("/{fuel_type_id}", response_model=FuelTypeSchema)
+async def get_fuel_type(
+    fuel_type_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """Retrieve a fuel type by its ID."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
@@ -85,21 +96,31 @@ async def get_fuel_type(fuel_type_id: str, db: AsyncSession = Depends(a_yield_my
         raise CabboException(status_code=404, message="Fuel type not found")
     return fuel_type
 
-@router.patch("/type/{fuel_type_id}/activate")
-async def activate_fuel_type(fuel_type_id: str, db: AsyncSession = Depends(a_yield_mysql_session), current_user: User = Depends(validate_user_token)): 
+
+@router.patch("/{fuel_type_id}/activate")
+async def activate_fuel_type(
+    fuel_type_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """Activate a fuel type in the system configuration."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-            raise CabboException( "You do not have permission to activate fuel types.", status_code=403 ) 
-    is_activated, error = await async_activate_fuel_type(fuel_type_id=fuel_type_id, db=db) 
-    if not is_activated: 
-        raise CabboException(status_code=500, message=error or "Failed to activate fuel type") 
+        raise CabboException(
+            "You do not have permission to activate fuel types.", status_code=403
+        )
+    is_activated, error = await async_activate_fuel_type(
+        fuel_type_id=fuel_type_id, db=db
+    )
+    if not is_activated:
+        raise CabboException(
+            status_code=500, message=error or "Failed to activate fuel type"
+        )
     return {"detail": f"Fuel type {fuel_type_id} activated successfully."}
 
 
-
 # Delete fuel type
-@router.delete("/type/{fuel_type_id}")
+@router.delete("/{fuel_type_id}")
 async def delete_fuel_type(
     fuel_type_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),

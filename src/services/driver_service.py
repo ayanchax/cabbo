@@ -8,13 +8,17 @@ from core.security import ActiveInactiveStatusEnum, RoleEnum
 import uuid
 
 from models.map.location_schema import LocationInfo
-from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.user.user_orm import User
-from services.audit_trail_service import log_trip_audit
+from services.audit_trail_service import a_log_trip_audit, log_trip_audit
 from services.customer_service import get_customer_by_id
 from services.geography_service import get_country_by_code
 from services.geography_service import get_country_by_code
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from services.trips.trip_service import attach_relationships_to_trip
 
 
 def create_driver(
@@ -40,7 +44,7 @@ def create_driver(
             cab_type=payload.cab_type,
             cab_model_and_make=payload.cab_model_and_make,
             cab_registration_number=payload.cab_registration_number,
-            cab_amenities=payload.amenities.model_dump() if payload.amenities else None,
+            cab_amenities=payload.cab_amenities.model_dump() if payload.cab_amenities else None,
             payment_mode=payload.payment_mode,
             payment_phone_number=payload.payment_phone_number,
             bank_details=(
@@ -66,6 +70,10 @@ def get_driver_by_id(driver_id: str, db: Session) -> Driver:
     """Retrieve a driver by their ID."""
     return db.query(Driver).filter(Driver.id == driver_id).first()
 
+async def a_get_driver_by_id(driver_id: str, db: AsyncSession) -> Driver:
+    """Retrieve a driver by their ID."""
+    result = await db.execute(select(Driver).filter(Driver.id == driver_id))
+    return result.scalars().first()
 
 def get_driver_by_phone(phone: str, db: Session) -> Driver:
     """Retrieve a driver by their phone number."""
@@ -166,12 +174,35 @@ def update_driver_last_modified(driver: Driver, db: Session):
     return driver
 
 
-def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: User):
+async def assign_driver_to_trip(trip: Trip, driver: Driver, db: AsyncSession, requestor: User, attach_trip_relationships: bool = False):
     try:
         # Check Trip is in confirmed status
         if trip.status != TripStatusEnum.confirmed.value:
             raise CabboException(
                 "Trip must be in confirmed status to assign a driver.", status_code=400
+            )
+        trip_type = trip.trip_type_master.trip_type if hasattr(trip.trip_type_master, "trip_type") else None
+        if not trip_type:
+            raise CabboException(
+                "Trip type not found for the trip to assign driver.", status_code=400
+            )
+        start_datetime = None
+        expected_end_datetime = None
+        if trip.start_datetime.tzinfo is None:
+           start_datetime = trip.start_datetime.replace(tzinfo=timezone.utc)
+
+        if trip.expected_end_datetime and trip.expected_end_datetime.tzinfo is None:
+            expected_end_datetime = trip.expected_end_datetime.replace(tzinfo=timezone.utc)
+
+        #For airport drop, pickup and hourly rental trip types, block trips that happened in the past but somehow still have confirmed status. This is a bad data issue. Ideally this should not happen, but we are adding this check to prevent assigning drivers to such orphan trips which are in the past and should have been completed or cancelled but are still showing as confirmed due to some data issue.
+        if trip_type in [TripTypeEnum.airport_drop, TripTypeEnum.airport_pickup, TripTypeEnum.local] and start_datetime < datetime.now(timezone.utc):
+            raise CabboException(
+                "Cannot assign driver to a trip that is in the past.", status_code=400
+            )
+        # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
+        if trip_type == TripTypeEnum.outstation and start_datetime < datetime.now(timezone.utc) and expected_end_datetime < datetime.now(timezone.utc):
+            raise CabboException(
+                "Cannot assign driver to a trip that is in the past.", status_code=400
             )
         # Check Trip has a valid creator_id
         if not trip.creator_id:
@@ -200,7 +231,10 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
 
         # Free up the currently assigned driver (if any)
         if trip.driver_id:
-            current_driver = db.query(Driver).filter(Driver.id == trip.driver_id, Driver.is_available == False).first()
+            current_driver = await db.execute(
+                select(Driver).where(Driver.id == trip.driver_id, Driver.is_available == False)
+            )
+            current_driver = current_driver.scalars().first()
             if current_driver:
                 current_driver.is_available = True  # Mark the current driver as available
                 db.add(current_driver)  # Add the updated driver back to the session
@@ -229,10 +263,10 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
         driver.is_available = False
 
         
-        db.commit()
-        db.refresh(trip)
-        db.refresh(driver)
-        log_trip_audit(
+        await db.commit()
+        await db.refresh(trip)
+        await db.refresh(driver)
+        await a_log_trip_audit(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor.id,
@@ -240,11 +274,12 @@ def assign_driver_to_trip(trip: Trip, driver: Driver, db: Session, requestor: Us
             changed_by=requestor.role,
             db=db,
         )  # Log the trip status audit entry
-    
-        
+        if attach_trip_relationships:
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)  # Expose customer details for access in notification task
+
         return trip, driver
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise CabboException(
             f"Error assigning driver to trip: {str(e)}", status_code=500, include_traceback=True
         )

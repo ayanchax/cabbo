@@ -55,3 +55,5 @@ seed_data_completed.chk
 #Builds
 build/
 dist/
+
+.postman/

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     APP_URL: str
     API_URL: str
+    APP_LOGO_URL: str
     ENV: str = ENV
     COUNTRY_CODE: str
     DB_HOST: str

@@ -40,7 +40,12 @@ class Trip(Base):
         String(64), nullable=False, unique=True, index=True
     )  # Unique booking reference ID which is shown to customer and driver
     #  Creator information
-    creator_id = Column(MySQL_CHAR(36), nullable=False, index=True)
+    creator_id = Column(
+    MySQL_CHAR(36),
+    ForeignKey("customers.id"),  # Explicitly define the foreign key
+    nullable=False,
+    index=True,
+)
     creator_type = Column(
         Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
         default=RoleEnum.customer,
@@ -145,12 +150,12 @@ class Trip(Base):
     driver_allowance = Column(
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation trips
-    tolls_estimate = Column(
+    tolls = Column(
         Float, nullable=True, default=0.0
-    )  # Estimated tolls for the trip
-    parking_estimate = Column(
+    )  #  tolls for the trip
+    parking = Column(
         Float, nullable=True, default=0.0
-    )  # Estimated parking charges for the trip
+    )  #  parking charges for the trip
     permit_fee = Column(
         Float, nullable=True, default=0.0
     )  # Interstate permit fee for outstation trips
@@ -167,6 +172,8 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
+    extra_payment_breakdown_to_driver = Column(
+        JSON, nullable=True) # JSON/text breakdown of any extra payment to driver on top of final price (e.g., paid parking, tolls, overage payment, incentive payment, etc.)
     payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
@@ -227,6 +234,14 @@ class Trip(Base):
     # Audit fields
     status_audits = relationship("TripStatusAudit", back_populates="trip")
     driver = relationship("Driver", back_populates="trips")
+    package = relationship("TripPackageConfig", back_populates="trips")
+    trip_type_master = relationship("TripTypeMaster", back_populates="trips")
+    passenger=relationship("Passenger", back_populates="trips")
+    customer = relationship(
+        "Customer",
+        back_populates="trips",
+        primaryjoin="and_(Trip.creator_id == Customer.id, Trip.creator_type == 'customer')",
+    )
     driver_earnings = relationship(
         "DriverEarning",
         back_populates="trip",
@@ -272,12 +287,7 @@ class TripStatusAudit(Base):
         default=None,
         comment="Detailed cancellation reason for analytics (nullable, only for cancelled trips)",
     )
-    # Nullable: Only populated when cancellation_sub_status == CancellationSubStatusEnum.customer_preferences_not_met
-    responsible_preference_keys_for_cancelation = Column(
-        Text,  # Use Text for flexibility; can store comma-separated or JSON string
-        nullable=True,
-        comment="Snapshot of preference keys/flags at status change (nullable)",
-    )
+    
 
     trip = relationship("Trip", back_populates="status_audits")
 
@@ -320,6 +330,7 @@ class TripTypeMaster(Base):
         onupdate=func.utc_timestamp(),
     )
     is_active=Column(Boolean, nullable=False, default=True)
+    trips = relationship("Trip", back_populates="trip_type_master")
 
 
 class TripPackageConfig(Base):
@@ -356,6 +367,9 @@ class TripPackageConfig(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
+    is_active = Column(Boolean, nullable=False, default=True)
+    # Relationship to Trip
+    trips = relationship("Trip", back_populates="package")
 
     # Add composite unique constraint: (trip_type_id, region_id, package_label)
     __table_args__ = (

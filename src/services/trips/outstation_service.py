@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 import math
-from typing import List, Optional
+from typing import List, Optional, Union
 from core.constants import APP_NAME
 from core.exceptions import CabboException
 from core.store import ConfigStore
@@ -14,6 +14,9 @@ from core.trip_helpers import (
 from core.config import settings
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.customer.customer_orm import Customer
+from models.customer.customer_schema import CustomerRead
+from models.customer.passenger_schema import PassengerRequest
+from models.driver.driver_schema import DriverReadSchema
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     OutstationCabPricingSchema,
@@ -152,7 +155,10 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
 
 
 def _get_outstation_trips_disclaimer_lines(
-    night_hours_display_label: str, night_surcharge_per_hour: float, currency: str
+    night_hours_display_label: str, night_surcharge_per_hour: float, 
+    included_mileage_km: int,
+    overage_amount_per_km: float,
+    currency: str
 ):
     """
     Returns the disclaimer lines for outstation trips, including overage charges and parking fees.
@@ -168,7 +174,9 @@ def _get_outstation_trips_disclaimer_lines(
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
+        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{overage_amount_per_km} per km will be applied on the final fare - pay the driver directly.",
         "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
+        "If the trip includes hill climbs, the cab AC may be switched off during such climbs."
     ]
 
 
@@ -313,6 +321,8 @@ def get_outstation_trip_options(
         disclaimer_lines = _get_outstation_trips_disclaimer_lines(
             night_hours_display_label=night_hours_display_label,
             night_surcharge_per_hour=night_surcharge_per_hour,
+            included_mileage_km=included_km,
+            overage_amount_per_km=overage_amount_per_km,
             currency=currency,
         )
         disclaimer_message = "Extra charges may apply:\n - " + "\n - ".join(
@@ -390,8 +400,7 @@ def get_outstation_trip_options(
 def get_kwargs_for_outstation_trip(
     trip: Trip,
     currency: str,
-    db: Session,
-    customer:Optional[Customer]=None
+    customer:Optional[Union[Customer, CustomerRead]]=None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -417,7 +426,8 @@ def get_kwargs_for_outstation_trip(
                 return {}  # Do not proceed if customer info is invalid
 
             # Get customer from customer_id
-            customer = get_customer_by_id(customer_id, db)
+            customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
+            customer = CustomerRead.model_validate(customer) if customer else None
 
             if not customer:
                 print("Customer not found for trip:", trip.booking_id)
@@ -429,9 +439,11 @@ def get_kwargs_for_outstation_trip(
             customer_name = customer.name or "Valued Customer"
             customer_email = customer.email or None
 
-        driver = get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
+        driver = trip.driver if trip.driver_id else None
+        driver = DriverReadSchema.model_validate(driver) if driver else None  
 
-        passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
+        passenger = trip.passenger if trip.passenger_id else None
+        passenger = PassengerRequest.model_validate(passenger) if passenger else None
         passenger_name = passenger.name if passenger else None
 
         # Prepare inclusions and exclusions
@@ -442,7 +454,7 @@ def get_kwargs_for_outstation_trip(
         # Prepare in-car amenities
         in_car_amenities = None
         if driver and driver.cab_amenities:
-            in_car_amenities = driver.cab_amenities
+            in_car_amenities = driver.cab_amenities.model_dump(exclude_none=True, exclude_unset=True)
         else:
             # Fallback to trip's in-car amenities itself, if driver's cab amenities are not available
             in_car_amenities = trip.in_car_amenities or {}
@@ -451,8 +463,8 @@ def get_kwargs_for_outstation_trip(
 
         # Prepare overages disclaimer
         overages = trip.overages or {}
-        overages_disclaimer = overages.get("disclaimer") if overages else None
-        extra_charges_disclaimers = overages.get("extra_charges_disclaimers") if overages else None
+        overages_disclaimer: Optional[List[str]] = overages.get("disclaimer", []) if overages else None
+        extra_charges_disclaimers :Optional[str] = overages.get("extra_charges_disclaimers") if overages else None
 
         # Prepare kwargs for the Jinja template
         kwargs = {

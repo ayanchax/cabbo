@@ -15,6 +15,10 @@ from models.geography.state_schema import StateSchema, StateUpdateSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
+from models.trip.trip_orm import TripTypeMaster
+from services.cab_service import get_cab_type_by_id
+from services.fuel_service import async_get_fuel_type_by_id
+
 
 def get_region(
     country_code: str, state_code: str, region_code: str, db: Session
@@ -1007,6 +1011,7 @@ async def async_get_all_countries(db: AsyncSession) -> list[CountrySchema]:
             continue
     return country_schemas
 
+
 async def async_get_country_by_id(
     country_id: str, db: AsyncSession
 ) -> Optional[CountrySchema]:
@@ -1024,6 +1029,7 @@ async def async_get_country_by_id(
         except ValidationError:
             return None
     return None
+
 
 async def async_get_country_by_code(
     country_code: str, db: AsyncSession
@@ -1077,13 +1083,13 @@ async def async_delete_country(
 
 
 async def async_update_country(
-    payload: CountryUpdateSchema, db: AsyncSession
+    country_id: str, payload: CountryUpdateSchema, db: AsyncSession
 ) -> tuple[Optional[CountrySchema], Optional[str]]:
     """Asynchronously update an existing country in the database."""
     if not payload.id:
         return None, "Country ID is required for update"
     result = await db.execute(
-        select(CountryModel).filter(CountryModel.id == payload.id)
+        select(CountryModel).filter(CountryModel.id == country_id)
     )
     country_model = result.scalars().first()
     if not country_model:
@@ -1373,6 +1379,7 @@ async def async_get_region_by_id(
             return None
     return None
 
+
 async def async_get_region_by_code(
     region_code: str, db: AsyncSession
 ) -> Optional[RegionSchema]:
@@ -1421,6 +1428,7 @@ async def async_get_region_by_code(
         except ValidationError:
             return None
     return None
+
 
 async def async_delete_region(
     region_id: str, db: AsyncSession
@@ -1544,7 +1552,292 @@ async def async_activate_region(
     try:
         if region_model.is_serviceable:
             return False, "Region is already active"
+        # Region can be activated if there is atleast one airport associated with the region and all associated airports are active
+        airport_locations = (
+            json.loads(region_model.airport_locations)
+            if region_model.airport_locations
+            else []
+        )
+        if len(airport_locations) == 0:
+            return (
+                False,
+                "Region cannot be activated without at least one associated airport",
+            )
+
+        has_atleast_one_active_airport = False
+        from services.airport_service import async_get_airport_by_id
+
+        for airport_id in airport_locations:
+            airport_schema = await async_get_airport_by_id(airport_id=airport_id, db=db)
+            if airport_schema and airport_schema.is_serviceable:
+                has_atleast_one_active_airport = True
+                break
+
+        if not has_atleast_one_active_airport:
+            return (
+                False,
+                "Region cannot be activated without at least one active associated airport",
+            )
+
         region_model.is_serviceable = True
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_add_airport_to_region(
+    region_id: str,
+    airport_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Add an airport to a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        airport_locations = (
+            json.loads(region_model.airport_locations)
+            if region_model.airport_locations
+            else []
+        )
+        if airport_id in airport_locations:
+            return False, "Airport is already associated with the region"
+
+        # Check if the airport exists in the system before adding it to the region
+        from services.airport_service import async_get_airport_by_id
+
+        airport_schema = await async_get_airport_by_id(airport_id=airport_id, db=db)
+        if not airport_schema or not airport_schema.is_serviceable:
+            return False, "Airport not found or not serviceable"
+
+        airport_locations.append(airport_schema.id)
+        region_model.airport_locations = json.dumps(airport_locations)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_remove_airport_from_region(
+    region_id: str,
+    airport_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Remove an airport from a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        airport_locations = (
+            json.loads(region_model.airport_locations)
+            if region_model.airport_locations
+            else []
+        )
+        if airport_id not in airport_locations:
+            return False, "Airport is not associated with the region"
+
+        # Check if the airport exists in the system before removing it from the region
+        from services.airport_service import async_get_airport_by_id
+
+        airport_schema = await async_get_airport_by_id(airport_id=airport_id, db=db)
+        if not airport_schema or not airport_schema.is_serviceable:
+            return False, "Airport not found or not serviceable"
+
+        airport_locations.remove(airport_schema.id)
+        region_model.airport_locations = json.dumps(airport_locations)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_add_trip_type_to_region(
+    region_id: str,
+    trip_type_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Add a trip type to a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        trip_types = (
+            json.loads(region_model.trip_types) if region_model.trip_types else []
+        )
+        if trip_type_id in trip_types:
+            return False, "Trip type is already associated with the region"
+        # Check if the trip type exists in the system before adding it to the region
+        result = await db.execute(
+            select(TripTypeMaster).filter(
+                TripTypeMaster.id == trip_type_id, TripTypeMaster.is_active == True
+            )
+        )
+        trip_type_model = result.scalars().first()
+        if not trip_type_model:
+            return False, "Trip type not found or not serviceable"
+        trip_types.append(trip_type_model.id)
+        region_model.trip_types = json.dumps(trip_types)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_remove_trip_type_from_region(
+    region_id: str,
+    trip_type_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Remove a trip type from a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        trip_types = (
+            json.loads(region_model.trip_types) if region_model.trip_types else []
+        )
+        if trip_type_id not in trip_types:
+            return False, "Trip type is not associated with the region"
+        # Check if the trip type exists in the system before removing it from the region
+        result = await db.execute(
+            select(TripTypeMaster).filter(
+                TripTypeMaster.id == trip_type_id, TripTypeMaster.is_active == True
+            )
+        )
+        trip_type_model = result.scalars().first()
+        if not trip_type_model:
+            return False, "Trip type not found or not serviceable"
+        trip_types.remove(trip_type_model.id)
+        region_model.trip_types = json.dumps(trip_types)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_add_fuel_type_to_region(
+    region_id: str,
+    fuel_type_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Add a fuel type to a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        fuel_types = (
+            json.loads(region_model.fuel_types) if region_model.fuel_types else []
+        )
+        if fuel_type_id in fuel_types:
+            return False, "Fuel type is already associated with the region"
+        # Check if the fuel type exists in the system before adding it to the region
+        fuel_schema = await async_get_fuel_type_by_id(fuel_type_id=fuel_type_id, db=db)
+        if not fuel_schema or not fuel_schema.is_active:
+            return False, "Fuel type not found or not serviceable"
+        fuel_types.append(fuel_schema.id)
+        region_model.fuel_types = json.dumps(fuel_types)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_remove_fuel_type_from_region(
+    region_id: str,
+    fuel_type_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Remove a fuel type from a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        fuel_types = (
+            json.loads(region_model.fuel_types) if region_model.fuel_types else []
+        )
+        if fuel_type_id not in fuel_types:
+            return False, "Fuel type is not associated with the region"
+        # Check if the fuel type exists in the system before removing it from the region
+        fuel_schema = await async_get_fuel_type_by_id(fuel_type_id=fuel_type_id, db=db)
+        if not fuel_schema or not fuel_schema.is_active:
+            return False, "Fuel type not found or not serviceable"
+        fuel_types.remove(fuel_schema.id)
+        region_model.fuel_types = json.dumps(fuel_types)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_add_car_type_to_region(
+    region_id: str,
+    car_type_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Add a car type to a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        car_types = json.loads(region_model.car_types) if region_model.car_types else []
+        if car_type_id in car_types:
+            return False, "Car type is already associated with the region"
+        # Check if the car type exists in the system before adding it to the region
+        car_type_schema = await get_cab_type_by_id(cab_type_id=car_type_id, db=db)
+        if not car_type_schema or not car_type_schema.is_active:
+            return False, "Car type not found or not serviceable"
+        car_types.append(car_type_schema.id)
+        region_model.car_types = json.dumps(car_types)
+        await db.commit()
+        return True, None
+    except Exception as e:
+        await db.rollback()
+        return False, str(e)
+
+
+async def async_remove_car_type_from_region(
+    region_id: str,
+    car_type_id: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Remove a car type from a region."""
+    result = await db.execute(select(RegionModel).filter(RegionModel.id == region_id))
+    region_model = result.scalars().first()
+    if not region_model:
+        return False, "Region not found"
+
+    try:
+        car_types = json.loads(region_model.car_types) if region_model.car_types else []
+        if car_type_id not in car_types:
+            return False, "Car type is not associated with the region"
+        # Check if the car type exists in the system before removing it from the region
+        car_type_schema = await get_cab_type_by_id(cab_type_id=car_type_id, db=db)
+        if not car_type_schema or not car_type_schema.is_active:
+            return False, "Car type not found or not serviceable"
+        car_types.remove(car_type_schema.id)
+        region_model.car_types = json.dumps(car_types)
         await db.commit()
         return True, None
     except Exception as e:

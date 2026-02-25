@@ -120,12 +120,12 @@ class TempTrip(Base):
     driver_allowance = Column(
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation trips
-    tolls_estimate = Column(
+    tolls = Column(
         Float, nullable=True, default=0.0
-    )  # Estimated tolls for the trip
-    parking_estimate = Column(
+    )  #  tolls for the trip
+    parking = Column(
         Float, nullable=True, default=0.0
-    )  # Estimated parking charges for the trip
+    )  #  parking charges for the trip
     permit_fee = Column(
         Float, nullable=True, default=0.0
     )  # Interstate permit fee for outstation trips

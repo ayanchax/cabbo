@@ -5,13 +5,14 @@ import enum
 
 
 # Happy Path transition flow for trip status:
-# created -> confirmed(driver_admin) -> assigned -> ongoing -> completed -> closed
+# created -> confirmed(driver_admin) -> ongoing -> completed
 
 # Worst Case transition flow for trip status:
-# created -> cancelled(by admin)
-# created -> cancelled(by customer)
-# created -> confirmed -> no_show(by customer)
-# created -> confirmed -> assigned -> ongoing -> completed -> dispute(by customer)
+# created -> confirmed(driver_admin) -> cancelled(by customer)
+# created -> confirmed(driver_admin) -> cancelled due to customer_no_show(by super admin or driver_admin)
+# created -> confirmed(driver_admin) -> cancelled due to driver_unavailable,driver_cancelled, driver_no_show, other(by super admin or driver_admin)
+
+# created -> confirmed(driver_admin) -> ongoing -> completed -> dispute(reported by driver and/or customer and updated by super admin or driver admin after investigation) 
  
 
 
@@ -22,9 +23,8 @@ class TripStatusEnum(str, enum.Enum):
     pending= "pending"  # Trip is created but not yet confirmed or assigned
     confirmed = "confirmed"
     assigned = "assigned"  # Driver assigned to the trip
-    ongoing = "ongoing"
+    ongoing = "ongoing" #alias to started, trip is currently in progress
     completed = "completed"  # Trip completed successfully
-    closed = "closed"  # Trip closed after completion with all dues settled between cabbo, customer and driver
     cancelled = "cancelled" # Trip cancelled by customer or admin due to various reasons
     dispute = "dispute" # Customer fled without paying on completion of trip
 
@@ -35,15 +35,9 @@ class CancellationSubStatusEnum(str, enum.Enum):
     none = "none"
     customer_cancelled = "customer_cancelled"
     customer_no_show = "customer_no_show"
-    super_admin_cancelled = "super_admin_cancelled"
-    driver_admin_cancelled = "driver_admin_cancelled"
     driver_cancelled = "driver_cancelled"
     driver_unavailable = "driver_unavailable"
     driver_no_show = "driver_no_show"
-    finance_admin_cancelled = "finance_admin_cancelled"
-    customer_preferences_not_met = (
-        "customer_preferences_not_met"  # e.g., car type, fuel type, etc.
-    )
     other = "other"
 
 

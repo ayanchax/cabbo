@@ -11,6 +11,8 @@ from core.security import RoleEnum
 from db.database import Base
 from sqlalchemy.sql import func
 import uuid
+from sqlalchemy.orm import relationship
+
 
 
 class Passenger(Base):
@@ -40,5 +42,7 @@ class Passenger(Base):
         onupdate=func.utc_timestamp(),
         nullable=False,
     )
+        # Relationship to Trip
+    trips = relationship("Trip", back_populates="passenger")
 
     # Optionally, add more fields (e.g., email, relationship, etc.) as needed

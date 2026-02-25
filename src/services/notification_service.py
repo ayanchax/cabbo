@@ -1,45 +1,57 @@
 from core.constants import APP_NAME
 from core.security import RoleEnum
-from core.trip_helpers import get_trip_type_by_trip_type_id
+from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerRead
 from models.driver.driver_orm import Driver
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_orm import Trip
 from sqlalchemy.orm import Session
 from core.config import settings
-from services.customer_service import get_customer_by_id
-from services.message_service import EMAIL_VERIFICATION_FILE, EMAIL_VERIFY_EXPIRY_UNIT, WELCOME_EMAIL_FILE, render_email_template, send_email
+from services.message_service import (
+    EMAIL_VERIFICATION_FILE,
+    EMAIL_VERIFY_EXPIRY_UNIT,
+    WELCOME_EMAIL_FILE,
+    render_email_template,
+    send_email,
+)
 from services.trips.airport_transfers_service import get_kwargs_for_airport_transfer
 from services.trips.local_hourly_rental_service import (
     get_kwargs_for_local_hourly_rental,
 )
 from services.trips.outstation_service import get_kwargs_for_outstation_trip
 
+db = get_mysql_local_session()
 
-async def notify_customer_booking_confirmed(booking: Trip, db: Session) -> bool:
+
+async def notify_customer_booking_confirmed(booking: Trip) -> bool:
     creator_type = booking.creator_type
     if creator_type != RoleEnum.customer.value:
         return False
     customer_id = booking.creator_id
     if not customer_id:
         return False
-    customer = get_customer_by_id(customer_id, db)
+    customer = (
+        booking.customer
+        if booking.creator_id and booking.creator_type == "customer"
+        else None
+    )
+    customer = CustomerRead.model_validate(customer) if customer else None
     if not customer:
         return False
     if not customer.email:
         return False  # No email to send notification, do not proceed
     if not booking.trip_type_id:
         return False
-    trip_type = get_trip_type_by_trip_type_id(booking.trip_type_id, db=db)
+    trip_type = booking.trip_type_master.trip_type if hasattr(booking.trip_type_master, "trip_type") else None
     if not trip_type:
         return False
     config_store = settings.get_config_store(db)
+   
     if trip_type == TripTypeEnum.local:
         # Notify customer about cab booking confirmation
         attrs = get_kwargs_for_local_hourly_rental(
             trip=booking,
             currency=config_store.geographies.country_server.currency_symbol,
-            db=db,
             customer=customer,
         )
         if not attrs:
@@ -63,7 +75,6 @@ async def notify_customer_booking_confirmed(booking: Trip, db: Session) -> bool:
         attrs = get_kwargs_for_outstation_trip(
             trip=booking,
             currency=config_store.geographies.country_server.currency_symbol,
-            db=db,
             customer=customer,
         )
         if not attrs:
@@ -87,7 +98,6 @@ async def notify_customer_booking_confirmed(booking: Trip, db: Session) -> bool:
             trip_type=trip_type,
             trip=booking,
             currency=config_store.geographies.country_server.currency_symbol,
-            db=db,
             customer=customer,
         )
         if not attrs:
@@ -105,32 +115,35 @@ async def notify_customer_booking_confirmed(booking: Trip, db: Session) -> bool:
                 html_content=html_content,
             )
             return True
+    else:
+        print(f"Unsupported trip type for notification: {trip_type}")
     return False
 
-def notify_customer_onboarded(customer:CustomerRead) -> bool:
+
+def notify_customer_onboarded(customer: CustomerRead) -> bool:
     if not customer.email:
         return False  # No email to send notification, do not proceed
     name = customer.name if customer.name else customer.email.split("@")[0]
     subject = f"Welcome to {APP_NAME}!"
     html_content = render_email_template(
-            WELCOME_EMAIL_FILE,
-            for_customer=True,
-            name=name,
-            app_name=APP_NAME.capitalize(),
-            app_url=settings.APP_URL,
-        )
+        WELCOME_EMAIL_FILE,
+        for_customer=True,
+        name=name,
+        app_name=APP_NAME.capitalize(),
+        app_url=settings.APP_URL,
+    )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
     send_email(
         to_email=customer.email,
         subject=subject,
         html_content=html_content,
     )
-    
 
-def notify_driver_onboarded(driver:Driver) -> bool:
+
+def notify_driver_onboarded(driver: Driver) -> bool:
     if not driver.email:
         return False  # No email to send notification, do not proceed
-    
+
     name = driver.name if driver.name else driver.email.split("@")[0]
     subject = f"Welcome to {APP_NAME}!"
 
@@ -148,7 +161,10 @@ def notify_driver_onboarded(driver:Driver) -> bool:
     )
     return True
 
-async def notify_verification_email_to_customer(customer:CustomerRead, verification_url:str) -> bool:
+
+async def notify_verification_email_to_customer(
+    customer: CustomerRead, verification_url: str
+) -> bool:
     subject = f"Verify your email for {APP_NAME.capitalize()}"
     if not customer:
         return False

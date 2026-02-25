@@ -37,6 +37,8 @@ class PassengerRead(BaseModel):
     class Config:
         from_attributes = True
 
+
+
    
 
 class PassengerRequest(BaseModel):

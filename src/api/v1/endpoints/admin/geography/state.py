@@ -86,7 +86,8 @@ async def get_state(state_id: str, db: AsyncSession = Depends(a_yield_mysql_sess
     response_model=StateSchema,
 )
 async def update_state(
-    state: StateUpdateSchema,
+    state_id: str,
+    payload: StateUpdateSchema,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
@@ -96,7 +97,8 @@ async def update_state(
         raise CabboException(
             "You do not have permission to update states.", status_code=403
         )
-    result, error = await async_update_state(payload=state, db=db)
+    payload.id = state_id  # Ensure the payload includes the state ID for update
+    result, error = await async_update_state(payload=payload, db=db)
     if error:
         raise CabboException(status_code=500, message=error or "Failed to update state")
     return result

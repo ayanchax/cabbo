@@ -35,14 +35,17 @@ from services.validation_service import (
 from core.config import settings
 
 
-def _generate_booking_id(trip_type: str, length: int = 16) -> str:
+def _generate_booking_id(trip_type: str, db: Session, length: int = 16, attempts: int = 5) -> str:
     """
     Generate a unique booking ID with a prefix based on the trip type.
     The ID will consist of a trip type prefix followed by a 16-character alphanumeric string.
+
     
     Args:
-        trip_type (str): The type of trip (e.g., "AIRPORT", "OUTSTATION", "RENTAL").
+        trip_type (str): The type of trip (e.g., "AIRPORTTFR-PICKUP", "AIRPORTTFR-DROP", "OUTSTATION", "RENTAL").
+        db (Session): The database session for ORM operations.
         length (int): The length of the unique part of the booking ID (default is 16).
+        attempts (int): The maximum number of attempts to generate a unique ID in case of collisions (default is 5).
     
     Returns:
         str: The generated booking ID.
@@ -50,19 +53,23 @@ def _generate_booking_id(trip_type: str, length: int = 16) -> str:
     try:
         # Map trip types to prefixes
         trip_type_prefix = {
-            "airport": "AIRPORT",
+            "airport_pickup": "AIRPORTTFR-PICKUP",
+            "airport_drop":"AIRPORTTFR-DROP",
             "outstation": "OUTSTATION",
             "local": "RENTAL"
         }.get(trip_type.lower(), "TRIP")  # Default to "TRIP" if trip type is unknown
 
         # Generate the unique part of the booking ID
         alphabet = string.ascii_uppercase + string.digits
-        unique_part = ''.join(  secrets.choice(alphabet) for _ in range(length))
-
-        # Combine the prefix and unique part
-        return f"{trip_type_prefix}-{unique_part}"
-    #Example output: AIRPORT-1A2B3C4D5E6F7G8H
-        
+        while True:
+            unique_part = ''.join(  secrets.choice(alphabet) for _ in range(length))
+            booking_id = f"{trip_type_prefix}-{unique_part}"
+            exists=db.query(Trip).filter(Trip.booking_id == booking_id).first()
+            if not exists:
+                return booking_id
+            attempts -= 1 # Decrement the attempts counter if a collision is found, to avoid infinite loop in case of high collision probability
+            if attempts <= 0:
+                return None  # Return None if maximum attempts are reached without generating a unique ID
 
     except Exception as e:
         return None
@@ -138,7 +145,7 @@ def _create_confirmed_trip_from_temp_trip(
             f"Invalid trip type ID: {temp_trip.trip_type_id}", status_code=400
         )
     trip_type_name= str(trip_type.name)
-    booking_id = _generate_booking_id(trip_type=trip_type_name.lower())
+    booking_id = _generate_booking_id(trip_type=trip_type_name.lower(), db=db)
     if not booking_id:
         raise CabboException(
             "Failed to generate booking ID", status_code=500
@@ -184,8 +191,8 @@ def _create_confirmed_trip_from_temp_trip(
         overages=temp_trip.overages if temp_trip.overages else None,
         base_fare=temp_trip.base_fare,
         driver_allowance=temp_trip.driver_allowance,
-        tolls_estimate=temp_trip.tolls_estimate,
-        parking_estimate=temp_trip.parking_estimate,
+        tolls=temp_trip.tolls,
+        parking=temp_trip.parking,
         permit_fee=temp_trip.permit_fee,
         platform_fee=temp_trip.platform_fee,
         final_price=temp_trip.final_price,
@@ -245,7 +252,7 @@ def _create_confirmed_trip_from_temp_trip(
         )  # Populate the trip schema with necessary details
         return TripCreate(
             trip_id=trip.id,
-            booking_id=trip.id,
+            booking_id=trip.booking_id,
             payment_info=payment_info,
             status=trip.status,
             trip_details=trip_schema,

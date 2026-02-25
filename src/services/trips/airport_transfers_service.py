@@ -8,6 +8,9 @@ from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.customer.customer_orm import Customer
+from models.customer.customer_schema import CustomerRead
+from models.customer.passenger_schema import PassengerRequest
+from models.driver.driver_schema import DriverReadSchema
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
@@ -166,7 +169,6 @@ def _get_airport_trips_disclaimer_lines(
     """
     return [
         f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{overage_amount_per_km} per kilometre will apply.",
-        #Tolls and parking disclaimers are not needed as they are included in the trip fare
     ]
     
 
@@ -489,8 +491,7 @@ def get_kwargs_for_airport_transfer(
     trip_type: TripTypeEnum, 
     trip: Trip, 
     currency: str,
-    db: Session,
-    customer:Optional[Customer]=None
+    customer:Optional[Union[Customer, CustomerRead]]=None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -516,7 +517,9 @@ def get_kwargs_for_airport_transfer(
                 return {} # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
             
             #Get customer from customer_id
-            customer = get_customer_by_id(customer_id, db)
+            customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
+            customer = CustomerRead.model_validate(customer) if customer else None
+
             
             if not customer:
                 print("Customer not found for trip:", trip.booking_id)
@@ -529,8 +532,8 @@ def get_kwargs_for_airport_transfer(
             customer_name = customer.name or "Valued Customer"
             customer_email = customer.email or None
             
-        driver= get_driver_by_id(trip.driver_id, db) if trip.driver_id else None
-        
+        driver= trip.driver if trip.driver_id else None
+        driver = DriverReadSchema.model_validate(driver) if driver else None
 
         # Prepare luggage information
         luggage_info = None
@@ -546,7 +549,8 @@ def get_kwargs_for_airport_transfer(
 
         # Prepare special requests
         special_requests = trip.special_needs_requests if trip.special_needs_requests else None
-        passenger =get_passenger_by_id(trip.passenger_id, db) if trip.passenger_id else None
+        passenger = trip.passenger if trip.passenger_id else None
+        passenger = PassengerRequest.model_validate(passenger) if passenger else None
         passenger_name = passenger.name if passenger else None
         # Prepare kwargs for the Jinja template
         kwargs = {

@@ -238,6 +238,23 @@ async def async_get_all_airports_in_country(
     return [AirportSchema.model_validate(airport) for airport in airports]
 
 
+async def async_get_airport_by_region_code(
+    region_code: str, db: AsyncSession  ) -> list[AirportSchema] | None:
+    """Get all airports in a specific region using the region code."""
+    region_code = region_code.upper()
+    airports = await db.execute(
+        select(AirportModel)
+        .filter(
+            AirportModel.region_code == region_code,
+            AirportModel.is_serviceable == True,
+        )
+        .all()
+    )
+    if airports:
+        return [AirportSchema.model_validate(airport) for airport in airports]
+    return None
+
+
 async def async_get_all_airports(db: AsyncSession) -> List[AirportSchema]:
     """Retrieve all airports from the database."""
     result = await db.execute(
@@ -276,6 +293,7 @@ async def async_activate_airport(
             return False, "Airport not found"
         if airport.is_serviceable:
             return False, "Airport is already active."
+        
         airport.is_serviceable = True
         await db.commit()
         return True, None
@@ -332,3 +350,15 @@ async def async_update_airport(
         await db.rollback()
         print(f"Error updating airport: {e}")
         return None, "Failed to update airport"
+
+async def async_get_airport_by_id(airport_id: str, db: AsyncSession) -> AirportSchema | None:
+    """Retrieve an airport by its ID."""
+    result = await db.execute(
+        select(AirportModel).filter(
+            AirportModel.id == airport_id, AirportModel.is_serviceable == True
+        )
+    )
+    airport = result.scalars().first()
+    if airport:
+        return AirportSchema.model_validate(airport)
+    return None

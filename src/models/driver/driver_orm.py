@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     Text,
+   
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -129,7 +130,10 @@ class DriverEarning(Base):
     trip_id = Column(
         MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
     )
-    earnings = Column(Float, nullable=False)  # Earnings for the trip
+    earnings = Column(Float, nullable=False)  # total Earnings for the trip
+    breakdown = Column(
+        JSON, nullable=True
+    )  # Earnings breakdown details e.g., {"base_fare": 100, "distance_fare": 50, "time_fare": 30, "surge_multiplier": 1.5, "total_fare": 270}
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

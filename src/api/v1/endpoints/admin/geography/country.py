@@ -85,7 +85,7 @@ async def update_country(country: CountryUpdateSchema, db: AsyncSession = Depend
         raise CabboException(
             "You do not have permission to update countries.", status_code=403
         )
-    result, error = await async_update_country(payload=country, db=db)
+    result, error = await async_update_country(country_id=country.id, payload=country, db=db)
     if not result:
         raise CabboException(status_code=500, message=error or "Failed to update country")
     return result

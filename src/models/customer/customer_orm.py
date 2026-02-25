@@ -58,7 +58,13 @@ class Customer(Base):
         "DriverRating", back_populates="customer", cascade="all, delete-orphan",
         passive_deletes=True
     )  # Ratings given by customer to drivers
-
+    trips = relationship(
+        "Trip",
+        back_populates="customer",
+        primaryjoin="and_(Customer.id == Trip.creator_id, Trip.creator_type == 'customer')",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 class PreOnboardingCustomer(Base):
     __tablename__ = "pre_onboarding_customers"

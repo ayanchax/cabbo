@@ -91,6 +91,13 @@ def get_customer_by_id(customer_id: str, db: Session) -> Customer:
         raise CabboException("Customer not found", status_code=404)
     return customer
 
+async def a_get_customer_by_id(customer_id: str, db: AsyncSession) -> Customer:
+    result = await db.execute(select(Customer).filter(Customer.id == customer_id))
+    customer = result.scalar_one_or_none()
+    if not customer:
+        raise CabboException("Customer not found", status_code=404)
+    return customer
+
 
 def update_customer_profile(
     customer_id: str, payload: CustomerUpdate, db: Session
