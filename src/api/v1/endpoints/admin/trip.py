@@ -4,16 +4,19 @@
 #     List all trips in system done
 #     List trips by driver_id done
 #     List trips by customer_id done
-#     List trips by status --
+#     List trips by status -- done
 #     Update trip status --
 #     Assign driver to trip Done
 
+
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
+from models.trip.trip_enums import TripStatusEnum
 from models.user.user_orm import User
 from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
 from services.notification_service import notify_customer_booking_confirmed
@@ -24,8 +27,10 @@ from services.trips.trip_service import (
     async_get_trip_by_id,
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
+    group_by_trip_status,
     serialize_trip,
     serialize_trips,
+    update_trip_status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -121,7 +126,7 @@ async def list_trips_by_driver_id(
 
 
 # List trips by customer_id - this will be used by customer admin to see all trips that belong to a particular customer, and also by super admin for any customer, and also by customers to see their own trips
-@router.get("/list/by/customer/{customer_id}", response_model=list)
+@router.get("/list/by/customer/{customer_id}", response_model=list | dict)
 async def list_trips_by_customer_id(
     customer_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -137,6 +142,11 @@ async def list_trips_by_customer_id(
         raise CabboException(
             "You do not have permission to view trips by customer.", status_code=403
         )
+    if current_user_role == RoleEnum.customer and str(current_user.id) != customer_id:
+        raise CabboException(
+            "You do not have permission to view trips for this customer.", status_code=403
+        )
+    
     can_expose_customer_details = current_user_role in [
         RoleEnum.super_admin,
         RoleEnum.customer_admin,
@@ -145,9 +155,89 @@ async def list_trips_by_customer_id(
     trips = await async_get_trips_by_customer_id(
         customer_id, db, expose_customer_details=can_expose_customer_details
     )
-    return serialize_trips(trips, expose_customer_details=can_expose_customer_details)
+
+    serialized_trips= serialize_trips(trips, expose_customer_details=can_expose_customer_details)
+    if current_user_role == RoleEnum.customer:
+        # If role is customer, meaning customer themself is fetching their own trips, 
+        # then we will group by status. {"upcoming":[],"past":[]}
+        # If status is confirmed, it will be in upcoming, if status is completed or cancelled, it will be in past. This is to make it easier for customers to see their upcoming trips and past trips separately in the UI
+        return group_by_trip_status(trips=serialized_trips, validate_by_tz=True)
+    
+    return serialized_trips
+
+# List trips of customer by status: super_admin, customer_admin and customer (only for their own trips)
+@router.get("/list/by/customer/{customer_id}/status/{status}", response_model=list)
+async def list_trips_by_customer_id_and_status(
+    customer_id: str,
+    status: TripStatusEnum,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """List trips of customer by status."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.customer_admin,
+        RoleEnum.customer,
+    ]:
+        raise CabboException(
+            "You do not have permission to view trips by customer.", status_code=403
+        )
+    if current_user_role == RoleEnum.customer and str(current_user.id) != customer_id:
+        raise CabboException(
+            "You do not have permission to view trips for this customer.", status_code=403
+        )
+    
+    can_expose_customer_details = current_user_role in [
+        RoleEnum.super_admin,
+        RoleEnum.customer_admin,
+    ]
+    # Implementation to fetch and return trips by customer_id goes here
+    trips = await async_get_trips_by_customer_id(
+        customer_id, db, expose_customer_details=can_expose_customer_details
+    )
+
+    serialized_trips= serialize_trips(trips, expose_customer_details=can_expose_customer_details)
+    filtered_trips = [trip for trip in serialized_trips if trip.get("status") == status.value]
+    return filtered_trips
+
+# List trips by status: super_admin and customer_admin
+@router.get("/list/by/status/{status}", response_model=list)
+async def list_trips_by_status(
+    status: TripStatusEnum,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """List trips by status."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.customer_admin]:
+        raise CabboException(
+            "You do not have permission to view trips by status.", status_code=403
+        )
+    trips = await async_get_all_trips(db)
+    serialized_trips= serialize_trips(trips)
+    filtered_trips = [trip for trip in serialized_trips if trip.get("status") == status.value]
+    return filtered_trips
 
 
+# Update trip status - super_admin, driver_admin
+@router.patch("/{trip_id}/status/{status}")
+async def update_status(
+    trip_id: str,
+    status: TripStatusEnum,
+    payload:Optional[dict] = None, # This payload can contain additional information like cancellation reason if the status is being updated to cancelled, or dispute reason if the status is being updated to dispute, etc. This will help us in maintaining a detailed trip status audit log for each trip which will be useful for analyzing the trip lifecycle and identifying any bottlenecks or issues in our operations.
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Update the status of a trip."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to update trip status.", status_code=403
+        )
+    
+
+    return await update_trip_status(trip_id, db, status, payload)
 # Assign driver to trip
 @router.post("/{trip_id}/assign-driver/{driver_id}")
 async def assign_driver(

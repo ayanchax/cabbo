@@ -109,3 +109,10 @@ class DriverReadProfilePictureAfterUpdate(BaseModel):
 class DriverReadSchema(DriverCreateSchema):
     pass
 
+class ExtraPaymentsToDriverSchema(BaseModel):
+    toll_charges: Optional[float] = Field(0.0, description="Toll charges paid by driver during the trip")
+    parking_charges: Optional[float] = Field(0.0, description="Parking charges paid by driver during the trip")
+    overage_payment: Optional[float] = Field(0.0, description="Overage payment to driver for extra distance or time beyond what was estimated")
+    tips: Optional[float] = Field(0.0, description="Incentive payment or tips provided to driver by customer for good performance, high ratings, or completing a certain number of trips")
+    total_extra_payment: Optional[float] = Field(0.0, description="Total extra payment to driver on top of final price (sum of toll_charges, parking_charges, overage_payment, and tips)")
+    comments: Optional[str] = Field(None, description="Additional comments or notes about the extra payment to driver")

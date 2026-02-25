@@ -172,6 +172,8 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
+    extra_payment_breakdown_to_driver = Column(
+        JSON, nullable=True) # JSON/text breakdown of any extra payment to driver on top of final price (e.g., paid parking, tolls, overage payment, incentive payment, etc.)
     payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
