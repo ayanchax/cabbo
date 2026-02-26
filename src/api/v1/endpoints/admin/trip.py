@@ -17,6 +17,7 @@ from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange
 from models.user.user_orm import User
 from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
 from services.notification_service import notify_customer_booking_confirmed
@@ -223,9 +224,10 @@ async def list_trips_by_status(
 # Update trip status - super_admin, driver_admin
 @router.patch("/{trip_id}/status/{status}")
 async def update_status(
+    background_tasks: BackgroundTasks,
     trip_id: str,
     status: TripStatusEnum,
-    payload:Optional[dict] = None, # This payload can contain additional information like cancellation reason if the status is being updated to cancelled, or dispute reason if the status is being updated to dispute, etc. This will help us in maintaining a detailed trip status audit log for each trip which will be useful for analyzing the trip lifecycle and identifying any bottlenecks or issues in our operations.
+    payload:Optional[AdditionalDetailsOnTripStatusChange] = None, # This payload can contain additional information like cancellation reason if the status is being updated to cancelled, or dispute reason if the status is being updated to dispute, etc. This will help us in maintaining a detailed trip status audit log for each trip which will be useful for analyzing the trip lifecycle and identifying any bottlenecks or issues in our operations.
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
@@ -235,9 +237,20 @@ async def update_status(
         raise CabboException(
             "You do not have permission to update trip status.", status_code=403
         )
-    
+       
+    trip_schema, background_task = await update_trip_status(trip_id=trip_id, new_status=status, payload=payload, db=db, requestor=current_user)
+    if not trip_schema:
+        raise CabboException("Failed to update trip status", status_code=500)
+    if background_task:
+        orchestrator = BackgroundTaskOrchestrator(background_tasks)
+        orchestrator.add_task(
+            background_task.fn,
+            task_name=f"BackgroundTaskForTrip{trip_id}StatusUpdateTo{status.value}",
+            **background_task.kwargs,
+        )
+    return {"message": f"Trip status updated to {status.value} successfully."}
 
-    return await update_trip_status(trip_id, db, status, payload)
+
 # Assign driver to trip
 @router.post("/{trip_id}/assign-driver/{driver_id}")
 async def assign_driver(

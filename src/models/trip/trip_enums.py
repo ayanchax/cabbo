@@ -22,7 +22,6 @@ class TripStatusEnum(str, enum.Enum):
     created = "created"
     pending= "pending"  # Trip is created but not yet confirmed or assigned
     confirmed = "confirmed"
-    assigned = "assigned"  # Driver assigned to the trip
     ongoing = "ongoing" #alias to started, trip is currently in progress
     completed = "completed"  # Trip completed successfully
     cancelled = "cancelled" # Trip cancelled by customer or admin due to various reasons

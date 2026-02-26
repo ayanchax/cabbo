@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
 from models.customer.customer_schema import CustomerRead
+from models.driver.driver_schema import ExtraPaymentsToDriverSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
     LocalPricingBreakdownSchema,
@@ -362,7 +363,7 @@ class TripDetailSchema(BaseModel):
 
     # Driver assignment fields
     driver: Optional[Dict[str, Any]] = Field(None, description="Driver details of the assigned driver")
-
+    
     # Trip status
     status: Optional[TripStatusEnum] = Field(None, description="Current status of the trip")
 
@@ -377,6 +378,8 @@ class TripDetailSchema(BaseModel):
     final_display_price: Optional[float] = Field(None, description="Final price shown to the driver admin")
     advance_payment: Optional[float] = Field(None, description="Advance payment made by the customer")
     balance_payment: Optional[float] = Field(None, description="Balance payment to be made by the customer")
+    refund_payment: Optional[float] = Field(None, description="Refund payment made to customer in case of cancellation or adjustment")
+    refund_payment_reason: Optional[str] = Field(None, description="Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)")
     payment_provider_metadata: Optional[Dict] = Field(None, description="Payment details (e.g., mode, transaction ID)")
     price_breakdown: Optional[Dict] = Field(None, description="Detailed price breakdown")
     overages: Optional[Dict] = Field(None, description="Details of overages (e.g., extra km charges)")
@@ -408,4 +411,13 @@ class TripDetailSchema(BaseModel):
         extra = "allow"  # Allow extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
 
-    
+
+class AdditionalDetailsOnTripStatusChange(BaseModel):
+    reason: Optional[str] = Field(None, description="Reason for the status change, especially important for cancellations")
+    cancellation_sub_status: Optional[CancellationSubStatusEnum] = Field(None, description="Sub-status for cancellations to provide more context on the cancellation reason")
+    extra_payment_to_driver: Optional[ExtraPaymentsToDriverSchema] = Field(None, description="Details of any extra payment to driver at trip completion, such as tolls paid by driver, parking charges, overage payment for extra distance or time, tips from customer, etc.")
+    start_datetime: Optional[datetime] = Field(None, description="Actual start date and time of the trip, useful for calculating any overages in case of outstation and local trips")
+    end_datetime: Optional[datetime] = Field(None, description="Actual end date and time of the trip, useful for calculating any overages in case of outstation and local trips")
+    class Config:
+        extra = "forbid"  # Forbid extra fields not defined in the model
+        exclude_none = True  # Exclude fields with None values from the model dump

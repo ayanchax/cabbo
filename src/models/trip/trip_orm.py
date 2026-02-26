@@ -172,7 +172,13 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
-    extra_payment_breakdown_to_driver = Column(
+    refund_payment = Column(
+        Float, nullable=True, default=None
+    )  # Refund payment made to customer in case of cancellation or adjustment
+    refund_payment_reason = Column(
+        String(255), nullable=True, default=None
+    )  # Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)
+    extra_payment_to_driver = Column(
         JSON, nullable=True) # JSON/text breakdown of any extra payment to driver on top of final price (e.g., paid parking, tolls, overage payment, incentive payment, etc.)
     payment_provider_metadata = Column(
         JSON, nullable=True
@@ -242,18 +248,19 @@ class Trip(Base):
         back_populates="trips",
         primaryjoin="and_(Trip.creator_id == Customer.id, Trip.creator_type == 'customer')",
     )
-    driver_earnings = relationship(
+    # A trip can have one driver earning record associated with it, which is populated when the trip is completed and the driver payment is settled from Cabbo's end, so the relationship is one-to-one from Trip to DriverEarning and many-to-one from DriverEarning to Trip.
+    driver_earning = relationship(
         "DriverEarning",
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    driver_ratings = relationship(
+    driver_rating = relationship(
         "DriverRating",
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )
+    ) #A trip can have only one driver rating given by the customer to the driver for that trip, but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to DriverRating and one-to-many from Driver to DriverRating.
 
     # Audit fields - END
 

@@ -94,7 +94,7 @@ class Driver(Base):
         nullable=False,
     )
     created_by = Column(
-        Enum(RoleEnum), nullable=False, default=RoleEnum.driver_admin
+        MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
     )  # Created by system, admin, or user
     bearer_token = Column(Text, nullable=True) # Bearer token for authentication, this will be used to authenticate the driver in the driver app when the driver app is released to the drivers.
     # Relationships
@@ -104,13 +104,15 @@ class Driver(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     ) 
+    #A driver can have multiple earnings records for different trips, and each earning record is associated with one trip, so the relationship is one-to-many from Driver to DriverEarning and many-to-one from DriverEarning to Driver.
     earnings = relationship("DriverEarning", back_populates="driver", cascade="all, delete-orphan", passive_deletes=True)
+    
     ratings = relationship(
         "DriverRating",
         back_populates="driver",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )
+    ) #A driver can have multiple ratings from different customers for different trips, 
 
 #Create a orm for driver earnings per trip id
 # This will be populated when the trip is completed and the driver payment is settled from Cabbo's end
@@ -130,17 +132,20 @@ class DriverEarning(Base):
     trip_id = Column(
         MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
     )
-    earnings = Column(Float, nullable=False)  # total Earnings for the trip
-    breakdown = Column(
+    earnings = Column(Float, nullable=False)  # total base Earnings for the trip which is the final price minus the platform fee, this is the amount that driver earns for the trip from Cabbo's end, excluding any extra earnings such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.
+    extra_earnings = Column(Float, nullable=True)  # any extra earnings for the driver on top of the standard fare for the trip, such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc. 
+    extra_earnings_breakdown = Column(
         JSON, nullable=True
-    )  # Earnings breakdown details e.g., {"base_fare": 100, "distance_fare": 50, "time_fare": 30, "surge_multiplier": 1.5, "total_fare": 270}
+    )  # Earnings breakdown details ideally on trip completion e.g., {"toll_charges": 100, "parking_charges": 50, "overage_payment": 30, "tip": 1.5, "total_extra_payment": 270}
+    total_earnings = Column(Float, nullable=False)  # total earnings for the driver for the trip including the standard fare and any extra earnings (earnings + extra_earnings)
+    # Model validated by ExtraPaymentsToDriverSchema in driver_schema.py to ensure the breakdown is consistent with the total extra payment to driver and the individual components of the extra payment.
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
     created_by = Column(
-        Enum(RoleEnum), nullable=False, default=RoleEnum.finance_admin
+        MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
     )  # Created by system, admin, or user
     last_modified = Column(
         DateTime(timezone=True),
@@ -150,7 +155,7 @@ class DriverEarning(Base):
     )
 
     driver = relationship("Driver", back_populates="earnings")
-    trip = relationship("Trip", back_populates="driver_earnings")
+    trip = relationship("Trip", back_populates="driver_earning")
 
 #Create a orm for the driver ratings per customer per trip
 #This will be populated when the customer rates the driver after the trip is completed
@@ -182,11 +187,17 @@ class DriverRating(Base):
     )
     #rating cannot be updated once set, so no onupdate
     created_by = Column(
-        Enum(RoleEnum), nullable=False, default=RoleEnum.customer
-    )  # Created by customer
+        MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
+    )  # Created by customer id who gave the rating, this will be used to ensure that the customer can only give one rating per trip and to identify the customer who gave the rating for any follow up if needed.
+    last_modified = Column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+        nullable=False,
+    )
     
     driver = relationship("Driver", back_populates="ratings")
-    trip = relationship("Trip", back_populates="driver_ratings")
+    trip = relationship("Trip", back_populates="driver_rating")
     customer = relationship("Customer", back_populates="driver_ratings")
     
 
