@@ -299,22 +299,7 @@ class TripStatusAudit(Base):
     trip = relationship("Trip", back_populates="status_audits")
 
 
-class OutstandingDue(Base):
-    __tablename__ = "outstanding_dues"
-
-    id = Column(Integer, primary_key=True, index=True)
-    trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
-    customer_id = Column(MySQL_CHAR(36), ForeignKey("customers.id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    reason = Column(String(255), nullable=False)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
-    # Nullable: Only populated when
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-
+ 
 class TripTypeMaster(Base):
     __tablename__ = "trip_types_master"
 

@@ -1,18 +1,15 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
-from core.trip_helpers import get_trip_type_by_trip_type_id
 from models.driver.driver_orm import Driver, DriverEarning
 from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
     DriverUpdateSchema,
-    ExtraPaymentsToDriverSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
 import uuid
 
-from models.map.location_schema import LocationInfo
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
@@ -20,10 +17,7 @@ from models.trip.trip_schema import (
     TripDetailSchema,
 )
 from models.user.user_orm import User
-from services.audit_trail_service import a_log_trip_audit, log_trip_audit
-from services.customer_service import get_customer_by_id
-from services.geography_service import get_country_by_code
-from services.geography_service import get_country_by_code
+from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 

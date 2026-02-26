@@ -5,6 +5,7 @@ from core.exceptions import CabboException
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
 from models.map.location_schema import Address
+from models.pricing.pricing_schema import ExtraPayments
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
 from models.trip.trip_schema import AmenitiesSchema
 from models.user.user_enum import GenderEnum, NationalityEnum, ReligionEnum
@@ -109,36 +110,12 @@ class DriverReadProfilePictureAfterUpdate(BaseModel):
 class DriverReadSchema(DriverCreateSchema):
     pass
 
-class ExtraPaymentsToDriverSchema(BaseModel):
-    toll_charges: Optional[float] = Field(0.0, description="Toll charges paid by driver during the trip")
-    parking_charges: Optional[float] = Field(0.0, description="Parking charges paid by driver during the trip")
-    overage_payment: Optional[float] = Field(0.0, description="Overage payment to driver for extra distance or time beyond what was estimated")
-    tips: Optional[float] = Field(0.0, description="Incentive payment or tips provided to driver by customer for good performance, high ratings, or completing a certain number of trips")
-    total_extra_payment: Optional[float] = Field(0.0, description="Total extra payment to driver on top of final price (sum of toll_charges, parking_charges, overage_payment, and tips)")
-    comments: Optional[str] = Field(None, description="Additional comments or notes about the extra payment to driver")
-
-    @model_validator(mode="after")
-    def calculate_total_extra_payment(self):
-        # Calculate the sum of all payment components
-        calculated_total = (
-            (self.toll_charges or 0.0) + 
-            (self.parking_charges or 0.0) + 
-            (self.overage_payment or 0.0) + 
-            (self.tips or 0.0)
-        )
-        
-        # If user hasn't provided total_extra_payment or it's 0, use calculated total
-        if self.total_extra_payment is None or self.total_extra_payment == 0.0:
-            self.total_extra_payment = calculated_total
-        # Otherwise, respect the user-provided total_extra_payment
-        
-        return self
-    
+  
 class DriverEarningSchema(BaseModel):
     trip_id: str=Field(..., description="Unique identifier for the trip")
     driver_id: str=Field(..., description="Unique identifier for the driver")
     base_earnings: float=Field(..., description="Base earnings for the trip which is the final price minus the platform fee, this is the amount that driver earns for the trip from Cabbo's end, excluding any extra earnings such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.")
     extra_earnings: Optional[float] = Field(0.0, description="Any extra earnings for the driver on top of the standard fare for the trip, such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.")
-    extra_earnings_breakdown: Optional[ExtraPaymentsToDriverSchema] = Field(None, description="Breakdown of any extra earnings for the driver on top of the standard fare for the trip in a structured format e.g., {'toll_charges': 100, 'parking_charges': 50, 'overage_payment': 30, 'tip': 1.5}")
+    extra_earnings_breakdown: Optional[ExtraPayments] = Field(None, description="Breakdown of any extra earnings for the driver on top of the standard fare for the trip in a structured format e.g., {'toll_charges': 100, 'parking_charges': 50, 'overage_payment': 30, 'tip': 1.5}")
     total_earnings: float=Field(..., description="Total earnings for the driver for the trip including the standard fare and any extra earnings (earnings + extra_earnings)")
     

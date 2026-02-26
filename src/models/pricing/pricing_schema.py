@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Union
 
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
@@ -249,3 +249,30 @@ class Currency(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ExtraPayments(BaseModel):
+    toll_charges: Optional[float] = Field(0.0, description="Toll charges paid by driver during the trip")
+    parking_charges: Optional[float] = Field(0.0, description="Parking charges paid by driver during the trip")
+    overage_payment: Optional[float] = Field(0.0, description="Overage payment to driver for extra distance or time beyond what was estimated")
+    tips: Optional[float] = Field(0.0, description="Incentive payment or tips provided to driver by customer for good performance, high ratings, or completing a certain number of trips")
+    total_extra_payment: Optional[float] = Field(0.0, description="Total extra payment to driver on top of final price (sum of toll_charges, parking_charges, overage_payment, and tips)")
+    comments: Optional[str] = Field(None, description="Additional comments or notes about the extra payment to driver")
+
+    @model_validator(mode="after")
+    def calculate_total_extra_payment(self):
+        # Calculate the sum of all payment components
+        calculated_total = (
+            (self.toll_charges or 0.0) + 
+            (self.parking_charges or 0.0) + 
+            (self.overage_payment or 0.0) + 
+            (self.tips or 0.0)
+        )
+        
+        # If user hasn't provided total_extra_payment or it's 0, use calculated total
+        if self.total_extra_payment is None or self.total_extra_payment == 0.0:
+            self.total_extra_payment = calculated_total
+        # Otherwise, respect the user-provided total_extra_payment
+        
+        return self
+  

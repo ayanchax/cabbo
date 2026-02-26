@@ -8,7 +8,7 @@ from .geography.state_orm import StateModel
 from .geography.region_orm import RegionModel
 from .policies.cancelation_orm import CancellationPolicy
 from .pricing.pricing_orm import OutstationCabPricing, LocalCabPricing, AirportCabPricing, NightPricingConfiguration, CommonPricingConfiguration, FixedPlatformPricingConfiguration, PermitFeeConfiguration
-from .trip.trip_orm import Trip, TripTypeMaster, TripStatusAudit, OutstandingDue,TripPackageConfig
+from .trip.trip_orm import Trip, TripTypeMaster, TripStatusAudit,TripPackageConfig
 from .trip.temp_trip_orm import TempTrip
 from .user.user_orm import User
 
@@ -18,6 +18,6 @@ __all__ = [
     "CountryModel", "StateModel", "RegionModel", "CancellationPolicy",
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",
     "CommonPricingConfiguration", "FixedPlatformPricingConfiguration", "PermitFeeConfiguration",
-    "Trip", "Driver","DriverEarning","DriverRating","TripTypeMaster", "TripStatusAudit", "OutstandingDue","TripPackageConfig",
+    "Trip", "Driver","DriverEarning","DriverRating","TripTypeMaster", "TripStatusAudit","TripPackageConfig",
     "TempTrip", "User"
 ]
