@@ -94,6 +94,7 @@ class Trip(Base):
         DateTime, nullable=True
     )  # Nullable | for local trips, we set it by package chosen
     end_datetime = Column(DateTime, nullable=True)
+    cancelation_datetime = Column(DateTime, nullable=True)
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
@@ -175,6 +176,8 @@ class Trip(Base):
     refund_payment = Column(
         Float, nullable=True, default=None
     )  # Refund payment made to customer in case of cancellation or adjustment
+    refund_details = Column(
+        JSON, nullable=True) # JSON/text for details of refund payment (e.g., refund breakdown, refund transaction id, etc.)
     refund_payment_reason = Column(
         String(255), nullable=True, default=None
     )  # Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)

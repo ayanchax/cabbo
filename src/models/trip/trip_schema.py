@@ -329,6 +329,7 @@ class TripDetailSchema(BaseModel):
     start_datetime: Optional[datetime] = Field(None, description="Start date and time of the trip")
     expected_end_datetime: Optional[datetime] = Field(None, description="Expected end date and time of the trip")
     end_datetime: Optional[datetime] = Field(None, description="Actual end date and time of the trip")
+    cancelation_datetime: Optional[datetime] = Field(None, description="Cancellation date and time of the trip, if applicable")
     total_days: Optional[int] = Field(None, description="Total days for outstation trips")
     included_kms: Optional[float] = Field(None, description="Included kilometers for the trip")
 

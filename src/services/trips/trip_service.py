@@ -754,7 +754,8 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                 #Free up the driver if already assigned to the trip.
                 await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
             
-            #Log audit trail for trip cancellation
+            #Update cancelation time
+            trip.cancelation_datetime = datetime.now(timezone.utc)
             cancelation_sub_status = CancellationSubStatusEnum.other
             if requestor.role == RoleEnum.customer:
                 cancelation_sub_status = CancellationSubStatusEnum.customer_cancelled
@@ -762,6 +763,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             else:
                 cancelation_sub_status=payload.cancellation_sub_status if payload and payload.cancellation_sub_status else CancellationSubStatusEnum.other
             
+            #Log audit trail for trip cancellation
             await a_log_trip_audit(
                 trip_id=trip.id,
                 status=trip.status,
