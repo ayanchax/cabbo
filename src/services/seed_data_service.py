@@ -1326,7 +1326,7 @@ def _seed_cancelation_policy_pricing(session: Session):
                     region_id=region.id,
                     free_cutoff_minutes=30,  # Free cancellation within 30 minutes
                     free_cutoff_time_label="30 minutes before trip start",
-                    cancelation_amount=20.0,  # Flat cancellation fee after free period
+                    refund_percentage=0.0,  # No refund if cancelled after free period for airport trips considering the short notice and potential driver inconvenience
                 )
 
             elif trip_type == TripTypeEnum.local:
@@ -1335,7 +1335,7 @@ def _seed_cancelation_policy_pricing(session: Session):
                     region_id=region.id,
                     free_cutoff_minutes=60,  # Free cancellation within 60 minutes/1h
                     free_cutoff_time_label="1 hour before trip start",
-                    cancelation_amount=50.0,  # Flat cancellation fee after free period
+                    refund_percentage=50.0,  # Refund 50% of the fare if cancelled after free period for local trips considering the short notice and potential driver inconvenience
                 )
             if payload:
                 create_cancellation_policy_pricing(payload, session)
@@ -1349,10 +1349,10 @@ def _seed_cancelation_policy_pricing(session: Session):
             state_id=state.id,
             free_cutoff_minutes=1440,  # Free cancellation within 1440 minutes/24h
             free_cutoff_time_label="1 day before trip start",
-            cancelation_amount=100.0,  # Flat cancellation fee after free period
+            refund_percentage=75.0,  # Refund 75% of the fare if cancelled after free period for outstation trips considering the short notice and potential driver inconvenience
         )
         create_cancellation_policy_pricing(payload, session)
-
+        #Full refund policy For cancellation before free cutoff time, we are doing 100% refund across all trip types and regions/states considering the cancellation is done well in advance and allows for better driver re-allocation and customer satisfaction. This can be updated later via admin interface as needed. No questions asked.
 
 def _seed_fixed_platform_pricing(session: Session):
     # Seed fixed platform pricing configurations

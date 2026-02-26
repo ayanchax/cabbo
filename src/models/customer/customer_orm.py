@@ -57,7 +57,7 @@ class Customer(Base):
     driver_ratings = relationship(
         "DriverRating", back_populates="customer", cascade="all, delete-orphan",
         passive_deletes=True
-    )  # Ratings given by customer to drivers
+    )  # Ratings given by customer to one or more drivers across different trips
     trips = relationship(
         "Trip",
         back_populates="customer",

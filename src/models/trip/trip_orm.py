@@ -94,6 +94,7 @@ class Trip(Base):
         DateTime, nullable=True
     )  # Nullable | for local trips, we set it by package chosen
     end_datetime = Column(DateTime, nullable=True)
+    cancelation_datetime = Column(DateTime, nullable=True)
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
@@ -172,7 +173,15 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
-    extra_payment_breakdown_to_driver = Column(
+    refund_payment = Column(
+        Float, nullable=True, default=None
+    )  # Refund payment made to customer in case of cancellation or adjustment
+    refund_details = Column(
+        JSON, nullable=True) # JSON/text for details of refund payment (e.g., refund breakdown, refund transaction id, etc.)
+    refund_payment_reason = Column(
+        String(255), nullable=True, default=None
+    )  # Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)
+    extra_payment_to_driver = Column(
         JSON, nullable=True) # JSON/text breakdown of any extra payment to driver on top of final price (e.g., paid parking, tolls, overage payment, incentive payment, etc.)
     payment_provider_metadata = Column(
         JSON, nullable=True
@@ -242,18 +251,19 @@ class Trip(Base):
         back_populates="trips",
         primaryjoin="and_(Trip.creator_id == Customer.id, Trip.creator_type == 'customer')",
     )
-    driver_earnings = relationship(
+    # A trip can have one driver earning record associated with it, which is populated when the trip is completed and the driver payment is settled from Cabbo's end, so the relationship is one-to-one from Trip to DriverEarning and many-to-one from DriverEarning to Trip.
+    driver_earning = relationship(
         "DriverEarning",
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    driver_ratings = relationship(
+    driver_rating = relationship(
         "DriverRating",
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )
+    ) #A trip can have only one driver rating given by the customer to the driver for that trip, but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to DriverRating and one-to-many from Driver to DriverRating.
 
     # Audit fields - END
 
@@ -292,22 +302,7 @@ class TripStatusAudit(Base):
     trip = relationship("Trip", back_populates="status_audits")
 
 
-class OutstandingDue(Base):
-    __tablename__ = "outstanding_dues"
-
-    id = Column(Integer, primary_key=True, index=True)
-    trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
-    customer_id = Column(MySQL_CHAR(36), ForeignKey("customers.id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    reason = Column(String(255), nullable=False)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
-    # Nullable: Only populated when
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-
+ 
 class TripTypeMaster(Base):
     __tablename__ = "trip_types_master"
 
