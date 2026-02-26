@@ -39,13 +39,10 @@ class CancellationPolicy(Base):
     free_cutoff_minutes = Column(Integer, nullable=False, default=0)
     free_cutoff_time_label = Column(String(50), nullable=True)  # e.g. '30 minutes before', '2 hours before'
 
-    cancelation_amount = Column(Float, nullable=False, default=0.0)  # cancellation fee amount
-     
-    effective_from = Column(DateTime, nullable=True)
-    effective_to = Column(DateTime, nullable=True)
+    refund_percentage = Column(Float, nullable=False, default=0.0)  # Percentage of the fare to be refunded against advance payment. 100% refund if cancellation is made from our end or by customer on or before the free cutoff time. Partial refund if cancellation is made after the free cutoff time. For example, 100.0 for full refund, 50.0 for half refund, 0.0 for no refund.
     is_active = Column(Boolean, nullable=False, default=True)
 
 
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     updated_at = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())

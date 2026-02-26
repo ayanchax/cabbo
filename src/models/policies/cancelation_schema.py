@@ -8,7 +8,7 @@ class CancelationPolicySchema(BaseModel):
     state_id: Optional[str] = Field(None, description="ID of the state for which this cancelation policy applies")
     free_cutoff_minutes: int = Field(..., description="Free cancellation cutoff in minutes")
     free_cutoff_time_label: Optional[str] = Field(None, description="Label for free cutoff time, e.g., '30 minutes before'")
-    refund_percentage: float = Field(..., description="Percentage of the fare to be refunded against advance payment if the cancellation is made on or before the free cutoff time")
+    refund_percentage: float = Field(..., description="Percentage of the fare to be refunded against advance payment. 100% refund if cancellation is made from our end or by customer on or before the free cutoff time. Partial refund if cancellation is made after the free cutoff time. For example, 100.0 for full refund, 50.0 for half refund, 0.0 for no refund.")
     
     effective_from: Optional[datetime] = Field(None, description="DateTime from which this policy is effective")
     effective_to: Optional[datetime] = Field(None, description="DateTime until which this policy is effective")
