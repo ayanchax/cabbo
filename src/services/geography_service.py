@@ -1171,6 +1171,21 @@ async def async_get_state_by_id(
             return None
     return None
 
+async def async_get_state_by_state_code(
+    state_code: str, db: AsyncSession
+) -> Optional[StateSchema]:
+    """Asynchronously fetch the StateSchema for the given state code.
+    Returns None if not found.
+    """
+    result = await db.execute(select(StateModel).filter(StateModel.state_code == state_code, StateModel.is_serviceable == True))
+    state_model = result.scalars().first()
+    if state_model:
+        try:
+            state_schema = StateSchema.model_validate(state_model)
+            return state_schema
+        except ValidationError:
+            return None
+    return None
 
 async def async_delete_state(
     state_id: str, db: AsyncSession

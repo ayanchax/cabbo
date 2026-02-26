@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
 from services.driver_service import _add_driver_earning_record, add_driver_earning_record, toggle_availability_of_driver
+from services.geography_service import async_get_region_by_code, async_get_state_by_state_code
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -775,10 +776,20 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await db.commit()
             await db.refresh(trip)
             trip_schema = TripDetailSchema.model_validate(trip)
-            trip_schema.payment_provider_metadata
+            
             if trip_schema.advance_payment and trip_schema.advance_payment > 0.0:
-                #Initiate Refund advance payment to customer, if eligible - Background Task
+                # Initiate Refund advance payment to customer, if eligible - Background Task
                 # Delegating the task of refunding advance payment to background task because it is a secondary work and also to ensure that the main flow of trip cancellation and marking driver available is not affected by any potential issues in refunding advance payment and also to improve the response time for trip cancellation API. 
+                
+                region_code = trip_schema.origin.region_code
+                region= await async_get_region_by_code(region_code=region_code, db=db)
+                if region :
+                    region_id = region.id
+
+                state_code = trip_schema.origin.state_code
+                state = await async_get_state_by_state_code(state_code=state_code, db=db)
+                if state:
+                    state_id = state.id
                 background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
                     "trip": trip_schema,
                     "db": db,
