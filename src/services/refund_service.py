@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.notification_service import notify_refund_initiated_to_customer
 from services.payment_service import initiate_razorpay_refund
-from services.trips.trip_service import async_get_trip_by_id
 
 
 async def refund_advance_payment_to_customer(
@@ -242,6 +241,8 @@ async def update_refund_details_for_trip(
     refund: RefundSchema,
     db: AsyncSession,
 ):
+    from services.trips.trip_service import async_get_trip_by_id
+    
     try:
         trip = await async_get_trip_by_id(trip_id=trip_id, db=db)
         if not trip:

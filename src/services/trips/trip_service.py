@@ -2,16 +2,15 @@ from datetime import datetime, timedelta, timezone
 import json
 from typing import Union
 
-from fastapi import BackgroundTasks
 from core.exceptions import CabboException
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES
-from core.trip_helpers import generate_trip_field_dictionary, get_trip_type_id_by_trip_type
+from core.trip_helpers import attach_relationships_to_trip, generate_trip_field_dictionary, get_trip_type_id_by_trip_type
 from models.common import AppBackgroundTask
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import  PassengerRequest
-from models.driver.driver_schema import DriverEarningSchema, DriverReadSchema
+from models.driver.driver_schema import DriverReadSchema
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
@@ -36,8 +35,7 @@ from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
-from services.driver_service import _add_driver_earning_record, add_driver_earning_record, toggle_availability_of_driver
-from services.geography_service import async_get_region_by_code, async_get_state_by_state_code
+from services.driver_service import add_driver_earning_record, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -540,18 +538,7 @@ async def async_get_trip_by_id(trip_id: str, db: AsyncSession, expose_customer_d
         await attach_relationships_to_trip(trip_result, db, expose_customer_details=expose_customer_details)
     return trip_result
 
-async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False):
-        if trip.driver_id:
-            await db.refresh(trip, attribute_names=["driver"])
-        if trip.trip_type_id:
-            await db.refresh(trip, attribute_names=["trip_type_master"])
-        if trip.package_id:
-            await db.refresh(trip, attribute_names=["package"])
-        if trip.passenger_id:
-            await db.refresh(trip, attribute_names=["passenger"])
-        if expose_customer_details and trip.creator_id:
-            await db.refresh(trip, attribute_names=["customer"])
-
+ 
 async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Trip:
     """Asynchronously retrieve a trip by its booking ID."""
     result = await db.execute(select(Trip).filter(Trip.booking_id == booking_id))
@@ -647,10 +634,9 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
 async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatusEnum, requestor:User, payload: AdditionalDetailsOnTripStatusChange = None):
-    trip = await async_get_trip_by_id(trip_id, db)
+    trip = await async_get_trip_by_id(trip_id, db, expose_customer_details=True)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
-    
     
     allowed_status_transitions = {
         TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
@@ -680,7 +666,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             #Log audit trail for trip start
             await a_log_trip_audit(
                 trip_id=trip.id,
-                status=trip.status,
+                status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip started. {payload.reason if payload and payload.reason else ''}",
                 changed_by=requestor.role,
@@ -723,7 +709,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             #Log audit trail for trip completion
             await a_log_trip_audit(
                 trip_id=trip.id,
-                status=trip.status,
+                status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip completed. {payload.reason if payload and payload.reason else ''}",
                 changed_by=requestor.role,
@@ -767,7 +753,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             #Log audit trail for trip cancellation
             await a_log_trip_audit(
                 trip_id=trip.id,
-                status=trip.status,
+                status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip cancelled. {payload.reason if payload and payload.reason else ''}",
                 changed_by=requestor.role,
@@ -787,8 +773,6 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                     "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
                 })
 
-
-            
 
     except Exception as e:
         await db.rollback()

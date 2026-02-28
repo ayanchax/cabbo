@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
+from core.trip_helpers import attach_relationships_to_trip
 from models.driver.driver_orm import Driver, DriverEarning
 from models.driver.driver_schema import (
     DriverCreateSchema,
@@ -21,7 +22,6 @@ from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from services.trips.trip_service import attach_relationships_to_trip
 
 
 def create_driver(
