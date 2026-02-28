@@ -173,6 +173,8 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
+    refund_id= Column(String(64), nullable=True, unique=True)  # Refund transaction ID from payment provider, if any
+    refund_status = Column(String(32), nullable=True)  # Refund status from payment provider, if any (e.g., pending, completed, failed, etc.)
     refund_payment = Column(
         Float, nullable=True, default=None
     )  # Refund payment made to customer in case of cancellation or adjustment
@@ -181,6 +183,11 @@ class Trip(Base):
     refund_payment_reason = Column(
         String(255), nullable=True, default=None
     )  # Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)
+    refund_type = Column(
+        String(32), nullable=True, default=None
+    )  # Type of refund, if any (e.g., full, partial, etc.)
+    refund_initiated_datetime = Column(DateTime, nullable=True)  # Date and time when refund was initiated
+    
     extra_payment_to_driver = Column(
         JSON, nullable=True) # JSON/text breakdown of any extra payment to driver on top of final price (e.g., paid parking, tolls, overage payment, incentive payment, etc.)
     payment_provider_metadata = Column(

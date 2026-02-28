@@ -18,6 +18,15 @@ class CountrySchema(BaseModel):
     distance_unit: Optional[str] = Field("km", description="Unit of distance measurement, e.g., 'km' or 'miles'") # e.g. km
     currency: str = Field(..., description="Currency code, e.g., 'INR' for Indian Rupee") # e.g. INR
     currency_symbol: str = Field(..., description="Symbol of the currency, e.g., '₹'") # e.g. ₹
+    currency_decimal_places: Optional[int] = Field(2, description="Number of decimal places, e.g., 2 for paise in INR") # e.g. 2 for paise in INR
+    currency_in_words: Optional[str] = Field("Rupees", description="Currency in words, e.g., 'Rupees'") # e.g. Rupees
+    currency_international_name: Optional[str] = Field("Indian Rupee", description="International name, e.g., 'Indian Rupee'") # e.g. Indian Rupee
+    currency_symbol_position: Optional[str] = Field("before", description="Position of the currency symbol, e.g., 'before' or 'after'") # whether currency symbol is placed before or after the amount, e.g. ₹100 or 100¥
+    currency_code_position: Optional[str] = Field("after", description="Position of the currency code, e.g., 'before' or 'after'") # whether currency code is placed before or after the amount, e.g. 100 INR or USD 100
+    currency_thousand_separator: Optional[str] = Field(",", description="Thousand separator, e.g., ','") # e.g. 1,00,000
+    currency_decimal_separator: Optional[str] = Field(".", description="Decimal separator, e.g., '.'") # e.g. 100.50
+    currency_lowest_unit_name: Optional[str] = Field("Paise", description="Name of the lowest currency unit, e.g., 'Paise'") # e.g. Paise
+    currency_lowest_unit_conversion_factor: Optional[int] = Field(100, description="Conversion factor for the lowest currency unit, e.g., 100 (1 Rupee = 100 Paise)") # e.g. 100 (1 Rupee = 100 Paise)
     flag: str = Field(..., description="Emoji flag of the country") # e.g. 🇮🇳
     time_zone: str = Field(..., description="Primary time zone of the country") # e.g. Asia/Kolkata
     locale: str = Field(..., description="Locale code, e.g., 'en_IN'") # e.g. en_IN

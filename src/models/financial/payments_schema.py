@@ -21,6 +21,7 @@ class PaymentNotesSchema(BaseModel):
         extra = "allow"  # Allow additional fields not defined in the schema
         exclude_none = True  # Exclude fields with None values from the model dump
 
+
 class RazorpayOrderSchema(PaymentOrderSchema):
     reference_id: Optional[str] = None  # Reference ID for the order, if applicable
     description: Optional[str] = None  # Description of the order
@@ -33,6 +34,7 @@ class RazorpayOrderSchema(PaymentOrderSchema):
     amount: float  # Amount in the smallest currency unit (e.g., paise for INR)
     currency: str  # Currency code (e.g., "INR")
     currency_symbol: Optional[str] = None  # Currency symbol (e.g., "₹" for INR)
+    currency_conversion_factor: Optional[int] = None  # Conversion factor for the currency (e.g., 100 for INR to convert rupees to paise)
     receipt: Optional[str] = None  # Receipt identifier
     notes: Optional[PaymentNotesSchema] = None  # Additional notes for the order
 

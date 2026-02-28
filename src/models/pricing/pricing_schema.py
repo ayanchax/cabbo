@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.policies.cancelation_schema import CancelationPolicySchema
@@ -246,10 +246,19 @@ class MasterPricingConfiguration(BaseModel):
 class Currency(BaseModel):
     code: str  # Currency code, e.g., "INR"
     symbol: str  # Currency symbol, e.g., "₹"
+    decimal_places: int = 2  # Number of decimal places, e.g., 2 for paise in INR
+    in_words: str = "Rupees"  # Currency in words, e.g., "Rupees"
+    international_name: str = "Indian Rupee"  # International name, e.g., "Indian Rupee"
+    symbol_position: str = "before"  # Position of the currency symbol, e.g., "before" or "after"
+    code_position: str = "after"  # Position of the currency code, e.g., "before" or "after"
+    thousand_separator: str = ","  # Thousand separator, e.g., ","
+    decimal_separator: str = "."  # Decimal separator, e.g., "."
+    lowest_unit_name: str = "Paise"  # Name of the lowest currency unit, e.g., "Paise"
+    lowest_unit_conversion_factor: int = 100  # Conversion factor for the lowest currency unit, e.g., 100 (1 Rupee = 100 Paise)
 
     class Config:
         from_attributes = True
-
+        extra = "allow"
 
 class ExtraPayments(BaseModel):
     toll_charges: Optional[float] = Field(0.0, description="Toll charges paid by driver during the trip")
@@ -276,3 +285,11 @@ class ExtraPayments(BaseModel):
         
         return self
   
+class RefundSchema(BaseModel):
+    refund_id: Optional[str] = Field(None, description="Unique identifier for the refund transaction from the payment provider")
+    refund_status: Optional[str] = Field(None, description="Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.")
+    refund_amount: float = Field(..., description="Amount to be refunded to the customer")
+    refund_reason: str = Field(..., description="Reason for the refund (e.g., cancellation, adjustment, etc.)")
+    refund_details: Optional[Dict] = Field(None, description="Details of the refund transaction from the payment provider")
+    refund_initiated_datetime: Optional[datetime] = Field(None, description="Date and time when the refund was initiated")
+    refund_type: Optional[str] = Field(None, description="Type of refund, e.g., full, partial, etc.")

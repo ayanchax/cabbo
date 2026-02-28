@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
+from models.customer.customer_schema import CustomerPayment
+from models.financial.payments_schema import PaymentNotesSchema
+from models.pricing.pricing_schema import RefundSchema
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripDetailSchema
 
@@ -9,6 +12,10 @@ from services.geography_service import (
     async_get_state_by_state_code,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.notification_service import notify_refund_initiated_to_customer
+from services.payment_service import initiate_razorpay_refund
+from services.trips.trip_service import async_get_trip_by_id
 
 
 async def refund_advance_payment_to_customer(
@@ -108,9 +115,14 @@ async def refund_advance_payment_to_customer(
                         / 100
                     )
             else:  # Cancellation is done after trip start time, then no refund is applicable
-                eligible_for_full_refund = False
-                eligible_for_partial_configuration_based_refund = False
-                refund_amount = 0.0
+                if cancelation_time > trip.start_datetime:
+                    print(
+                        f"Cancellation for trip {trip.id} is done after trip start time, hence not eligible for refund"
+                    )
+
+                    eligible_for_full_refund = False
+                    eligible_for_partial_configuration_based_refund = False
+                    refund_amount = 0.0
 
         print(
             f"Refund amount calculated for trip {trip.id} is {refund_amount} with eligible_for_full_refund={eligible_for_full_refund} and eligible_for_partial_configuration_based_refund={eligible_for_partial_configuration_based_refund}"
@@ -123,12 +135,94 @@ async def refund_advance_payment_to_customer(
                 or eligible_for_partial_configuration_based_refund
             )
         ):
-            # Call the payment provider service to process the refund. This is a placeholder and should be replaced with actual implementation to call the payment provider's API.
             print(
                 f"Initiating refund of amount {refund_amount} for trip {trip.id} through payment provider"
             )
+            payment_id = trip.payment_provider_metadata.get("razorpay_payment_id")
+            if not payment_id:
+                print(
+                    f"No payment ID found in payment_provider_metadata for trip {trip.id}, cannot initiate refund"
+                )
+                return False
+            if not trip.customer:
+                print(
+                    f"No customer information found for trip {trip.id}, cannot initiate refund"
+                )
+                return False
+            refund_type = "full" if eligible_for_full_refund else "partial"
+            notes = PaymentNotesSchema(
+                reference_source_id=trip.id,
+                refund_type=refund_type,
+                canceled_by_cabbo=canceled_by_cabbo,
+                original_amount=trip.advance_payment,
+                refund_amount=refund_amount,
+                requestor=trip.customer.id,
+                customer=CustomerPayment(
+                    id=trip.customer.id,
+                    name=trip.customer.name,
+                    email=trip.customer.email or None,
+                    contact=trip.customer.phone_number,
+                ),
+            )
+            refund_response = initiate_razorpay_refund(
+                payment_id=trip.payment_provider_metadata.get("razorpay_payment_id"),
+                refund_amount=refund_amount,
+                notes=notes,
+                currency_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
+                silently_fail=silently_fail,
+            )
+            if not refund_response:
+                print(
+                    f"Refund initiation failed for trip {trip.id} through payment provider, refund_response is None"
+                )
+                return False
+
+            if not refund_response.get("id"):
+                print(
+                    f"Refund initiation failed for trip {trip.id} through payment provider, refund_response does not contain refund ID"
+                )
+                return False
+
             # Update the trip record with refund details like refund amount, refund status, refund transaction id etc. This is a placeholder and should be replaced with actual implementation to update the trip record in the database.
-            # Send notification to customer about the refund. This is a placeholder and should be replaced with actual implementation to send notification to the customer.
+            reason = (
+                "Cancellation by Cabbo"
+                if canceled_by_cabbo
+                else "Cancellation by Customer"
+            )
+            updated = await update_refund_details_for_trip(
+                trip_id=trip.id,
+                refund=RefundSchema(
+                    refund_id=refund_response.get("id"),
+                    refund_status=refund_response.get("status"),
+                    refund_amount=refund_amount,
+                    refund_reason=reason,
+                    refund_details=refund_response,
+                    refund_initiated_datetime=datetime.now(timezone.utc),
+                    refund_type=refund_type,
+                ),
+                db=db,
+            )
+            if updated:
+                print(f"Refund details updated successfully for trip {trip.id}")
+                decimal_places = (
+                    config_store.geographies.country_server.currency_decimal_places
+                )
+                formatted_refund_amount = f"{refund_amount:.{decimal_places}f}"
+                formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"
+                # Send notification to customer about the refund. This is a placeholder and should be replaced with actual implementation to send notification to the customer.
+                await notify_refund_initiated_to_customer(
+                    customer=trip.customer,
+                    refund_id=refund_response.get("id"),
+                    refund_amount=formatted_refund_amount,
+                    refund_type=refund_type,
+                    currency=config_store.geographies.country_server.currency_symbol,
+                    booking_id=trip.booking_id,
+                    original_amount=formatted_original_amount,
+                )
+            else:
+                print(f"Failed to update refund details for trip {trip.id}")
+                return False
+
             return True
         else:
             print(
@@ -140,4 +234,37 @@ async def refund_advance_payment_to_customer(
         # Log the exception or handle it as needed
         if not silently_fail:
             raise e
+        return False
+
+
+async def update_refund_details_for_trip(
+    trip_id: str,
+    refund: RefundSchema,
+    db: AsyncSession,
+):
+    try:
+        trip = await async_get_trip_by_id(trip_id=trip_id, db=db)
+        if not trip:
+            print(f"Trip with id {trip_id} not found, cannot update refund details")
+            return False
+
+        trip.refund_details = refund.refund_details
+        trip.refund_id = refund.refund_id
+        trip.refund_status = refund.refund_status
+        trip.refund_payment = refund.refund_amount
+        trip.refund_payment_reason = refund.refund_reason
+        trip.refund_type = refund.refund_type
+        trip.refund_initiated_datetime = (
+            refund.refund_initiated_datetime or datetime.now(timezone.utc)
+        )
+        await db.commit()
+        await db.refresh(trip)
+        print(
+            f"Refund details updated for trip {trip_id} with refund amount {refund.refund_amount} and refund reason {refund.refund_reason}"
+        )
+        return True
+    except Exception as e:
+        await db.rollback()
+        print(f"Error in update_refund_details_for_trip: {e}")
+        # Log the exception or handle it as needed
         return False

@@ -28,6 +28,15 @@ class CountryModel(Base):
     postal_code_max_length = Column(Integer, default=6, nullable=False)  # e.g. 6
     currency = Column(String(8), nullable=False, unique=True)  # e.g. INR
     currency_symbol = Column(String(8), nullable=False, unique=True)  # e.g. ₹
+    currency_decimal_places = Column(Integer, nullable=False, default=2)  # e.g. 2 for paise in INR
+    currency_in_words = Column(String(32), nullable=False, unique=True, default="Rupees")  # e.g. Rupees
+    currency_international_name = Column(String(32), nullable=False, unique=True, default="Indian Rupee")  # e.g. Indian Rupee
+    currency_symbol_position = Column(String(8), nullable=False, default="before")  # whether currency symbol is placed before or after the amount, e.g. ₹100 or 100¥
+    currency_code_position = Column(String(8), nullable=False, default="after")  # whether currency code is placed before or after the amount, e.g. 100 INR or USD 100
+    currency_thousand_separator = Column(String(8), nullable=False, default=",")  # e.g. 1,00,000
+    currency_decimal_separator = Column(String(8), nullable=False, default=".")  # e.g. 100.50
+    currency_lowest_unit_name = Column(String(32), nullable=False, unique=True, default="Paise")  # e.g. Paise
+    currency_lowest_unit_conversion_factor = Column(Integer, nullable=False, default=100)  # e.g. 100 (1 Rupee = 100 paise)
     distance_unit = Column(String(8), default="km", nullable=True, unique=True)  # e.g. km
     flag = Column(String(8), nullable=False, unique=True)  # e.g. 🇮🇳
     time_zone = Column(String(64), nullable=False, unique=True)  # e.g. Asia/Kolkata

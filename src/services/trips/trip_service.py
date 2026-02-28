@@ -48,6 +48,7 @@ from services.pricing_service import (
     get_parking,
     get_tolls,
 )
+from services.refund_service import refund_advance_payment_to_customer
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -779,23 +780,10 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await db.refresh(trip)
             trip_schema = TripDetailSchema.model_validate(trip)
             
-            if trip_schema.advance_payment and trip_schema.advance_payment > 0.0:
-                # Initiate Refund advance payment to customer, if eligible - Background Task
-                # Delegating the task of refunding advance payment to background task because it is a secondary work and also to ensure that the main flow of trip cancellation and marking driver available is not affected by any potential issues in refunding advance payment and also to improve the response time for trip cancellation API. 
-                
-                region_code = trip_schema.origin.region_code
-                region= await async_get_region_by_code(region_code=region_code, db=db)
-                if region :
-                    region_id = region.id
-
-                state_code = trip_schema.origin.state_code
-                state = await async_get_state_by_state_code(state_code=state_code, db=db)
-                if state:
-                    state_id = state.id
-                background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
+            background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
                     "trip": trip_schema,
                     "db": db,
-                    "requestor": requestor.id,
+                    "canceled_by_cabbo": cancelation_sub_status!=CancellationSubStatusEnum.customer_cancelled, # We will refund advance payment to customer only if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, then we should refund the advance payment to customer because it is not the fault of customer and they should not be penalized for that.
                     "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
                 })
 
@@ -808,3 +796,4 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
 
 
     return trip_schema, background_task
+

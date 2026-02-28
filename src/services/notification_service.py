@@ -42,11 +42,15 @@ async def notify_customer_booking_confirmed(booking: Trip) -> bool:
         return False  # No email to send notification, do not proceed
     if not booking.trip_type_id:
         return False
-    trip_type = booking.trip_type_master.trip_type if hasattr(booking.trip_type_master, "trip_type") else None
+    trip_type = (
+        booking.trip_type_master.trip_type
+        if hasattr(booking.trip_type_master, "trip_type")
+        else None
+    )
     if not trip_type:
         return False
     config_store = settings.get_config_store(db)
-   
+
     if trip_type == TripTypeEnum.local:
         # Notify customer about cab booking confirmation
         attrs = get_kwargs_for_local_hourly_rental(
@@ -179,6 +183,44 @@ async def notify_verification_email_to_customer(
         expiry_hours=str(EMAIL_VERIFY_EXPIRY_UNIT),
         app_name=APP_NAME.capitalize(),
         app_url=settings.APP_URL,
+    )
+    # Won't block the main flow for email sending failure. as it is running asynchronously in background
+    await send_email(
+        to_email=customer.email,
+        subject=subject,
+        html_content=html_content,
+    )
+    return True
+
+
+async def notify_refund_initiated_to_customer(
+    customer: CustomerRead,
+    refund_id: str,
+    refund_amount: float,
+    refund_type: str,
+    currency: str,
+    booking_id: str,
+    original_amount: float,
+    currency_position: str = "before",
+    
+) -> bool:
+    subject = f"Yay! Your Refund for {APP_NAME.capitalize()} Booking is on its Way!"
+    if not customer:
+        return False
+    if not customer.email:
+        return False  # No email to send notification, do not proceed
+    name = customer.name if customer.name else customer.email.split("@")[0]
+    html_content = render_email_template(
+        "refund.html",
+        for_customer=True,
+        name=name,
+        refund_id=refund_id,
+        currency=currency,
+        original_amount=original_amount,
+        refund_amount=refund_amount,
+        refund_type=refund_type,
+        booking_id=booking_id,
+        currency_position=currency_position,
     )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
     await send_email(
