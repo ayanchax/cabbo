@@ -664,6 +664,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             trip.status = new_status.value
             
             #Log audit trail for trip start
+            print(f"Logging audit trail for trip start with reason: {payload.reason if payload and payload.reason else 'No reason provided'}")
             await a_log_trip_audit(
                 trip_id=trip.id,
                 status=new_status,
@@ -676,6 +677,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await db.flush()  # Flush to ensure the start_datetime and status update is saved before any further operations 
             await db.commit()
             await db.refresh(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
             trip_schema = TripDetailSchema.model_validate(trip)
             
         # Completed status indicates the trip has ended, so we set the actual end datetime when the trip is completed and also update the balance payment to zero and record any extra payments to driver at trip completion and free up the driver for new trips. For other status updates, we only update the status without modifying the end datetime, balance payment and extra payment details.
@@ -722,7 +724,8 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             
             # Add a record to DriverEarning for the amount paid to driver - Background Task
             # Delegating the task of adding driver earning record to background task because it is a secondary work and also to ensure that the main flow of trip completion and marking driver available is not affected by any potential issues in adding driver earning record and also to improve the response time for trip completion API. 
-            trip_schema = TripDetailSchema.model_validate(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
+            trip_schema = TripDetailSchema.model_validate(trip) # Convert the serialized trip dictionary back to TripDetails schema for better type safety and to ensure we are passing the correct data structure to the background task of adding driver earning record.
             background_task = AppBackgroundTask(fn=add_driver_earning_record, kwargs={
                 "trip": trip_schema,
                 "additional_info":payload,
@@ -764,8 +767,8 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations 
             await db.commit()
             await db.refresh(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
             trip_schema = TripDetailSchema.model_validate(trip)
-            
             background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
                     "trip": trip_schema,
                     "db": db,

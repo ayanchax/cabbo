@@ -91,9 +91,10 @@ async def a_log_trip_audit(
             cancellation_sub_status=cancellation_sub_status,
         )
         db.add(audit)
+        await db.flush()  # Ensure the audit entry is added to the session before committing
         if commit:
             await db.commit()
-        await db.refresh(audit)
+            await db.refresh(audit)
         print(f"Trip audit log created for trip ID: {trip_id} by {committer_id}")
         return audit
     except Exception as e:
