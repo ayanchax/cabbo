@@ -13,7 +13,7 @@ import os
 from email.message import EmailMessage
 import aiosmtplib
 from core.config import settings
-from core.constants import PROJECT_ROOT
+from core.constants import APP_NAME, PROJECT_ROOT
 
 EMAIL_VERIFY_EXPIRY_UNIT = 2
 EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
@@ -192,6 +192,12 @@ def render_email_template(
         kwargs["current_year"] = now.year
     
     kwargs["app_logo_url"] = settings.APP_LOGO_URL
+
+    if "app_name" not in kwargs:
+        kwargs["app_name"] = APP_NAME.capitalize()
+    
+    if "app_url" not in kwargs:
+        kwargs["app_url"] = settings.APP_URL
     
     return template.render(**kwargs)
 

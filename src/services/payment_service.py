@@ -1,10 +1,11 @@
 import logging
+from typing import Literal
 
 import razorpay.errors
 from core.constants import APP_NAME, APP_VERSION
 from core.exceptions import CabboException
 from models.customer.customer_orm import Customer
-from models.customer.customer_schema import CustomerPayment
+from models.customer.customer_schema import CustomerPayment, CustomerRead
 from models.financial.payments_schema import (
     PaymentNotesSchema,
     RazorPayPaymentResponse,
@@ -20,8 +21,8 @@ from models.trip.trip_schema import TripBookRequest, TripDetails
 logger = logging.getLogger(__name__)
 
 RAZOR_PAY_CLIENT = razorpay.Client(
-            auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
-        )
+    auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
+)
 RAZOR_PAY_CLIENT_DETAILS = {
     "version": APP_VERSION,
     "name": f"{APP_NAME.capitalize()} Trip Booking Service",
@@ -29,12 +30,44 @@ RAZOR_PAY_CLIENT_DETAILS = {
 }
 
 
-def _format_razorpay_order(order: dict) -> dict:
+def _conversion_based_on_currency(
+    amount: float, conversion_factor: int, convert_to_lowest: bool = True
+) -> float:
+    """Convert the amount based on the currency's conversion factor.
+    Args:
+        amount (float): The original amount in standard currency units (e.g., rupees).
+        conversion_factor (int): The conversion factor for the currency.
+        convert_to_lowest (bool): Whether to convert to the lowest currency unit (default is True).
+    Returns:
+        float: The converted amount in the smallest currency unit (e.g., paise).
+    """
+    if conversion_factor and conversion_factor > 0:
+        if convert_to_lowest:
+            return amount * conversion_factor
+        else:
+            # If convert_to_lowest is False, it means we want to convert from the lowest unit to the standard unit, so we divide by the conversion factor
+            return amount / conversion_factor
+    else:
+        logger.warning(
+            f"Invalid conversion factor. Using original amount without conversion."
+        )
+        return amount
+
+
+def _format_razorpay_order(order: dict, conversion_factor: int) -> dict:
     """Format Razorpay order response."""
     return {
         **order,
-        "amount": float(order.get("amount", 0) / 100), # Convert paise to rupees as we want to work in standard currency units in UI
-        "amount_due": float(order.get("amount_due", 0) / 100),
+        "amount": float(
+            _conversion_based_on_currency(
+                order.get("amount", 0), conversion_factor, convert_to_lowest=False
+            )
+        ),  # Convert paise to rupees as we want to work in standard currency units in UI
+        "amount_due": float(
+            _conversion_based_on_currency(
+                order.get("amount_due", 0), conversion_factor, convert_to_lowest=False
+            )
+        ),
     }
 
 
@@ -53,7 +86,11 @@ def _create_razorpay_order(
 
         order_data = {
             "description": razorpay_order.description,
-            "amount": int(razorpay_order.amount * 100),  # Amount in paise as Razorpay expects amount in the smallest currency unit
+            "amount": int(
+                _conversion_based_on_currency(
+                    razorpay_order.amount, razorpay_order.currency_conversion_factor
+                )
+            ),  # Amount in paise as Razorpay expects amount in the smallest currency unit
             "currency": razorpay_order.currency,
             "receipt": razorpay_order.receipt,
             "notes": razorpay_order.notes.model_dump(),
@@ -62,7 +99,9 @@ def _create_razorpay_order(
         order = client.order.create(data=order_data)
         if not order or "id" not in order:
             raise CabboException("Failed to create Razorpay order.", status_code=500)
-        _formatted_order = _format_razorpay_order(order)
+        _formatted_order = _format_razorpay_order(
+            order, razorpay_order.currency_conversion_factor
+        )
         _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
         logger.info(f"Razorpay order created successfully: {_formatted_order}")
 
@@ -81,14 +120,18 @@ def _create_razorpay_order(
 
 
 def get_trip_payment_order(
-    booking_request: TripBookRequest, customer: Customer, temp_trip: TempTrip, currency:Currency
+    booking_request: TripBookRequest,
+    customer: Customer,
+    temp_trip: TempTrip,
+    currency: Currency,
 ) -> tuple:
-    
+
     razorpay_schema = RazorpayOrderSchema(
         description=f"Trip booking for {booking_request.preferences.trip_type} trip by {customer.name}",
         amount=temp_trip.platform_fee,  # Collect platform fee/convenience fee from the customer as part of the trip booking so that system is not abused
         currency=currency.code,
         currency_symbol=currency.symbol,
+        currency_conversion_factor=currency.lowest_unit_conversion_factor,
         receipt=f"id#{temp_trip.id}",
         notes=PaymentNotesSchema(
             reference_source_id=temp_trip.id,
@@ -148,3 +191,78 @@ def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
     order["notes"] = notes.model_dump(
         exclude_none=True
     )  # Update the order with the notes containing trip details
+
+
+def initiate_razorpay_refund(
+    payment_id: str,
+    refund_amount: float,
+    notes:PaymentNotesSchema,
+    currency_conversion_factor: int = 100,
+    speed: Literal["normal", "optimum"] = "normal",
+    silently_fail: bool = False,
+) -> dict:
+    """
+    Initiate a refund for a Razorpay payment.
+
+    Args:
+        payment_id (str): The Razorpay payment ID to refund.
+        refund_amount (float): The amount to refund in rupees.
+        trip_id (str): The ID of the trip associated with the refund.
+        customer (CustomerRead): The customer details associated with the refund.
+        currency_conversion_factor (int): The conversion factor for the currency (e.g., 100 for INR to convert rupees to paise).
+        speed (str): The speed of the refund, either "normal" or "optimum". "optimum" may result in faster refunds but may have additional costs.
+
+    Returns:
+        dict: A dictionary containing the refund details.
+    """
+    try:
+        client = RAZOR_PAY_CLIENT
+        client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
+
+        refund_data = {
+            "amount": int(
+                _conversion_based_on_currency(refund_amount, currency_conversion_factor)
+            ),  # Convert rupees to paise
+            "speed": speed,  # Can be 'normal' or 'optimum'
+        }
+
+        if notes:
+            refund_data["notes"] = notes.model_dump(exclude_none=True)
+
+         
+
+        refund = client.payment.refund(payment_id, refund_data)
+
+        if not refund or "id" not in refund:
+            raise CabboException("Failed to create Razorpay refund.", status_code=500)
+
+        # Format the refund response
+        formatted_refund = {
+            **refund,
+            "amount": float(
+                _conversion_based_on_currency(
+                    refund.get("amount", 0),
+                    currency_conversion_factor,
+                    convert_to_lowest=False,
+                )
+            ),  # Convert paise to rupees
+        }
+
+        logger.info(f"Razorpay refund initiated successfully: {formatted_refund}")
+        return formatted_refund
+
+    except razorpay.errors.BadRequestError as e:
+        logger.error(f"Razorpay refund creation failed: {str(e)}")
+        if not silently_fail:
+            raise CabboException(
+                f"Razorpay refund creation failed: {str(e)}", status_code=500
+            )
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error during Razorpay refund creation: {str(e)}")
+        if not silently_fail:
+            raise CabboException(
+                f"Unexpected error during Razorpay refund creation: {str(e)}",
+                status_code=500,
+            )
+        return None

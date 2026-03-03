@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
+from core.trip_helpers import attach_relationships_to_trip
 from models.driver.driver_orm import Driver, DriverEarning
 from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
+    DriverReadSchema,
     DriverUpdateSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
@@ -21,7 +23,6 @@ from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from services.trips.trip_service import attach_relationships_to_trip
 
 
 def create_driver(
@@ -411,10 +412,17 @@ async def add_driver_earning_record(
             else 0.0
         )
         total_earnings = base_earnings + extra_earnings
+        driver = trip.driver
+        driver_schema = DriverReadSchema.model_validate(driver) if driver else None
+        if not driver_schema:
+            if silently_fail:
+                print(f"Driver not found for trip {trip.id} while adding driver earning record.")
+                return None
+            raise CabboException("Driver not found", status_code=404)
         return await _add_driver_earning_record(
             payload=DriverEarningSchema(
                 trip_id=trip.id,
-                driver_id=trip.driver.get("id") if trip.driver else None,
+                driver_id=driver_schema.id if driver_schema else None,
                 base_earnings=base_earnings,
                 extra_earnings=extra_earnings,
                 total_earnings=total_earnings,
@@ -427,6 +435,8 @@ async def add_driver_earning_record(
             commit=commit,
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         if silently_fail:
             print(f"Error in add_driver_earning_record: {str(e)}")
             return None

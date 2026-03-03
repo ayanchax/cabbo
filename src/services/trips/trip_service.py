@@ -2,16 +2,15 @@ from datetime import datetime, timedelta, timezone
 import json
 from typing import Union
 
-from fastapi import BackgroundTasks
 from core.exceptions import CabboException
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES
-from core.trip_helpers import generate_trip_field_dictionary, get_trip_type_id_by_trip_type
+from core.trip_helpers import attach_relationships_to_trip, generate_trip_field_dictionary, get_trip_type_id_by_trip_type
 from models.common import AppBackgroundTask
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import  PassengerRequest
-from models.driver.driver_schema import DriverEarningSchema, DriverReadSchema
+from models.driver.driver_schema import DriverReadSchema
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
@@ -36,8 +35,7 @@ from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
-from services.driver_service import _add_driver_earning_record, add_driver_earning_record, toggle_availability_of_driver
-from services.geography_service import async_get_region_by_code, async_get_state_by_state_code
+from services.driver_service import add_driver_earning_record, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -48,6 +46,7 @@ from services.pricing_service import (
     get_parking,
     get_tolls,
 )
+from services.refund_service import refund_advance_payment_to_customer
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -539,18 +538,7 @@ async def async_get_trip_by_id(trip_id: str, db: AsyncSession, expose_customer_d
         await attach_relationships_to_trip(trip_result, db, expose_customer_details=expose_customer_details)
     return trip_result
 
-async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False):
-        if trip.driver_id:
-            await db.refresh(trip, attribute_names=["driver"])
-        if trip.trip_type_id:
-            await db.refresh(trip, attribute_names=["trip_type_master"])
-        if trip.package_id:
-            await db.refresh(trip, attribute_names=["package"])
-        if trip.passenger_id:
-            await db.refresh(trip, attribute_names=["passenger"])
-        if expose_customer_details and trip.creator_id:
-            await db.refresh(trip, attribute_names=["customer"])
-
+ 
 async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Trip:
     """Asynchronously retrieve a trip by its booking ID."""
     result = await db.execute(select(Trip).filter(Trip.booking_id == booking_id))
@@ -646,10 +634,9 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
 async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatusEnum, requestor:User, payload: AdditionalDetailsOnTripStatusChange = None):
-    trip = await async_get_trip_by_id(trip_id, db)
+    trip = await async_get_trip_by_id(trip_id, db, expose_customer_details=True)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
-    
     
     allowed_status_transitions = {
         TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
@@ -677,9 +664,10 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             trip.status = new_status.value
             
             #Log audit trail for trip start
+            print(f"Logging audit trail for trip start with reason: {payload.reason if payload and payload.reason else 'No reason provided'}")
             await a_log_trip_audit(
                 trip_id=trip.id,
-                status=trip.status,
+                status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip started. {payload.reason if payload and payload.reason else ''}",
                 changed_by=requestor.role,
@@ -689,6 +677,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await db.flush()  # Flush to ensure the start_datetime and status update is saved before any further operations 
             await db.commit()
             await db.refresh(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
             trip_schema = TripDetailSchema.model_validate(trip)
             
         # Completed status indicates the trip has ended, so we set the actual end datetime when the trip is completed and also update the balance payment to zero and record any extra payments to driver at trip completion and free up the driver for new trips. For other status updates, we only update the status without modifying the end datetime, balance payment and extra payment details.
@@ -722,7 +711,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             #Log audit trail for trip completion
             await a_log_trip_audit(
                 trip_id=trip.id,
-                status=trip.status,
+                status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip completed. {payload.reason if payload and payload.reason else ''}",
                 changed_by=requestor.role,
@@ -735,7 +724,8 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             
             # Add a record to DriverEarning for the amount paid to driver - Background Task
             # Delegating the task of adding driver earning record to background task because it is a secondary work and also to ensure that the main flow of trip completion and marking driver available is not affected by any potential issues in adding driver earning record and also to improve the response time for trip completion API. 
-            trip_schema = TripDetailSchema.model_validate(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
+            trip_schema = TripDetailSchema.model_validate(trip) # Convert the serialized trip dictionary back to TripDetails schema for better type safety and to ensure we are passing the correct data structure to the background task of adding driver earning record.
             background_task = AppBackgroundTask(fn=add_driver_earning_record, kwargs={
                 "trip": trip_schema,
                 "additional_info":payload,
@@ -766,7 +756,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             #Log audit trail for trip cancellation
             await a_log_trip_audit(
                 trip_id=trip.id,
-                status=trip.status,
+                status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip cancelled. {payload.reason if payload and payload.reason else ''}",
                 changed_by=requestor.role,
@@ -777,30 +767,15 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations 
             await db.commit()
             await db.refresh(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
             trip_schema = TripDetailSchema.model_validate(trip)
-            
-            if trip_schema.advance_payment and trip_schema.advance_payment > 0.0:
-                # Initiate Refund advance payment to customer, if eligible - Background Task
-                # Delegating the task of refunding advance payment to background task because it is a secondary work and also to ensure that the main flow of trip cancellation and marking driver available is not affected by any potential issues in refunding advance payment and also to improve the response time for trip cancellation API. 
-                
-                region_code = trip_schema.origin.region_code
-                region= await async_get_region_by_code(region_code=region_code, db=db)
-                if region :
-                    region_id = region.id
-
-                state_code = trip_schema.origin.state_code
-                state = await async_get_state_by_state_code(state_code=state_code, db=db)
-                if state:
-                    state_id = state.id
-                background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
+            background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
                     "trip": trip_schema,
                     "db": db,
-                    "requestor": requestor.id,
+                    "canceled_by_cabbo": cancelation_sub_status!=CancellationSubStatusEnum.customer_cancelled, # We will refund advance payment to customer only if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, then we should refund the advance payment to customer because it is not the fault of customer and they should not be penalized for that.
                     "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
                 })
 
-
-            
 
     except Exception as e:
         await db.rollback()
@@ -808,3 +783,4 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
 
 
     return trip_schema, background_task
+

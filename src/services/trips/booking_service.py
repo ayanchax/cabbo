@@ -302,6 +302,15 @@ def initiate_trip_booking(
         currency:Currency = Currency(
             code=config_store.geographies.country_server.currency or "INR",
             symbol=config_store.geographies.country_server.currency_symbol or "₹",
+            decimal_places=config_store.geographies.country_server.currency_decimal_places or 2,
+            in_words=config_store.geographies.country_server.currency_in_words or "Rupees",
+            international_name=config_store.geographies.country_server.currency_international_name or "Indian Rupee",
+            symbol_position=config_store.geographies.country_server.currency_symbol_position or "before",
+            code_position=config_store.geographies.country_server.currency_code_position or "after",    
+            thousand_separator=config_store.geographies.country_server.currency_thousand_separator or ",",
+            decimal_separator=config_store.geographies.country_server.currency_decimal_separator or ".",
+            lowest_unit_name=config_store.geographies.country_server.currency_lowest_unit_name or "Paise",
+            lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor or 100,
         )
         # Create razor pay order for the trip
         trip_id, order = get_trip_payment_order(

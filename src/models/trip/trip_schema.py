@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
@@ -11,7 +11,7 @@ from models.pricing.pricing_schema import (
     OveragesSchema,
     TripPackageConfigSchema,
 )
-from models.customer.passenger_schema import PassengerRead, PassengerRequest
+from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.trip_enums import (
     TripStatusEnum,
@@ -22,7 +22,6 @@ from models.trip.trip_enums import (
 )
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_orm import RoleEnum
-from utils.utility import remove_none_recursive
 
 class TripTypeSchema(BaseModel):
     id: Optional[str]
@@ -349,7 +348,7 @@ class TripDetailSchema(BaseModel):
     in_car_amenities: Optional[AmenitiesSchema] = Field(None, description="Dictionary of in-car amenities")
 
     # Driver assignment fields
-    driver: Optional[Dict[str, Any]] = Field(None, description="Driver details of the assigned driver")
+    driver: Optional[Union[Dict[str, Any], Any]] = Field(None, description="Driver details of the assigned driver")
     
     # Trip status
     status: Optional[TripStatusEnum] = Field(None, description="Current status of the trip")
@@ -367,6 +366,8 @@ class TripDetailSchema(BaseModel):
     balance_payment: Optional[float] = Field(None, description="Balance payment to be made by the customer")
     refund_payment: Optional[float] = Field(None, description="Refund payment made to customer in case of cancellation or adjustment")
     refund_payment_reason: Optional[str] = Field(None, description="Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)")
+    refund_initiated_datetime: Optional[datetime] = Field(None, description="Date and time when refund was initiated")
+    refund_details: Optional[Dict] = Field(None, description="Details of the refund transaction from the payment provider")
     payment_provider_metadata: Optional[Dict] = Field(None, description="Payment details (e.g., mode, transaction ID)")
     price_breakdown: Optional[Dict] = Field(None, description="Detailed price breakdown")
     overages: Optional[Dict] = Field(None, description="Details of overages (e.g., extra km charges)")

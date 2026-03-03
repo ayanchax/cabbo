@@ -5,9 +5,10 @@ from core.security import RoleEnum, generate_hash
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
 from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
-from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
+from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import AmenitiesSchema, TripSearchOption, TripSearchRequest, TripTypeSchema
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.passenger_service import get_passenger_id_from_preferences
 
@@ -242,4 +243,16 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
         )
     return TripTypeEnum(trip_type_obj.trip_type)
 
+
+async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False):
+        if trip.driver_id:
+            await db.refresh(trip, attribute_names=["driver"])
+        if trip.trip_type_id:
+            await db.refresh(trip, attribute_names=["trip_type_master"])
+        if trip.package_id:
+            await db.refresh(trip, attribute_names=["package"])
+        if trip.passenger_id:
+            await db.refresh(trip, attribute_names=["passenger"])
+        if expose_customer_details and trip.creator_id:
+            await db.refresh(trip, attribute_names=["customer"])
 
