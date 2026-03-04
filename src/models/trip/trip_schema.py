@@ -364,13 +364,10 @@ class TripDetailSchema(BaseModel):
     final_display_price: Optional[float] = Field(None, description="Final price shown to the driver admin")
     advance_payment: Optional[float] = Field(None, description="Advance payment made by the customer")
     balance_payment: Optional[float] = Field(None, description="Balance payment to be made by the customer")
-    refund_payment: Optional[float] = Field(None, description="Refund payment made to customer in case of cancellation or adjustment")
-    refund_payment_reason: Optional[str] = Field(None, description="Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)")
-    refund_initiated_datetime: Optional[datetime] = Field(None, description="Date and time when refund was initiated")
-    refund_details: Optional[Dict] = Field(None, description="Details of the refund transaction from the payment provider")
     payment_provider_metadata: Optional[Dict] = Field(None, description="Payment details (e.g., mode, transaction ID)")
     price_breakdown: Optional[Dict] = Field(None, description="Detailed price breakdown")
     overages: Optional[Dict] = Field(None, description="Details of overages (e.g., extra km charges)")
+    refund_id: Optional[str] = Field(None, description="Refund transaction ID from payment provider, if any")
 
     # Inclusions and exclusions
     inclusions: Optional[List[str]] = Field(None, description="List of inclusions for the trip")

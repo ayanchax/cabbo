@@ -306,7 +306,6 @@ async def assign_driver_to_trip(
             status=trip.status,
             committer_id=requestor.id,
             reason=f"Driver {driver.name} assigned to trip.",
-            changed_by=requestor.role,
             db=db,
         )  # Log the trip status audit entry
         if attach_trip_relationships:
@@ -426,8 +425,8 @@ async def add_driver_earning_record(
                 base_earnings=base_earnings,
                 extra_earnings=extra_earnings,
                 total_earnings=total_earnings,
-                extra_earnings_breakdown=additional_info.extra_payment_to_driver
-                or None,
+                extra_earnings_breakdown=additional_info.extra_payment_to_driver if additional_info and additional_info.extra_payment_to_driver else None,
+                
             ),
             db=db,
             requestor=requestor,

@@ -41,11 +41,11 @@ class Trip(Base):
     )  # Unique booking reference ID which is shown to customer and driver
     #  Creator information
     creator_id = Column(
-    MySQL_CHAR(36),
-    ForeignKey("customers.id"),  # Explicitly define the foreign key
-    nullable=False,
-    index=True,
-)
+        MySQL_CHAR(36),
+        ForeignKey("customers.id"),  # Explicitly define the foreign key
+        nullable=False,
+        index=True,
+    )
     creator_type = Column(
         Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
         default=RoleEnum.customer,
@@ -100,7 +100,7 @@ class Trip(Base):
     )  # Total days for outstation trips
     included_kms = Column(
         Float, nullable=True, default=0.0
-    ) # Included km for hourly rental trips and outstation trips
+    )  # Included km for hourly rental trips and outstation trips
     # Date and time information - END
 
     # Passenger and luggage information
@@ -151,12 +151,8 @@ class Trip(Base):
     driver_allowance = Column(
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation trips
-    tolls = Column(
-        Float, nullable=True, default=0.0
-    )  #  tolls for the trip
-    parking = Column(
-        Float, nullable=True, default=0.0
-    )  #  parking charges for the trip
+    tolls = Column(Float, nullable=True, default=0.0)  #  tolls for the trip
+    parking = Column(Float, nullable=True, default=0.0)  #  parking charges for the trip
     permit_fee = Column(
         Float, nullable=True, default=0.0
     )  # Interstate permit fee for outstation trips
@@ -173,23 +169,13 @@ class Trip(Base):
     balance_payment = Column(
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
-    refund_id= Column(String(64), nullable=True, unique=True)  # Refund transaction ID from payment provider, if any
-    refund_status = Column(String(32), nullable=True)  # Refund status from payment provider, if any (e.g., pending, completed, failed, etc.)
-    refund_payment = Column(
-        Float, nullable=True, default=None
-    )  # Refund payment made to customer in case of cancellation or adjustment
-    refund_details = Column(
-        JSON, nullable=True) # JSON/text for details of refund payment (e.g., refund breakdown, refund transaction id, etc.)
-    refund_payment_reason = Column(
-        String(255), nullable=True, default=None
-    )  # Reason for refund payment, if any (e.g., cancellation, adjustment, etc.)
-    refund_type = Column(
-        String(32), nullable=True, default=None
-    )  # Type of refund, if any (e.g., full, partial, etc.)
-    refund_initiated_datetime = Column(DateTime, nullable=True)  # Date and time when refund was initiated
-    
-    extra_payment_to_driver = Column(
-        JSON, nullable=True) # JSON/text breakdown of any extra payment to driver on top of final price (e.g., paid parking, tolls, overage payment, incentive payment, etc.)
+
+    refund_id = Column(
+        String(64),
+        ForeignKey("refunds.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+    )  # Refund transaction ID from payment provider, if any
     payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
@@ -228,8 +214,9 @@ class Trip(Base):
 
     # Additional metadata
     special_needs_requests = Column(
-        Text, nullable=True)  # Special needs or requests from customer, essentially customer notes that customer can update before trip starts[created, confirmed]
-    
+        Text, nullable=True
+    )  # Special needs or requests from customer, essentially customer notes that customer can update before trip starts[created, confirmed]
+
     estimated_km = Column(
         Float, nullable=True, default=0.0
     )  # Estimated distance for the trip
@@ -245,6 +232,10 @@ class Trip(Base):
         index=True,
         comment="FK to passengers table; null if trip is for self",
     )
+
+    is_active = Column(
+        Boolean, nullable=False, default=True
+    )  # Soft delete flag for trip record, which only super admins can toggle to false in case of any fraudulent or test trips that need to be deactivated, but we don't want to delete the record from the database for data integrity and audit purposes. When a trip is marked as inactive, it will be excluded from all active trip listings and queries in the system, but the record will still exist in the database with is_active set to false.
     # Additional metadata - END
 
     # Audit fields
@@ -252,7 +243,7 @@ class Trip(Base):
     driver = relationship("Driver", back_populates="trips")
     package = relationship("TripPackageConfig", back_populates="trips")
     trip_type_master = relationship("TripTypeMaster", back_populates="trips")
-    passenger=relationship("Passenger", back_populates="trips")
+    passenger = relationship("Passenger", back_populates="trips")
     customer = relationship(
         "Customer",
         back_populates="trips",
@@ -270,7 +261,16 @@ class Trip(Base):
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    ) #A trip can have only one driver rating given by the customer to the driver for that trip, but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to DriverRating and one-to-many from Driver to DriverRating.
+    )  # A trip can have only one driver rating given by the customer to the driver for that trip, but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to DriverRating and one-to-many from Driver to DriverRating.
+
+    refund = relationship(
+        "Refund",
+        primaryjoin="Refund.entity_id==Trip.id",
+        foreign_keys="[Refund.entity_id]",
+        uselist=False,
+        back_populates="trip",
+        passive_deletes=True,
+    )  # One-to-one relationship to Refund table based on entity_id, which is populated when a refund is initiated for the trip and the refund record is created in the refunds table.
 
     # Audit fields - END
 
@@ -286,11 +286,6 @@ class TripStatusAudit(Base):
     )
     trip_id = Column(MySQL_CHAR(36), ForeignKey("trips.id"), nullable=False)
     status = Column(Enum(TripStatusEnum), nullable=False)
-    changed_by = Column(
-        Enum(RoleEnum),  # Assuming RoleEnum includes customer, driver, admin
-        default=RoleEnum.customer,
-        nullable=True,
-    )
     committer_id = Column(
         MySQL_CHAR(36), nullable=False, index=True
     )  # ID of the user who changed the status
@@ -304,12 +299,10 @@ class TripStatusAudit(Base):
         default=None,
         comment="Detailed cancellation reason for analytics (nullable, only for cancelled trips)",
     )
-    
 
     trip = relationship("Trip", back_populates="status_audits")
 
 
- 
 class TripTypeMaster(Base):
     __tablename__ = "trip_types_master"
 
@@ -331,7 +324,7 @@ class TripTypeMaster(Base):
         default=func.utc_timestamp(),
         onupdate=func.utc_timestamp(),
     )
-    is_active=Column(Boolean, nullable=False, default=True)
+    is_active = Column(Boolean, nullable=False, default=True)
     trips = relationship("Trip", back_populates="trip_type_master")
 
 
@@ -347,7 +340,7 @@ class TripPackageConfig(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
     )
-    #Since Trip Package applies to local/hourly rental trips, so region_id is set to configure region-specific packages
+    # Since Trip Package applies to local/hourly rental trips, so region_id is set to configure region-specific packages
     region_id = Column(
         MySQL_CHAR(36),
         ForeignKey("regions_master.id"),

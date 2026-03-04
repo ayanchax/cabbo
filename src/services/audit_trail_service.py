@@ -14,7 +14,6 @@ def log_trip_audit(
     trip_id: str,
     status: TripStatusEnum,
     committer_id: str,
-    changed_by: Optional[RoleEnum] = RoleEnum.customer,
     reason: Optional[str] = None,
     cancellation_sub_status: Optional[CancellationSubStatusEnum] = None,
     commit: bool = True
@@ -40,7 +39,6 @@ def log_trip_audit(
             trip_id=trip_id,
             committer_id=committer_id,
             status=status,
-            changed_by=changed_by,
             reason=reason,
             cancellation_sub_status=cancellation_sub_status,
         )
@@ -60,7 +58,6 @@ async def a_log_trip_audit(
     trip_id: str,
     status: TripStatusEnum,
     committer_id: str,
-    changed_by: Optional[RoleEnum] = RoleEnum.customer,
     reason: Optional[str] = None,
     cancellation_sub_status: Optional[CancellationSubStatusEnum] = None,
     commit: bool = True
@@ -86,7 +83,6 @@ async def a_log_trip_audit(
             trip_id=trip_id,
             committer_id=committer_id,
             status=status,
-            changed_by=changed_by,
             reason=reason,
             cancellation_sub_status=cancellation_sub_status,
         )
