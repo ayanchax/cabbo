@@ -4,10 +4,10 @@ from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import PaymentNotesSchema
-from models.financial.refund_schema import RefundSchema
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripDetailSchema
-from models.financial.refund_orm import Refund as RefundORM
+from models.policies.refund_orm import Refund as RefundORM
+from models.policies.refund_schema import RefundSchema
 from core.config import settings
 
 from services.geography_service import (

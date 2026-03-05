@@ -2,14 +2,17 @@ import uuid
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     String,
     Float,
     DateTime,
+    Enum as SAEnum,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
+from models.policies.refund_enum import RefundStatus, RefundTrigger, RefundType
 
 
 class Refund(Base):
@@ -26,7 +29,7 @@ class Refund(Base):
         String(255), nullable=False, index=True
     )  # ID of the entity for which the refund is being processed, e.g., trip ID, booking ID, etc.
     refund_status = Column(
-        String(50), nullable=True
+        SAEnum(RefundStatus), nullable=True, default=RefundStatus.unknown
     )  # Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.
     refund_amount = Column(
         Float, nullable=False
@@ -41,16 +44,24 @@ class Refund(Base):
         DateTime, nullable=True
     )  # Date and time when the refund was initiated
     refund_type = Column(
-        String(50), nullable=True
+        SAEnum(RefundType), nullable=False, default=RefundType.other
     )  # Type of refund, e.g., full, partial, etc.
     refund_provider = Column(
         String(50), nullable=True
     )  # Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.
+    refund_trigger=Column(
+        SAEnum(RefundTrigger), nullable=True, default=RefundTrigger.automatic
+    )  # Description of how the refund was triggered, e.g., "manual", "automatic"
+    #Manual happens when refund got triggered manually by support team or finance team. Workflow happens when refund got triggered automatically by a workflow that was set up in the system, e.g., automatic refund for cancellations within free cancellation window, etc in the #refund_service.py where we have the logic to trigger refunds automatically based on certain conditions and criteria and when those conditions are met, the workflow will trigger and create a refund record in the refunds table with refund_trigger set to "workflow" and we can also have more details about the workflow that triggered the refund in the refund_details field as well if needed.
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     created_by = Column(
         MySQL_CHAR(36), nullable=True
     )  # User ID of the admin or system that created the refund record
+    
+    # Flag to indicate if the refund record is active or has been soft-deleted
+    is_active = Column(Boolean, nullable=False, default=True)
+
     trip = relationship(
         "Trip",
         primaryjoin="Refund.entity_id==Trip.id",

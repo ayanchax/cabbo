@@ -249,7 +249,7 @@ class FixedPlatformPricingConfiguration(Base):
     
     # This is different from dynamic platform fee percentage which is calculated as percentage of total fare and serves as a convenience fee charged to the customer to cover the cost of operating the platform for that trip type in that region.
     
-    # Fixed Platform fee = Cost of serving per booking in the platform.
+    # Fixed Platform fee = Cost of serving per booking in the platform in the given country, which is a fixed amount charged to the customer to cover the cost of operating the platform for that booking in that country, regardless of trip type or region. This is a flat fee that helps cover the fixed costs associated with each booking, such as payment gateway fees, SMS notifications, and customer support, which are not dependent on the trip type or region.
     # Dynamic Platform fee = Percentage of total fare charged to customer to cover platform operations for that trip type in that region
     
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50

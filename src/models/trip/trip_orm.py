@@ -176,6 +176,12 @@ class Trip(Base):
         nullable=True,
         unique=True,
     )  # Refund transaction ID from payment provider, if any
+    dispute_id = Column(
+        String(64),
+        ForeignKey("disputes.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+    )  # Dispute ID, if any
     payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)
@@ -271,6 +277,16 @@ class Trip(Base):
         back_populates="trip",
         passive_deletes=True,
     )  # One-to-one relationship to Refund table based on entity_id, which is populated when a refund is initiated for the trip and the refund record is created in the refunds table.
+
+    #A trip can have one dispute associated with it, which is populated when a dispute is raised for the trip, so the relationship is one-to-one from Trip to Dispute and many-to-one from Dispute to Trip.
+    dispute = relationship(
+        "Dispute",
+        primaryjoin="Dispute.entity_id==Trip.id",
+        foreign_keys="[Dispute.entity_id]",
+        uselist=False,
+        back_populates="trip",
+        passive_deletes=True,
+    )
 
     # Audit fields - END
 
