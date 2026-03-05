@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
+from core.security import RoleEnum
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import PaymentNotesSchema
-from models.pricing.pricing_schema import RefundSchema
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripDetailSchema
+from models.policies.refund_orm import Refund as RefundORM
+from models.policies.refund_schema import RefundSchema
+from core.config import settings
 
 from services.geography_service import (
     async_get_region_by_code,
@@ -23,6 +26,7 @@ async def refund_advance_payment_to_customer(
     canceled_by_cabbo: bool = False,
     config_store: ConfigStore = None,
     silently_fail: bool = False,
+    requestor: str = None,
 ):
     try:
         if not config_store:
@@ -191,15 +195,18 @@ async def refund_advance_payment_to_customer(
             updated = await update_refund_details_for_trip(
                 trip_id=trip.id,
                 refund=RefundSchema(
-                    refund_id=refund_response.get("id"),
+                    id=refund_response.get("id"),
+                    entity_id=trip.id,
                     refund_status=refund_response.get("status"),
                     refund_amount=refund_amount,
                     refund_reason=reason,
                     refund_details=refund_response,
                     refund_initiated_datetime=datetime.now(timezone.utc),
                     refund_type=refund_type,
+                    refund_provider=settings.PAYMENT_PROVIDER,
                 ),
                 db=db,
+                created_by=requestor or RoleEnum.system.value,
             )
             if updated:
                 print(f"Refund details updated successfully for trip {trip.id}")
@@ -239,25 +246,33 @@ async def refund_advance_payment_to_customer(
 async def update_refund_details_for_trip(
     trip_id: str,
     refund: RefundSchema,
+    created_by: str,
     db: AsyncSession,
 ):
     from services.trips.trip_service import async_get_trip_by_id
-    
+
     try:
         trip = await async_get_trip_by_id(trip_id=trip_id, db=db)
         if not trip:
             print(f"Trip with id {trip_id} not found, cannot update refund details")
             return False
 
-        trip.refund_details = refund.refund_details
-        trip.refund_id = refund.refund_id
-        trip.refund_status = refund.refund_status
-        trip.refund_payment = refund.refund_amount
-        trip.refund_payment_reason = refund.refund_reason
-        trip.refund_type = refund.refund_type
-        trip.refund_initiated_datetime = (
-            refund.refund_initiated_datetime or datetime.now(timezone.utc)
+        trip.refund_id = refund.id
+
+        # Add refund details to the refund table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
+        refund_record = RefundORM(
+            id=refund.id,
+            entity_id=refund.entity_id,
+            refund_status=refund.refund_status,
+            refund_amount=refund.refund_amount,
+            refund_reason=refund.refund_reason,
+            refund_details=refund.refund_details,
+            refund_initiated_datetime=refund.refund_initiated_datetime,
+            refund_type=refund.refund_type,
+            refund_provider=refund.refund_provider,
+            created_by=created_by,
         )
+        db.add(refund_record)
         await db.commit()
         await db.refresh(trip)
         print(

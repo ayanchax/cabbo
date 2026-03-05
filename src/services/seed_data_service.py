@@ -1117,14 +1117,14 @@ def _seed_local_cab_pricing(session: Session):
                 )
                 create_local_cab_pricing(payload, session)
 
-                # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
-                # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
-                # For seeding the data, we are assuming some standard values for local trips across regions
-                # These can be updated later via admin interface as needed
-                common_payload: CommonPricingConfigurationSchema = (
+        # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
+        # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
+        # For seeding the data, we are assuming some standard values for local trips across regions
+        # These can be updated later via admin interface as needed
+        common_payload: CommonPricingConfigurationSchema = (
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.local],
-                        dynamic_platform_fee_percent=1,  # platform fee
+                        dynamic_platform_fee_percent=4,  # platform fee
                         min_included_hours=4,  # Minimum 4 hours for local trips
                         max_included_hours=12,  # Maximum 12 hours for local trips
                         min_included_km=40,  # Minimum 40 km included for local trips
@@ -1132,7 +1132,7 @@ def _seed_local_cab_pricing(session: Session):
                         region_id=region_id,
                     )
                 )
-                create_common_pricing_configuration(common_payload, session)
+        create_common_pricing_configuration(common_payload, session)
 
     _seed_local_trip_packages(session)
 
@@ -1191,7 +1191,7 @@ def _seed_outstation_cab_pricing(session: Session):
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
                 # For seeding the data, we are assuming some standard values for outstation trips across states
                 # These can be updated later via admin interface as needed
-                common_payload: CommonPricingConfigurationSchema = (
+        common_payload: CommonPricingConfigurationSchema = (
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
                         dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
@@ -1199,7 +1199,7 @@ def _seed_outstation_cab_pricing(session: Session):
                         state_id=state_id,
                     )
                 )
-                create_common_pricing_configuration(common_payload, session)
+        create_common_pricing_configuration(common_payload, session)
 
     session.commit()
 
@@ -1247,10 +1247,10 @@ def _seed_airport_cab_pricing(session: Session):
 
                 # Keeping a separate tripwise pricing configuration for airport trips as these will be redundant if kept within AirportCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
-                common_payload: List[CommonPricingConfigurationSchema] = [
+        common_payload: List[CommonPricingConfigurationSchema] = [
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-                        dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
+                        dynamic_platform_fee_percent=3,  # platform fee/convenience fee
                         placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
                         max_included_km=42,  # 42 km included for airport trips is a common standard
                         overage_warning_km_threshold=2,  # Warning threshold for overages
@@ -1260,7 +1260,7 @@ def _seed_airport_cab_pricing(session: Session):
                     ),
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-                        dynamic_platform_fee_percent=0.5,  # platform fee/convenience fee
+                        dynamic_platform_fee_percent=3,  # platform fee/convenience fee
                         max_included_km=42,  # 42 km included for airport trips is a standard
                         overage_warning_km_threshold=2,  # Warning threshold for overages
                         toll=120,  # toll for airport drop set to 120 if customer opts for it
@@ -1268,7 +1268,7 @@ def _seed_airport_cab_pricing(session: Session):
                         region_id=region_id,
                     ),
                 ]
-                for common_payload in common_payload:
+        for common_payload in common_payload:
                     create_common_pricing_configuration(common_payload, session)
 
 

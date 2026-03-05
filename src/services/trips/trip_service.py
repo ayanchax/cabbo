@@ -35,7 +35,8 @@ from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
-from services.driver_service import add_driver_earning_record, toggle_availability_of_driver
+from services.dispute_service import create_dispute_record_for_trip
+from services.driver_service import add_driver_earning_record, delete_driver_earning, get_trip_earning_for_driver, has_driver_earning_record_for_trip, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -531,7 +532,7 @@ def get_trip_by_id(trip_id: str, db: Session) -> Trip:
 
 async def async_get_trip_by_id(trip_id: str, db: AsyncSession, expose_customer_details: bool = False) -> Trip:
     """Asynchronously retrieve a trip by its ID."""
-    query = select(Trip).filter(Trip.id == trip_id)
+    query = select(Trip).filter(Trip.id == trip_id, Trip.is_active == True)  # Only retrieve active trips
     result = await db.execute(query)
     trip_result = result.scalars().first()
     if trip_result:
@@ -541,7 +542,7 @@ async def async_get_trip_by_id(trip_id: str, db: AsyncSession, expose_customer_d
  
 async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Trip:
     """Asynchronously retrieve a trip by its booking ID."""
-    result = await db.execute(select(Trip).filter(Trip.booking_id == booking_id))
+    result = await db.execute(select(Trip).filter(Trip.booking_id == booking_id, Trip.is_active == True))  # Only retrieve active trips
     trip_result = result.scalars().first()
     if trip_result:
         await attach_relationships_to_trip(trip_result, db)
@@ -549,7 +550,7 @@ async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Tri
 
 async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
     """Asynchronously retrieve all trips."""
-    result = await db.execute(select(Trip))
+    result = await db.execute(select(Trip).filter(Trip.is_active == True))  # Only retrieve active trips
     all= result.scalars().all()
     for trip in all:
         await attach_relationships_to_trip(trip, db)
@@ -557,7 +558,7 @@ async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
 
 async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession) -> list[Trip]:
     """Asynchronously retrieve trips by driver ID."""
-    query = select(Trip).filter(Trip.driver_id == driver_id)
+    query = select(Trip).filter(Trip.driver_id == driver_id, Trip.is_active == True)  # Only retrieve active trips
     result = await db.execute(query)
     trips = result.scalars().all()
     if not trips:
@@ -574,7 +575,7 @@ def serialize_trips(trips: list[Trip], expose_customer_details: bool = False) ->
 
 async def async_get_trips_by_customer_id(customer_id: str, db: AsyncSession, expose_customer_details: bool = False) -> list[Trip]:
     """Asynchronously retrieve trips by customer ID."""
-    result = await db.execute(select(Trip).filter(Trip.creator_id == customer_id, Trip.creator_type== RoleEnum.customer.value))
+    result = await db.execute(select(Trip).filter(Trip.creator_id == customer_id, Trip.creator_type== RoleEnum.customer.value, Trip.is_active == True))  # Only retrieve active trips
     trips = result.scalars().all()
     if not trips:
         return []
@@ -640,9 +641,10 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
     
     allowed_status_transitions = {
         TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
-        TripStatusEnum.ongoing: [TripStatusEnum.completed],
-        TripStatusEnum.completed: [TripStatusEnum.dispute],
+        TripStatusEnum.ongoing: [TripStatusEnum.completed, TripStatusEnum.dispute],
+        TripStatusEnum.completed: [],
         TripStatusEnum.cancelled: [],
+        TripStatusEnum.dispute: [],
     }
     # Out of confirmed, ongoing, completed, canceled and dispute, a trip gets confirmed only from the #booking_service.py confirm_trip_booking() method.
     if new_status not in allowed_status_transitions.get(TripStatusEnum(trip.status), []):     
@@ -655,9 +657,23 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
         #Ongoing status indicates the trip has started, so we set the actual start datetime when the trip starts. For other status updates, we only update the status without modifying the start datetime.
         if new_status ==TripStatusEnum.ongoing: #which means existing trip is in confirmed state.
             if trip.driver_id is None:
+                #Cannot silently assign a random driver, thus we will raise an exception if there is no driver assigned to the trip when we are trying to mark it as ongoing because a trip cannot start without a driver. The driver assignment should have happened at the time of confirming the trip booking and if for some reason the driver assignment did not happen then it should be fixed before starting the trip.
                 raise CabboException("Cannot start trip without an assigned driver", status_code=400)
             
-            #Update start datetime - The driver_admin can get the actual start datetime from the driver when they start the trip in the driver app, if not provided we will set the start datetime as current datetime in UTC timezone.            trip.start_datetime = payload.start_datetime if payload and payload.start_datetime else datetime.now(timezone.utc) #Set the actual start datetime when trip starts
+            
+            existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=trip.driver_id, db=db)
+            if existing_record:
+                #Silently delete any bad data
+                await delete_driver_earning(earning_id=existing_record.id, db=db)
+
+
+            if trip.driver and trip.driver_id == trip.driver.id and trip.driver.is_available:
+                 #Silently handle the scenario where driver is still marked available due to some reason (like app crash, network issue etc.) after they were assigned to the trip but before the trip was marked as ongoing. In this case, we will log a warning and proceed with marking the trip as ongoing and setting the start datetime because we do not want to block the trip from starting just because of an issue in updating driver availability status in the system. 
+                 print(f"Warning: Driver {trip.driver_id} is still marked as available even after they were assigned for this trip: {trip.id}. Proceeding with marking trip as ongoing and setting start datetime. Marking driver unavailable again to ensure smooth flow of the trip.")
+                 trip.driver.is_available = False
+                 await db.flush()  # Flush to save the updated driver availability status before any further operations
+            
+            #Update start datetime - The driver_admin can get the actual start datetime from the driver when they start the trip in the driver app, if not provided we will set the start datetime as current datetime in UTC timezone.            
             trip.start_datetime = payload.start_datetime if payload and payload.start_datetime else datetime.now(timezone.utc) #Set the actual start datetime when trip starts
             
             #Update status
@@ -670,7 +686,6 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                 status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip started. {payload.reason if payload and payload.reason else ''}",
-                changed_by=requestor.role,
                 db=db,
                 commit=False,  # Defer commit to batch with trip update
             )
@@ -684,8 +699,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
         elif new_status ==TripStatusEnum.completed: #which means existing trip is in ongoing state.
             if trip.driver_id is None:
                 raise CabboException("Cannot complete trip without an assigned driver", status_code=400)
-            
-            extra= payload.extra_payment_to_driver.model_dump(exclude_unset=True, exclude_none=True) if payload and payload.extra_payment_to_driver else None
+
             
             #Update end datetime with the actual end datetime when trip is completed. The driver_admin can get the actual end datetime from the driver, if not provided we will set the end datetime as current datetime in UTC timezone.
             trip.end_datetime = payload.end_datetime if payload and payload.end_datetime else datetime.now(timezone.utc) #Set the actual end datetime when trip is completed
@@ -701,10 +715,6 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             #Update balance payment to 0.0
             trip.balance_payment = 0.0
 
-            #Update extra payments to driver at trip completion, if any.
-            # We store the breakdown of any extra amount received by driver such as paid parking, tolls, overage payment and any tips given to the driver. We collect this information as part of the trip completion process in the driver app and store it in the trip record for future reference in case of any disputes or queries from either party regarding the final amount paid to driver.
-            trip.extra_payment_to_driver=extra
-
             #Free up the driver
             await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
             
@@ -714,7 +724,6 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                 status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip completed. {payload.reason if payload and payload.reason else ''}",
-                changed_by=requestor.role,
                 db=db,
                 commit=False,  # Defer commit to batch with trip update
             )
@@ -736,7 +745,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
 
         elif new_status == TripStatusEnum.cancelled:
             # A canceled trip may or may not have an assigned driver, so we do not check for driver assignment before allowing cancellation. We allow cancellation of a trip without an assigned driver because sometimes customers may want to cancel a trip before a driver is assigned to avoid any inconvenience and also to allow them to book a new trip with correct details if they made any mistake in the initial booking.
-            
+
             #Update status.
             trip.status = new_status.value
 
@@ -759,7 +768,6 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                 status=new_status,
                 committer_id=requestor.id,
                 reason=f"Trip cancelled. {payload.reason if payload and payload.reason else ''}",
-                changed_by=requestor.role,
                 cancellation_sub_status = cancelation_sub_status,
                 db=db,
                 commit=False,  # Defer commit to batch with trip update
@@ -775,7 +783,42 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                     "canceled_by_cabbo": cancelation_sub_status!=CancellationSubStatusEnum.customer_cancelled, # We will refund advance payment to customer only if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, then we should refund the advance payment to customer because it is not the fault of customer and they should not be penalized for that.
                     "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
                 })
-
+        
+        elif new_status == TripStatusEnum.dispute:
+            
+            # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
+            if trip.driver_id is None:
+                raise CabboException("Cannot mark trip as dispute without an assigned driver", status_code=400)
+            
+            
+            #Update status
+            trip.status = new_status.value
+            
+            #Free up the driver anyway because in case of dispute the driver should not be blocked for new trips and also to ensure that the driver is available for any ongoing trips they might have after this trip which is now marked as dispute.
+            await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
+            
+            #Log audit trail for marking trip as dispute
+            await a_log_trip_audit(
+                trip_id=trip.id,
+                status=new_status,
+                committer_id=requestor.id,
+                reason=f"Trip marked as dispute. {payload.dispute_detail.reason if payload and payload.dispute_detail and payload.dispute_detail.reason else ''}",
+                db=db,
+                commit=False,  # Defer commit to batch with trip update
+            )
+            await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations 
+            await db.commit()
+            await db.refresh(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
+            trip_schema = TripDetailSchema.model_validate(trip)
+            # Create a dispute record in the system for this trip - Background Task
+            background_task = AppBackgroundTask(fn=create_dispute_record_for_trip, kwargs={
+                "trip": trip_schema,
+                "payload": payload.dispute_detail if payload and payload.dispute_detail else None,
+                "db": db,
+                "requestor": requestor.id,
+                "silently_fail": True,  # We want to ensure that even if creating dispute record fails for some reason, it should not affect the main flow of marking trip as dispute and free up driver. So we will silently fail any errors in the background task and log them for future reference.
+            })
 
     except Exception as e:
         await db.rollback()

@@ -306,7 +306,6 @@ async def assign_driver_to_trip(
             status=trip.status,
             committer_id=requestor.id,
             reason=f"Driver {driver.name} assigned to trip.",
-            changed_by=requestor.role,
             db=db,
         )  # Log the trip status audit entry
         if attach_trip_relationships:
@@ -419,6 +418,12 @@ async def add_driver_earning_record(
                 print(f"Driver not found for trip {trip.id} while adding driver earning record.")
                 return None
             raise CabboException("Driver not found", status_code=404)
+        
+        #Delete existing driver earning record for this trip before adding a new one
+        existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=driver_schema.id, db=db)
+        if existing_record:
+                await delete_driver_earning(earning_id=existing_record.id, db=db, commit=commit)
+
         return await _add_driver_earning_record(
             payload=DriverEarningSchema(
                 trip_id=trip.id,
@@ -426,8 +431,8 @@ async def add_driver_earning_record(
                 base_earnings=base_earnings,
                 extra_earnings=extra_earnings,
                 total_earnings=total_earnings,
-                extra_earnings_breakdown=additional_info.extra_payment_to_driver
-                or None,
+                extra_earnings_breakdown=additional_info.extra_payment_to_driver if additional_info and additional_info.extra_payment_to_driver else None,
+                
             ),
             db=db,
             requestor=requestor,
@@ -445,3 +450,44 @@ async def add_driver_earning_record(
             status_code=500,
             include_traceback=True,
         )
+
+async def get_trip_earning_for_driver(trip_id: str, driver_id: str, db: AsyncSession) -> DriverEarning | None:
+    try:
+        result = await db.execute(
+            select(DriverEarning).where(
+                DriverEarning.trip_id == trip_id, DriverEarning.driver_id == driver_id
+            )
+        )
+        return result.scalars().first()
+    except Exception as e:
+        print(f"Error fetching driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}")
+        return None
+
+async def has_driver_earning_record_for_trip(trip_id: str, driver_id: str, db: AsyncSession) -> bool:
+    try:
+        result = await db.execute(
+            select(DriverEarning).where(
+                DriverEarning.trip_id == trip_id, DriverEarning.driver_id == driver_id
+            )
+        )
+        record = result.scalars().first()
+        return record is not None
+    except Exception as e:
+        print(f"Error checking driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}")
+        return False
+    
+async def delete_driver_earning(earning_id:str, db:AsyncSession, commit=True):
+    try:
+        result = await db.execute(select(DriverEarning).where(DriverEarning.id == earning_id))
+        earning_record = result.scalars().first()
+        if not earning_record:
+            return False
+        await db.delete(earning_record)
+        await db.flush()
+        if commit:
+            await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        print(f"Error deleting driver earning record with id {earning_id}: {str(e)}")
+        return False
