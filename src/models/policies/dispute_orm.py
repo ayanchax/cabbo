@@ -26,7 +26,7 @@ class Dispute(Base):
         unique=True,
         index=True,
     )  # UUID for the dispute
-    entity_id = Column(MySQL_CHAR(36), nullable=False)  # ID of the associated trip
+    entity_id = Column(MySQL_CHAR(36), nullable=False, unique=True)  # ID of the associated trip
     reason = Column(String(255), nullable=False)  # Reason for the dispute
     dispute_type = Column(
         SAEnum(DisputeTypeEnum), nullable=False, default=DisputeTypeEnum.unknown, comment="Type of dispute, e.g., fare, service, etc."

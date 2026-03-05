@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
 from services.dispute_service import create_dispute_record_for_trip
-from services.driver_service import add_driver_earning_record, toggle_availability_of_driver
+from services.driver_service import add_driver_earning_record, delete_driver_earning, get_trip_earning_for_driver, has_driver_earning_record_for_trip, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -660,6 +660,13 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                 #Cannot silently assign a random driver, thus we will raise an exception if there is no driver assigned to the trip when we are trying to mark it as ongoing because a trip cannot start without a driver. The driver assignment should have happened at the time of confirming the trip booking and if for some reason the driver assignment did not happen then it should be fixed before starting the trip.
                 raise CabboException("Cannot start trip without an assigned driver", status_code=400)
             
+            
+            existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=trip.driver_id, db=db)
+            if existing_record:
+                #Silently delete any bad data
+                await delete_driver_earning(earning_id=existing_record.id, db=db)
+
+
             if trip.driver and trip.driver_id == trip.driver.id and trip.driver.is_available:
                  #Silently handle the scenario where driver is still marked available due to some reason (like app crash, network issue etc.) after they were assigned to the trip but before the trip was marked as ongoing. In this case, we will log a warning and proceed with marking the trip as ongoing and setting the start datetime because we do not want to block the trip from starting just because of an issue in updating driver availability status in the system. 
                  print(f"Warning: Driver {trip.driver_id} is still marked as available even after they were assigned for this trip: {trip.id}. Proceeding with marking trip as ongoing and setting start datetime. Marking driver unavailable again to ensure smooth flow of the trip.")
@@ -692,7 +699,8 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
         elif new_status ==TripStatusEnum.completed: #which means existing trip is in ongoing state.
             if trip.driver_id is None:
                 raise CabboException("Cannot complete trip without an assigned driver", status_code=400)
-                        
+
+            
             #Update end datetime with the actual end datetime when trip is completed. The driver_admin can get the actual end datetime from the driver, if not provided we will set the end datetime as current datetime in UTC timezone.
             trip.end_datetime = payload.end_datetime if payload and payload.end_datetime else datetime.now(timezone.utc) #Set the actual end datetime when trip is completed
             
@@ -737,7 +745,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
 
         elif new_status == TripStatusEnum.cancelled:
             # A canceled trip may or may not have an assigned driver, so we do not check for driver assignment before allowing cancellation. We allow cancellation of a trip without an assigned driver because sometimes customers may want to cancel a trip before a driver is assigned to avoid any inconvenience and also to allow them to book a new trip with correct details if they made any mistake in the initial booking.
-            
+
             #Update status.
             trip.status = new_status.value
 
@@ -781,6 +789,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
             if trip.driver_id is None:
                 raise CabboException("Cannot mark trip as dispute without an assigned driver", status_code=400)
+            
             
             #Update status
             trip.status = new_status.value

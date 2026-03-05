@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     Text,
+    UniqueConstraint,
    
 )
 from sqlalchemy.orm import relationship
@@ -118,6 +119,9 @@ class Driver(Base):
 # This will be populated when the trip is completed and the driver payment is settled from Cabbo's end
 class DriverEarning(Base):
     __tablename__ = "driver_earnings"
+    __table_args__ = (
+    UniqueConstraint("driver_id", "trip_id", name="uq_driver_trip_earning"),
+)
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,

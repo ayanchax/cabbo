@@ -7,6 +7,8 @@ from models.trip.trip_schema import TripDetailSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.policies.dispute_orm import Dispute as DisputeORM
 from models.policies.dispute_schema import DisputeSchema
+from sqlalchemy import select
+
 
 
 async def create_dispute_record_for_trip(
@@ -37,15 +39,26 @@ async def create_dispute_record_for_trip(
                 payload.reason if payload and payload.reason else "No reason provided"
             ),
             dispute_type=(
-                payload.dispute_type if payload and payload.dispute_type else DisputeTypeEnum.unknown
+                payload.dispute_type
+                if payload and payload.dispute_type
+                else DisputeTypeEnum.unknown
             ),
             comments=comments,
             details=payload.details if payload and payload.details else None,
             raised_by=requestor,
         )
         db.add(new_dispute)
+        await db.flush()
+        from services.trips.trip_service import async_get_trip_by_id
+        trip_model= await async_get_trip_by_id(trip_id=trip.id, db=db)  # Refresh trip data to reflect the new dispute association
+        if not trip_model:
+                print(f"Trip not found with id {trip.id} while creating dispute record.")
+                return None
+        trip_model.dispute_id = new_dispute.id  # Associate the dispute with the trip
         await db.commit()
         await db.refresh(new_dispute)
+
+        
         return DisputeSchema.model_validate(new_dispute)
     except Exception as e:
         await db.rollback()
@@ -53,3 +66,17 @@ async def create_dispute_record_for_trip(
             return None
         else:
             raise e
+
+
+async def get_dispute_by_trip_id(
+    trip_id: str, db: AsyncSession
+) -> Optional[DisputeSchema]:
+    result = await db.execute(
+        select(DisputeORM).where(
+            DisputeORM.entity_id == trip_id, DisputeORM.is_active == True
+        )
+    )
+    dispute_record = result.scalars().first()
+    if dispute_record:
+        return DisputeSchema.model_validate(dispute_record)
+    return None

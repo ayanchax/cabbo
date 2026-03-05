@@ -26,7 +26,7 @@ class Refund(Base):
         index=True,
     )
     entity_id = Column(
-        String(255), nullable=False, index=True
+        String(255), nullable=False, index=True, unique=True
     )  # ID of the entity for which the refund is being processed, e.g., trip ID, booking ID, etc.
     refund_status = Column(
         SAEnum(RefundStatus), nullable=True, default=RefundStatus.unknown
