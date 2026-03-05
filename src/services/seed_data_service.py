@@ -1117,11 +1117,11 @@ def _seed_local_cab_pricing(session: Session):
                 )
                 create_local_cab_pricing(payload, session)
 
-                # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
-                # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
-                # For seeding the data, we are assuming some standard values for local trips across regions
-                # These can be updated later via admin interface as needed
-                common_payload: CommonPricingConfigurationSchema = (
+        # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
+        # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
+        # For seeding the data, we are assuming some standard values for local trips across regions
+        # These can be updated later via admin interface as needed
+        common_payload: CommonPricingConfigurationSchema = (
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.local],
                         dynamic_platform_fee_percent=4,  # platform fee
@@ -1132,7 +1132,7 @@ def _seed_local_cab_pricing(session: Session):
                         region_id=region_id,
                     )
                 )
-                create_common_pricing_configuration(common_payload, session)
+        create_common_pricing_configuration(common_payload, session)
 
     _seed_local_trip_packages(session)
 
@@ -1191,7 +1191,7 @@ def _seed_outstation_cab_pricing(session: Session):
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
                 # For seeding the data, we are assuming some standard values for outstation trips across states
                 # These can be updated later via admin interface as needed
-                common_payload: CommonPricingConfigurationSchema = (
+        common_payload: CommonPricingConfigurationSchema = (
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
                         dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
@@ -1199,7 +1199,7 @@ def _seed_outstation_cab_pricing(session: Session):
                         state_id=state_id,
                     )
                 )
-                create_common_pricing_configuration(common_payload, session)
+        create_common_pricing_configuration(common_payload, session)
 
     session.commit()
 
@@ -1247,7 +1247,7 @@ def _seed_airport_cab_pricing(session: Session):
 
                 # Keeping a separate tripwise pricing configuration for airport trips as these will be redundant if kept within AirportCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
-                common_payload: List[CommonPricingConfigurationSchema] = [
+        common_payload: List[CommonPricingConfigurationSchema] = [
                     CommonPricingConfigurationSchema(
                         trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
                         dynamic_platform_fee_percent=3,  # platform fee/convenience fee
@@ -1268,7 +1268,7 @@ def _seed_airport_cab_pricing(session: Session):
                         region_id=region_id,
                     ),
                 ]
-                for common_payload in common_payload:
+        for common_payload in common_payload:
                     create_common_pricing_configuration(common_payload, session)
 
 

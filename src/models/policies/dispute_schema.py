@@ -37,3 +37,18 @@ class DisputeSchema(BaseModel):
         True,
         description="Flag to indicate if the dispute record is active or has been soft-deleted",
     )
+
+
+class InitialDisputeSchema(BaseModel):
+    reason: Optional[str] = Field(None, description="Reason for the dispute")
+    
+    dispute_type: DisputeTypeEnum | None = Field(
+        DisputeTypeEnum.other, description="Type of dispute, e.g., fare, service, etc."
+    )
+    comments: Optional[List[SupportCommentSchema]] | List[dict] | None = Field(
+        None,
+        description="Additional comments or details between customer and support regarding the dispute",
+    )
+    details: Optional[dict] | None = Field(
+        None, description="Additional details about the dispute"
+    )

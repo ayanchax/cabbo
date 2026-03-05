@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
+from services.dispute_service import create_dispute_record_for_trip
 from services.driver_service import add_driver_earning_record, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
@@ -640,9 +641,10 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
     
     allowed_status_transitions = {
         TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
-        TripStatusEnum.ongoing: [TripStatusEnum.completed],
-        TripStatusEnum.completed: [TripStatusEnum.dispute],
+        TripStatusEnum.ongoing: [TripStatusEnum.completed, TripStatusEnum.dispute],
+        TripStatusEnum.completed: [],
         TripStatusEnum.cancelled: [],
+        TripStatusEnum.dispute: [],
     }
     # Out of confirmed, ongoing, completed, canceled and dispute, a trip gets confirmed only from the #booking_service.py confirm_trip_booking() method.
     if new_status not in allowed_status_transitions.get(TripStatusEnum(trip.status), []):     
@@ -690,9 +692,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
         elif new_status ==TripStatusEnum.completed: #which means existing trip is in ongoing state.
             if trip.driver_id is None:
                 raise CabboException("Cannot complete trip without an assigned driver", status_code=400)
-            
-            extra= payload.extra_payment_to_driver.model_dump(exclude_unset=True, exclude_none=True) if payload and payload.extra_payment_to_driver else None
-            
+                        
             #Update end datetime with the actual end datetime when trip is completed. The driver_admin can get the actual end datetime from the driver, if not provided we will set the end datetime as current datetime in UTC timezone.
             trip.end_datetime = payload.end_datetime if payload and payload.end_datetime else datetime.now(timezone.utc) #Set the actual end datetime when trip is completed
             
@@ -775,7 +775,41 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                     "canceled_by_cabbo": cancelation_sub_status!=CancellationSubStatusEnum.customer_cancelled, # We will refund advance payment to customer only if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, then we should refund the advance payment to customer because it is not the fault of customer and they should not be penalized for that.
                     "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
                 })
-
+        
+        elif new_status == TripStatusEnum.dispute:
+            
+            # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
+            if trip.driver_id is None:
+                raise CabboException("Cannot mark trip as dispute without an assigned driver", status_code=400)
+            
+            #Update status
+            trip.status = new_status.value
+            
+            #Free up the driver anyway because in case of dispute the driver should not be blocked for new trips and also to ensure that the driver is available for any ongoing trips they might have after this trip which is now marked as dispute.
+            await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
+            
+            #Log audit trail for marking trip as dispute
+            await a_log_trip_audit(
+                trip_id=trip.id,
+                status=new_status,
+                committer_id=requestor.id,
+                reason=f"Trip marked as dispute. {payload.dispute_detail.reason if payload and payload.dispute_detail and payload.dispute_detail.reason else ''}",
+                db=db,
+                commit=False,  # Defer commit to batch with trip update
+            )
+            await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations 
+            await db.commit()
+            await db.refresh(trip)
+            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
+            trip_schema = TripDetailSchema.model_validate(trip)
+            # Create a dispute record in the system for this trip - Background Task
+            background_task = AppBackgroundTask(fn=create_dispute_record_for_trip, kwargs={
+                "trip": trip_schema,
+                "payload": payload.dispute_detail if payload and payload.dispute_detail else None,
+                "db": db,
+                "requestor": requestor.id,
+                "silently_fail": True,  # We want to ensure that even if creating dispute record fails for some reason, it should not affect the main flow of marking trip as dispute and free up driver. So we will silently fail any errors in the background task and log them for future reference.
+            })
 
     except Exception as e:
         await db.rollback()

@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
 from models.customer.customer_schema import CustomerRead
+from models.policies.dispute_schema import InitialDisputeSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
     ExtraPayments,
@@ -400,6 +401,7 @@ class TripDetailSchema(BaseModel):
 class AdditionalDetailsOnTripStatusChange(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for the status change, especially important for cancellations")
     cancellation_sub_status: Optional[CancellationSubStatusEnum] = Field(None, description="Sub-status for cancellations to provide more context on the cancellation reason")
+    dispute_detail:Optional[InitialDisputeSchema] = Field(None, description="Details of the dispute to be created when the trip status is changed to dispute")
     extra_payment_to_driver: Optional[ExtraPayments] = Field(None, description="Details of any extra payment to driver at trip completion, such as tolls paid by driver, parking charges, overage payment for extra distance or time, tips from customer, etc.")
     start_datetime: Optional[datetime] = Field(None, description="Actual start date and time of the trip, useful for calculating any overages in case of outstation and local trips")
     end_datetime: Optional[datetime] = Field(None, description="Actual end date and time of the trip, useful for calculating any overages in case of outstation and local trips")
