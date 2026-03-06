@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
-from services.dispute_service import create_dispute_record_for_trip
+from services.dispute_service import register_trip_dispute
 from services.driver_service import add_driver_earning_record, delete_driver_earning, get_trip_earning_for_driver, has_driver_earning_record_for_trip, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
@@ -656,6 +656,12 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
     try:
         #Ongoing status indicates the trip has started, so we set the actual start datetime when the trip starts. For other status updates, we only update the status without modifying the start datetime.
         if new_status ==TripStatusEnum.ongoing: #which means existing trip is in confirmed state.
+            if not trip.advance_payment or trip.advance_payment <=0:
+                raise CabboException("Cannot start trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.", status_code=400)
+            
+            if not trip.balance_payment or trip.balance_payment <=0:
+                raise CabboException("Cannot start trip without a valid balance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.", status_code=400)
+
             if trip.driver_id is None:
                 #Cannot silently assign a random driver, thus we will raise an exception if there is no driver assigned to the trip when we are trying to mark it as ongoing because a trip cannot start without a driver. The driver assignment should have happened at the time of confirming the trip booking and if for some reason the driver assignment did not happen then it should be fixed before starting the trip.
                 raise CabboException("Cannot start trip without an assigned driver", status_code=400)
@@ -664,7 +670,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=trip.driver_id, db=db)
             if existing_record:
                 #Silently delete any bad data
-                await delete_driver_earning(earning_id=existing_record.id, db=db)
+                await delete_driver_earning(earning_id=existing_record.id, db=db, hard_delete=True)
 
 
             if trip.driver and trip.driver_id == trip.driver.id and trip.driver.is_available:
@@ -697,6 +703,12 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             
         # Completed status indicates the trip has ended, so we set the actual end datetime when the trip is completed and also update the balance payment to zero and record any extra payments to driver at trip completion and free up the driver for new trips. For other status updates, we only update the status without modifying the end datetime, balance payment and extra payment details.
         elif new_status ==TripStatusEnum.completed: #which means existing trip is in ongoing state.
+            if not trip.advance_payment or trip.advance_payment <=0:
+                raise CabboException("Cannot complete trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before completing the trip.", status_code=400)
+            
+            if not trip.balance_payment or trip.balance_payment <=0:
+                raise CabboException("Cannot complete trip without a valid balance payment. Please ensure the customer has made the balance payment and the payment is reflected in the system before completing the trip.", status_code=400)
+            
             if trip.driver_id is None:
                 raise CabboException("Cannot complete trip without an assigned driver", status_code=400)
 
@@ -746,8 +758,14 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
         elif new_status == TripStatusEnum.cancelled:
             # A canceled trip may or may not have an assigned driver, so we do not check for driver assignment before allowing cancellation. We allow cancellation of a trip without an assigned driver because sometimes customers may want to cancel a trip before a driver is assigned to avoid any inconvenience and also to allow them to book a new trip with correct details if they made any mistake in the initial booking.
 
+            if not trip.advance_payment or trip.advance_payment <=0:
+                raise CabboException("Cannot cancel trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before canceling the trip.", status_code=400)
+
             #Update status.
             trip.status = new_status.value
+
+            #Set balance payment to 0.0 because once a trip is canceled there should not be any balance payment pending from customer. In case of any cancellation charges, we will not be handling that in the system for now and we will assume that the customer will take care of any cancellation charges directly with the driver and we will not be deducting any cancellation charges from the advance payment in the system for now.
+            trip.balance_payment = 0.0
 
             if trip.driver_id:
                 #Free up the driver if already assigned to the trip.
@@ -782,9 +800,12 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
                     "db": db,
                     "canceled_by_cabbo": cancelation_sub_status!=CancellationSubStatusEnum.customer_cancelled, # We will refund advance payment to customer only if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, then we should refund the advance payment to customer because it is not the fault of customer and they should not be penalized for that.
                     "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
+                    "requestor": requestor.id,
                 })
         
         elif new_status == TripStatusEnum.dispute:
+            if not trip.advance_payment or trip.advance_payment <=0:
+                raise CabboException("Cannot mark trip as dispute without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before marking the trip as dispute.", status_code=400)
             
             # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
             if trip.driver_id is None:
@@ -812,7 +833,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             await attach_relationships_to_trip(trip, db, expose_customer_details=True)
             trip_schema = TripDetailSchema.model_validate(trip)
             # Create a dispute record in the system for this trip - Background Task
-            background_task = AppBackgroundTask(fn=create_dispute_record_for_trip, kwargs={
+            background_task = AppBackgroundTask(fn=register_trip_dispute, kwargs={
                 "trip": trip_schema,
                 "payload": payload.dispute_detail if payload and payload.dispute_detail else None,
                 "db": db,

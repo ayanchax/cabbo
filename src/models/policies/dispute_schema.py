@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from models.support.support_enum import TicketStatusEnum
-from models.policies.dispute_enum import DisputeTypeEnum
+from models.policies.dispute_enum import DisputeTypeEnum, DisputeTriggerEnum
 from models.support.support_schema import SupportCommentSchema
 
 
@@ -27,6 +27,10 @@ class DisputeSchema(BaseModel):
         TicketStatusEnum.open,
         description="Status of the dispute (e.g., open, resolved, rejected)",
     )
+    dispute_trigger: Optional[DisputeTriggerEnum] = Field(
+        DisputeTriggerEnum.automatic,
+        description="Description of how the dispute was triggered, e.g., 'manual', 'automatic'",
+    )
     created_at: Optional[datetime] = Field(
         None, description="Date and time when the dispute was created"
     )
@@ -38,10 +42,14 @@ class DisputeSchema(BaseModel):
         description="Flag to indicate if the dispute record is active or has been soft-deleted",
     )
 
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
 
 class InitialDisputeSchema(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for the dispute")
-    
+
     dispute_type: DisputeTypeEnum | None = Field(
         DisputeTypeEnum.other, description="Type of dispute, e.g., fare, service, etc."
     )

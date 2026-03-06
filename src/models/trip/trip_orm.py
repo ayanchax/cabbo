@@ -170,18 +170,7 @@ class Trip(Base):
         Float, nullable=True, default=0.0
     )  # Balance payment to be made by customer after trip completion
 
-    refund_id = Column(
-        String(64),
-        ForeignKey("refunds.id", ondelete="SET NULL"),
-        nullable=True,
-        unique=True,
-    )  # Refund transaction ID from payment provider, if any
-    dispute_id = Column(
-        String(64),
-        ForeignKey("disputes.id", ondelete="SET NULL"),
-        nullable=True,
-        unique=True,
-    )  # Dispute ID, if any
+    
     payment_provider_metadata = Column(
         JSON, nullable=True
     )  # JSON/text for payment details (e.g., payment mode, transaction ID, etc.)

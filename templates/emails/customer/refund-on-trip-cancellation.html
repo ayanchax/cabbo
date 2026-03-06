@@ -266,8 +266,9 @@
 
         <!-- Header -->
         <div class="header">✅ Refund Initiated</div>
-        <div class="sub">Hi {{ name }}, your refund request for booking <strong>#{{ booking_id }}</strong>
-            has been processed successfully.</div>
+
+        <div class="sub">Hi {{ name }}, your booking <strong>#{{ booking_id }}</strong> has been cancelled and your
+            refund has been initiated to your original payment method.</div>
 
         <!-- Refund Amount Card -->
         <div class="refund-amount">
@@ -365,7 +366,7 @@
 
         <!-- View Details CTA -->
         <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
-            View Trip Details</a>
+            View Cancellation Details</a>
 
         <hr>
 

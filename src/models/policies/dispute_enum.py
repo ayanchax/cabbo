@@ -8,3 +8,7 @@ class DisputeTypeEnum(str, Enum):
     service = "service"
     other = "other"
     unknown = "unknown"
+
+class DisputeTriggerEnum(str, Enum):
+    manual = "manual"
+    automatic = "automatic"

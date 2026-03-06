@@ -368,7 +368,6 @@ class TripDetailSchema(BaseModel):
     payment_provider_metadata: Optional[Dict] = Field(None, description="Payment details (e.g., mode, transaction ID)")
     price_breakdown: Optional[Dict] = Field(None, description="Detailed price breakdown")
     overages: Optional[Dict] = Field(None, description="Details of overages (e.g., extra km charges)")
-    refund_id: Optional[str] = Field(None, description="Refund transaction ID from payment provider, if any")
 
     # Inclusions and exclusions
     inclusions: Optional[List[str]] = Field(None, description="List of inclusions for the trip")

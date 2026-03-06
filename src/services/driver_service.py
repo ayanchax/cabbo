@@ -422,7 +422,7 @@ async def add_driver_earning_record(
         #Delete existing driver earning record for this trip before adding a new one
         existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=driver_schema.id, db=db)
         if existing_record:
-                await delete_driver_earning(earning_id=existing_record.id, db=db, commit=commit)
+                await delete_driver_earning(earning_id=existing_record.id, db=db, commit=commit, hard_delete=True)
 
         return await _add_driver_earning_record(
             payload=DriverEarningSchema(
@@ -476,13 +476,16 @@ async def has_driver_earning_record_for_trip(trip_id: str, driver_id: str, db: A
         print(f"Error checking driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}")
         return False
     
-async def delete_driver_earning(earning_id:str, db:AsyncSession, commit=True):
+async def delete_driver_earning(earning_id:str, db:AsyncSession, commit=True, hard_delete=False) -> bool:
     try:
-        result = await db.execute(select(DriverEarning).where(DriverEarning.id == earning_id))
+        result = await db.execute(select(DriverEarning).where(DriverEarning.id == earning_id, DriverEarning.is_active == True))
         earning_record = result.scalars().first()
         if not earning_record:
             return False
-        await db.delete(earning_record)
+        if hard_delete:
+            await db.delete(earning_record)
+        else:
+            earning_record.is_active = False  # Soft delete the earning record
         await db.flush()
         if commit:
             await db.commit()
