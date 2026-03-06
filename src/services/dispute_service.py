@@ -10,8 +10,7 @@ from models.policies.dispute_schema import DisputeSchema
 from sqlalchemy import select
 
 
-
-async def create_dispute_record_for_trip(
+async def register_trip_dispute(
     trip: TripDetailSchema,
     payload: Optional[InitialDisputeSchema],
     db: AsyncSession,
@@ -21,6 +20,29 @@ async def create_dispute_record_for_trip(
     """
     This function creates a dispute record for a trip. It is called when a trip is marked as disputed. The dispute record is created with the initial details provided in the payload. If the payload is not provided, the dispute record is created with default values. The requestor parameter indicates who is creating the dispute (customer, driver, or admin). If silently_fail is set to True, the function will not raise an exception if it fails to create a dispute record.
     """
+    existing_dispute = await get_dispute_by_trip_id(trip_id=trip.id, db=db)
+    if existing_dispute:
+        print(
+            f"Existing dispute record found for trip {trip.id}, removing it before adding new dispute details"
+        )
+        await _remove_dispute_by_trip_id(trip_id=trip.id, db=db, hard_delete=True)
+
+    await _create_dispute_for_trip(
+        trip=trip,
+        payload=payload,
+        db=db,
+        requestor=requestor,
+        silently_fail=silently_fail,
+    )
+
+
+async def _create_dispute_for_trip(
+    trip: TripDetailSchema,
+    payload: Optional[InitialDisputeSchema],
+    db: AsyncSession,
+    requestor: str,
+    silently_fail: bool = False,
+):
     try:
         comments = []
         if payload and payload.comments and isinstance(payload.comments, list):
@@ -49,16 +71,8 @@ async def create_dispute_record_for_trip(
         )
         db.add(new_dispute)
         await db.flush()
-        from services.trips.trip_service import async_get_trip_by_id
-        trip_model= await async_get_trip_by_id(trip_id=trip.id, db=db)  # Refresh trip data to reflect the new dispute association
-        if not trip_model:
-                print(f"Trip not found with id {trip.id} while creating dispute record.")
-                return None
-        trip_model.dispute_id = new_dispute.id  # Associate the dispute with the trip
         await db.commit()
         await db.refresh(new_dispute)
-
-        
         return DisputeSchema.model_validate(new_dispute)
     except Exception as e:
         await db.rollback()
@@ -80,3 +94,27 @@ async def get_dispute_by_trip_id(
     if dispute_record:
         return DisputeSchema.model_validate(dispute_record)
     return None
+
+
+async def _remove_dispute_by_trip_id(
+    trip_id: str, db: AsyncSession, hard_delete: bool = False
+) -> bool:
+    try:
+        result = await db.execute(
+            select(DisputeORM).where(
+                DisputeORM.entity_id == trip_id, DisputeORM.is_active == True
+            )
+        )
+        dispute_record = result.scalars().first()
+        if dispute_record:
+            if hard_delete:
+                await db.delete(dispute_record)
+            else:
+                dispute_record.is_active = False
+            await db.commit()
+            return True
+        return False
+    except Exception as e:
+        await db.rollback()
+        print(f"Error removing dispute record for trip {trip_id}: {str(e)}")
+        return False

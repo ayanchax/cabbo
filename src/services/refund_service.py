@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 from core.security import RoleEnum
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
@@ -9,6 +10,7 @@ from models.trip.trip_schema import TripDetailSchema
 from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_schema import RefundSchema
 from core.config import settings
+from sqlalchemy import select
 
 from services.geography_service import (
     async_get_region_by_code,
@@ -31,7 +33,7 @@ async def refund_advance_payment_to_customer(
     try:
         if not config_store:
             syncdb = get_mysql_local_session()
-            config_store = ConfigStore(syncdb)
+            config_store = settings.get_config_store(db=syncdb)
 
         if trip.advance_payment is None or trip.advance_payment <= 0.0:
             print(f"No advance payment to refund for trip {trip.id}")
@@ -138,8 +140,9 @@ async def refund_advance_payment_to_customer(
                 or eligible_for_partial_configuration_based_refund
             )
         ):
+            currency_symbol = config_store.geographies.country_server.currency_symbol
             print(
-                f"Initiating refund of amount {refund_amount} for trip {trip.id} through payment provider"
+                f"Initiating refund of amount {currency_symbol}{refund_amount} for trip {trip.id} through payment provider"
             )
             payment_id = trip.payment_provider_metadata.get("razorpay_payment_id")
             if not payment_id:
@@ -192,8 +195,12 @@ async def refund_advance_payment_to_customer(
                 if canceled_by_cabbo
                 else "Cancellation by Customer"
             )
-            updated = await update_refund_details_for_trip(
-                trip_id=trip.id,
+            existing_refund = await get_refund_details_by_trip_id(trip_id=trip.id, db=db)
+            if existing_refund:
+                print(f"Existing refund record found for trip {trip.id}, removing it before adding new refund details")
+                await remove_refund_details_by_trip_id(trip_id=trip.id, db=db, hard_delete=True)
+                
+            updated = await _add_refund_details_for_trip(
                 refund=RefundSchema(
                     id=refund_response.get("id"),
                     entity_id=trip.id,
@@ -236,6 +243,8 @@ async def refund_advance_payment_to_customer(
             )
             return False
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error in refund_advance_payment_to_customer: {e}")
         # Log the exception or handle it as needed
         if not silently_fail:
@@ -243,22 +252,13 @@ async def refund_advance_payment_to_customer(
         return False
 
 
-async def update_refund_details_for_trip(
-    trip_id: str,
+async def _add_refund_details_for_trip(
     refund: RefundSchema,
     created_by: str,
     db: AsyncSession,
 ):
-    from services.trips.trip_service import async_get_trip_by_id
-
+    
     try:
-        trip = await async_get_trip_by_id(trip_id=trip_id, db=db)
-        if not trip:
-            print(f"Trip with id {trip_id} not found, cannot update refund details")
-            return False
-
-        trip.refund_id = refund.id
-
         # Add refund details to the refund table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
         refund_record = RefundORM(
             id=refund.id,
@@ -273,14 +273,51 @@ async def update_refund_details_for_trip(
             created_by=created_by,
         )
         db.add(refund_record)
+        await db.flush()
         await db.commit()
-        await db.refresh(trip)
         print(
-            f"Refund details updated for trip {trip_id} with refund amount {refund.refund_amount} and refund reason {refund.refund_reason}"
+            f"Refund details updated for entity {refund.entity_id} with refund amount {refund.refund_amount} and refund reason {refund.refund_reason}"
         )
         return True
     except Exception as e:
         await db.rollback()
-        print(f"Error in update_refund_details_for_trip: {e}")
+        print(f"Error in _add_refund_details_for_trip: {e}")
+        # Log the exception or handle it as needed
+        return False
+    
+async def get_refund_details_by_trip_id(trip_id: str, db: AsyncSession) -> Optional[RefundSchema]:
+    try:
+        result = await db.execute(
+            select(RefundORM).where(RefundORM.entity_id == trip_id, RefundORM.is_active == True)
+        )
+        refund_record = result.scalars().first()
+        if refund_record:
+            return RefundSchema.model_validate(refund_record)
+        return None
+    except Exception as e:
+        print(f"Error in get_refund_details_by_trip_id: {e}")
+        # Log the exception or handle it as needed
+        return None
+
+async def remove_refund_details_by_trip_id(trip_id: str, db: AsyncSession, hard_delete=False) -> bool:
+    try:
+        result = await db.execute(
+            select(RefundORM).where(RefundORM.entity_id == trip_id, RefundORM.is_active == True)
+        )
+
+        refund_record= result.scalars().first()
+        if refund_record:
+            if hard_delete:
+                await db.delete(refund_record)
+            else:
+                refund_record.is_active = False  # Soft delete the refund record
+            await db.commit()
+            print(f"Refund details removed for trip {trip_id}")
+            return True
+        print(f"No active refund record found for trip {trip_id} to remove")
+        return False
+    except Exception as e:
+        await db.rollback()
+        print(f"Error in remove_refund_details_by_trip_id: {e}")
         # Log the exception or handle it as needed
         return False

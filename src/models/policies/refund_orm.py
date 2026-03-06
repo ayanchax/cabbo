@@ -29,7 +29,7 @@ class Refund(Base):
         String(255), nullable=False, index=True, unique=True
     )  # ID of the entity for which the refund is being processed, e.g., trip ID, booking ID, etc.
     refund_status = Column(
-        SAEnum(RefundStatus), nullable=True, default=RefundStatus.unknown
+        SAEnum(RefundStatus), nullable=True, default=RefundStatus.unknown, comment="Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc."
     )  # Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.
     refund_amount = Column(
         Float, nullable=False

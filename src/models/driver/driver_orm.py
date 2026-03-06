@@ -158,6 +158,8 @@ class DriverEarning(Base):
         nullable=False,
     )
 
+    is_active = Column(Boolean, default=True, nullable=False)  # Soft delete flag to indicate if the record is active or has been deleted, we will use this to keep the earning record for historical and reporting purposes even if the trip gets deleted or the earning record gets deleted for any reason, we will just set is_active to false instead of deleting the record from the database.
+
     driver = relationship("Driver", back_populates="earnings")
     trip = relationship("Trip", back_populates="driver_earning")
 

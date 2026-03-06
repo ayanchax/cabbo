@@ -93,7 +93,22 @@ def _create_razorpay_order(
             ),  # Amount in paise as Razorpay expects amount in the smallest currency unit
             "currency": razorpay_order.currency,
             "receipt": razorpay_order.receipt,
-            "notes": razorpay_order.notes.model_dump(),
+            "notes": {
+                "reference_source_id": str(
+                    razorpay_order.notes.reference_source_id or ""
+                ),
+                "requestor": str(razorpay_order.notes.requestor or ""),
+                "customer_id": str(
+                    razorpay_order.notes.customer.id
+                    if razorpay_order.notes.customer
+                    else ""
+                ),
+                "customer_name": str(
+                    razorpay_order.notes.customer.name
+                    if razorpay_order.notes.customer
+                    else ""
+                ),
+            },
         }
         client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
         order = client.order.create(data=order_data)
@@ -196,9 +211,8 @@ def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
 def initiate_razorpay_refund(
     payment_id: str,
     refund_amount: float,
-    notes:PaymentNotesSchema,
+    notes: PaymentNotesSchema,
     currency_conversion_factor: int = 100,
-    speed: Literal["normal", "optimum"] = "normal",
     silently_fail: bool = False,
 ) -> dict:
     """
@@ -223,14 +237,16 @@ def initiate_razorpay_refund(
             "amount": int(
                 _conversion_based_on_currency(refund_amount, currency_conversion_factor)
             ),  # Convert rupees to paise
-            "speed": speed,  # Can be 'normal' or 'optimum'
         }
 
         if notes:
-            refund_data["notes"] = notes.model_dump(exclude_none=True)
-
-         
-
+            refund_data["notes"] = {
+                "reference_source_id": str(notes.reference_source_id or ""),
+                "refund_type": str(notes.refund_type or ""),
+                "requestor": str(notes.requestor or ""),
+                "customer_id": str(notes.customer.id if notes.customer else ""),
+                "customer_name": str(notes.customer.name if notes.customer else ""),
+            }
         refund = client.payment.refund(payment_id, refund_data)
 
         if not refund or "id" not in refund:

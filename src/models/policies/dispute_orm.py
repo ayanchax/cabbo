@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
-from models.policies.dispute_enum import DisputeTypeEnum
+from models.policies.dispute_enum import DisputeTriggerEnum, DisputeTypeEnum
 from models.support.support_enum import TicketStatusEnum
 
 
@@ -26,10 +26,15 @@ class Dispute(Base):
         unique=True,
         index=True,
     )  # UUID for the dispute
-    entity_id = Column(MySQL_CHAR(36), nullable=False, unique=True)  # ID of the associated trip
+    entity_id = Column(
+        MySQL_CHAR(36), nullable=False, unique=True
+    )  # ID of the associated trip
     reason = Column(String(255), nullable=False)  # Reason for the dispute
     dispute_type = Column(
-        SAEnum(DisputeTypeEnum), nullable=False, default=DisputeTypeEnum.unknown, comment="Type of dispute, e.g., fare, service, etc."
+        SAEnum(DisputeTypeEnum),
+        nullable=False,
+        default=DisputeTypeEnum.unknown,
+        comment="Type of dispute, e.g., fare, service, etc.",
     )  # Type of dispute, e.g., fare, service, etc.
     comments = Column(
         JSON, nullable=True
@@ -41,6 +46,12 @@ class Dispute(Base):
     status = Column(
         SAEnum(TicketStatusEnum), nullable=False, default=TicketStatusEnum.open
     )  # Status of the dispute (e.g., open, resolved, rejected)
+    dispute_trigger = Column(
+        SAEnum(DisputeTriggerEnum),
+        nullable=True,
+        comment="Description of how the dispute was triggered, e.g., 'manual', 'automatic'",
+        default=DisputeTriggerEnum.automatic,
+    )  # Description of how the dispute was triggered, e.g., "manual", "automatic"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(

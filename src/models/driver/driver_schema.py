@@ -25,6 +25,7 @@ class DriverBaseSchema(BaseModel):
     nationality: Optional[NationalityEnum] = NationalityEnum.indian  # e.g., Indian, American
     religion: Optional[ReligionEnum] = None  # e.g., Hindu, Muslim, Christian
     address:Optional[Address]=None
+    is_active: Optional[bool] = True  # Flag to indicate if the driver is currently active and available for trips, we can use this field to temporarily deactivate a driver without deleting their record from the database, for example, if they are on a break, on vacation, or if they have been suspended for any reason, we can set is_active to false and they will not be assigned any new trips until they are reactivated by setting is_active back to true. This way we can maintain the driver's historical data and trip records while also managing their availability for new trips effectively.
 
     
     class Config:

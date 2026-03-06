@@ -6,6 +6,7 @@ class RefundType(str, Enum):
     other = "other"
 
 class RefundStatus(str, Enum):
+    processed="processed"
     pending = "pending"
     completed = "completed"
     failed = "failed"

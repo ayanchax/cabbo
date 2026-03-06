@@ -211,7 +211,7 @@ async def notify_refund_initiated_to_customer(
         return False  # No email to send notification, do not proceed
     name = customer.name if customer.name else customer.email.split("@")[0]
     html_content = render_email_template(
-        "refund.html",
+        "refund-on-trip-cancellation.html",
         for_customer=True,
         name=name,
         refund_id=refund_id,
