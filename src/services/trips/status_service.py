@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from core.exceptions import CabboException
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
-from models.trip.trip_enums import CancellationSubStatusEnum, TripStatusEnum
+from models.trip.trip_enums import CancellationSubStatusEnum, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
@@ -68,6 +68,7 @@ async def _ongoing(
     requestor: User,
     payload: Optional[AdditionalDetailsOnTripStatusChange],
 ):
+    
     try:
         if not trip.advance_payment or trip.advance_payment <= 0:
             raise CabboException(
@@ -86,6 +87,28 @@ async def _ongoing(
             raise CabboException(
                 "Cannot start trip without an assigned driver", status_code=400
             )
+
+        trip_type = trip.trip_type_master.trip_type
+        if not trip_type:
+            raise CabboException(
+                "Invalid trip type associated with the trip. Please ensure the trip has a valid trip type before starting the trip.",
+                status_code=400,
+            )
+        
+        trip_type = TripTypeEnum(trip_type)
+        buffer_time_minutes = 30
+        now = datetime.now(timezone.utc)
+        scheduled_start_time = _evaluate_start_time(trip.start_datetime, payload.start_datetime if payload else None)
+
+        if trip_type in [TripTypeEnum.airport_drop, TripTypeEnum.airport_pickup]:
+            #Trip can be marked as ongoing if current time is equal to or after the start time minus buffer time for airport trips considering the short notice and potential driver inconvenience, but we will not allow to mark the trip as ongoing much before the start time to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
+            if now < scheduled_start_time - timedelta(minutes=buffer_time_minutes):
+                raise CabboException(
+                    f"Cannot start airport trip before {buffer_time_minutes} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience for airport trips.",
+                    status_code=400,
+                )
+            
+        
 
         existing_record = await get_trip_earning_for_driver(
             trip_id=trip.id, driver_id=trip.driver_id, db=db
@@ -109,12 +132,7 @@ async def _ongoing(
             await db.flush()  # Flush to save the updated driver availability status before any further operations
 
         # Update start datetime - The driver_admin can get the actual start datetime from the driver when they start the trip in the driver app, if not provided we will set the start datetime as current datetime in UTC timezone.
-        trip.start_datetime = (
-            payload.start_datetime
-            if payload and payload.start_datetime
-            else datetime.now(timezone.utc)
-        )  # Set the actual start datetime when trip starts
-
+        trip.start_datetime =scheduled_start_time
         # Update status
         trip.status = status.value
 
@@ -405,3 +423,16 @@ async def _dispute(
         await db.rollback()  # Rollback the transaction in case of any exception to ensure data integrity and consistency in the system, and also to avoid any partial updates to the trip record in case of any failure in the process of marking trip as dispute.
         print(f"Error while changing trip status to dispute for trip {trip.id}: {e}")
         raise e
+    
+
+ 
+
+def _evaluate_start_time(startdatetime: datetime, overridden_startdatetime: Optional[datetime]):
+    if overridden_startdatetime:
+        dt = overridden_startdatetime
+    else:
+        dt = startdatetime if startdatetime else datetime.now(timezone.utc)
+    # Normalise to UTC-aware — MySQL returns naive datetimes stored as UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
