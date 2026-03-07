@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
+from core.constants import APP_NAME
 from core.security import RoleEnum
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
@@ -22,7 +23,7 @@ from services.notification_service import notify_refund_initiated_to_customer
 from services.payment_service import initiate_razorpay_refund
 
 
-async def refund_advance_payment_to_customer(
+async def refund_advance_payment_to_customer_on_cancellation(
     trip: TripDetailSchema,
     db: AsyncSession,
     canceled_by_cabbo: bool = False,
@@ -34,6 +35,7 @@ async def refund_advance_payment_to_customer(
         if not config_store:
             syncdb = get_mysql_local_session()
             config_store = settings.get_config_store(db=syncdb)
+
 
         if trip.advance_payment is None or trip.advance_payment <= 0.0:
             print(f"No advance payment to refund for trip {trip.id}")
@@ -98,8 +100,8 @@ async def refund_advance_payment_to_customer(
             # Check if the cancellation is eligible for refund based on the cancellation policy and the time of cancellation
             free_cutoff_minutes = cancelation_policy.free_cutoff_minutes
             cancelation_time = (
-                trip.cancelation_datetime
-                if trip.cancelation_datetime
+                trip.cancellation.created_at
+                if trip.cancellation and trip.cancellation.created_at
                 else datetime.now(timezone.utc)
             )
             # If cancellation is done before free cutoff time, then full refund is applicable, if cancellation is done after free cutoff time but before trip start time, then partial refund is applicable, if cancellation is done after trip start time, then no refund is applicable.
@@ -109,7 +111,7 @@ async def refund_advance_payment_to_customer(
                 ).total_seconds() / 60  # Time difference in minutes
                 if (
                     time_diff >= free_cutoff_minutes
-                ):  # Cancellation is done before free cutoff time, then full refund is applicable
+                ):  # Cancellation is done before or at free cutoff time, then full refund is applicable
                     eligible_for_full_refund = True
                     refund_amount = trip.advance_payment
                 else:  # Cancellation is done after free cutoff time but before trip start time, then partial refund is applicable
@@ -189,24 +191,24 @@ async def refund_advance_payment_to_customer(
                 )
                 return False
 
-            # Update the trip record with refund details like refund amount, refund status, refund transaction id etc. This is a placeholder and should be replaced with actual implementation to update the trip record in the database.
-            reason = (
-                "Cancellation by Cabbo"
+            refund_reason = (
+                f"Amount refunded in {refund_type} as cancellation was done from {APP_NAME}'s side."
                 if canceled_by_cabbo
-                else "Cancellation by Customer"
+                else f"Amount refunded in {refund_type}, where cancellation was done by customer."
             )
             existing_refund = await get_refund_details_by_trip_id(trip_id=trip.id, db=db)
             if existing_refund:
                 print(f"Existing refund record found for trip {trip.id}, removing it before adding new refund details")
                 await remove_refund_details_by_trip_id(trip_id=trip.id, db=db, hard_delete=True)
-                
+
+            #Add refund details to the refunds table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
             updated = await _add_refund_details_for_trip(
                 refund=RefundSchema(
                     id=refund_response.get("id"),
                     entity_id=trip.id,
                     refund_status=refund_response.get("status"),
                     refund_amount=refund_amount,
-                    refund_reason=reason,
+                    refund_reason=refund_reason,
                     refund_details=refund_response,
                     refund_initiated_datetime=datetime.now(timezone.utc),
                     refund_type=refund_type,
@@ -235,6 +237,8 @@ async def refund_advance_payment_to_customer(
             else:
                 print(f"Failed to update refund details for trip {trip.id}")
                 return False
+            
+            #Independent block for adding 
 
             return True
         else:

@@ -15,7 +15,6 @@ def log_trip_audit(
     status: TripStatusEnum,
     committer_id: str,
     reason: Optional[str] = None,
-    cancellation_sub_status: Optional[CancellationSubStatusEnum] = None,
     commit: bool = True
 ):
     """
@@ -40,7 +39,6 @@ def log_trip_audit(
             committer_id=committer_id,
             status=status,
             reason=reason,
-            cancellation_sub_status=cancellation_sub_status,
         )
         db.add(audit)
         if commit:
@@ -59,7 +57,6 @@ async def a_log_trip_audit(
     status: TripStatusEnum,
     committer_id: str,
     reason: Optional[str] = None,
-    cancellation_sub_status: Optional[CancellationSubStatusEnum] = None,
     commit: bool = True
 ):
     """
@@ -71,7 +68,6 @@ async def a_log_trip_audit(
         committer_id (str): The ID of the user or system that is logging the audit.
         changed_by (Optional[RoleEnum]): The role of the user making the change.
         reason (Optional[str]): Reason for the status change, if applicable.
-        cancellation_sub_status (Optional[CancellationSubStatusEnum]): Sub-status for cancellations, if applicable.
         commit (bool): Whether to commit the transaction after logging.
     Returns:
         TripStatusAudit: The created audit log entry.
@@ -84,7 +80,6 @@ async def a_log_trip_audit(
             committer_id=committer_id,
             status=status,
             reason=reason,
-            cancellation_sub_status=cancellation_sub_status,
         )
         db.add(audit)
         await db.flush()  # Ensure the audit entry is added to the session before committing

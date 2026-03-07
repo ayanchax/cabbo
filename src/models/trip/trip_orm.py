@@ -94,7 +94,6 @@ class Trip(Base):
         DateTime, nullable=True
     )  # Nullable | for local trips, we set it by package chosen
     end_datetime = Column(DateTime, nullable=True)
-    cancelation_datetime = Column(DateTime, nullable=True)
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
@@ -276,7 +275,15 @@ class Trip(Base):
         back_populates="trip",
         passive_deletes=True,
     )
-
+    #A trip can have one cancellation record associated with it, which is populated when a trip is cancelled and the cancellation record is created in the cancellations table, so the relationship is one-to-one from Trip to Cancellation and many-to-one from Cancellation to Trip.
+    cancellation = relationship(
+        "Cancellation",
+        primaryjoin="Cancellation.entity_id==Trip.id",
+        foreign_keys="[Cancellation.entity_id]",
+        uselist=False,
+        back_populates="trip",
+        passive_deletes=True,
+    )
     # Audit fields - END
 
 
@@ -297,13 +304,6 @@ class TripStatusAudit(Base):
     reason = Column(String(255), nullable=True)  # New: reason/message for audit
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)
 
-    # New: for analytics and auditability
-    cancellation_sub_status = Column(
-        Enum(CancellationSubStatusEnum),
-        nullable=True,
-        default=None,
-        comment="Detailed cancellation reason for analytics (nullable, only for cancelled trips)",
-    )
 
     trip = relationship("Trip", back_populates="status_audits")
 

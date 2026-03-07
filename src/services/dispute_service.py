@@ -111,6 +111,7 @@ async def _remove_dispute_by_trip_id(
                 await db.delete(dispute_record)
             else:
                 dispute_record.is_active = False
+                db.add(dispute_record)
             await db.commit()
             return True
         return False
