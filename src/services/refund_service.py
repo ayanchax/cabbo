@@ -6,7 +6,8 @@ from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import PaymentNotesSchema
-from models.trip.trip_enums import TripTypeEnum
+from models.pricing.pricing_schema import Currency
+from models.trip.trip_enums import CancellationSubStatusEnum, TripTypeEnum
 from models.trip.trip_schema import TripDetailSchema
 from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_schema import RefundSchema
@@ -26,16 +27,18 @@ from services.payment_service import initiate_razorpay_refund
 async def refund_advance_payment_to_customer_on_cancellation(
     trip: TripDetailSchema,
     db: AsyncSession,
-    canceled_by_cabbo: bool = False,
+    cancelation_sub_status: CancellationSubStatusEnum,
     config_store: ConfigStore = None,
     silently_fail: bool = False,
     requestor: str = None,
 ):
     try:
+        # Determine if the cancellation is done by cabbo or by driver or due to any other reason except customer cancellation or customer no show, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver admin or due to any other reason except customer cancellation, then we should refund the advance payment to customer in full because it is not the fault of customer and they should not be penalized for that.
+        canceled_by_cabbo = cancelation_sub_status not in [CancellationSubStatusEnum.customer_cancelled, CancellationSubStatusEnum.customer_no_show]
+
         if not config_store:
             syncdb = get_mysql_local_session()
             config_store = settings.get_config_store(db=syncdb)
-
 
         if trip.advance_payment is None or trip.advance_payment <= 0.0:
             print(f"No advance payment to refund for trip {trip.id}")
@@ -50,7 +53,14 @@ async def refund_advance_payment_to_customer_on_cancellation(
             eligible_for_full_refund = True
             refund_amount = trip.advance_payment
         else:
+            # For customer no show cases(reported by driver to driver admin), we will not refund the advance payment as it is the responsibility of customer to cancel the trip in time if they are not going to use it and if they do a no show then it is not the fault of cabbo and hence we should not refund the advance payment in that case.
+            if cancelation_sub_status == CancellationSubStatusEnum.customer_no_show:
+                print(
+                    f"Cancellation for trip {trip.id} is marked as customer no-show, hence not eligible for refund"
+                )
+                return False
 
+            # For other customer-initiated cancellation cases, we will check the cancellation policy based on the trip type and region/state and then determine the refund amount based on the cancellation time and the free cancellation cutoff time defined in the cancellation policy for that trip type and region/state.
             if trip.trip_type.trip_type in [
                 TripTypeEnum.airport_drop,
                 TripTypeEnum.airport_pickup,
@@ -176,32 +186,29 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 payment_id=trip.payment_provider_metadata.get("razorpay_payment_id"),
                 refund_amount=refund_amount,
                 notes=notes,
-                currency_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
-                silently_fail=silently_fail,
-            )
-            if not refund_response:
-                print(
-                    f"Refund initiation failed for trip {trip.id} through payment provider, refund_response is None"
+                currency=Currency(
+                    code=config_store.geographies.country_server.currency,
+                    lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
                 )
-                return False
-
-            if not refund_response.get("id"):
-                print(
-                    f"Refund initiation failed for trip {trip.id} through payment provider, refund_response does not contain refund ID"
                 )
-                return False
-
-            refund_reason = (
+        
+            if refund_response.get("status") =="processed":
+                refund_reason = (
                 f"Amount refunded in {refund_type} as cancellation was done from {APP_NAME}'s side."
                 if canceled_by_cabbo
                 else f"Amount refunded in {refund_type}, where cancellation was done by customer."
             )
+            else:
+                refund_reason = (
+                f"Refund initiation failed through payment provider with status {refund_response.get('status')}, hence marking refund as failed for trip {trip.id}."
+            )
+
             existing_refund = await get_refund_details_by_trip_id(trip_id=trip.id, db=db)
             if existing_refund:
                 print(f"Existing refund record found for trip {trip.id}, removing it before adding new refund details")
                 await remove_refund_details_by_trip_id(trip_id=trip.id, db=db, hard_delete=True)
 
-            #Add refund details to the refunds table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
+            # Add refund details to the refunds table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
             updated = await _add_refund_details_for_trip(
                 refund=RefundSchema(
                     id=refund_response.get("id"),
@@ -237,8 +244,8 @@ async def refund_advance_payment_to_customer_on_cancellation(
             else:
                 print(f"Failed to update refund details for trip {trip.id}")
                 return False
-            
-            #Independent block for adding 
+
+            # Independent block for adding
 
             return True
         else:
@@ -288,7 +295,7 @@ async def _add_refund_details_for_trip(
         print(f"Error in _add_refund_details_for_trip: {e}")
         # Log the exception or handle it as needed
         return False
-    
+
 async def get_refund_details_by_trip_id(trip_id: str, db: AsyncSession) -> Optional[RefundSchema]:
     try:
         result = await db.execute(

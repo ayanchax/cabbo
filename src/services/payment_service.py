@@ -212,8 +212,7 @@ def initiate_razorpay_refund(
     payment_id: str,
     refund_amount: float,
     notes: PaymentNotesSchema,
-    currency_conversion_factor: int = 100,
-    silently_fail: bool = False,
+    currency:Currency,
 ) -> dict:
     """
     Initiate a refund for a Razorpay payment.
@@ -223,8 +222,7 @@ def initiate_razorpay_refund(
         refund_amount (float): The amount to refund in rupees.
         trip_id (str): The ID of the trip associated with the refund.
         customer (CustomerRead): The customer details associated with the refund.
-        currency_conversion_factor (int): The conversion factor for the currency (e.g., 100 for INR to convert rupees to paise).
-        speed (str): The speed of the refund, either "normal" or "optimum". "optimum" may result in faster refunds but may have additional costs.
+        currency (Currency): The currency used in the transaction.
 
     Returns:
         dict: A dictionary containing the refund details.
@@ -235,7 +233,7 @@ def initiate_razorpay_refund(
 
         refund_data = {
             "amount": int(
-                _conversion_based_on_currency(refund_amount, currency_conversion_factor)
+                _conversion_based_on_currency(refund_amount, currency.lowest_unit_conversion_factor)
             ),  # Convert rupees to paise
         }
 
@@ -250,7 +248,14 @@ def initiate_razorpay_refund(
         refund = client.payment.refund(payment_id, refund_data)
 
         if not refund or "id" not in refund:
-            raise CabboException("Failed to create Razorpay refund.", status_code=500)
+            return _populate_failed_refund_response(
+                payment_id=payment_id,
+                refund_amount=refund_amount,
+                notes=notes,
+                currency_conversion_factor=currency.lowest_unit_conversion_factor,
+            currency_code=currency.code
+
+            )
 
         # Format the refund response
         formatted_refund = {
@@ -258,7 +263,7 @@ def initiate_razorpay_refund(
             "amount": float(
                 _conversion_based_on_currency(
                     refund.get("amount", 0),
-                    currency_conversion_factor,
+                    currency.lowest_unit_conversion_factor,
                     convert_to_lowest=False,
                 )
             ),  # Convert paise to rupees
@@ -269,16 +274,53 @@ def initiate_razorpay_refund(
 
     except razorpay.errors.BadRequestError as e:
         logger.error(f"Razorpay refund creation failed: {str(e)}")
-        if not silently_fail:
-            raise CabboException(
-                f"Razorpay refund creation failed: {str(e)}", status_code=500
-            )
-        return None
+        return _populate_failed_refund_response(
+            payment_id=payment_id,
+            refund_amount=refund_amount,
+            notes=notes,
+            currency_conversion_factor=currency.lowest_unit_conversion_factor,
+            currency_code=currency.code
+
+        )
+
     except Exception as e:
         logger.error(f"Unexpected error during Razorpay refund creation: {str(e)}")
-        if not silently_fail:
-            raise CabboException(
-                f"Unexpected error during Razorpay refund creation: {str(e)}",
-                status_code=500,
-            )
-        return None
+
+        return _populate_failed_refund_response(
+            payment_id=payment_id,
+            refund_amount=refund_amount,
+            notes=notes,
+            currency_conversion_factor=currency.lowest_unit_conversion_factor,
+            currency_code=currency.code
+
+        )
+
+
+def _populate_failed_refund_response(
+    payment_id: str,
+    refund_amount: float,
+    notes: PaymentNotesSchema,
+    currency_conversion_factor: int = 100,
+    currency_code:str= "INR",
+):
+    refund_response = {
+        "id": payment_id,  # Replace refund id with the payment id
+        "status": "failed",
+        "currency": currency_code,
+        "notes": {
+            "reference_source_id": str(notes.reference_source_id or ""),
+            "refund_type": str(notes.refund_type or ""),
+            "requestor": str(notes.requestor or ""),
+            "customer_id": str(notes.customer.id if notes.customer else ""),
+            "customer_name": str(notes.customer.name if notes.customer else ""),
+        },
+        "payment_id": payment_id,
+        "batch_id": None,
+        "receipt": None,
+        "entity": "refund",
+        "amount": refund_amount,
+        "base_amount": _conversion_based_on_currency(
+            refund_amount, currency_conversion_factor
+        ),
+    }
+    return refund_response

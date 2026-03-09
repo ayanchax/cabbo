@@ -27,6 +27,7 @@ class CancelationSchema(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for cancellation provided by the customer or system user/admin")
     created_at: Optional[datetime] = Field(None, description="Date and time when the cancellation record was created")
     updated_at: Optional[datetime] = Field(None, description="Date and time when the cancellation record was updated")
+    
     class Config:
         from_attributes = True
         extra = "allow"

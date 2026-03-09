@@ -188,6 +188,7 @@ async def assign_driver_to_trip(
     db: AsyncSession,
     requestor: User,
     attach_trip_relationships: bool = False,
+    validate_time_window: bool = False,
 ):
     try:
         # Check Trip is in confirmed status
@@ -213,25 +214,25 @@ async def assign_driver_to_trip(
             expected_end_datetime = trip.expected_end_datetime.replace(
                 tzinfo=timezone.utc
             )
-
-        # For airport drop, pickup and hourly rental trip types, block trips that happened in the past but somehow still have confirmed status. This is a bad data issue. Ideally this should not happen, but we are adding this check to prevent assigning drivers to such orphan trips which are in the past and should have been completed or cancelled but are still showing as confirmed due to some data issue.
-        if trip_type in [
-            TripTypeEnum.airport_drop,
-            TripTypeEnum.airport_pickup,
-            TripTypeEnum.local,
-        ] and start_datetime < datetime.now(timezone.utc):
-            raise CabboException(
-                "Cannot assign driver to a trip that is in the past.", status_code=400
-            )
-        # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
-        if (
-            trip_type == TripTypeEnum.outstation
-            and start_datetime < datetime.now(timezone.utc)
-            and expected_end_datetime < datetime.now(timezone.utc)
-        ):
-            raise CabboException(
-                "Cannot assign driver to a trip that is in the past.", status_code=400
-            )
+        if validate_time_window:
+            # For airport drop, pickup and hourly rental trip types, block trips that happened in the past but somehow still have confirmed status. This is a bad data issue. Ideally this should not happen, but we are adding this check to prevent assigning drivers to such orphan trips which are in the past and should have been completed or cancelled but are still showing as confirmed due to some data issue.
+            if trip_type in [
+                TripTypeEnum.airport_drop,
+                TripTypeEnum.airport_pickup,
+                TripTypeEnum.local,
+            ] and start_datetime < datetime.now(timezone.utc):
+                raise CabboException(
+                    "Cannot assign driver to a trip that is in the past.", status_code=400
+                )
+            # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
+            if (
+                trip_type == TripTypeEnum.outstation
+                and start_datetime < datetime.now(timezone.utc)
+                and expected_end_datetime < datetime.now(timezone.utc)
+            ):
+                raise CabboException(
+                    "Cannot assign driver to a trip that is in the past.", status_code=400
+                )
         # Check Trip has a valid creator_id
         if not trip.creator_id:
             raise CabboException(

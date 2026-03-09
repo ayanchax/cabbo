@@ -284,6 +284,7 @@ class Trip(Base):
         back_populates="trip",
         passive_deletes=True,
     )
+    
     # Audit fields - END
 
 

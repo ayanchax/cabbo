@@ -589,9 +589,6 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
         past_trips = [trip for trip in trips if trip.get("status") in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value]]
         return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
-
-
-
 def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
     current_datetime = datetime.now(timezone.utc)
     upcoming_trips = []
@@ -651,6 +648,9 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
     background_task: Optional[AppBackgroundTask] = None
     try:
        trip_schema,background_task=  await change_status(trip=trip, db=db, status=new_status, requestor=requestor, payload=payload)
+    except CabboException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise CabboException(f"Failed to update trip status: {str(e)}", status_code=500)

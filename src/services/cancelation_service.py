@@ -37,9 +37,11 @@ def get_cancelation_sub_status(
 ):
     cancelation_sub_status = CancellationSubStatusEnum.other
     if requestor.role == RoleEnum.customer and requestor.id == creator_id:
+        #Customer-initiated cancellation
         cancelation_sub_status = CancellationSubStatusEnum.customer_cancelled
 
     else:
+        #System-initiated cancellation (e.g. due to customer no-show, driver cancellation, driver_unavailable, driver no-show etc.) or Admin-initiated cancellation
         cancelation_sub_status = (
             cancelation_detail.cancellation_sub_status
             if cancelation_detail and cancelation_detail.cancellation_sub_status
@@ -53,6 +55,7 @@ async def register_trip_cancellation(
     payload: CancelationSchema,
     db: AsyncSession,
     silently_fail: bool = False,
+    commit: bool = True,
 ):
     try:
         existing_cancelation = await get_cancellation_by_trip_id(
@@ -63,13 +66,14 @@ async def register_trip_cancellation(
                 f"Existing cancellation record found for trip {payload.entity_id}, removing it before adding new cancellation details"
             )
             await remove_cancellation_by_trip_id(
-                trip_id=payload.entity_id, db=db, hard_delete=True
+                trip_id=payload.entity_id, db=db, hard_delete=True, commit=commit
             )
 
         return await _create_cancellation_record(
             payload=payload,
             db=db,
             silently_fail=silently_fail,
+            commit=commit,
         )
     except Exception as e:
         print(f"Error registering cancellation for trip {payload.entity_id}: {e}")
@@ -79,7 +83,7 @@ async def register_trip_cancellation(
 
 
 async def _create_cancellation_record(
-    payload: CancelationSchema, db: AsyncSession, silently_fail: bool = False
+    payload: CancelationSchema, db: AsyncSession, silently_fail: bool = False, commit: bool = True
 ):
     """
     This function creates a cancellation record for a trip. It is called when a trip is marked as cancelled. The cancellation record is created with the details provided in the payload. If silently_fail is set to True, the function will not raise an exception if it fails to create a cancellation record.
@@ -93,7 +97,9 @@ async def _create_cancellation_record(
         )
         db.add(new_cancellation)
         await db.flush()  # Flush to ensure the cancellation record is saved before any further operations
-        await db.commit()
+        if commit:
+            await db.commit()
+        await db.refresh(new_cancellation)
         return CancelationSchema.model_validate(new_cancellation)
     except Exception as e:
         await db.rollback()
@@ -121,7 +127,7 @@ async def get_cancellation_by_trip_id(
 
 
 async def remove_cancellation_by_trip_id(
-    trip_id: str, db: AsyncSession, hard_delete: bool = False
+    trip_id: str, db: AsyncSession, hard_delete: bool = False, commit: bool = True
 ):
     try:
         result = await db.execute(
@@ -134,7 +140,8 @@ async def remove_cancellation_by_trip_id(
             else:
                 cancellation.is_active = False
                 db.add(cancellation)
-            await db.commit()
+            if commit:
+                await db.commit()
             return True
         return False
     except Exception as e:
