@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
-from models.policies.refund_enum import RefundStatus, RefundTrigger, RefundType
+from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundTrigger, RefundType
 
 
 class Refund(Base):
@@ -50,7 +50,7 @@ class Refund(Base):
         SAEnum(RefundType), nullable=False, default=RefundType.other
     )  # Type of refund, e.g., full, partial, etc.
     refund_provider = Column(
-        String(50), nullable=True
+        SAEnum(PaymentProvider), nullable=True, comment="Payment provider used for processing the refund, e.g., Stripe, PayPal, etc."
     )  # Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.
     refund_trigger=Column(
         SAEnum(RefundTrigger), nullable=True, default=RefundTrigger.automatic

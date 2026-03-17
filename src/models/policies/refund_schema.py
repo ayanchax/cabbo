@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, Optional
 from pydantic import BaseModel, Field
-from models.policies.refund_enum import RefundStatus, RefundType, RefundTrigger
+from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundType, RefundTrigger
 
 
 class RefundSchema(BaseModel):
@@ -14,5 +14,5 @@ class RefundSchema(BaseModel):
     refund_details: Optional[Dict] = Field(None, description="Details of the refund transaction from the payment provider")
     refund_initiated_datetime: Optional[datetime] = Field(None, description="Date and time when the refund was initiated")
     refund_type: Optional[RefundType] = Field(RefundType.other, description="Type of refund, e.g., full, partial, etc.")
-    refund_provider: Optional[str] = Field(None, description="Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.")
+    refund_provider: Optional[PaymentProvider] = Field(None, description="Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.")
     refund_trigger: Optional[RefundTrigger] = Field(RefundTrigger.automatic, description="Description of how the refund was triggered, e.g., 'manual', 'automatic'")

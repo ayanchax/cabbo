@@ -2,7 +2,10 @@ from typing import Optional
 
 from core.security import RoleEnum
 from models.policies.cancelation_orm import Cancellation
-from models.policies.cancelation_schema import CancelationSchema
+from models.policies.cancelation_schema import (
+    CancelationPolicySchema,
+    CancelationSchema,
+)
 from models.trip.trip_enums import CancellationSubStatusEnum
 from models.user.user_orm import User
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,11 +40,11 @@ def get_cancelation_sub_status(
 ):
     cancelation_sub_status = CancellationSubStatusEnum.other
     if requestor.role == RoleEnum.customer and requestor.id == creator_id:
-        #Customer-initiated cancellation
+        # Customer-initiated cancellation
         cancelation_sub_status = CancellationSubStatusEnum.customer_cancelled
 
     else:
-        #System-initiated cancellation (e.g. due to customer no-show, driver cancellation, driver_unavailable, driver no-show etc.) or Admin-initiated cancellation
+        # System-initiated cancellation (e.g. due to customer no-show, driver cancellation, driver_unavailable, driver no-show etc.) or Admin-initiated cancellation
         cancelation_sub_status = (
             cancelation_detail.cancellation_sub_status
             if cancelation_detail and cancelation_detail.cancellation_sub_status
@@ -83,7 +86,10 @@ async def register_trip_cancellation(
 
 
 async def _create_cancellation_record(
-    payload: CancelationSchema, db: AsyncSession, silently_fail: bool = False, commit: bool = True
+    payload: CancelationSchema,
+    db: AsyncSession,
+    silently_fail: bool = False,
+    commit: bool = True,
 ):
     """
     This function creates a cancellation record for a trip. It is called when a trip is marked as cancelled. The cancellation record is created with the details provided in the payload. If silently_fail is set to True, the function will not raise an exception if it fails to create a cancellation record.
@@ -148,3 +154,11 @@ async def remove_cancellation_by_trip_id(
         print(f"Error removing cancellation record for trip_id {trip_id}: {e}")
         await db.rollback()
         return False
+
+
+def get_cancelation_policy_id(policy: Optional[CancelationPolicySchema]):
+
+    if policy and policy.id:
+        return policy.id
+
+    return None

@@ -6,7 +6,8 @@ from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import PaymentNotesSchema
-from models.policies.refund_enum import RefundType
+from models.policies.cancelation_schema import CancelationPolicySchema
+from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundType
 from models.pricing.pricing_schema import Currency
 from models.trip.trip_enums import CancellationSubStatusEnum, TripTypeEnum
 from models.trip.trip_schema import TripDetailSchema
@@ -15,6 +16,7 @@ from models.policies.refund_schema import RefundSchema
 from core.config import settings
 from sqlalchemy import select
 
+from services.cancelation_service import get_cancelation_policy_id
 from services.geography_service import (
     async_get_region_by_code,
     async_get_state_by_state_code,
@@ -22,8 +24,7 @@ from services.geography_service import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.notification_service import notify_refund_initiated_to_customer
-from services.payment_service import initiate_refund
-
+from services.payment_service import get_refund_status, initiate_refund
 
 
 async def refund_advance_payment_to_customer_on_cancellation(
@@ -35,6 +36,12 @@ async def refund_advance_payment_to_customer_on_cancellation(
     requestor: str = None,
 ):
     try:
+        can_proceed = await _can_proceed_to_refund_initiation(id=trip.id, db=db, silently_fail=silently_fail)
+        if not can_proceed:
+            print(
+                f"Refund initiation for trip {trip.id} is already in process or completed, hence skipping refund initiation"
+            )
+            return False
         # Determine if the cancellation is done by cabbo or by driver or due to any other reason except customer cancellation or customer no show, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver admin or due to any other reason except customer cancellation, then we should refund the advance payment to customer in full because it is not the fault of customer and they should not be penalized for that.
         canceled_by_cabbo = cancelation_sub_status not in [
             CancellationSubStatusEnum.customer_cancelled,
@@ -54,6 +61,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
         eligible_for_partial_configuration_based_refund = False
         eligible_for_full_refund = False
         refund_amount = 0.0
+        cancelation_policy: Optional[CancelationPolicySchema] = None
         if canceled_by_cabbo:
             eligible_for_full_refund = True
             refund_amount = trip.advance_payment
@@ -161,12 +169,14 @@ async def refund_advance_payment_to_customer_on_cancellation(
             print(
                 f"Initiating refund of amount {currency_symbol}{refund_amount} for trip {trip.id} through payment provider"
             )
-            payment_id = trip.payment_provider_metadata.get("razorpay_payment_id")
+            key = f"{settings.PAYMENT_PROVIDER}_payment_id"
+            payment_id = trip.payment_provider_metadata.get(key)
             if not payment_id:
                 print(
                     f"No payment ID found in payment_provider_metadata for trip {trip.id}, cannot initiate refund"
                 )
                 return False
+
             if not trip.customer:
                 print(
                     f"No customer information found for trip {trip.id}, cannot initiate refund"
@@ -189,41 +199,34 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     contact=trip.customer.phone_number,
                 ),
             )
+            key = f"{settings.PAYMENT_PROVIDER}_payment_id"
             refund_response = initiate_refund(
-                payment_id=trip.payment_provider_metadata.get("razorpay_payment_id"),
+                payment_id=trip.payment_provider_metadata.get(key),
                 refund_amount=refund_amount,
                 notes=notes,
                 currency=Currency(
                     code=config_store.geographies.country_server.currency,
                     lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
                 ),
+                silently_fail=silently_fail,
             )
-
-            if refund_response.get("status") == "processed":
-                refund_reason = (
-                    f"Amount refunded in {refund_type.value} as cancellation was done from {APP_NAME}'s side."
-                    if canceled_by_cabbo
-                    else f"Amount refunded in {refund_type}, where cancellation was done by customer."
-                )
-            else:
-                refund_reason = f"Refund initiation failed through payment provider with status {refund_response.get('status')}, hence marking refund as failed for trip {trip.id}."
-
-            existing_refund = await get_refund_details_by_trip_id(
-                trip_id=trip.id, db=db
-            )
-            if existing_refund:
+            if silently_fail and not refund_response:
+                #This will happen only when the refund initiation fails at payment provider level and silently_fail flag is set to True, in that case we will not update the refund details in the database and we will not send notification to customer about the refund initiation failure because it is expected as per the flag and we are silently failing it, so just log it and move on without doing anything as refund initiation failure is expected in this case due to silently_fail flag being True.
                 print(
-                    f"Existing refund record found for trip {trip.id}, removing it before adding new refund details"
+                    f"Refund initiation failed for trip {trip.id} but silently failing as per the flag, hence skipping refund details update and notification sending to customer"
                 )
-                await remove_refund_details_by_trip_id(
-                    trip_id=trip.id, db=db, hard_delete=True
-                )
+                return False
 
+            
             # Add refund details to the refunds table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
+            policy_id = get_cancelation_policy_id(policy=cancelation_policy)
+            refund_reason = (
+                f"Refund for {refund_type.value} cancellation of trip {trip.id} with cancellation sub status {cancelation_sub_status.value}"
+            )
             updated = await _add_refund_details_for_trip(
                 refund=RefundSchema(
                     id=refund_response.get("id"),
-                    policy_id=cancelation_policy.id if cancelation_policy else None,
+                    policy_id=policy_id,
                     entity_id=trip.id,
                     refund_status=refund_response.get("status"),
                     refund_amount=refund_amount,
@@ -231,10 +234,11 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     refund_details=refund_response,
                     refund_initiated_datetime=datetime.now(timezone.utc),
                     refund_type=refund_type,
-                    refund_provider=settings.PAYMENT_PROVIDER,
+                    refund_provider=PaymentProvider(settings.PAYMENT_PROVIDER),
                 ),
                 db=db,
                 created_by=requestor or RoleEnum.system.value,
+                commit=False,  # We will commit after sending notification to customer, so that if there is any failure in sending notification to customer then we can rollback the transaction and not save the refund details in the database because it is important to send notification to customer about the refund initiation and if we fail to send notification to customer then it can lead to bad customer experience and confusion for customer about the refund status. So we will commit the transaction only after successfully sending notification to customer.
             )
             if updated:
                 print(f"Refund details updated successfully for trip {trip.id}")
@@ -253,22 +257,23 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     booking_id=trip.booking_id,
                     original_amount=formatted_original_amount,
                 )
+                await db.commit()
             else:
-                print(f"Failed to update refund details for trip {trip.id}")
-                return False
-
-            # Independent block for adding
+                print(
+                    f"Refund initiated but Failed to update refund details for trip {trip.id}"
+                )
 
             return True
         else:
             print(
                 f"No refund applicable for trip {trip.id} based on the cancellation policy and timing"
             )
-            return False
+        return False
     except Exception as e:
         import traceback
 
         traceback.print_exc()
+        await db.rollback()
         print(f"Error in refund_advance_payment_to_customer: {e}")
         # Log the exception or handle it as needed
         if not silently_fail:
@@ -280,6 +285,7 @@ async def _add_refund_details_for_trip(
     refund: RefundSchema,
     created_by: str,
     db: AsyncSession,
+    commit: bool = True,
 ):
 
     try:
@@ -299,10 +305,11 @@ async def _add_refund_details_for_trip(
         )
         db.add(refund_record)
         await db.flush()
-        await db.commit()
-        print(
-            f"Refund details updated for entity {refund.entity_id} with refund amount {refund.refund_amount} and refund reason {refund.refund_reason}"
-        )
+        if commit:
+            await db.commit()
+            print(
+                f"Refund details updated for entity {refund.entity_id} with refund amount {refund.refund_amount} and refund reason {refund.refund_reason}"
+            )
         return True
     except Exception as e:
         await db.rollback()
@@ -356,3 +363,78 @@ async def remove_refund_details_by_trip_id(
         print(f"Error in remove_refund_details_by_trip_id: {e}")
         # Log the exception or handle it as needed
         return False
+
+
+async def _update_refund_status(
+    refund_id: str, new_status: RefundStatus, db: AsyncSession
+) -> bool:
+
+    try:
+        result = await db.execute(
+            select(RefundORM).where(
+                RefundORM.id == refund_id, RefundORM.is_active == True
+            )
+        )
+
+        refund_record = result.scalars().first()
+        if refund_record:
+            refund_record.refund_status = new_status
+            db.add(refund_record)
+            await db.commit()
+            print(
+                f"Refund status updated to {new_status.value} for refund ID {refund_id}"
+            )
+            return True
+        print(f"No active refund record found for refund ID {refund_id} to update")
+        return False
+    except Exception as e:
+        await db.rollback()
+        print(f"Error in _update_refund_status: {e}")
+        # Log the exception or handle it as needed
+        return False
+
+
+async def _can_proceed_to_refund_initiation(id: str, db: AsyncSession, silently_fail: bool = False) -> bool:
+
+    #     1. Check DB for existing refund record
+    #    └─ If exists with status=processed → return True (done, nothing to do)
+    #    └─ If exists with status=pending   → check Razorpay for current status
+    #        └─ processed → update DB, return True
+    #        └─ still pending → return True (in-flight, don't retry)
+    #        └─ failed → fall through to retry refund initiation
+    #    └─ If exists with status=failed    → fall through to retry
+    #    └─ If no DB record                 → fall through to fresh initiation
+    # Check DB for existing refund record
+    existing_refund = await get_refund_details_by_trip_id(trip_id=id, db=db)
+    if existing_refund:
+        if existing_refund.refund_status == RefundStatus.processed:
+            print(f"Refund already processed for trip {id}, nothing to do")
+            return False  # No need to proceed with refund initiation as refund is already processed for this trip
+        elif existing_refund.refund_status == RefundStatus.pending:
+            # Check Razorpay for current status
+            razorpay_status = get_refund_status(existing_refund.id, silently_fail=silently_fail)
+            if silently_fail and razorpay_status is None:
+                # This will happen only when there is a failure at the payment provider level.
+                print(
+                    f"Failed to get refund status from payment provider for refund ID {existing_refund.id} but silently failing as per the flag, hence treating it as still pending and not retrying refund initiation to avoid duplicate refunds"
+                )
+                return False
+            
+            if razorpay_status == RefundStatus.processed:
+                # Update DB and return, no need to retry refund initiation as it is already processed in Razorpay, just update our DB to reflect the correct status
+                await _update_refund_status(
+                    existing_refund.id, RefundStatus.processed, db
+                )
+                return False
+            elif razorpay_status == RefundStatus.pending:
+                # Still pending, return True (in-flight, don't retry as there are no changes pending->pending)
+                return False
+            elif razorpay_status == RefundStatus.failed:
+                # Sync DB to reflect actual Razorpay state before retrying
+                await _update_refund_status(existing_refund.id, RefundStatus.failed, db)
+                # Fall through to retry refund initiation
+                return True
+        elif existing_refund.refund_status == RefundStatus.failed:
+            # Fall through to retry refund initiation
+            return True
+    return True  # No existing refund record found, can proceed with refund initiation

@@ -1,11 +1,11 @@
+from enum import Enum
 import logging
-from typing import Literal
 
 import razorpay.errors
 from core.constants import APP_NAME, APP_VERSION
 from core.exceptions import CabboException
 from models.customer.customer_orm import Customer
-from models.customer.customer_schema import CustomerPayment, CustomerRead
+from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import (
     PaymentNotesSchema,
     RazorPayPaymentResponse,
@@ -16,7 +16,7 @@ import razorpay
 from core.config import settings
 from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
-from models.trip.trip_schema import TripBookRequest, TripDetails
+from models.trip.trip_schema import TripBookRequest
 from utils.utility import convert_based_on_currency
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,23 @@ RAZOR_PAY_CLIENT_DETAILS = {
     "name": f"{APP_NAME.capitalize()} Trip Booking Service",
     "description": "Service for booking trips and managing payments.",
 }
+
+
+class RazorPayRefundStatusEnum(str, Enum):
+    PENDING = "pending"  # Refund queued but not yet processed
+    PROCESSED = "processed"  # Refund has been processed by Razorpay and is in the system, but not yet reflected in customer's account
+    FAILED = "failed"  # Refund processing failed due to some error, refund has not been processed by Razorpay and is not in the system
+
+
+class RazorPayOrderStatusEnum(str, Enum):
+    CREATED = "created"  # Order has been created but payment not yet attempted
+    ATTEMPTED = "attempted"  # Payment has been attempted but not yet successful (e.g. customer abandoned payment or payment failed)
+    PAID = "paid"  # Payment has been successful but not yet captured (e.g. authorized but not captured)
+
+
+class RazorPayPaymentStatusEnum(str, Enum):
+    CAPTURED = "captured"  # Payment has been successful and captured, this is the final successful state for a payment
+
 
 def _format_razorpay_order(order: dict, conversion_factor: int) -> dict:
     """Format Razorpay order response."""
@@ -45,6 +62,7 @@ def _format_razorpay_order(order: dict, conversion_factor: int) -> dict:
             )
         ),
     }
+
 
 def _create_razorpay_order(
     razorpay_order: RazorpayOrderSchema, db: Session = None
@@ -108,16 +126,17 @@ def _create_razorpay_order(
             status_code=500,
         )
 
-def _populate_failed_refund_response(
+
+def _populate_failed_razorpay_refund_response(
     payment_id: str,
     refund_amount: float,
     notes: PaymentNotesSchema,
     currency_conversion_factor: int = 100,
-    currency_code:str= "INR",
+    currency_code: str = "INR",
 ):
     refund_response = {
         "id": payment_id,  # Replace refund id with the payment id
-        "status": "failed",
+        "status": RazorPayRefundStatusEnum.FAILED.value,
         "currency": currency_code,
         "notes": {
             "reference_source_id": str(notes.reference_source_id or ""),
@@ -136,6 +155,7 @@ def _populate_failed_refund_response(
         ),
     }
     return refund_response
+
 
 def get_razorpay_payment_order(
     booking_request: TripBookRequest,
@@ -165,6 +185,7 @@ def get_razorpay_payment_order(
     trip_id = temp_trip.id  # Use the temporary trip ID as the booking ID
     return trip_id, _create_razorpay_order(razorpay_order=razorpay_schema)
 
+
 def verify_razorpay_payment(payment_detail: dict):
     """
     Verify the payment status with Razorpay.
@@ -175,7 +196,7 @@ def verify_razorpay_payment(payment_detail: dict):
     try:
         payment_detail = RazorPayPaymentResponse.model_validate(payment_detail)
         payment = client.payment.fetch(payment_detail.razorpay_payment_id)
-        if payment["status"] == "captured":
+        if payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value:
             logger.debug(
                 f"Payment {payment_detail.razorpay_payment_id} verified successfully."
             )
@@ -197,11 +218,12 @@ def verify_razorpay_payment(payment_detail: dict):
         )
         return False
 
+
 def initiate_razorpay_refund(
     payment_id: str,
     refund_amount: float,
     notes: PaymentNotesSchema,
-    currency:Currency,
+    currency: Currency,
 ) -> dict:
     """
     Initiate a refund for a Razorpay payment.
@@ -222,7 +244,9 @@ def initiate_razorpay_refund(
 
         refund_data = {
             "amount": int(
-                convert_based_on_currency(refund_amount, currency.lowest_unit_conversion_factor)
+                convert_based_on_currency(
+                    refund_amount, currency.lowest_unit_conversion_factor
+                )
             ),  # Convert rupees to paise
         }
 
@@ -234,16 +258,36 @@ def initiate_razorpay_refund(
                 "customer_id": str(notes.customer.id if notes.customer else ""),
                 "customer_name": str(notes.customer.name if notes.customer else ""),
             }
+
+        # Guard: check if a refund already exists for this payment before initiating a new one
+        # For Cabbo, a payment is always refunded once (full or partial) — this prevents duplicate refunds
+        existing_refunds = client.payment.refunds(payment_id)
+        if existing_refunds and existing_refunds.get("items"):
+            existing_refund = existing_refunds["items"][
+                0
+            ]  # Assuming only one refund per payment, take the first one
+            logger.info(
+                f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one"
+            )
+            return {
+                **existing_refund,
+                "amount": float(
+                    convert_based_on_currency(
+                        existing_refund.get("amount", 0),
+                        currency.lowest_unit_conversion_factor,
+                        convert_to_lowest=False,
+                    )
+                ),
+            }
         refund = client.payment.refund(payment_id, refund_data)
 
         if not refund or "id" not in refund:
-            return _populate_failed_refund_response(
+            return _populate_failed_razorpay_refund_response(
                 payment_id=payment_id,
                 refund_amount=refund_amount,
                 notes=notes,
                 currency_conversion_factor=currency.lowest_unit_conversion_factor,
-            currency_code=currency.code
-
+                currency_code=currency.code,
             )
 
         # Format the refund response
@@ -263,24 +307,55 @@ def initiate_razorpay_refund(
 
     except razorpay.errors.BadRequestError as e:
         logger.error(f"Razorpay refund creation failed: {str(e)}")
-        return _populate_failed_refund_response(
+        return _populate_failed_razorpay_refund_response(
             payment_id=payment_id,
             refund_amount=refund_amount,
             notes=notes,
             currency_conversion_factor=currency.lowest_unit_conversion_factor,
-            currency_code=currency.code
-
+            currency_code=currency.code,
         )
 
     except Exception as e:
         logger.error(f"Unexpected error during Razorpay refund creation: {str(e)}")
 
-        return _populate_failed_refund_response(
+        return _populate_failed_razorpay_refund_response(
             payment_id=payment_id,
             refund_amount=refund_amount,
             notes=notes,
             currency_conversion_factor=currency.lowest_unit_conversion_factor,
-            currency_code=currency.code
-
+            currency_code=currency.code,
         )
 
+
+def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
+    """
+    Get the status of a Razorpay refund.
+
+    Args:
+        refund_id (str): The Razorpay refund ID.
+
+    Returns:
+        RazorPayRefundStatusEnum: The status of the refund.
+    """
+    client = RAZOR_PAY_CLIENT
+    client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
+    try:
+        refund = client.refund.fetch(refund_id)
+        status = refund.get("status")
+        if status in RazorPayRefundStatusEnum._value2member_map_:
+            return RazorPayRefundStatusEnum(status)
+        else:
+            logger.error(f"Unknown refund status received from Razorpay: {status}")
+            return RazorPayRefundStatusEnum.FAILED  # Treat unknown status as failed
+    except razorpay.errors.BadRequestError as e:
+        logger.error(
+            f"Failed to fetch Razorpay refund status for {refund_id}: {str(e)}"
+        )
+        return RazorPayRefundStatusEnum.FAILED  # Treat errors as failed status
+    except Exception as e:
+        logger.error(
+            f"Unexpected error while fetching Razorpay refund status for {refund_id}: {str(e)}"
+        )
+        return (
+            RazorPayRefundStatusEnum.FAILED
+        )  # Treat unexpected errors as failed status
