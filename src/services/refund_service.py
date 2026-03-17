@@ -6,6 +6,7 @@ from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import PaymentNotesSchema
+from models.policies.refund_enum import RefundType
 from models.pricing.pricing_schema import Currency
 from models.trip.trip_enums import CancellationSubStatusEnum, TripTypeEnum
 from models.trip.trip_schema import TripDetailSchema
@@ -21,7 +22,8 @@ from services.geography_service import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.notification_service import notify_refund_initiated_to_customer
-from services.payment_service import initiate_razorpay_refund
+from services.payment_service import initiate_refund
+
 
 
 async def refund_advance_payment_to_customer_on_cancellation(
@@ -34,7 +36,10 @@ async def refund_advance_payment_to_customer_on_cancellation(
 ):
     try:
         # Determine if the cancellation is done by cabbo or by driver or due to any other reason except customer cancellation or customer no show, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver admin or due to any other reason except customer cancellation, then we should refund the advance payment to customer in full because it is not the fault of customer and they should not be penalized for that.
-        canceled_by_cabbo = cancelation_sub_status not in [CancellationSubStatusEnum.customer_cancelled, CancellationSubStatusEnum.customer_no_show]
+        canceled_by_cabbo = cancelation_sub_status not in [
+            CancellationSubStatusEnum.customer_cancelled,
+            CancellationSubStatusEnum.customer_no_show,
+        ]
 
         if not config_store:
             syncdb = get_mysql_local_session()
@@ -167,10 +172,12 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     f"No customer information found for trip {trip.id}, cannot initiate refund"
                 )
                 return False
-            refund_type = "full" if eligible_for_full_refund else "partial"
+            refund_type = (
+                RefundType.full if eligible_for_full_refund else RefundType.partial
+            )
             notes = PaymentNotesSchema(
                 reference_source_id=trip.id,
-                refund_type=refund_type,
+                refund_type=refund_type.value,
                 canceled_by_cabbo=canceled_by_cabbo,
                 original_amount=trip.advance_payment,
                 refund_amount=refund_amount,
@@ -182,36 +189,41 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     contact=trip.customer.phone_number,
                 ),
             )
-            refund_response = initiate_razorpay_refund(
+            refund_response = initiate_refund(
                 payment_id=trip.payment_provider_metadata.get("razorpay_payment_id"),
                 refund_amount=refund_amount,
                 notes=notes,
                 currency=Currency(
                     code=config_store.geographies.country_server.currency,
                     lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
-                )
-                )
-        
-            if refund_response.get("status") =="processed":
-                refund_reason = (
-                f"Amount refunded in {refund_type} as cancellation was done from {APP_NAME}'s side."
-                if canceled_by_cabbo
-                else f"Amount refunded in {refund_type}, where cancellation was done by customer."
-            )
-            else:
-                refund_reason = (
-                f"Refund initiation failed through payment provider with status {refund_response.get('status')}, hence marking refund as failed for trip {trip.id}."
+                ),
             )
 
-            existing_refund = await get_refund_details_by_trip_id(trip_id=trip.id, db=db)
+            if refund_response.get("status") == "processed":
+                refund_reason = (
+                    f"Amount refunded in {refund_type.value} as cancellation was done from {APP_NAME}'s side."
+                    if canceled_by_cabbo
+                    else f"Amount refunded in {refund_type}, where cancellation was done by customer."
+                )
+            else:
+                refund_reason = f"Refund initiation failed through payment provider with status {refund_response.get('status')}, hence marking refund as failed for trip {trip.id}."
+
+            existing_refund = await get_refund_details_by_trip_id(
+                trip_id=trip.id, db=db
+            )
             if existing_refund:
-                print(f"Existing refund record found for trip {trip.id}, removing it before adding new refund details")
-                await remove_refund_details_by_trip_id(trip_id=trip.id, db=db, hard_delete=True)
+                print(
+                    f"Existing refund record found for trip {trip.id}, removing it before adding new refund details"
+                )
+                await remove_refund_details_by_trip_id(
+                    trip_id=trip.id, db=db, hard_delete=True
+                )
 
             # Add refund details to the refunds table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
             updated = await _add_refund_details_for_trip(
                 refund=RefundSchema(
                     id=refund_response.get("id"),
+                    policy_id=cancelation_policy.id if cancelation_policy else None,
                     entity_id=trip.id,
                     refund_status=refund_response.get("status"),
                     refund_amount=refund_amount,
@@ -255,6 +267,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
             return False
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         print(f"Error in refund_advance_payment_to_customer: {e}")
         # Log the exception or handle it as needed
@@ -268,12 +281,13 @@ async def _add_refund_details_for_trip(
     created_by: str,
     db: AsyncSession,
 ):
-    
+
     try:
         # Add refund details to the refund table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
         refund_record = RefundORM(
             id=refund.id,
             entity_id=refund.entity_id,
+            policy_id=refund.policy_id,
             refund_status=refund.refund_status,
             refund_amount=refund.refund_amount,
             refund_reason=refund.refund_reason,
@@ -296,10 +310,15 @@ async def _add_refund_details_for_trip(
         # Log the exception or handle it as needed
         return False
 
-async def get_refund_details_by_trip_id(trip_id: str, db: AsyncSession) -> Optional[RefundSchema]:
+
+async def get_refund_details_by_trip_id(
+    trip_id: str, db: AsyncSession
+) -> Optional[RefundSchema]:
     try:
         result = await db.execute(
-            select(RefundORM).where(RefundORM.entity_id == trip_id, RefundORM.is_active == True)
+            select(RefundORM).where(
+                RefundORM.entity_id == trip_id, RefundORM.is_active == True
+            )
         )
         refund_record = result.scalars().first()
         if refund_record:
@@ -310,13 +329,18 @@ async def get_refund_details_by_trip_id(trip_id: str, db: AsyncSession) -> Optio
         # Log the exception or handle it as needed
         return None
 
-async def remove_refund_details_by_trip_id(trip_id: str, db: AsyncSession, hard_delete=False) -> bool:
+
+async def remove_refund_details_by_trip_id(
+    trip_id: str, db: AsyncSession, hard_delete=False
+) -> bool:
     try:
         result = await db.execute(
-            select(RefundORM).where(RefundORM.entity_id == trip_id, RefundORM.is_active == True)
+            select(RefundORM).where(
+                RefundORM.entity_id == trip_id, RefundORM.is_active == True
+            )
         )
 
-        refund_record= result.scalars().first()
+        refund_record = result.scalars().first()
         if refund_record:
             if hard_delete:
                 await db.delete(refund_record)

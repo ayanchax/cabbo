@@ -1,7 +1,7 @@
 import secrets
 import string
 from core.store import ConfigStore
-from core.trip_helpers import get_trip_type_by_trip_type_id
+from core.trip_helpers import attach_trip_details_to_order_notes, get_trip_type_by_trip_type_id
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import RazorPayPaymentResponse
 from models.pricing.pricing_schema import Currency
@@ -18,11 +18,7 @@ from models.trip.trip_enums import (
 )
 from core.exceptions import CabboException
 from services.audit_trail_service import log_trip_audit
-from services.payment_service import (
-    attach_trip_details_to_order_notes,
-    get_trip_payment_order,
-    verify_payment,
-)
+from services.payment_service import get_booking_payment_order, verify_payment
 from services.trips.trip_service import (
     create_temporary_trip,
     delete_temp_trip,
@@ -313,7 +309,7 @@ def initiate_trip_booking(
             lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor or 100,
         )
         # Create razor pay order for the trip
-        trip_id, order = get_trip_payment_order(
+        trip_id, order = get_booking_payment_order(
             booking_request=booking_request, customer=customer, temp_trip=temp_trip, currency=currency
         )
         payment_provider_metadata= {
@@ -380,7 +376,7 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     )
 
     # Verify the payment details in the booking request
-    payment_verified = verify_payment(payment_detail=booking_request.payment_info)
+    payment_verified = verify_payment(payment_details=booking_request.payment_info.model_dump())
     if not payment_verified:
         raise CabboException("Payment verification failed", status_code=400)
 

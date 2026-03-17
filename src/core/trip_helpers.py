@@ -2,11 +2,12 @@ import json
 from typing import List, Union
 from core.exceptions import CabboException
 from core.security import RoleEnum, generate_hash
+from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
 from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
-from models.trip.trip_schema import AmenitiesSchema, TripSearchOption, TripSearchRequest, TripTypeSchema
+from models.trip.trip_schema import AmenitiesSchema, TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -257,4 +258,16 @@ async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_cust
             await db.refresh(trip, attribute_names=["customer"])
         if expose_cancellation_detail:
             await db.refresh(trip, attribute_names=["cancellation"])
+
+def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
+    
+    notes = order.get("notes", {})
+    notes = PaymentNotesSchema.model_validate(notes)  # Validate the notes structure
+    # Ensure that trip_details is set in notes
+    if not hasattr(notes, "trip_details"):
+        notes.trip_details = trip_details
+
+    order["notes"] = notes.model_dump(
+        exclude_none=True
+    )  # Update the order with the notes containing trip details
 

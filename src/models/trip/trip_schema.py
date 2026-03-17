@@ -130,7 +130,7 @@ class TripCreate(BaseModel):
  
 class TripOut(BaseModel):
     trip_id: str  # Unique trip ID for the trip for internal use
-    payment_info: RazorPayPaymentResponse  # Payment details is mandatory as we do not confirm trips without an advance payment
+    payment_info: Union[RazorPayPaymentResponse, dict]  # Payment details is mandatory as we do not confirm trips without an advance payment
     
     class Config:
         from_attributes = True

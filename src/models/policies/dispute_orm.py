@@ -13,6 +13,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
 from models.policies.dispute_enum import DisputeTriggerEnum, DisputeTypeEnum
+from models.policies.dispute_schema import DisputeDetailsSchema
 from models.support.support_enum import TicketStatusEnum
 
 
@@ -39,7 +40,9 @@ class Dispute(Base):
     comments = Column(
         JSON, nullable=True
     )  # Additional comments or details between customer and support regarding the dispute
-    details = Column(JSON, nullable=True)  # Additional details about the dispute
+    details: DisputeDetailsSchema = Column(
+        JSON, nullable=True
+    )  # Additional details about the dispute DisputeDetailsSchema
     raised_by = Column(
         MySQL_CHAR(36), nullable=False
     )  # User ID of the person who raised the dispute

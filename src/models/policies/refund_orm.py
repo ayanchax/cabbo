@@ -28,6 +28,9 @@ class Refund(Base):
     entity_id = Column(
         String(255), nullable=False, index=True, unique=True
     )  # ID of the entity for which the refund is being processed, e.g., trip ID, booking ID, etc.
+    policy_id = Column( 
+        String(255), nullable=True, index=True, unique=False
+    ) # ID of the refund policy that was applied for this refund, if applicable, for example, cancellation policy ID, adjustment policy ID, dispute policy ID etc. This can help us track which kind of policy was applied for this refund and also can be used for reporting and analytics purposes to see which policies are being used more frequently for refunds and also to analyze the effectiveness of different refund policies in terms of customer satisfaction, financial impact, etc.
     refund_status = Column(
         SAEnum(RefundStatus), nullable=True, default=RefundStatus.unknown, comment="Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc."
     )  # Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.
