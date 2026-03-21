@@ -74,19 +74,29 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 TripTypeEnum.local,
             ]:
                 region_code = trip.origin.region_code
-                
-                if trip.trip_type_master.trip_type == TripTypeEnum.airport_drop:
-                    cancellation_policy = config_store.airport_drop.get(region_code).auxiliary_pricing.cancellation_policy
-                elif trip.trip_type_master.trip_type == TripTypeEnum.airport_pickup:
-                    cancellation_policy = config_store.airport_pickup.get(region_code).auxiliary_pricing.cancellation_policy
-                elif trip.trip_type_master.trip_type == TripTypeEnum.local:
-                    cancellation_policy = config_store.local.get(region_code).auxiliary_pricing.cancellation_policy
-
+                try:
+                    if trip.trip_type_master.trip_type == TripTypeEnum.airport_drop:
+                        cancellation_policy = config_store.airport_drop.get(region_code).auxiliary_pricing.cancellation_policy
+                    elif trip.trip_type_master.trip_type == TripTypeEnum.airport_pickup:
+                        cancellation_policy = config_store.airport_pickup.get(region_code).auxiliary_pricing.cancellation_policy
+                    elif trip.trip_type_master.trip_type == TripTypeEnum.local:
+                        cancellation_policy = config_store.local.get(region_code).auxiliary_pricing.cancellation_policy
+                except Exception as e:
+                    print(
+                        f"Error while fetching cancellation policy for trip {trip.id} with region code {region_code} and trip type {trip.trip_type_master.trip_type.value}: {e}"
+                    )
+                    cancellation_policy = None
 
             elif trip.trip_type_master.trip_type in [TripTypeEnum.outstation]:
                 state_code = trip.origin.state_code
-                
-                cancellation_policy = config_store.outstation.get(state_code).auxiliary_pricing.cancellation_policy
+                try:
+                    cancellation_policy = config_store.outstation.get(state_code).auxiliary_pricing.cancellation_policy
+                except Exception as e:
+                    print(
+                        f"Error while fetching cancellation policy for trip {trip.id} with state code {state_code} and trip type {trip.trip_type_master.trip_type.value}: {e}"
+                    )
+                    cancellation_policy = None
+
             else:
                 print(
                     f"Trip type {trip.trip_type_master.trip_type.value} not eligible for cancellation refund"
@@ -95,8 +105,9 @@ async def refund_advance_payment_to_customer_on_cancellation(
             
             
             if not cancellation_policy:
+
                 print(
-                    f"No cancelation policy found for trip type {trip.trip_type_master.trip_type.value}"
+                    f"Cannot process refund workflow. Reason: No cancelation policy defined for'{trip.trip_type_master.trip_type.value}' trips in this state/region. To issue a refund for this trip, please create a cancellation policy for trip type '{trip.trip_type_master.trip_type.value}' in the config store with appropriate data based on your business rules."
                 )
                 return False
             # Check if the cancellation is eligible for refund based on the cancellation policy and the time of cancellation
