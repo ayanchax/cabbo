@@ -322,7 +322,7 @@ class TripTypeMaster(Base):
     trip_type = Column(Enum(TripTypeEnum), nullable=False, unique=True)
     display_name = Column(String(64), nullable=False)
     description = Column(String(255), nullable=True)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -360,7 +360,7 @@ class TripPackageConfig(Base):
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation/local trips
     package_label = Column(String(64), nullable=False)
-    created_by = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,

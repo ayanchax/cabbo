@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from typing import Optional
-from core.constants import APP_NAME
 from core.security import RoleEnum
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
@@ -17,10 +16,6 @@ from core.config import settings
 from sqlalchemy import select
 
 from services.cancelation_service import get_cancelation_policy_id
-from services.geography_service import (
-    async_get_region_by_code,
-    async_get_state_by_state_code,
-)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.notification_service import notify_refund_initiated_to_customer
@@ -56,12 +51,11 @@ async def refund_advance_payment_to_customer_on_cancellation(
             print(f"No advance payment to refund for trip {trip.id}")
             return False
 
-        region_id = None
-        state_id = None
+         
         eligible_for_partial_configuration_based_refund = False
         eligible_for_full_refund = False
         refund_amount = 0.0
-        cancelation_policy: Optional[CancelationPolicySchema] = None
+        cancellation_policy :Optional[CancelationPolicySchema] = None
         if canceled_by_cabbo:
             eligible_for_full_refund = True
             refund_amount = trip.advance_payment
@@ -72,56 +66,41 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     f"Cancellation for trip {trip.id} is marked as customer no-show, hence not eligible for refund"
                 )
                 return False
-
+            
             # For other customer-initiated cancellation cases, we will check the cancellation policy based on the trip type and region/state and then determine the refund amount based on the cancellation time and the free cancellation cutoff time defined in the cancellation policy for that trip type and region/state.
-            if trip.trip_type.trip_type in [
+            if trip.trip_type_master.trip_type in [
                 TripTypeEnum.airport_drop,
                 TripTypeEnum.airport_pickup,
                 TripTypeEnum.local,
             ]:
                 region_code = trip.origin.region_code
-                region = await async_get_region_by_code(region_code=region_code, db=db)
-                if region:
-                    region_id = region.id
+                
+                if trip.trip_type_master.trip_type == TripTypeEnum.airport_drop:
+                    cancellation_policy = config_store.airport_drop.get(region_code).auxiliary_pricing.cancellation_policy
+                elif trip.trip_type_master.trip_type == TripTypeEnum.airport_pickup:
+                    cancellation_policy = config_store.airport_pickup.get(region_code).auxiliary_pricing.cancellation_policy
+                elif trip.trip_type_master.trip_type == TripTypeEnum.local:
+                    cancellation_policy = config_store.local.get(region_code).auxiliary_pricing.cancellation_policy
 
-            elif trip.trip_type.trip_type in [TripTypeEnum.outstation]:
+
+            elif trip.trip_type_master.trip_type in [TripTypeEnum.outstation]:
                 state_code = trip.origin.state_code
-                state = await async_get_state_by_state_code(
-                    state_code=state_code, db=db
-                )
-                if state:
-                    state_id = state.id
+                
+                cancellation_policy = config_store.outstation.get(state_code).auxiliary_pricing.cancellation_policy
             else:
                 print(
-                    f"Trip type {trip.trip_type.trip_type.value} not eligible for cancellation refund"
+                    f"Trip type {trip.trip_type_master.trip_type.value} not eligible for cancellation refund"
                 )
                 return False
-
-            cancelation_configuration = {
-                TripTypeEnum.airport_drop: config_store.airport_drop.get(
-                    region_id
-                ).auxiliary_pricing.cancellation_policy,
-                TripTypeEnum.airport_pickup: config_store.airport_pickup.get(
-                    region_id
-                ).auxiliary_pricing.cancellation_policy,
-                TripTypeEnum.local: config_store.local.get(
-                    region_id
-                ).auxiliary_pricing.cancellation_policy,
-                TripTypeEnum.outstation: config_store.outstation.get(
-                    state_id
-                ).auxiliary_pricing.cancellation_policy,
-            }
-            cancelation_policy = cancelation_configuration.get(
-                trip.trip_type.trip_type, None
-            )
-
-            if not cancelation_policy:
+            
+            
+            if not cancellation_policy:
                 print(
-                    f"No cancelation policy found for trip type {trip.trip_type.trip_type.value}"
+                    f"No cancelation policy found for trip type {trip.trip_type_master.trip_type.value}"
                 )
                 return False
             # Check if the cancellation is eligible for refund based on the cancellation policy and the time of cancellation
-            free_cutoff_minutes = cancelation_policy.free_cutoff_minutes
+            free_cutoff_minutes = cancellation_policy.free_cutoff_minutes
             cancelation_time = (
                 trip.cancellation.created_at
                 if trip.cancellation and trip.cancellation.created_at
@@ -140,7 +119,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 else:  # Cancellation is done after free cutoff time but before trip start time, then partial refund is applicable
                     eligible_for_partial_configuration_based_refund = True
                     refund_amount = (
-                        cancelation_policy.refund_percentage
+                        cancellation_policy.refund_percentage
                         * trip.advance_payment
                         / 100
                     )
@@ -219,7 +198,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
 
             
             # Add refund details to the refunds table and link it to the trip using the entity_id field in the refunds table which is populated with the trip id when a refund is initiated for the trip and the refund record is created in the refunds table.
-            policy_id = get_cancelation_policy_id(policy=cancelation_policy)
+            policy_id = get_cancelation_policy_id(policy=cancellation_policy)
             refund_reason = (
                 f"Refund for {refund_type.value} cancellation of trip {trip.id} with cancellation sub status {cancelation_sub_status.value}"
             )

@@ -137,21 +137,6 @@ class TripOut(BaseModel):
 
  
 
-
-class TripTypeMasterOut(BaseModel):
-    id: str
-    booking_id: str
-    trip_type: TripTypeEnum
-    display_name: str
-    description: Optional[str]
-    created_by: RoleEnum
-    created_at: datetime
-    last_modified: datetime
-
-    class Config:
-        from_attributes = True
-
-
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
     origin: Optional[LocationInfo] = None  # For airport trips, this is the pickup location
@@ -299,7 +284,7 @@ class TripDetailSchema(BaseModel):
     # Creator information
     customer:Optional[CustomerRead] = Field(None, description="Customer details of the trip creator, included only if the creator is a customer and if the requesting user has permission to view customer details")
     # Trip details
-    trip_type: Optional[TripTypeSchema] = Field(None, description="Trip type details")
+    trip_type_master: Optional[TripTypeSchema] = Field(None, description="Trip type details")
     
     # Location information
     origin: Optional[LocationInfo] = Field(None, description="Origin city details")

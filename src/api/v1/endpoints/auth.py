@@ -43,7 +43,7 @@ def initiate_onboarding(
     # Check if phone number already exists in permanent users
     if is_existing_customer(phone_number, db):
         raise CabboException("Phone number already registered.", status_code=400)
-    # Generate OTP and return (in production, send via SMS, here just return for demo)
+    # Generate OTP and return
     otp = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
 

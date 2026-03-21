@@ -15,6 +15,8 @@ from sqlalchemy.types import Enum as SqlEnum
 from core.config import settings
 
 from models.user.user_enum import GenderEnum
+from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
+
 
 class User(Base):
     __tablename__ = "users"
@@ -51,7 +53,7 @@ class User(Base):
         nullable=False,
     )
     created_by = Column(
-        SqlEnum(RoleEnum, name="created_by_role_enum"),
+        MySQL_CHAR(36),
         nullable=False,
-        default=RoleEnum.system,
+        default=RoleEnum.system.value,
     )  # Role of the user who created this record   

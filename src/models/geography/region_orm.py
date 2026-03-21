@@ -12,6 +12,7 @@ from core.security import RoleEnum
 from db.database import Base
 import uuid
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 
 
 # Region or Metro Area City ORM model
@@ -60,7 +61,7 @@ class RegionModel(Base):
     airport_locations = Column(
         JSON, nullable=True
     )  # Comma separated list of airport location IDs from airports_master
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
 
     # foreign key + relationship to CountryModel (one country per region)
     country_id = Column(

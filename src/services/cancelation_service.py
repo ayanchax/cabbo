@@ -18,18 +18,16 @@ def get_cancelation_payload(
     user_id: str,
     cancelation_sub_status: CancellationSubStatusEnum,
 ):
-    cancelation_payload = cancelation_detail if cancelation_detail else None
-    if not cancelation_payload:
-        cancelation_payload = CancelationSchema(
-            entity_id=trip_id,
-            canceled_by=user_id,
-            cancellation_sub_status=cancelation_sub_status,
-            reason=(
-                cancelation_detail.reason
-                if cancelation_detail and cancelation_detail.reason
-                else "No reason provided"
-            ),
-        )
+    cancelation_payload =  CancelationSchema()
+    
+    cancelation_payload.entity_id = trip_id
+    cancelation_payload.canceled_by = user_id
+    cancelation_payload.cancellation_sub_status = cancelation_sub_status
+    cancelation_payload.reason = (
+        cancelation_detail.reason
+        if cancelation_detail and cancelation_detail.reason
+        else "No reason provided"
+    )
     return cancelation_payload
 
 
@@ -79,7 +77,9 @@ async def register_trip_cancellation(
             commit=commit,
         )
     except Exception as e:
+        import traceback
         print(f"Error registering cancellation for trip {payload.entity_id}: {e}")
+        traceback.print_exc()
         if not silently_fail:
             raise e
         return None
@@ -108,6 +108,9 @@ async def _create_cancellation_record(
         await db.refresh(new_cancellation)
         return CancelationSchema.model_validate(new_cancellation)
     except Exception as e:
+        import traceback
+        print(f"Error creating cancellation record for trip {payload.entity_id}: {e}")
+        traceback.print_exc()
         await db.rollback()
         if not silently_fail:
             raise e

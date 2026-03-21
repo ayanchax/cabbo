@@ -35,7 +35,7 @@ class CabType(Base):
     inventory_cab_names = Column(
         JSON, nullable=True
     )  # JSON list of actual inventory cab model names
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -56,7 +56,7 @@ class FuelType(Base):
         index=True,
     )
     name = Column(SAEnum(FuelTypeEnum), unique=True, nullable=False)
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,

@@ -27,14 +27,15 @@ def generate_otp(phone_number: str, db: Session) -> str:
     delete_expired_otp(phone_number, db)
     # Generate a unique, cryptographically secure 4-digit OTP not in use
     for _ in range(10):  # Try up to 10 times to avoid rare infinite loop
-        otp_int = secrets.randbelow(10000)
+        otp_int = secrets.randbelow(10000)  # For mock/testing, use a fixed OTP
         otp = f"{otp_int:04d}"
         if not db.query(PreOnboardingCustomer).filter(PreOnboardingCustomer.otp_hash == hash_otp(otp)).first():
             #no collision found, break
             break
     else:
          raise CabboException("Unable to generate unique OTP after several attempts", status_code=500, include_traceback=True)
- 
+    
+
     store_otp(phone_number, otp, db)
     return otp
 

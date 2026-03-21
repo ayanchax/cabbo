@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 from core.security import RoleEnum
 from db.database import Base
 import uuid
+from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 
 class StateModel(Base):
     __tablename__ = "states_master"
@@ -18,7 +19,7 @@ class StateModel(Base):
     # 1 State has many Regions
     regions = relationship("RegionModel", back_populates="state", cascade="all, delete-orphan", lazy="selectin")
     is_serviceable = Column(Boolean, nullable=False, default=True)
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_modified = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now(), nullable=False)

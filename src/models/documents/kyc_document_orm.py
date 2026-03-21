@@ -33,7 +33,7 @@ class KYCDocumentTypes(Base):
         nullable=False,
     )
     created_by = Column(
-        Enum(RoleEnum), nullable=False, default=RoleEnum.system
+        MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value
     )  # Created by system, admin, or user
     last_modified = Column(
         DateTime(timezone=True),
