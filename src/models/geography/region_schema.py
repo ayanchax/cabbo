@@ -17,16 +17,6 @@ class RegionBase(BaseModel):
 class RegionCreate(RegionBase):
     pass
 
-
-class RegionOut(RegionBase):
-    id: str
-    created_by: RoleEnum
-    created_at: Optional[datetime]
-    last_modified: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
 class RegionSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the region")  # UUID
     # Region is a city or metro area within a state or province within a country

@@ -30,7 +30,7 @@ class AirportModel(Base):
     region_code = Column(String(8), nullable=False, index=True) #Region code is a non nullable field as it is used to populate region-wise airport locations in RegionModel
     postal_code = Column(String(16), nullable=True)
     is_serviceable = Column(Boolean, nullable=False, default=True)
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
 
     created_at = Column(
         DateTime(timezone=True),

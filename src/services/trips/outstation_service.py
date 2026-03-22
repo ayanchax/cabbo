@@ -133,32 +133,53 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
         raise CabboException(
             "Destination is required for outstation trip", status_code=400
         )
+    
+    # Build ordered waypoints for the outbound route
+    waypoints = [search_in.origin]
+    if search_in.hops:
+        waypoints.extend(search_in.hops)
+    waypoints.append(search_in.destination)
 
-    est_km = get_distance_km(origin=search_in.origin, destination=search_in.destination)
-
-    if not est_km or est_km <= 0:
-        # Ensure that the estimated distance is a positive number
-        # If the distance is zero or negative, it indicates an error in estimation
+    # Sum outbound leg distances: origin → hop1 → hop2 → ... → destination
+    outbound_km = 0.0
+    for i in range(len(waypoints) - 1):
+        leg_km = get_distance_km(origin=waypoints[i], destination=waypoints[i + 1])
+        if not leg_km or leg_km <= 0:
+            raise CabboException(
+                f"Could not estimate distance between waypoints {i} and {i + 1}",
+                status_code=500,
+            )
+        outbound_km += leg_km
+    
+    # Return leg: destination → origin (direct, not retracing hops)
+    return_km = get_distance_km(origin=search_in.destination, destination=search_in.origin)
+    if not return_km or return_km <= 0:
         raise CabboException(
-            "Could not estimate distance between origin and destination",
+            "Could not estimate return distance from destination to origin",
             status_code=500,
         )
+    
     min_distance_for_outstation_trip = 70  # in km
-    if est_km < min_distance_for_outstation_trip: # todo : configurable minimum distance for outstation trips
-        # Ensure that the estimated distance is at least 70 km for outstation trips
+    if outbound_km < min_distance_for_outstation_trip:
         raise CabboException(
-            f"Outstation trips must have a minimum distance of {min_distance_for_outstation_trip} km, the route you have selected is less than {min_distance_for_outstation_trip} km, try with a different route or switch to local trip",
+            f"Outstation trips must have a minimum distance of {min_distance_for_outstation_trip} km, "
+            f"the route you have selected is less than {min_distance_for_outstation_trip} km, "
+            f"try with a different route or switch to local trip",
             status_code=500,
         )
+    
+    total_est_km = outbound_km + return_km
 
-    return search_in.origin, search_in.destination, est_km
+    return search_in.origin, search_in.destination, total_est_km
 
 
 def _get_outstation_trips_disclaimer_lines(
     night_hours_display_label: str, night_surcharge_per_hour: float, 
     included_mileage_km: int,
     overage_amount_per_km: float,
-    currency: str
+    currency: str,
+    extra_day_rate: float,
+    total_trip_days: int
 ):
     """
     Returns the disclaimer lines for outstation trips, including overage charges and parking fees.
@@ -171,9 +192,14 @@ def _get_outstation_trips_disclaimer_lines(
     """
     non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
     
+    extra_day_line = (
+    f"If you extend the trip beyond the booked {total_trip_days} day(s), "
+    f"an additional {currency}{extra_day_rate} per extra day applies — pay the driver directly."
+)
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
+        extra_day_line,
         f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{overage_amount_per_km} per km will be applied on the final fare - pay the driver directly.",
         "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
         "If the trip includes hill climbs, the cab AC may be switched off during such climbs."
@@ -233,7 +259,7 @@ def get_outstation_trip_options(
 
     currency = config_store.geographies.country_server.currency_symbol
 
-    _, _, est_km = _get_trip_origin_destination_distance_outstation(search_in)
+    _, _, total_est_km = _get_trip_origin_destination_distance_outstation(search_in)
     total_trip_days = validate_outstation_trip_schedule(search_in)
     
 
@@ -253,9 +279,6 @@ def get_outstation_trip_options(
     in_car_amenities.aux_cable = True  # Always include aux cable for outstation trips
     in_car_amenities.bluetooth = True  # Always include bluetooth for outstation trips
     permit_fee = 0.0
-    est_km = (
-        2 * est_km
-    )  # Always Round trip distance for outstation, therefore multiply by 2
     night_surcharge_per_hour = (
         configuration.auxiliary_pricing.night.night_overage_amount_per_block
     )
@@ -287,17 +310,17 @@ def get_outstation_trip_options(
 
         included_km = min_included_km_per_day * total_trip_days
         base_price = base_fare_per_km * included_km
-        overage_km = max(0, est_km - included_km)
+        overage_km = max(0, total_est_km - included_km)
         overage_amount = overage_km * overage_amount_per_km
         driver_allowance_amount = driver_allowance_per_day * total_trip_days
 
         warning_km_threshold = (
             configuration.auxiliary_pricing.common.overage_warning_km_threshold
         )
-        margin = included_km - est_km  # Allow negative values for overage
+        margin = included_km - total_est_km  # Allow negative values for overage
         indicative_overage_warning = margin <= warning_km_threshold
         package_short_label = (
-            f"{max(est_km, included_km)} km | Round trip | ({total_trip_days} days)"
+            f"{included_km} km | Round trip | ({total_trip_days} days)"
         )
         package_label = f"{package_short_label} - AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
 
@@ -318,12 +341,15 @@ def get_outstation_trip_options(
             permit_fee=math.ceil(permit_fee),
             platform_fee=math.ceil(platform_fee_amount),
         )
+        extra_day_rate = math.ceil(base_fare_per_km * min_included_km_per_day + driver_allowance_per_day)
         disclaimer_lines = _get_outstation_trips_disclaimer_lines(
             night_hours_display_label=night_hours_display_label,
             night_surcharge_per_hour=night_surcharge_per_hour,
             included_mileage_km=included_km,
             overage_amount_per_km=overage_amount_per_km,
             currency=currency,
+            extra_day_rate=extra_day_rate,
+            total_trip_days=total_trip_days
         )
         disclaimer_message = "Extra charges may apply:\n - " + "\n - ".join(
             disclaimer_lines
@@ -377,7 +403,7 @@ def get_outstation_trip_options(
         exclusions=exclusions,
         in_car_amenities=in_car_amenities,
         total_trip_days=total_trip_days,
-        estimated_km=est_km,
+        estimated_km=total_est_km,
         included_kms=(
             _options[0].included_kms
             if _options and len(_options) > 0 and _options[0].included_kms

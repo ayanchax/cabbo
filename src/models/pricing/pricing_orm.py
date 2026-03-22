@@ -49,7 +49,7 @@ class OutstationCabPricing(Base):
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
     )  # FK to GeoStateModel.id
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -84,7 +84,7 @@ class LocalCabPricing(Base):
     region_id = Column(
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
     )
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -118,7 +118,7 @@ class AirportCabPricing(Base):
     region_id = Column(
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
     )
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -157,7 +157,7 @@ class NightPricingConfiguration(Base):
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
     )
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -215,7 +215,7 @@ class CommonPricingConfiguration(Base):
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
     )
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -254,7 +254,7 @@ class FixedPlatformPricingConfiguration(Base):
     
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
      
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,
@@ -289,7 +289,7 @@ class PermitFeeConfiguration(Base):
 
     permit_fee = Column(Float, nullable=False)  # Permit fee amount
     
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     last_modified = Column(
         DateTime,

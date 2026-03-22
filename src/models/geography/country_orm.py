@@ -3,6 +3,8 @@ from core.security import RoleEnum
 from db.database import Base
 import uuid
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
+
 
  
 class CountryModel(Base):
@@ -59,7 +61,7 @@ class CountryModel(Base):
         cascade="all, delete-orphan",
     )
     is_serviceable = Column(Boolean, nullable=False, default=True)
-    created_by = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.system)
+    created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
 
     created_at = Column(
         DateTime(timezone=True),

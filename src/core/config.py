@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     SHARE_PATH: str
     MAPBOX_TOKEN: str
+    SMS_SERVICE_PROVIDER:str
     LOCATION_SERVICE_PROVIDER: str
     EMAIL_SERVICE_PROVIDER: str
     PAYMENT_PROVIDER: str

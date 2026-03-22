@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
-from typing import Union
+from typing import Optional, Union
 
 from core.exceptions import CabboException
 from core.security import RoleEnum, verify_hash
@@ -16,7 +16,6 @@ from models.pricing.pricing_schema import (
 )
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import (
-    CancellationSubStatusEnum,
     CarTypeEnum,
     FuelTypeEnum,
     TripStatusEnum,
@@ -34,9 +33,6 @@ from models.trip.trip_schema import (
 from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
-from services.audit_trail_service import a_log_trip_audit
-from services.dispute_service import register_trip_dispute
-from services.driver_service import add_driver_earning_record, delete_driver_earning, get_trip_earning_for_driver, has_driver_earning_record_for_trip, toggle_availability_of_driver
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -47,7 +43,7 @@ from services.pricing_service import (
     get_parking,
     get_tolls,
 )
-from services.refund_service import refund_advance_payment_to_customer
+from services.trips.status_service import change_status
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -588,13 +584,10 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
             print("Grouping trips by status with timezone validation")
             return _group_by_trip_status_with_timezone_validation(trips)
         print("Grouping trips by status without timezone validation")
-        upcoming_trips = [trip for trip in trips if trip.get("status") == TripStatusEnum.confirmed.value]
+        upcoming_trips = [trip for trip in trips if trip.get("status") in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value]]
         ongoing_trips = [trip for trip in trips if trip.get("status") == TripStatusEnum.ongoing.value]
         past_trips = [trip for trip in trips if trip.get("status") in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value]]
         return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
-
-
-
 
 def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
     current_datetime = datetime.now(timezone.utc)
@@ -616,7 +609,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
         # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
         if trip_type in [TripTypeEnum.airport_pickup.value, TripTypeEnum.airport_drop.value, TripTypeEnum.local.value]:
-            if trip_status == TripStatusEnum.confirmed.value and start_datetime > current_datetime:
+            if trip_status in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value] and start_datetime > current_datetime:
                 upcoming_trips.append(trip)
             elif trip_status == TripStatusEnum.ongoing.value and start_datetime <= current_datetime and start_datetime >= (current_datetime - timedelta(hours=24)):
                 ongoing_trips.append(trip)
@@ -625,7 +618,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
         # Outstation Logic(strictly based on start and expected end datetime to account for real-world conditions like delays, early arrivals, etc.)
         elif trip_type == TripTypeEnum.outstation.value:
-            if trip_status == TripStatusEnum.confirmed.value and start_datetime > current_datetime and expected_end_datetime > current_datetime:
+            if trip_status in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value] and start_datetime > current_datetime and expected_end_datetime > current_datetime:
                 upcoming_trips.append(trip)
             elif trip_status == TripStatusEnum.ongoing.value and start_datetime <= current_datetime and expected_end_datetime >= current_datetime:
                 ongoing_trips.append(trip)
@@ -634,7 +627,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
-async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatusEnum, requestor:User, payload: AdditionalDetailsOnTripStatusChange = None):
+async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatusEnum, requestor:User, payload: AdditionalDetailsOnTripStatusChange = None, validate_time_window:bool=False):
     trip = await async_get_trip_by_id(trip_id, db, expose_customer_details=True)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
@@ -652,195 +645,12 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
             f"Invalid status transition from {trip.status} to {new_status.value}.", status_code=400
         )
     trip_schema: TripDetailSchema = None
-    background_task: AppBackgroundTask = None
+    background_task: Optional[AppBackgroundTask] = None
     try:
-        #Ongoing status indicates the trip has started, so we set the actual start datetime when the trip starts. For other status updates, we only update the status without modifying the start datetime.
-        if new_status ==TripStatusEnum.ongoing: #which means existing trip is in confirmed state.
-            if not trip.advance_payment or trip.advance_payment <=0:
-                raise CabboException("Cannot start trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.", status_code=400)
-            
-            if not trip.balance_payment or trip.balance_payment <=0:
-                raise CabboException("Cannot start trip without a valid balance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.", status_code=400)
-
-            if trip.driver_id is None:
-                #Cannot silently assign a random driver, thus we will raise an exception if there is no driver assigned to the trip when we are trying to mark it as ongoing because a trip cannot start without a driver. The driver assignment should have happened at the time of confirming the trip booking and if for some reason the driver assignment did not happen then it should be fixed before starting the trip.
-                raise CabboException("Cannot start trip without an assigned driver", status_code=400)
-            
-            
-            existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=trip.driver_id, db=db)
-            if existing_record:
-                #Silently delete any bad data
-                await delete_driver_earning(earning_id=existing_record.id, db=db, hard_delete=True)
-
-
-            if trip.driver and trip.driver_id == trip.driver.id and trip.driver.is_available:
-                 #Silently handle the scenario where driver is still marked available due to some reason (like app crash, network issue etc.) after they were assigned to the trip but before the trip was marked as ongoing. In this case, we will log a warning and proceed with marking the trip as ongoing and setting the start datetime because we do not want to block the trip from starting just because of an issue in updating driver availability status in the system. 
-                 print(f"Warning: Driver {trip.driver_id} is still marked as available even after they were assigned for this trip: {trip.id}. Proceeding with marking trip as ongoing and setting start datetime. Marking driver unavailable again to ensure smooth flow of the trip.")
-                 trip.driver.is_available = False
-                 await db.flush()  # Flush to save the updated driver availability status before any further operations
-            
-            #Update start datetime - The driver_admin can get the actual start datetime from the driver when they start the trip in the driver app, if not provided we will set the start datetime as current datetime in UTC timezone.            
-            trip.start_datetime = payload.start_datetime if payload and payload.start_datetime else datetime.now(timezone.utc) #Set the actual start datetime when trip starts
-            
-            #Update status
-            trip.status = new_status.value
-            
-            #Log audit trail for trip start
-            print(f"Logging audit trail for trip start with reason: {payload.reason if payload and payload.reason else 'No reason provided'}")
-            await a_log_trip_audit(
-                trip_id=trip.id,
-                status=new_status,
-                committer_id=requestor.id,
-                reason=f"Trip started. {payload.reason if payload and payload.reason else ''}",
-                db=db,
-                commit=False,  # Defer commit to batch with trip update
-            )
-            await db.flush()  # Flush to ensure the start_datetime and status update is saved before any further operations 
-            await db.commit()
-            await db.refresh(trip)
-            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
-            trip_schema = TripDetailSchema.model_validate(trip)
-            
-        # Completed status indicates the trip has ended, so we set the actual end datetime when the trip is completed and also update the balance payment to zero and record any extra payments to driver at trip completion and free up the driver for new trips. For other status updates, we only update the status without modifying the end datetime, balance payment and extra payment details.
-        elif new_status ==TripStatusEnum.completed: #which means existing trip is in ongoing state.
-            if not trip.advance_payment or trip.advance_payment <=0:
-                raise CabboException("Cannot complete trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before completing the trip.", status_code=400)
-            
-            if not trip.balance_payment or trip.balance_payment <=0:
-                raise CabboException("Cannot complete trip without a valid balance payment. Please ensure the customer has made the balance payment and the payment is reflected in the system before completing the trip.", status_code=400)
-            
-            if trip.driver_id is None:
-                raise CabboException("Cannot complete trip without an assigned driver", status_code=400)
-
-            
-            #Update end datetime with the actual end datetime when trip is completed. The driver_admin can get the actual end datetime from the driver, if not provided we will set the end datetime as current datetime in UTC timezone.
-            trip.end_datetime = payload.end_datetime if payload and payload.end_datetime else datetime.now(timezone.utc) #Set the actual end datetime when trip is completed
-            
-            #Update status
-            trip.status = new_status.value
-            
-            # Set balance_payment zero, because a completed trip can only be marked as complete once the driver_admin confirms the trip completion from the driver (and gather additional details like actual end datetime, ensures remaining fare was paid to driver etc.) 
-            # and at that point we can be sure about the final price and there should not be any balance payment pending from customer. In case of any change in price after trip completion, we will not handle that because all remaining payments are paid directly to driver and we will not be handling any post trip completion price adjustments in the system for now.
-            # In case of disputes where customer did not pay the driver the remaining amount or any extra charges, then we will mark the trip as dispute and try to resolve it between the two parties.
-            # Our driver will not over charge the customer at the end of the trip, customer needs to pay only what is showing as remaining in the app (plus any additional charges of tolls, paid parking, additional mileage etc. subject to proof/reciepts shown by driver to customer.)
-            
-            #Update balance payment to 0.0
-            trip.balance_payment = 0.0
-
-            #Free up the driver
-            await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
-            
-            #Log audit trail for trip completion
-            await a_log_trip_audit(
-                trip_id=trip.id,
-                status=new_status,
-                committer_id=requestor.id,
-                reason=f"Trip completed. {payload.reason if payload and payload.reason else ''}",
-                db=db,
-                commit=False,  # Defer commit to batch with trip update
-            )
-            await db.flush()  # Flush to ensure the end_datetime, status update, balance payment update and extra payment details are saved before any further operations
-            await db.commit()
-            await db.refresh(trip)
-            
-            # Add a record to DriverEarning for the amount paid to driver - Background Task
-            # Delegating the task of adding driver earning record to background task because it is a secondary work and also to ensure that the main flow of trip completion and marking driver available is not affected by any potential issues in adding driver earning record and also to improve the response time for trip completion API. 
-            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
-            trip_schema = TripDetailSchema.model_validate(trip) # Convert the serialized trip dictionary back to TripDetails schema for better type safety and to ensure we are passing the correct data structure to the background task of adding driver earning record.
-            background_task = AppBackgroundTask(fn=add_driver_earning_record, kwargs={
-                "trip": trip_schema,
-                "additional_info":payload,
-                "db": db,
-                "requestor": requestor.id,
-                "silently_fail": True,  # We want to ensure that even if adding driver earning record fails for some reason, it should not affect the main flow of trip completion and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
-            })
-
-        elif new_status == TripStatusEnum.cancelled:
-            # A canceled trip may or may not have an assigned driver, so we do not check for driver assignment before allowing cancellation. We allow cancellation of a trip without an assigned driver because sometimes customers may want to cancel a trip before a driver is assigned to avoid any inconvenience and also to allow them to book a new trip with correct details if they made any mistake in the initial booking.
-
-            if not trip.advance_payment or trip.advance_payment <=0:
-                raise CabboException("Cannot cancel trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before canceling the trip.", status_code=400)
-
-            #Update status.
-            trip.status = new_status.value
-
-            #Set balance payment to 0.0 because once a trip is canceled there should not be any balance payment pending from customer. In case of any cancellation charges, we will not be handling that in the system for now and we will assume that the customer will take care of any cancellation charges directly with the driver and we will not be deducting any cancellation charges from the advance payment in the system for now.
-            trip.balance_payment = 0.0
-
-            if trip.driver_id:
-                #Free up the driver if already assigned to the trip.
-                await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
-            
-            #Update cancelation time
-            trip.cancelation_datetime = datetime.now(timezone.utc)
-            cancelation_sub_status = CancellationSubStatusEnum.other
-            if requestor.role == RoleEnum.customer:
-                cancelation_sub_status = CancellationSubStatusEnum.customer_cancelled
-
-            else:
-                cancelation_sub_status=payload.cancellation_sub_status if payload and payload.cancellation_sub_status else CancellationSubStatusEnum.other
-            
-            #Log audit trail for trip cancellation
-            await a_log_trip_audit(
-                trip_id=trip.id,
-                status=new_status,
-                committer_id=requestor.id,
-                reason=f"Trip cancelled. {payload.reason if payload and payload.reason else ''}",
-                cancellation_sub_status = cancelation_sub_status,
-                db=db,
-                commit=False,  # Defer commit to batch with trip update
-            )
-            await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations 
-            await db.commit()
-            await db.refresh(trip)
-            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
-            trip_schema = TripDetailSchema.model_validate(trip)
-            background_task = AppBackgroundTask(fn=refund_advance_payment_to_customer, kwargs={
-                    "trip": trip_schema,
-                    "db": db,
-                    "canceled_by_cabbo": cancelation_sub_status!=CancellationSubStatusEnum.customer_cancelled, # We will refund advance payment to customer only if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver or due to any other reason except customer cancellation, then we should refund the advance payment to customer because it is not the fault of customer and they should not be penalized for that.
-                    "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
-                    "requestor": requestor.id,
-                })
-        
-        elif new_status == TripStatusEnum.dispute:
-            if not trip.advance_payment or trip.advance_payment <=0:
-                raise CabboException("Cannot mark trip as dispute without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before marking the trip as dispute.", status_code=400)
-            
-            # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
-            if trip.driver_id is None:
-                raise CabboException("Cannot mark trip as dispute without an assigned driver", status_code=400)
-            
-            
-            #Update status
-            trip.status = new_status.value
-            
-            #Free up the driver anyway because in case of dispute the driver should not be blocked for new trips and also to ensure that the driver is available for any ongoing trips they might have after this trip which is now marked as dispute.
-            await toggle_availability_of_driver(driver_id=trip.driver_id, db=db, make_available=True, commit=False)
-            
-            #Log audit trail for marking trip as dispute
-            await a_log_trip_audit(
-                trip_id=trip.id,
-                status=new_status,
-                committer_id=requestor.id,
-                reason=f"Trip marked as dispute. {payload.dispute_detail.reason if payload and payload.dispute_detail and payload.dispute_detail.reason else ''}",
-                db=db,
-                commit=False,  # Defer commit to batch with trip update
-            )
-            await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations 
-            await db.commit()
-            await db.refresh(trip)
-            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
-            trip_schema = TripDetailSchema.model_validate(trip)
-            # Create a dispute record in the system for this trip - Background Task
-            background_task = AppBackgroundTask(fn=register_trip_dispute, kwargs={
-                "trip": trip_schema,
-                "payload": payload.dispute_detail if payload and payload.dispute_detail else None,
-                "db": db,
-                "requestor": requestor.id,
-                "silently_fail": True,  # We want to ensure that even if creating dispute record fails for some reason, it should not affect the main flow of marking trip as dispute and free up driver. So we will silently fail any errors in the background task and log them for future reference.
-            })
-
+       trip_schema,background_task=  await change_status(trip=trip, db=db, status=new_status, requestor=requestor, payload=payload, validate_time_window=validate_time_window)
+    except CabboException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise CabboException(f"Failed to update trip status: {str(e)}", status_code=500)

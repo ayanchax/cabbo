@@ -51,11 +51,23 @@ def send_otp(to_number: str, message="Hello world") -> bool:
     """
     Send OTP using Twilio. Returns True if sent, False otherwise.
     """
+    if settings.SMS_SERVICE_PROVIDER.lower() == "twilio":
+        return _send_twilio_sms(to_number, message)
+    elif settings.SMS_SERVICE_PROVIDER.lower() == "mock":
+        return _send_mock_sms(to_number, message)
+    else:
+        print(f"Unsupported SMS service provider: {settings.SMS_SERVICE_PROVIDER}")
+        return False
 
-    return send_sms(to_number, message)
 
+def _send_mock_sms(to_number: str, message: str) -> bool:
+    """
+    Mock SMS sending for testing purposes. Always returns True.
+    """
+    print(f"Mock SMS to {to_number}: {message}")
+    return True
 
-def send_sms(to_number: str, message: str) -> bool:
+def _send_twilio_sms(to_number: str, message: str) -> bool:
     """
     Send an SMS using Twilio. Returns True if sent, raises CabboException otherwise.
     """

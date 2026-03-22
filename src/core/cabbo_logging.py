@@ -25,10 +25,11 @@ if not logger.handlers:
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
 
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(cabbo_debug_handler)
-    logger.addHandler(cabbo_error_handler)
-    logger.addHandler(console_handler)
+    root_logger = logging.getLogger()  # root logger to catch any logs from libraries that don't use the app logger
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(cabbo_debug_handler)
+    root_logger.addHandler(cabbo_error_handler)
 
 # Optionally, set root logger to propagate if you want logs everywhere
 #logging.getLogger().setLevel(logging.DEBUG)

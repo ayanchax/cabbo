@@ -193,6 +193,7 @@ async def notify_verification_email_to_customer(
     return True
 
 
+
 async def notify_refund_initiated_to_customer(
     customer: CustomerRead,
     refund_id: str,
@@ -211,7 +212,7 @@ async def notify_refund_initiated_to_customer(
         return False  # No email to send notification, do not proceed
     name = customer.name if customer.name else customer.email.split("@")[0]
     html_content = render_email_template(
-        "refund-on-trip-cancellation.html",
+        "refund-initiated-on-trip-cancellation.html",
         for_customer=True,
         name=name,
         refund_id=refund_id,
@@ -228,4 +229,41 @@ async def notify_refund_initiated_to_customer(
         subject=subject,
         html_content=html_content,
     )
+    return True
+
+async def notify_refund_processed_to_customer(
+    customer: CustomerRead,
+    refund_id: str,
+    refund_amount: float,
+    original_amount: float,
+    refund_type: str,
+    booking_id: str,
+    currency: str,
+    currency_position: str = "before",
+) -> bool:
+    subject = f"Good news! Your Refund for {APP_NAME.capitalize()} Booking has been processed!"
+    if not customer:
+        return False
+    if not customer.email:
+        return False  # No email to send notification, do not proceed
+    name = customer.name if customer.name else customer.email.split("@")[0]
+    html_content = render_email_template(
+        "refund-processed.html",
+        for_customer=True,
+        name=name,
+        refund_id=refund_id,
+        refund_amount=refund_amount,
+        original_amount=original_amount,
+        refund_type=refund_type,
+        booking_id=booking_id,
+        currency=currency,
+        currency_position=currency_position,
+        app_name=APP_NAME.capitalize(),
+    )
+    # Won't block the main flow for email sending failure. as it is running asynchronously in background
+    await send_email(
+            to_email=customer.email,
+            subject=subject,
+            html_content=html_content,
+        )
     return True

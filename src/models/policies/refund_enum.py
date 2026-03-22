@@ -15,3 +15,8 @@ class RefundStatus(str, Enum):
 class RefundTrigger(str, Enum):
     manual = "manual"
     automatic = "automatic"
+
+class PaymentProvider(str, Enum):
+    razorpay = "razorpay"
+    stripe= "stripe"
+    phonepe = "phonepe"

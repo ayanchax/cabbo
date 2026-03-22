@@ -220,7 +220,9 @@ class AuxiliaryPricingConfiguration(BaseModel):
     common: Optional[CommonPricingConfigurationSchema] = None
     night: Optional[NightPricingConfigurationSchema] = None # Includes region wise and state wise night pricing configurations for outstation and local
     permit: Optional[PermitFeeConfigurationSchema] = None # Includes permit fee configurations state wise for outstation trips
-    cancellation_policy: Optional[CancelationPolicySchema] = None  # Cancellation policy configuration for outstation trips
+    #Cancellation policies is by trip type and state wise for outstation trips and region wise for local and airport transfers, as cancellation policies can vary significantly based on these factors. For example, outstation trips might have different cancellation policies compared to local trips, and within outstation trips, the policies might differ based on the state due to varying regulations and business considerations.
+    cancellation_policy: Optional[Dict[str, CancelationPolicySchema]] = None  # Cancellation policy configuration for outstation trips
+    
     trip_packages: Optional[List[TripPackageConfigSchema]] = None  # Trip package configuration for local trips
 
 class MasterPricingConfiguration(BaseModel):
@@ -244,17 +246,17 @@ class MasterPricingConfiguration(BaseModel):
         extra = "allow"
 
 class Currency(BaseModel):
-    code: str  # Currency code, e.g., "INR"
-    symbol: str  # Currency symbol, e.g., "₹"
-    decimal_places: int = 2  # Number of decimal places, e.g., 2 for paise in INR
-    in_words: str = "Rupees"  # Currency in words, e.g., "Rupees"
-    international_name: str = "Indian Rupee"  # International name, e.g., "Indian Rupee"
-    symbol_position: str = "before"  # Position of the currency symbol, e.g., "before" or "after"
-    code_position: str = "after"  # Position of the currency code, e.g., "before" or "after"
-    thousand_separator: str = ","  # Thousand separator, e.g., ","
-    decimal_separator: str = "."  # Decimal separator, e.g., "."
-    lowest_unit_name: str = "Paise"  # Name of the lowest currency unit, e.g., "Paise"
-    lowest_unit_conversion_factor: int = 100  # Conversion factor for the lowest currency unit, e.g., 100 (1 Rupee = 100 Paise)
+    code: Optional[str] = Field(None, description="Currency code, e.g., 'INR'")
+    symbol: Optional[str] = Field(None, description="Currency symbol, e.g., '₹'")
+    decimal_places: Optional[int] = Field(2, description="Number of decimal places, e.g., 2 for paise in INR")
+    in_words: Optional[str] = Field("Rupees", description="Currency in words, e.g., 'Rupees'")
+    international_name: Optional[str] = Field("Indian Rupee", description="International name, e.g., 'Indian Rupee'")
+    symbol_position: Optional[str] = Field("before", description="Position of the currency symbol, e.g., 'before' or 'after'")
+    code_position: Optional[str] = Field("after", description="Position of the currency code, e.g., 'before' or 'after'")
+    thousand_separator: Optional[str] = Field(",", description="Thousand separator, e.g., ','")
+    decimal_separator: Optional[str] = Field(".", description="Decimal separator, e.g., '.'")
+    lowest_unit_name: Optional[str] = Field("Paise", description="Name of the lowest currency unit, e.g., 'Paise'")
+    lowest_unit_conversion_factor: Optional[int] = Field(100, description="Conversion factor for the lowest currency unit, e.g., 100 (1 Rupee = 100 Paise)")
 
     class Config:
         from_attributes = True

@@ -11,7 +11,7 @@ class CabTypeSchema(BaseModel):
     cab_names: Optional[list[str]] = Field(None, description="List of cab model names for this cab type")  # e.g., [Dzire, Amaze, Indigo]  
     inventory_cab_names: Optional[list[str]] = Field(None, description="List of actual inventory cab model names for this cab type")  # e.g., ["Dzire", "Amaze"] - actual cabs in inventory for this type
     capacity:Optional[str] = Field(None, description="Capacity of the cab type e.g., '4+1', '6+1'")  # e.g., "4+1", "6+1"
-    created_by: Optional[RoleEnum] = Field(default=RoleEnum.system, description="The role of the user who created this cab type")  # RoleEnum value as string, e.g., "system", "admin"
+    created_by: Optional[str] = Field(default=RoleEnum.system.value, description="The role of the user who created this cab type")  # RoleEnum value as string, e.g., "system", "admin"
     is_active: Optional[bool] = Field(default=True, description="Indicates if the cab type is active or not")    
 
     class Config:

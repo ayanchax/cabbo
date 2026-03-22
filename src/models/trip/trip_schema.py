@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
 from models.customer.customer_schema import CustomerRead
+from models.policies.cancelation_schema import CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
@@ -129,39 +130,12 @@ class TripCreate(BaseModel):
  
 class TripOut(BaseModel):
     trip_id: str  # Unique trip ID for the trip for internal use
-    payment_info: RazorPayPaymentResponse  # Payment details is mandatory as we do not confirm trips without an advance payment
+    payment_info: Union[RazorPayPaymentResponse, dict]  # Payment details is mandatory as we do not confirm trips without an advance payment
     
     class Config:
         from_attributes = True
 
-class TripStatusAuditOut(BaseModel):
-    id: int
-    trip_id: str
-    booking_id: str
-    status: TripStatusEnum
-    changed_by: str
-    reason: Optional[str] = None
-    timestamp: datetime
-    cancellation_sub_status: Optional[CancellationSubStatusEnum] = None
-    
-
-    class Config:
-        from_attributes = True
-
-
-class TripTypeMasterOut(BaseModel):
-    id: str
-    booking_id: str
-    trip_type: TripTypeEnum
-    display_name: str
-    description: Optional[str]
-    created_by: RoleEnum
-    created_at: datetime
-    last_modified: datetime
-
-    class Config:
-        from_attributes = True
-
+ 
 
 class TripSearchRequest(BaseModel):
     trip_type: TripTypeEnum
@@ -310,7 +284,7 @@ class TripDetailSchema(BaseModel):
     # Creator information
     customer:Optional[CustomerRead] = Field(None, description="Customer details of the trip creator, included only if the creator is a customer and if the requesting user has permission to view customer details")
     # Trip details
-    trip_type: Optional[TripTypeSchema] = Field(None, description="Trip type details")
+    trip_type_master: Optional[TripTypeSchema] = Field(None, description="Trip type details")
     
     # Location information
     origin: Optional[LocationInfo] = Field(None, description="Origin city details")
@@ -329,10 +303,9 @@ class TripDetailSchema(BaseModel):
     start_datetime: Optional[datetime] = Field(None, description="Start date and time of the trip")
     expected_end_datetime: Optional[datetime] = Field(None, description="Expected end date and time of the trip")
     end_datetime: Optional[datetime] = Field(None, description="Actual end date and time of the trip")
-    cancelation_datetime: Optional[datetime] = Field(None, description="Cancellation date and time of the trip, if applicable")
     total_days: Optional[int] = Field(None, description="Total days for outstation trips")
     included_kms: Optional[float] = Field(None, description="Included kilometers for the trip")
-
+    cancellation: Optional[CancelationSchema] = Field(None, description="Cancellation details if the trip is cancelled")
     # Passenger and luggage information
     num_adults: Optional[int] = Field(None, description="Number of adults")
     num_children: Optional[int] = Field(None, description="Number of children")
@@ -399,7 +372,7 @@ class TripDetailSchema(BaseModel):
 
 class AdditionalDetailsOnTripStatusChange(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for the status change, especially important for cancellations")
-    cancellation_sub_status: Optional[CancellationSubStatusEnum] = Field(None, description="Sub-status for cancellations to provide more context on the cancellation reason")
+    cancelation_detail:Optional[CancelationSchema] = Field(None, description="Details of the cancellation, if the trip status is changed to cancelled")
     dispute_detail:Optional[InitialDisputeSchema] = Field(None, description="Details of the dispute to be created when the trip status is changed to dispute")
     extra_payment_to_driver: Optional[ExtraPayments] = Field(None, description="Details of any extra payment to driver at trip completion, such as tolls paid by driver, parking charges, overage payment for extra distance or time, tips from customer, etc.")
     start_datetime: Optional[datetime] = Field(None, description="Actual start date and time of the trip, useful for calculating any overages in case of outstation and local trips")

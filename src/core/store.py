@@ -32,6 +32,8 @@ from services.pricing_service import (
     get_base_pricings_airport,
     get_base_pricings_local,
     get_base_pricings_outstation,
+    get_cancellation_policies_by_region_code,
+    get_cancellation_policies_by_state_code,
     get_cancellation_policy_by_region_code,
     get_cancellation_policy_by_state_code,
     get_common_pricing_configurations_by_trip_type_id,
@@ -512,12 +514,15 @@ class ConfigStore(BaseModel):
                         )
         # Load cancelation policy config in store for outstation trips for each state
         for state_code, pricing_config in outstation_data.items():
-            cancellation_policy = get_cancellation_policy_by_state_code(state_code, db)
+            cancellation_policies = get_cancellation_policies_by_state_code(state_code, db)
+            #Find the cancellation policy for trip type outstation in the list of cancellation policies for the state and set it in the store with key as outstation_trip_type.id
+            cancellation_policy = next((policy for policy in cancellation_policies if policy.trip_type_id == outstation_trip_type.id), None) if cancellation_policies else None
             if cancellation_policy:
-                pricing_config.auxiliary_pricing.cancellation_policy = (
-                    cancellation_policy
-                )
+                 if pricing_config.auxiliary_pricing.cancellation_policy is None:
+                            pricing_config.auxiliary_pricing.cancellation_policy = {}
+                 pricing_config.auxiliary_pricing.cancellation_policy[outstation_trip_type.id] = cancellation_policy
 
+            
         self._set_outstation_pricing(outstation_data)
 
     def _retrieve_and_set_local_pricing(self, db: Session):
@@ -572,13 +577,15 @@ class ConfigStore(BaseModel):
                         )
         # Load cancelation policy config in store for local trips for each region
         for region_code, pricing_config in local_data.items():
-            cancellation_policy = get_cancellation_policy_by_region_code(
+            cancellation_policies = get_cancellation_policies_by_region_code(
                 region_code, db
             )
+            #Find the cancellation policy for trip type local in the list of cancellation policies for the region and set it in the store with key as local_trip_type.id
+            cancellation_policy = next((policy for policy in cancellation_policies if policy.trip_type_id == local_trip_type.id), None) if cancellation_policies else None
             if cancellation_policy:
-                pricing_config.auxiliary_pricing.cancellation_policy = (
-                    cancellation_policy
-                )
+                if pricing_config.auxiliary_pricing.cancellation_policy is None:
+                            pricing_config.auxiliary_pricing.cancellation_policy = {}
+                pricing_config.auxiliary_pricing.cancellation_policy[local_trip_type.id] = cancellation_policy
         # - Load trip package config per region inside local trip config data
         for region_code, pricing_config in local_data.items():
             trip_package_config_list = get_trip_package_configuration_list_by_region_code(
@@ -636,13 +643,15 @@ class ConfigStore(BaseModel):
                     # No permit fee for airport trips
         # Load cancelation policy config in store for local trips for each region
         for region_code, pricing_config in airport_data.items():
-            cancellation_policy = get_cancellation_policy_by_region_code(
+            cancellation_policies = get_cancellation_policies_by_region_code(
                 region_code, db
             )
+            #Find the cancellation policy for trip type local in the list of cancellation policies for the region and set it in the store with key as airport_trip_type.id
+            cancellation_policy = next((policy for policy in cancellation_policies if policy.trip_type_id == airport_trip_type.id), None) if cancellation_policies else None
             if cancellation_policy:
-                pricing_config.auxiliary_pricing.cancellation_policy = (
-                    cancellation_policy
-                )
+                if pricing_config.auxiliary_pricing.cancellation_policy is None:
+                            pricing_config.auxiliary_pricing.cancellation_policy = {}
+                pricing_config.auxiliary_pricing.cancellation_policy[airport_trip_type.id] = cancellation_policy
 
         if trip_type == TripTypeEnum.airport_pickup:
             self._set_airport_pickup_pricing(airport_data)

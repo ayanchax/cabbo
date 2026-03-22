@@ -25,16 +25,12 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.customer_service import get_customer_by_id
-from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km
 from core.config import settings
-from services.passenger_service import get_passenger_by_id
 from services.validation_service import (
     validate_airport_schedule,
     validate_placard_requirements,
 )
-from sqlalchemy.orm import Session
 
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
