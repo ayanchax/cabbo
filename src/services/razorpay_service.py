@@ -338,6 +338,16 @@ def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
     Returns:
         RazorPayRefundStatusEnum: The status of the refund.
     """
+    # Razorpay refund IDs start with "rfnd_"; payment IDs start with "pay_".
+    # A payment ID here means initiation failed — there is nothing to poll.
+    
+    if not refund_id or not refund_id.startswith("rfnd_"):
+        logger.warning(
+            f"[razorpay_service] Skipping refund status check for {refund_id}: "
+            f"no valid razorpay refund ID (got: {refund_id!r})"
+        )
+        return RazorPayRefundStatusEnum.FAILED  # Treat missing/invalid refund ID as failed status since there is nothing to poll
+    
     client = RAZOR_PAY_CLIENT
     client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
     try:

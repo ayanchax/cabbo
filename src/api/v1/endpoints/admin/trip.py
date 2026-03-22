@@ -238,7 +238,7 @@ async def update_status(
             "You do not have permission to update trip status.", status_code=403
         )
        
-    trip_schema, background_task = await update_trip_status(trip_id=trip_id, new_status=status, payload=payload, db=db, requestor=current_user)
+    trip_schema, background_task = await update_trip_status(trip_id=trip_id, new_status=status, payload=payload, db=db, requestor=current_user, validate_time_window=True) # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
     if not trip_schema:
         raise CabboException("Failed to update trip status", status_code=500)
     if background_task:
@@ -275,7 +275,7 @@ async def assign_driver(
         )
 
     assigned_trip, assigned_driver = await assign_driver_to_trip(
-        trip=trip, driver=driver, db=db, requestor=current_user, attach_trip_relationships=True
+        trip=trip, driver=driver, db=db, requestor=current_user, attach_trip_relationships=True, validate_time_window=True
     ) #Attaching trip relationships with customer details exposed, so that it can be used in the notification task to notify customer about driver assignment and trip confirmation
 
   

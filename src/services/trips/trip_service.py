@@ -627,7 +627,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
-async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatusEnum, requestor:User, payload: AdditionalDetailsOnTripStatusChange = None):
+async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatusEnum, requestor:User, payload: AdditionalDetailsOnTripStatusChange = None, validate_time_window:bool=False):
     trip = await async_get_trip_by_id(trip_id, db, expose_customer_details=True)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
@@ -647,7 +647,7 @@ async def update_trip_status(trip_id:str, db:AsyncSession, new_status: TripStatu
     trip_schema: TripDetailSchema = None
     background_task: Optional[AppBackgroundTask] = None
     try:
-       trip_schema,background_task=  await change_status(trip=trip, db=db, status=new_status, requestor=requestor, payload=payload)
+       trip_schema,background_task=  await change_status(trip=trip, db=db, status=new_status, requestor=requestor, payload=payload, validate_time_window=validate_time_window)
     except CabboException:
         await db.rollback()
         raise

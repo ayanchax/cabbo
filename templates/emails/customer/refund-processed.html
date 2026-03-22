@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>🎉 {{ app_name }} Refund Processed</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f6f8fb;
+            color: #23272f;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 18px;
+            padding: 36px 32px 28px 32px;
+            box-shadow: 0 8px 32px 0 rgba(44, 62, 80, 0.08);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2px;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 1.4rem;
+            font-weight: 500;
+            color: #22bb33;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .sub {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .success-icon {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .success-icon svg {
+            width: 80px;
+            height: 80px;
+        }
+
+        .refund-amount {
+            background: linear-gradient(135deg, #eaf6e7 60%, #d4edda 100%);
+            border-radius: 12px;
+            padding: 24px 20px;
+            margin-bottom: 24px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(34, 187, 51, 0.1);
+        }
+
+        .refund-amount .amount {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #22bb33;
+            margin-bottom: 8px;
+        }
+
+        .refund-amount .label-text {
+            font-size: 0.9rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .alert-box {
+            background: linear-gradient(135deg, #eaf6e7 60%, #d4edda 100%);
+            border-left: 4px solid #22bb33;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+            color: #1a4731;
+        }
+
+        .alert-box strong {
+            color: #15803d;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f4f8ff 60%, #eaf6e7 100%);
+            border-radius: 12px;
+            padding: 22px 20px 16px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px #f0f4fa;
+        }
+
+        .card h3 {
+            color: #2d7ff9;
+            margin-top: 0;
+            margin-bottom: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .detail-row {
+            width: 100%;
+            margin-bottom: 10px;
+            font-size: 13px;
+            clear: both;
+        }
+
+        .label {
+            color: #6b7280;
+            font-weight: 500;
+            min-width: 120px;
+            padding-right: 18px;
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .value {
+            color: #23272f;
+            font-weight: 600;
+            text-align: right;
+            float: right;
+            min-width: 120px;
+            word-break: break-word;
+        }
+
+        .value.highlight {
+            color: #22bb33;
+        }
+
+        .cta {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: linear-gradient(90deg, #2d7ff9 60%, #00c6fb 100%);
+            color: #fff;
+            padding: 14px 0;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.08rem;
+            margin: 32px 0 0 0;
+            box-shadow: 0 2px 8px #e0e8f8;
+            transition: background 0.2s;
+        }
+
+        .cta:hover {
+            background: linear-gradient(90deg, #1a5fd7 60%, #00a6d6 100%);
+        }
+
+        .footer {
+            font-size: 12px;
+            color: #a0aec0;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.7;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 36px 0 18px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 18px 4vw 18px 4vw;
+            }
+
+            .card {
+                padding: 14px 6vw 10px 6vw;
+            }
+
+            .refund-amount .amount {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Expected JINJA Variables:
+         app_logo_url, app_name, app_url,
+         name, booking_id,
+         refund_amount, currency, refund_type (full/partial),
+         currency_position (before/after),
+         original_amount,
+         refund_id,
+         current_year
+    -->
+    <div class="container">
+
+        <!-- Logo -->
+        {% if app_logo_url %}
+        <div class="logo">
+            <img src="{{ app_logo_url }}" alt="{{ app_name }} logo" width="200" height="200"
+                style="display: block; margin: 0 auto;" />
+        </div>
+        {% endif %}
+
+        <!-- Processed Icon — wallet with a green pulse to signal money arrived -->
+        <div class="success-icon">
+          <div style="
+        display: inline-block;
+        width: 72px;
+        height: 72px;
+        line-height: 72px;
+        border-radius: 50%;
+        background: #eaf6e7;
+        font-size: 36px;
+        text-align: center;
+        border: 2px solid #d4edda;
+    ">💸</div>
+        </div>
+
+        <!-- Header -->
+        <div class="header">🎉 Refund Processed!</div>
+
+        <div class="sub">
+            Great news, {{ name }}! Your refund for booking <strong>#{{ booking_id }}</strong> has been
+            successfully processed.
+        </div>
+
+        <!-- Refund Amount Card -->
+        <div class="refund-amount">
+            <div class="amount">
+                {% if currency_position == 'before' %}
+                {{ currency }}{{ refund_amount }}
+                {% else %}
+                {{ refund_amount }}{{ currency }}
+                {% endif %}
+            </div>
+            <div class="label-text">{{ refund_type|capitalize }} Refund — Processed ✓</div>
+        </div>
+
+        <!-- Success Alert -->
+        <div class="alert-box">
+            <strong>✅ Money on its way!</strong> The refund has been released by our payment partner.
+            It should reflect in your account within <strong>1–3 business days</strong> depending on your bank.
+        </div>
+
+        <!-- Refund Details -->
+        <div class="card">
+            <h3>💳 Refund Details</h3>
+            <div class="detail-row">
+                <span class="label">Refund ID</span>
+                <span class="value">{{ refund_id }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Booking ID</span>
+                <span class="value">{{ booking_id }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Refund Type</span>
+                <span class="value">{{ refund_type|capitalize }} Refund</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Original Amount</span>
+                <span class="value">
+                    {% if currency_position == 'before' %}
+                    {{ currency }}{{ original_amount }}
+                    {% else %}
+                    {{ original_amount }}{{ currency }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Refund Amount</span>
+                <span class="value highlight">
+                    {% if currency_position == 'before' %}
+                    {{ currency }}{{ refund_amount }}
+                    {% else %}
+                    {{ refund_amount }}{{ currency }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Status</span>
+                <span class="value highlight">Processed ✓</span>
+            </div>
+        </div>
+
+        <!-- Not showing yet? -->
+        <div
+            style="background: #f0f9ff; border-left: 4px solid #2d7ff9; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; font-size: 0.88rem; color: #1e3a8a;">
+            <strong>📌 Don't see it yet?</strong>
+            <ul style="margin: 8px 0 0 0; padding-left: 20px; line-height: 1.8;">
+                <li>Bank processing can take <strong>1–3 business days</strong> after payment provider releases the funds.</li>
+                <li>The refund will appear on the same card or account used during booking.</li>
+                <li>If it hasn't shown up after 5 business days, please contact your bank with the Refund ID above.</li>
+                <li>Check your bank's app or SMS alerts for an incoming credit notification.</li>
+            </ul>
+        </div>
+
+        <!-- CTA -->
+        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">
+            📲 View Trip Details
+        </a>
+
+        <hr>
+
+        <!-- Footer -->
+        <div class="footer">
+            If you have any questions about your refund, please contact our support team.<br>
+            Thank you for choosing {{ app_name }}. We hope to serve you again soon.<br><br>
+            This email was sent by <b>{{ app_name }}</b>.<br>
+            Maa Sarada Tours and Travels, Bangalore, India<br>
+            &copy; {{ current_year }} {{ app_name }}. All rights reserved.
+        </div>
+
+    </div>
+</body>
+
+</html>
