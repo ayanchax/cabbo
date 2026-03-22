@@ -365,6 +365,19 @@ def get_cancellation_policy_by_state_code(state_code: str, db: Session) -> Cance
         return CancelationPolicySchema.model_validate(cancellation_policy)
     return None
 
+def get_cancellation_policies_by_state_code(state_code: str, db: Session) -> List[CancelationPolicySchema]:
+    policies = (
+        db.query(CancellationPolicy)
+        .join(StateModel, CancellationPolicy.state_id == StateModel.id)
+        .filter(
+            StateModel.state_code == state_code,
+        )
+        .all()
+    )
+    if policies:
+        return [CancelationPolicySchema.model_validate(policy) for policy in policies]
+    return None
+
 def get_cancellation_policy_by_region_code(region_code: str, db: Session) -> CancelationPolicySchema:
     cancellation_policy = (
         db.query(CancellationPolicy)
@@ -376,4 +389,16 @@ def get_cancellation_policy_by_region_code(region_code: str, db: Session) -> Can
     )
     if cancellation_policy:
         return CancelationPolicySchema.model_validate(cancellation_policy)
+    return None 
+
+def get_cancellation_policies_by_region_code(region_code: str, db: Session) -> List[CancelationPolicySchema]:
+    policies = (
+        db.query(CancellationPolicy)
+        .join(RegionModel, CancellationPolicy.region_id == RegionModel.id)
+        .filter(
+            RegionModel.region_code == region_code,
+        ).all()
+    )
+    if policies:
+        return [CancelationPolicySchema.model_validate(policy) for policy in policies]
     return None 

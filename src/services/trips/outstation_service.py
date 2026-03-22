@@ -320,7 +320,7 @@ def get_outstation_trip_options(
         margin = included_km - total_est_km  # Allow negative values for overage
         indicative_overage_warning = margin <= warning_km_threshold
         package_short_label = (
-            f"{max(total_est_km, included_km)} km | Round trip | ({total_trip_days} days)"
+            f"{included_km} km | Round trip | ({total_trip_days} days)"
         )
         package_label = f"{package_short_label} - AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
 

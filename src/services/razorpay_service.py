@@ -261,7 +261,7 @@ def initiate_razorpay_refund(
 
         # Guard: check if a refund already exists for this payment before initiating a new one
         # For Cabbo, a payment is always refunded once (full or partial) — this prevents duplicate refunds
-        existing_refunds = client.payment.refunds(payment_id)
+        existing_refunds = client.payment.fetch_multiple_refund(payment_id)
         if existing_refunds and existing_refunds.get("items"):
             existing_refund = existing_refunds["items"][
                 0
@@ -269,6 +269,7 @@ def initiate_razorpay_refund(
             logger.info(
                 f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one"
             )
+            print(f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one")
             return {
                 **existing_refund,
                 "amount": float(

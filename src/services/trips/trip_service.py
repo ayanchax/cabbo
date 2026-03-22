@@ -584,7 +584,7 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
             print("Grouping trips by status with timezone validation")
             return _group_by_trip_status_with_timezone_validation(trips)
         print("Grouping trips by status without timezone validation")
-        upcoming_trips = [trip for trip in trips if trip.get("status") == TripStatusEnum.confirmed.value]
+        upcoming_trips = [trip for trip in trips if trip.get("status") in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value]]
         ongoing_trips = [trip for trip in trips if trip.get("status") == TripStatusEnum.ongoing.value]
         past_trips = [trip for trip in trips if trip.get("status") in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value]]
         return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
@@ -609,7 +609,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
         # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
         if trip_type in [TripTypeEnum.airport_pickup.value, TripTypeEnum.airport_drop.value, TripTypeEnum.local.value]:
-            if trip_status == TripStatusEnum.confirmed.value and start_datetime > current_datetime:
+            if trip_status in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value] and start_datetime > current_datetime:
                 upcoming_trips.append(trip)
             elif trip_status == TripStatusEnum.ongoing.value and start_datetime <= current_datetime and start_datetime >= (current_datetime - timedelta(hours=24)):
                 ongoing_trips.append(trip)
@@ -618,7 +618,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
         # Outstation Logic(strictly based on start and expected end datetime to account for real-world conditions like delays, early arrivals, etc.)
         elif trip_type == TripTypeEnum.outstation.value:
-            if trip_status == TripStatusEnum.confirmed.value and start_datetime > current_datetime and expected_end_datetime > current_datetime:
+            if trip_status in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value] and start_datetime > current_datetime and expected_end_datetime > current_datetime:
                 upcoming_trips.append(trip)
             elif trip_status == TripStatusEnum.ongoing.value and start_datetime <= current_datetime and expected_end_datetime >= current_datetime:
                 ongoing_trips.append(trip)

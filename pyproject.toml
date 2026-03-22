@@ -5,6 +5,7 @@ requires-python = ">=3.10"
 version = "0.1.0"
 
 dependencies = [
+  "alembic",
   "fastapi",
   "uvicorn",
   "python-dotenv",
@@ -19,12 +20,12 @@ dependencies = [
   "python-multipart",
   "mapbox",
   "Jinja2",
-  "razorpay",
   "setuptools",
   "tzdata>=2025.2",
   "python-dateutil>=2.9.0.post0",
   "APScheduler>=3.10",
   "aiosmtplib>=5.0.0",
+  "razorpay>=1.3.0",
 ]
 
 [project.optional-dependencies]

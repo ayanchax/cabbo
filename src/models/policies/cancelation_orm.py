@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     DateTime,
     ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 from sqlalchemy.orm import relationship
@@ -27,6 +28,10 @@ class CancellationPolicy(Base):
         default=lambda: str(uuid.uuid4()),
         unique=True,
         index=True,
+    )
+    __table_args__ = (
+        UniqueConstraint("trip_type_id", "region_id", name="uq_policy_trip_type_region"),
+        UniqueConstraint("trip_type_id", "state_id", name="uq_policy_trip_type_state"),
     )
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False, index=True
