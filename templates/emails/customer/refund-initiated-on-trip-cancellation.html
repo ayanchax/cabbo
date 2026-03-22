@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>💰 {{ app_name }} Refund Initiated</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f6f8fb;
+            color: #23272f;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 18px;
+            padding: 36px 32px 28px 32px;
+            box-shadow: 0 8px 32px 0 rgba(44, 62, 80, 0.08);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2px;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 1.4rem;
+            font-weight: 500;
+            color: #22bb33;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .sub-header {
+            text-align: center;
+            font-size: 0.5rem;
+            color: #4a5568;
+            margin-bottom: 24px;
+        }
+
+        .sub {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .alert-box {
+            background: linear-gradient(135deg, #fff8e1 60%, #fff3cd 100%);
+            border-left: 4px solid #ffa726;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+            color: #5a3e00;
+        }
+
+        .alert-box strong {
+            color: #d97706;
+        }
+
+        .success-icon {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .success-icon svg {
+            width: 80px;
+            height: 80px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f4f8ff 60%, #eaf6e7 100%);
+            border-radius: 12px;
+            padding: 22px 20px 16px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px #f0f4fa;
+        }
+
+        .card h3 {
+            color: #2d7ff9;
+            margin-top: 0;
+            margin-bottom: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .detail-row {
+            width: 100%;
+            margin-bottom: 10px;
+            font-size: 13px;
+            clear: both;
+        }
+
+        .label {
+            color: #6b7280;
+            font-weight: 500;
+            min-width: 120px;
+            padding-right: 18px;
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .value {
+            color: #23272f;
+            font-weight: 600;
+            text-align: right;
+            float: right;
+            min-width: 120px;
+            word-break: break-word;
+        }
+
+        .refund-amount {
+            background: linear-gradient(135deg, #eaf6e7 60%, #d4edda 100%);
+            border-radius: 12px;
+            padding: 24px 20px;
+            margin-bottom: 24px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(34, 187, 51, 0.1);
+        }
+
+        .refund-amount .amount {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #22bb33;
+            margin-bottom: 8px;
+        }
+
+        .refund-amount .label-text {
+            font-size: 0.9rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .timeline {
+            margin: 24px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .timeline-icon {
+            width: 32px;
+            height: 32px;
+            background: #22bb33;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .timeline-icon.pending {
+            background: #ffa726;
+        }
+
+        .timeline-content {
+            flex: 1;
+            padding-top: 4px;
+        }
+
+        .timeline-content .title {
+            font-weight: 600;
+            color: #23272f;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .timeline-content .desc {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+
+        .cta {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: linear-gradient(90deg, #2d7ff9 60%, #00c6fb 100%);
+            color: #fff;
+            padding: 14px 0;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.08rem;
+            margin: 32px 0 0 0;
+            box-shadow: 0 2px 8px #e0e8f8;
+            transition: background 0.2s;
+        }
+
+        .cta:hover {
+            background: linear-gradient(90deg, #1a5fd7 60%, #00a6d6 100%);
+        }
+
+        .footer {
+            font-size: 12px;
+            color: #a0aec0;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.7;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 36px 0 18px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 18px 4vw 18px 4vw;
+            }
+
+            .card {
+                padding: 14px 6vw 10px 6vw;
+            }
+
+            .refund-amount .amount {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Expected JINJA Variables:
+         app_logo_url, app_name, app_url,
+         name, booking_id,
+         refund_amount, currency, refund_type(full/partial),
+         currency_position (before/after),
+         original_amount,
+         refund_id,
+         estimated_days (5-7 business days),
+         current_year
+    -->
+    <div class="container">
+        <!-- Logo -->
+        {% if app_logo_url %}
+        <div class="logo">
+            <img src="{{ app_logo_url }}" alt="{{ app_name }} logo" width="200" height="200"
+                style="display: block; margin: 0 auto;" />
+        </div>
+        {% endif %}
+
+        <!-- Success Icon -->
+        <div class="success-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" fill="#22bb33" opacity="0.2" />
+                <path d="M7 12L10 15L17 8" stroke="#22bb33" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" />
+            </svg>
+        </div>
+
+        <!-- Header -->
+        <div class="header">✅ Refund Initiated</div>
+
+        <div class="sub">Hi {{ name }}, your booking <strong>#{{ booking_id }}</strong> has been cancelled and your
+            refund has been initiated to your original payment method.</div>
+
+        <!-- Refund Amount Card -->
+        <div class="refund-amount">
+            <div class="amount">
+                {% if currency_position == 'before' %}
+                {{ currency }}{{ refund_amount }}
+                {% else %}
+                {{ refund_amount }}{{ currency }}
+                {% endif %}
+            </div>
+            <div class="label-text">{{ refund_type|capitalize }} Refund</div>
+        </div>
+
+        <!-- Alert Box -->
+        <div class="alert-box">
+            <strong>⏱️ Processing Time:</strong> Your refund will be credited to your original payment method within
+            <strong>{{ estimated_days or '5-7' }} business days</strong>. The exact time may vary depending on your
+            bank or payment provider.
+        </div>
+
+        <!-- Refund Details -->
+        <div class="card">
+            <h3>💳 Refund Details</h3>
+            <div class="detail-row"><span class="label">Refund ID</span><span class="value">{{ refund_id }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Refund Type</span><span class="value">{{ refund_type|capitalize
+                    }} Refund</span></div>
+            <div class="detail-row">
+                <span class="label">Original Amount</span>
+                <span class="value">
+                    {% if currency_position == 'before' %}
+                    {{ currency }}{{ original_amount }}
+                    {% else %}
+                    {{ original_amount }}{{ currency }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Refund Amount</span>
+                <span class="value">
+                    {% if currency_position == 'before' %}
+                    {{ currency }}{{ refund_amount }}
+                    {% else %}
+                    {{ refund_amount }}{{ currency }}
+                    {% endif %}
+                </span>
+            </div>
+
+        </div>
+
+
+        <!-- What's Next Timeline -->
+        <div class="card" style="background: #f9fafb;">
+            <h3>🔄 What Happens Next?</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-icon">✓</div>
+                    <div class="timeline-content">
+                        <div class="title">Refund Initiated</div>
+                        <div class="desc">Your refund request has been approved and processed.</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-icon pending">⏳</div>
+                    <div class="timeline-content">
+                        <div class="title">Payment Provider Processing</div>
+                        <div class="desc">The refund is being processed by our payment partner (Razorpay).</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-icon pending">💳</div>
+                    <div class="timeline-content">
+                        <div class="title">Bank Processing</div>
+                        <div class="desc">Your bank will credit the amount to your account ({{ estimated_days or '5-7'
+                            }} business days).</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Important Notes -->
+        <div
+            style="background: #f0f9ff; border-left: 4px solid #2d7ff9; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; font-size: 0.88rem; color: #1e3a8a;">
+            <strong>📌 Important Notes:</strong>
+            <ul style="margin: 8px 0 0 0; padding-left: 20px; line-height: 1.8;">
+                <li>The refund will be credited to the original payment method used during booking.</li>
+                <li>You'll receive a notification once the refund is credited to your account.</li>
+                <li>If you don't receive the refund within {{ estimated_days or '5-7' }} business days, please contact
+                    your bank.</li>
+                <li>Check your spam/junk folder for refund confirmation emails from your bank.</li>
+            </ul>
+        </div>
+
+        <!-- View Details CTA -->
+        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
+            View Cancellation Details</a>
+
+        <hr>
+
+        <!-- Footer -->
+        <div class="footer">
+            If you have any questions about your refund, please contact our support team.<br>
+            We appreciate your understanding and look forward to serving you again.<br><br>
+            This email was sent by <b>{{ app_name }}</b>.<br>
+            Maa Sarada Tours and Travels, Bangalore, India<br>
+            &copy; {{ current_year }} {{ app_name }}. All rights reserved.
+        </div>
+    </div>
+</body>
+
+</html>

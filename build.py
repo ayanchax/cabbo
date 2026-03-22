@@ -2,20 +2,21 @@
 import argparse
 import subprocess
 import sys
+from core.constants import APP_NAME
 
 parser = argparse.ArgumentParser(description="Build and optionally run Cabbo Docker images.")
 parser.add_argument("--env", choices=["dev", "prod"], default="dev", help="Environment to build for (dev or prod)")
 parser.add_argument("--run", action="store_true", default=False, help="Run the container after building")
-parser.add_argument("--port", default="8000", help="Port to expose (default: 8000)")
+parser.add_argument("--port", default="8000", help="Port to expose (default: 8000)") # Expose port 8000 for the app to be accessible from outside the container
 args = parser.parse_args()
 
 if args.env == "dev":
     dockerfile = "Dockerfile.dev"
-    tag = "cabbo-dev"
+    tag = f"{APP_NAME}-dev"
     env_file = ".env.dev"
 else:
     dockerfile = "Dockerfile" # Default to Dockerfile for production
-    tag = "cabbo-prod"
+    tag = f"{APP_NAME}-prod"
     env_file = ".env.prod"
 
 build_cmd = [
