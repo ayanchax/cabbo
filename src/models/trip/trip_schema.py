@@ -20,10 +20,8 @@ from models.trip.trip_enums import (
     TripTypeEnum,
     FuelTypeEnum,
     CarTypeEnum,
-    CancellationSubStatusEnum,
 )
 from models.map.location_schema import LocationInfo
-from models.pricing.pricing_orm import RoleEnum
 
 class TripTypeSchema(BaseModel):
     id: Optional[str]
@@ -380,3 +378,21 @@ class AdditionalDetailsOnTripStatusChange(BaseModel):
     class Config:
         extra = "forbid"  # Forbid extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
+
+class LocalTripPackageSchema(BaseModel):
+    id: Optional[str] = None  # Optional ID for existing packages
+    region_code: str
+    included_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_km: float  # e.g., 40, 60, 80, 100, 120
+    driver_allowance: Optional[float] = (
+        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
+    )
+
+class LocalTripPackageUpdateSchema(BaseModel):
+    included_hours: int  # e.g., 4, 6, 8, 10, 12
+    included_km: float  # e.g., 40, 60, 80, 100, 120
+    driver_allowance: Optional[float] = (
+        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
+    )
+
+    

@@ -63,7 +63,7 @@ def get_trip_package_configuration_list_by_region_code(
         db.query(TripPackageConfig)
         .join(RegionModel, TripPackageConfig.region_id == RegionModel.id)
         .filter(
-            RegionModel.region_code == region_code,
+            RegionModel.region_code == region_code, TripPackageConfig.is_active == True
         )
         .all()
     )

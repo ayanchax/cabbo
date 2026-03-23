@@ -144,7 +144,7 @@ def _retrieve_trip_package_by_id(
             package_label=fallback_label,
         )
     package = (
-        db.query(TripPackageConfig).filter(TripPackageConfig.id == package_id).first()
+        db.query(TripPackageConfig).filter(TripPackageConfig.id == package_id, TripPackageConfig.is_active == True).first()
     )
     if not package:
         return TripPackageConfigSchema(
