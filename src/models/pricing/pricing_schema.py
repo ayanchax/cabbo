@@ -215,6 +215,7 @@ class TripPackageConfigSchema(BaseModel):
     class Config:
         from_attributes = True
         extra = "allow"
+
 class AuxiliaryPricingConfiguration(BaseModel):
 
     common: Optional[CommonPricingConfigurationSchema] = None

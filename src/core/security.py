@@ -36,7 +36,9 @@ class RoleEnum(str, Enum):
     driver_admin = "driver_admin"  # Administrator for driver management such as onboarding, verification etc.
     finance_admin = "fin_admin"  # Administrator for financial operations such as payments etc.
     customer_admin = "cust_admin"  # Administrator for customer management such as deactivation, reactivation etc.
-
+    regional_admin = "regional_admin"  # Regional admin with access to manage operations in specific regions
+    state_admin = "state_admin"  # State admin with access to manage operations in specific states
+    
     #Internal roles for seeding or migrations
     system = (
         "system"  # System role for internal operations during seeding or migrations
@@ -44,7 +46,7 @@ class RoleEnum(str, Enum):
     #Regular roles
     customer = "customer"  # Regular customer role
     driver = "driver"  # Regular driver role
-
+    support_agent = "support_agent"  # Support agent role for handling customer support queries
 
 def validate_customer_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
