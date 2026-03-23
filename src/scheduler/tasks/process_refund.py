@@ -175,7 +175,8 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
             f"for refund {refund.id}, skipping DB update"
         )
         return
-
+    if provider_refund_id !=refund.id:
+        refund.id = provider_refund_id  # Update the refund record's ID to match the provider refund ID if they differ
     refund.refund_status = new_db_status
     db.add(refund)
     await db.commit()
