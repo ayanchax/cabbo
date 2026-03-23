@@ -24,7 +24,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
 from models.user.user_enum import GenderEnum, NationalityEnum, ReligionEnum
-
+from datetime import datetime, timezone
 
 class Driver(Base):
     __tablename__ = "drivers"
@@ -41,7 +41,7 @@ class Driver(Base):
     email = Column(String(255), nullable=True, unique=True)
     #Secondary data
     gender = Column(Enum(GenderEnum, name="gender_enum"), nullable=False, default=GenderEnum.male)
-    dob = Column(DateTime, nullable=True)
+    dob = Column(DateTime(timezone=True), nullable=True)
     emergency_contact_name = Column(String(255), nullable=True)
     emergency_contact_number = Column(String(20), nullable=True)
     #We are keeping the nationality and religion optional for now, we will use this information for KYC verification when we open the app for drivers
@@ -84,14 +84,12 @@ class Driver(Base):
     
     is_active = Column(Boolean, default=True, nullable=False)  # Active status
     created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     last_modified = Column(
         DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     created_by = Column(
@@ -144,17 +142,15 @@ class DriverEarning(Base):
     total_earnings = Column(Float, nullable=False)  # total earnings for the driver for the trip including the standard fare and any extra earnings (earnings + extra_earnings)
     # Model validated by ExtraPaymentsToDriverSchema in driver_schema.py to ensure the breakdown is consistent with the total extra payment to driver and the individual components of the extra payment.
     created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     created_by = Column(
         MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
     )  # Created by system, admin, or user
     last_modified = Column(
         DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 
@@ -187,9 +183,7 @@ class DriverRating(Base):
     rating = Column(Float, nullable=False)  # Rating given by the customer out of 5
     feedback = Column(String(500), nullable=True)  # Optional feedback from the customer
     created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     #rating cannot be updated once set, so no onupdate
     created_by = Column(
@@ -197,8 +191,8 @@ class DriverRating(Base):
     )  # Created by customer id who gave the rating, this will be used to ensure that the customer can only give one rating per trip and to identify the customer who gave the rating for any follow up if needed.
     last_modified = Column(
         DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     

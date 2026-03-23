@@ -1,10 +1,11 @@
 #State or Province ORM model
-from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, func,Enum as SAEnum
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from core.security import RoleEnum
 from db.database import Base
 import uuid
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
+from datetime import datetime, timezone
 
 class StateModel(Base):
     __tablename__ = "states_master"
@@ -21,5 +22,12 @@ class StateModel(Base):
     is_serviceable = Column(Boolean, nullable=False, default=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    last_modified = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    last_modified = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

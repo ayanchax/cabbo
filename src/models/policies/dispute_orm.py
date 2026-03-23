@@ -15,6 +15,7 @@ from db.database import Base
 from models.policies.dispute_enum import DisputeTriggerEnum, DisputeTypeEnum
 from models.policies.dispute_schema import DisputeDetailsSchema
 from models.support.support_enum import TicketStatusEnum
+from datetime import datetime, timezone
 
 
 class Dispute(Base):
@@ -55,8 +56,16 @@ class Dispute(Base):
         comment="Description of how the dispute was triggered, e.g., 'manual', 'automatic'",
         default=DisputeTriggerEnum.automatic,
     )  # Description of how the dispute was triggered, e.g., "manual", "automatic"
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    
     is_active = Column(
         Boolean, nullable=False, default=True
     )  # Flag to indicate if the dispute record is active or has been soft-deleted

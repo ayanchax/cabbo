@@ -17,6 +17,7 @@ from core.security import RoleEnum
 from sqlalchemy import Enum as SAEnum
 
 from models.trip.trip_enums import CancellationSubStatusEnum
+from datetime import datetime, timezone
 
 
 class CancellationPolicy(Base):
@@ -56,12 +57,14 @@ class CancellationPolicy(Base):
     is_active = Column(Boolean, nullable=False, default=True)
 
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
 
 
@@ -90,12 +93,14 @@ class Cancellation(Base):
         String(255), nullable=True
     )  # Reason for cancellation provided by the customer or system user/admin
 
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
     is_active = Column(Boolean, nullable=False, default=True)
     trip = relationship(

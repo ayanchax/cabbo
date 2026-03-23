@@ -15,7 +15,7 @@ from sqlalchemy.types import Enum as SqlEnum
 from sqlalchemy.orm import relationship
 
 from models.user.user_enum import GenderEnum
-
+from datetime import datetime, timezone
 
 
 class Customer(Base):
@@ -39,15 +39,15 @@ class Customer(Base):
     opt_in_updates = Column(
         Boolean, default=False, nullable=False
     )  # consent for offers/updates
-    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     is_phone_verified = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
     last_modified = Column(
-        DateTime,
-        server_default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     bearer_token = Column(Text, nullable=True)
@@ -78,10 +78,11 @@ class PreOnboardingCustomer(Base):
     )
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
     otp_hash = Column(String(128), nullable=False)
-    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
-    last_sent_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    last_sent_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class CustomerEmailVerification(Base):
@@ -95,5 +96,5 @@ class CustomerEmailVerification(Base):
         index=True,
     )
     verification_url = Column(String(512), nullable=False, unique=True)
-    expiry = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    expiry = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
