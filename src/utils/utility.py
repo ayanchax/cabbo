@@ -31,7 +31,7 @@ def validate_date_time(date_time: Union[str, datetime]):
                 local_tz = timezone.utc
             dt = dt.replace(tzinfo=local_tz)
         # Always convert to UTC
-        return dt.astimezone(timezone.utc)
+        return dt.astimezone(timezone.utc) # Return aware datetime in UTC
     except Exception as e:
         raise CabboException("Error processing datetime", status_code=400) from e
 

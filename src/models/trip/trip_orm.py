@@ -4,7 +4,6 @@ from models.trip.trip_enums import (
     TripTypeEnum,
     FuelTypeEnum,
     CarTypeEnum,
-    CancellationSubStatusEnum,
 )
 import uuid
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -24,7 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
-
+from datetime import datetime, timezone
 
 class Trip(Base):
     __tablename__ = "trips"
@@ -89,11 +88,11 @@ class Trip(Base):
     # Package information selected by customer - END
 
     # Date and time information
-    start_datetime = Column(DateTime, nullable=False)
+    start_datetime = Column(DateTime, nullable=False) #This field is always converted to UTC, refer validate_date_time() method in utility.py for details
     expected_end_datetime = Column(
         DateTime, nullable=True
     )  # Nullable | for local trips, we set it by package chosen
-    end_datetime = Column(DateTime, nullable=True)
+    end_datetime = Column(DateTime, nullable=True) #This field is always converted to UTC, refer validate_date_time() method in utility.py for details
     total_days = Column(
         Integer, nullable=False, default=1
     )  # Total days for outstation trips
@@ -200,9 +199,14 @@ class Trip(Base):
     # Airport pickup/flight metadata - END
 
     # Trip metadata
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
     updated_at = Column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
     )
     # Trip metadata - END
 
@@ -303,7 +307,8 @@ class TripStatusAudit(Base):
         MySQL_CHAR(36), nullable=False, index=True
     )  # ID of the user who changed the status
     reason = Column(String(255), nullable=True)  # New: reason/message for audit
-    timestamp = Column(DateTime, server_default=func.now(), nullable=False)
+    timestamp =  Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
 
 
     trip = relationship("Trip", back_populates="status_audits")
@@ -323,12 +328,12 @@ class TripTypeMaster(Base):
     display_name = Column(String(64), nullable=False)
     description = Column(String(255), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     is_active = Column(Boolean, nullable=False, default=True)
     trips = relationship("Trip", back_populates="trip_type_master")
@@ -361,12 +366,12 @@ class TripPackageConfig(Base):
     )  # Daily driver allowance for outstation/local trips
     package_label = Column(String(64), nullable=False)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     is_active = Column(Boolean, nullable=False, default=True)
     # Relationship to Trip
