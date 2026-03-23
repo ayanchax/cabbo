@@ -14,7 +14,7 @@ from db.database import Base
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
 from sqlalchemy.sql import func
 from core.security import RoleEnum
-
+from datetime import datetime, timezone
 
 
 class CabType(Base):
@@ -36,13 +36,9 @@ class CabType(Base):
         JSON, nullable=True
     )  # JSON list of actual inventory cab model names
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
-    last_modified = Column(
-        DateTime,
-        nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
-    )
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_modified = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     is_active=Column(Boolean, nullable=False, default=True)
 
 
@@ -57,11 +53,10 @@ class FuelType(Base):
     )
     name = Column(SAEnum(FuelTypeEnum), unique=True, nullable=False)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_modified = Column(
-        DateTime,
-        nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
     is_active=Column(Boolean, nullable=False, default=True)

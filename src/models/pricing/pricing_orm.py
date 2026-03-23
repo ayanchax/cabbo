@@ -1,13 +1,11 @@
 from sqlalchemy import (
     Boolean,
     Column,
-    Index,
     Integer,
     String,
     Float,
     ForeignKey,
     DateTime,
-    Enum as SAEnum,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -15,8 +13,7 @@ import uuid
 from db.database import Base
 from sqlalchemy.sql import func
 from core.security import RoleEnum
-
-
+from datetime import datetime, timezone
 
 
 # Outstation pricing
@@ -50,12 +47,13 @@ class OutstationCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
     )  # FK to GeoStateModel.id
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
 
 
@@ -85,12 +83,12 @@ class LocalCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
     )
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
 
 
@@ -119,12 +117,12 @@ class AirportCabPricing(Base):
         MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
     )
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
 
 
@@ -158,12 +156,12 @@ class NightPricingConfiguration(Base):
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
     )
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
 
 # Trip type wise pricing configuration. These are common configurations applicable to all cab types, fuel types for a given trip type
@@ -216,12 +214,12 @@ class CommonPricingConfiguration(Base):
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
     )
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
 
 
@@ -255,12 +253,12 @@ class FixedPlatformPricingConfiguration(Base):
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
      
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
     
 
@@ -290,12 +288,12 @@ class PermitFeeConfiguration(Base):
     permit_fee = Column(Float, nullable=False)  # Permit fee amount
     
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(
-        DateTime,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
-        default=func.utc_timestamp(),
-        onupdate=func.utc_timestamp(),
     )
     # Add a composite unique constraint
     __table_args__ = (

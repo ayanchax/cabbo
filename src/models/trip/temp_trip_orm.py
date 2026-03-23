@@ -17,6 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql import func
 from db.database import Base
+from datetime import datetime, timezone
 class TempTrip(Base):
     __tablename__ = "temp_trips"
 
@@ -167,9 +168,13 @@ class TempTrip(Base):
     # Airport pickup/flight metadata - END
 
     # Trip metadata
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
     updated_at = Column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
     )
     # Trip metadata - END
 

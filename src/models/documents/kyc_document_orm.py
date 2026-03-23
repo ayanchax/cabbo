@@ -5,7 +5,7 @@ from sqlalchemy.sql import func
 from db.database import Base
 from core.security import RoleEnum
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
-
+from datetime import datetime, timezone
 
 class KYCDocumentTypes(Base):
     __tablename__ = "kyc_document_types"
@@ -28,17 +28,16 @@ class KYCDocumentTypes(Base):
         String(255), nullable=True
     )  # Option Description of the document type
     created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
     created_by = Column(
         MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value
     )  # Created by system, admin, or user
     last_modified = Column(
         DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     is_active = Column(

@@ -3,7 +3,7 @@ from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
 from core.security import RoleEnum
 from db.database import Base
-
+from datetime import datetime, timezone
 
 class AirportModel(Base):
     __tablename__ = "airports_master"
@@ -31,17 +31,7 @@ class AirportModel(Base):
     postal_code = Column(String(16), nullable=True)
     is_serviceable = Column(Boolean, nullable=False, default=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    last_modified = Column(
-        DateTime(timezone=True),
-        onupdate=func.now(),
-        server_default=func.now(),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_modified = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # One or more airports belong to one region
