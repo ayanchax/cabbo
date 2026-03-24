@@ -4,33 +4,46 @@ from fastapi import APIRouter, Depends
 
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
-from models.trip.trip_schema import LocalTripPackageSchema, LocalTripPackageUpdateSchema, TripTypeSchema, TripTypeUpdateSchema
+from models.trip.trip_schema import (
+    TripPackageSchema,
+    TripPackageUpdateSchema,
+)
 from models.user.user_orm import User
 from db.database import a_yield_mysql_session
 from sqlalchemy.ext.asyncio import AsyncSession
 
- 
+from services.trip_package_service import (
+    activate_trip_package_config_by_id,
+    create_trip_package_config,
+    delete_trip_package_config_by_id,
+    get_trip_package_config_by_id,
+    list_trip_package_configs,
+    list_trip_package_configs_by_region_code,
+    update_trip_package_config,
+)
 
 
 router = APIRouter()
 
-#Add a new local trip package
-@router.post("/add", response_model=LocalTripPackageSchema)
+
+# Add a new local trip package
+@router.post("/add", response_model=TripPackageSchema)
 async def add_local_trip_package(
-    payload: LocalTripPackageSchema,
+    payload: TripPackageSchema,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """Add a new local trip package to the system configuration."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.regional_admin]:
+    if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
             "You do not have permission to add local trip packages.", status_code=403
         )
-    pass
+    return await create_trip_package_config(payload, db, current_user.id)
 
-#List all local trip packages
-@router.get("/list", response_model=list[LocalTripPackageSchema])
+
+# List all local trip packages
+@router.get("/list", response_model=list[TripPackageSchema])
 async def list_local_trip_packages(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
@@ -41,10 +54,11 @@ async def list_local_trip_packages(
         raise CabboException(
             "You do not have permission to list local trip packages.", status_code=403
         )
-    pass
+    return await list_trip_package_configs(db)
 
-#list all local trip packages by region code
-@router.get("/list/{region_code}", response_model=list[LocalTripPackageSchema])
+
+# list all local trip packages by region code
+@router.get("/list/{region_code}", response_model=list[TripPackageSchema])
 async def list_local_trip_packages_by_region_code(
     region_code: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -52,30 +66,32 @@ async def list_local_trip_packages_by_region_code(
 ):
     """List all local trip packages in the system configuration for a specific region code."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.regional_admin]:
+    if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to list local trip packages by region code.", status_code=403
+            "You do not have permission to list local trip packages by region code.",
+            status_code=403,
         )
-    pass
+    return await list_trip_package_configs_by_region_code(region_code, db)
 
-#Update a local trip package by id
-@router.put("/update/{package_id}", response_model=LocalTripPackageSchema)
+
+# Update a local trip package by id
+@router.put("/", response_model=TripPackageSchema)
 async def update_local_trip_package(
-    package_id: str,
-    payload: LocalTripPackageUpdateSchema,
+    payload: TripPackageUpdateSchema,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """Update a local trip package in the system configuration by id."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.regional_admin]:
+    if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
             "You do not have permission to update local trip packages.", status_code=403
         )
-    pass
+    return await update_trip_package_config(payload, db)
 
-#Delete a local trip package by id
-@router.delete("/delete/{package_id}")
+
+# Delete a local trip package by id
+@router.delete("/{package_id}")
 async def delete_local_trip_package(
     package_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -83,14 +99,16 @@ async def delete_local_trip_package(
 ):
     """Delete a local trip package in the system configuration by id."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.regional_admin]:
+    if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
             "You do not have permission to delete local trip packages.", status_code=403
         )
-    pass
+    deleted= await delete_trip_package_config_by_id(package_id, db)
+    return {"deleted": deleted}
 
-#Get a local trip package by id
-@router.get("/{package_id}", response_model=LocalTripPackageSchema)
+
+# Get a local trip package by id
+@router.get("/{package_id}", response_model=TripPackageSchema)
 async def get_local_trip_package_by_id(
     package_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -98,9 +116,24 @@ async def get_local_trip_package_by_id(
 ):
     """Get a local trip package in the system configuration by id."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.regional_admin]:
+    if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
             "You do not have permission to view local trip packages.", status_code=403
         )
-    pass
+    return await get_trip_package_config_by_id(package_id, db)
 
+#Activate a local trip package by id
+@router.patch("/{package_id}/activate")
+async def activate_local_trip_package(
+    package_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Activate a local trip package in the system configuration by id."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to activate local trip packages.", status_code=403
+        )
+    activated= await activate_trip_package_config_by_id(package_id, db)
+    return {"activated": activated}

@@ -21,6 +21,7 @@ from api.v1.endpoints.admin import (
     kyc_document_types as admin_kyc_document_types_ep,
     trip as admin_trip_ep,
     trip_type as admin_trip_type_ep,
+    local_trip_package as admin_trip_package_ep,
 )
 
 
@@ -64,8 +65,15 @@ router.include_router(
 
 
 router.include_router(
-    admin_trip_ep.router, prefix="/admin/trips", tags=["admin-trip-management"] 
+    admin_trip_ep.router, prefix="/admin/trips", tags=["admin-trip-management"]
 )
 router.include_router(
-    admin_trip_type_ep.router, prefix="/admin/config/trip-types", tags=["admin-trip-type-configuration"] 
-)   
+    admin_trip_type_ep.router,
+    prefix="/admin/config/trip-types",
+    tags=["admin-trip-type-configuration"],
+)
+router.include_router(
+    admin_trip_package_ep.router,
+    prefix="/admin/config/trip-packages",
+    tags=["admin-trip-package-configuration"],
+)

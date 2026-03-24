@@ -379,20 +379,26 @@ class AdditionalDetailsOnTripStatusChange(BaseModel):
         extra = "forbid"  # Forbid extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
 
-class LocalTripPackageSchema(BaseModel):
+class TripPackageSchema(BaseModel):
     id: Optional[str] = None  # Optional ID for existing packages
-    region_code: str
-    included_hours: int  # e.g., 4, 6, 8, 10, 12
-    included_km: float  # e.g., 40, 60, 80, 100, 120
-    driver_allowance: Optional[float] = (
-        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
-    )
+    trip_type: Optional[TripTypeEnum]=Field(TripTypeEnum.local, description="Trip type for which the package is applicable, e.g., local, hourly rental, etc." )
+    region_code: Optional[str]= Field(None, description="Region code for which the trip package is applicable, e.g., MUM for Mumbai, DEL for Delhi, etc. This is required to ensure that the package is created for a valid region and to avoid any confusion while applying the package to a trip during booking.")
+    included_hours: int= Field(..., description="Number of hours included in the trip package, e.g., 4, 6, 8, 10, 12")
+    included_km: float= Field(..., description="Number of kilometers included in the trip package, e.g., 40, 60, 80, 100, 120")
+    driver_allowance: Optional[float] = Field(None, description="Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs")
 
-class LocalTripPackageUpdateSchema(BaseModel):
-    included_hours: int  # e.g., 4, 6, 8, 10, 12
-    included_km: float  # e.g., 40, 60, 80, 100, 120
-    driver_allowance: Optional[float] = (
-        None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
-    )
+    class Config:
+        from_attributes = True
+        extra = "allow"  # Allow extra fields not defined in the model
+        
+class TripPackageUpdateSchema(BaseModel):
+    id: str = Field(..., description="ID of the trip package to be updated")
+    included_hours: int= Field(..., description="Number of hours included in the trip package, e.g., 4, 6, 8, 10, 12")
+    included_km: float= Field(..., description="Number of kilometers included in the trip package, e.g., 40, 60, 80, 100, 120")
+    driver_allowance: Optional[float] = Field(None, description="Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs")
+    #Trip_type and region code are not allowed to be updated as they are used to determine the applicability of the package for a trip during booking, allowing them to be updated can lead to confusion and incorrect application of packages to trips
+    class Config:
+        from_attributes = True
+        extra = "allow"  # Allow extra fields not defined in the model
 
     
