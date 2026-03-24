@@ -23,11 +23,13 @@ from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
 from services.notification_service import notify_customer_booking_confirmed
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import (
+    activate_trip,
     async_get_all_trips,
     async_get_trip_by_booking_id,
     async_get_trip_by_id,
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
+    delete_trip,
     group_by_trip_status,
     serialize_trip,
     serialize_trips,
@@ -294,3 +296,34 @@ async def assign_driver(
     return {
         "message": f"Driver {assigned_driver.name} assigned to trip {assigned_trip.booking_id} successfully."
     }
+
+
+#Soft delete trip - only super_admin
+@router.delete("/{trip_id}")
+async def soft_delete_trip(
+    trip_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Soft delete a trip."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to delete trips.", status_code=403
+        )
+    return await delete_trip(trip_id=trip_id, db=db)
+
+#Activate trip - only super_admin. This will be used to reactivate a trip that was previously soft deleted, in case it was deleted by mistake or if there is a need to restore the trip for any reason. This will help us maintain data integrity and provide flexibility in managing trips in our system.
+@router.patch("/{trip_id}/activate")
+async def enable_trip(
+    trip_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Activate a previously soft deleted trip."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to activate trips.", status_code=403
+        )
+    return await activate_trip(trip_id=trip_id, db=db) 
