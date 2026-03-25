@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.geography_service import async_get_region_by_code
 from services.trip_type_service import async_get_trip_type_by_name
 from sqlalchemy import select
-
+_TRIP_PACKAGE_SCHEMA_FIELDS = TripPackageSchema.model_fields.keys()
 
 async def create_trip_package_config(
     payload: TripPackageSchema, db: AsyncSession, requestor: str
@@ -68,15 +68,19 @@ async def create_trip_package_config(
         await db.commit()
         await db.refresh(new_trip_package_config)
         ConfigStore.reset_instance()  # Reset the config store instance to refresh the cache
+        
+
         return TripPackageSchema.model_validate(
             {
                 **{
                     c.key: getattr(new_trip_package_config, c.key)
                     for c in TripPackageConfig.__table__.columns
+                    if c.key in _TRIP_PACKAGE_SCHEMA_FIELDS
                 },
                 "region_code": region_code,
             }
         )
+        
     except CabboException as ce:
         await db.rollback()
         raise ce
@@ -99,6 +103,7 @@ async def list_trip_package_configs(db: AsyncSession):
                     **{
                         c.key: getattr(config, c.key)
                         for c in TripPackageConfig.__table__.columns
+                        if c.key in _TRIP_PACKAGE_SCHEMA_FIELDS
                     },
                     "region_code": region_code,
                 }
@@ -129,6 +134,7 @@ async def get_trip_package_config_by_id(id: str, db: AsyncSession):
                 **{
                     c.key: getattr(config, c.key)
                     for c in TripPackageConfig.__table__.columns
+                    if c.key in _TRIP_PACKAGE_SCHEMA_FIELDS
                 },
                 "region_code": region_code,
             }
@@ -197,6 +203,7 @@ async def update_trip_package_config(
                 **{
                     c.key: getattr(trip_package_config, c.key)
                     for c in TripPackageConfig.__table__.columns
+                    if c.key in _TRIP_PACKAGE_SCHEMA_FIELDS
                 },
                 "region_code": region_code,
             }
@@ -253,6 +260,7 @@ async def list_trip_package_configs_by_region_code(region_code: str, db: AsyncSe
                     **{
                         c.key: getattr(config, c.key)
                         for c in TripPackageConfig.__table__.columns
+                        if c.key in _TRIP_PACKAGE_SCHEMA_FIELDS
                     },
                     "region_code": region_code,
                 }
