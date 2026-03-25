@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from core.security import validate_customer_token
-from db.database import yield_mysql_session
+from db.database import a_yield_mysql_session, yield_mysql_session
 from models.customer.customer_orm import Customer
+from models.policies.refund_schema import RefundSchema
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_schema import (
     TripBookRequest,
@@ -11,10 +12,12 @@ from models.trip.trip_schema import (
 
 from sqlalchemy.orm import Session
 
+from services.refund_service import fetch_refund_detail_by_booking_id_and_customer_id
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import confirm_trip_booking, delete_temp_trip_by_booking_id, initiate_trip_booking
 from services.trips.search_service import search
 from utils.utility import remove_none_recursive
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -85,7 +88,17 @@ def cleanup_temp_trip_booking(
         return {"message": "Trip data cleaned up successfully."}
     return {"message": "Failed to clean up trip data."}
 
-
-
-
-    
+#Get endpoint for fetching refund details
+@router.get("/refund/{booking_id}", response_model=RefundSchema)
+async def get_refund_details(
+    booking_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    """
+    Fetch refund details for a specific booking.
+    """
+    refund_details = await fetch_refund_detail_by_booking_id_and_customer_id(booking_id=booking_id, requestor=current_customer.id, db=db)
+    if not refund_details:
+        raise HTTPException(status_code=404, detail="Refund details not found for the given booking ID.")
+    return refund_details
