@@ -12,7 +12,7 @@ from models.trip.trip_schema import (
 
 from sqlalchemy.orm import Session
 
-from services.refund_service import fetch_refund_details_by_booking_id
+from services.refund_service import fetch_refund_detail_by_booking_id_and_customer_id
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import confirm_trip_booking, delete_temp_trip_by_booking_id, initiate_trip_booking
 from services.trips.search_service import search
@@ -98,7 +98,7 @@ async def get_refund_details(
     """
     Fetch refund details for a specific booking.
     """
-    refund_details = await fetch_refund_details_by_booking_id(booking_id=booking_id, requestor=current_customer.id, db=db)
+    refund_details = await fetch_refund_detail_by_booking_id_and_customer_id(booking_id=booking_id, requestor=current_customer.id, db=db)
     if not refund_details:
         raise HTTPException(status_code=404, detail="Refund details not found for the given booking ID.")
     return refund_details

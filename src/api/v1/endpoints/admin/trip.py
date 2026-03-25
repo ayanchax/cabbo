@@ -169,7 +169,7 @@ async def list_trips_by_customer_id(
     return serialized_trips
 
 # List trips of customer by status: super_admin, customer_admin and customer (only for their own trips)
-@router.get("/list/by/customer/{customer_id}/status/{status}", response_model=list)
+@router.get("/list/by/customer/{customer_id}/status/{status}", response_model=list|dict)
 async def list_trips_by_customer_id_and_status(
     customer_id: str,
     status: TripStatusEnum,
@@ -202,6 +202,13 @@ async def list_trips_by_customer_id_and_status(
 
     serialized_trips= serialize_trips(trips, expose_customer_details=can_expose_customer_details)
     filtered_trips = [trip for trip in serialized_trips if trip.get("status") == status.value]
+    if current_user_role == RoleEnum.customer:
+        # If role is customer, meaning customer themself is fetching their own trips, 
+        # then we will group by status. {"upcoming":[],"past":[]}
+        # If status is confirmed, it will be in upcoming, if status is completed or cancelled, it will be in past. This is to make it easier for customers to see their upcoming trips and past trips separately in the UI
+        return group_by_trip_status(trips=filtered_trips, validate_by_tz=True)
+    
+    
     return filtered_trips
 
 # List trips by status: super_admin and customer_admin

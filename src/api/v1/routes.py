@@ -22,6 +22,7 @@ from api.v1.endpoints.admin import (
     trip as admin_trip_ep,
     trip_type as admin_trip_type_ep,
     local_trip_package as admin_trip_package_ep,
+    refund as admin_refund_ep,
 )
 
 
@@ -76,4 +77,7 @@ router.include_router(
     admin_trip_package_ep.router,
     prefix="/admin/config/trip-packages",
     tags=["admin-trip-package-configuration"],
+)
+router.include_router(
+    admin_refund_ep.router, prefix="/admin/refunds", tags=["admin-refund-management"]
 )
