@@ -159,10 +159,13 @@ class DriverEarning(Base):
     driver = relationship("Driver", back_populates="earnings")
     trip = relationship("Trip", back_populates="driver_earning")
 
-#Create a orm for the driver ratings per customer per trip
+
 #This will be populated when the customer rates the driver after the trip is completed
 class DriverRating(Base):
     __tablename__ = "driver_ratings"
+    __table_args__ = (
+        UniqueConstraint("driver_id", "trip_id", "customer_id", name="uq_driver_trip_customer_rating"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -182,19 +185,14 @@ class DriverRating(Base):
     )
     rating = Column(Float, nullable=False)  # Rating given by the customer out of 5
     feedback = Column(String(500), nullable=True)  # Optional feedback from the customer
+    overall_experience = Column(
+        JSON, nullable=True #Validated by TripExperienceSchema in trip_schema.py to ensure the overall experience is in the correct format and contains valid ratings for cab cleanliness, AC working condition, driving behavior, punctuality, overall cab condition, and any additional comments or feedback about the trip experience.
+    )  # Overall experience of the trip as rated by the customer, including ratings for cab cleanliness, AC working condition, driving behavior, punctuality, overall cab condition, and any additional comments or feedback about the trip experience e.g., {"cab_cleanliness": 4, "ac_working": true, "driving_behavior": 5, "punctuality": 4, "overall_cab_condition": 4, "other_comments": "Good experience overall, but the cab could have been cleaner."}
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
-    #rating cannot be updated once set, so no onupdate
-    created_by = Column(
-        MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
-    )  # Created by customer id who gave the rating, this will be used to ensure that the customer can only give one rating per trip and to identify the customer who gave the rating for any follow up if needed.
-    last_modified = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
+
+    is_flagged = Column(Boolean, default=False, nullable=False)  # Flag to indicate if the rating has been flagged for review by the admin, we can use this to filter out flagged ratings from the average rating calculation for the driver until the admin reviews and unflags the rating after review if the rating is found to be genuine and not violating any guidelines.
     
     driver = relationship("Driver", back_populates="ratings")
     trip = relationship("Trip", back_populates="driver_rating")
