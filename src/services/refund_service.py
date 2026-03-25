@@ -736,11 +736,11 @@ async def initiate_refund_by_booking_id(
         if trip.status != TripStatusEnum.cancelled:
             if not silently_fail:
                 raise CabboException(
-                    f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund"
-                    , status_code=400
+                    f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled",
+                    status_code=400
                 )
             print(
-                f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund"
+                f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled"
             )
             return False
 
