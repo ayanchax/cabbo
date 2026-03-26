@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from core.security import validate_customer_token
 from db.database import a_yield_mysql_session, yield_mysql_session
 from models.customer.customer_orm import Customer
+from models.driver.driver_schema import DriverRatingCreateSchema, DriverRatingSchema
 from models.policies.refund_schema import RefundSchema
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_schema import (
@@ -12,6 +13,7 @@ from models.trip.trip_schema import (
 
 from sqlalchemy.orm import Session
 
+from services.driver_rating_service import save_driver_rating_for_trip_by_customer
 from services.refund_service import fetch_refund_detail_by_booking_id_and_customer_id
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import confirm_trip_booking, delete_temp_trip_by_booking_id, initiate_trip_booking
@@ -102,3 +104,24 @@ async def get_refund_details(
     if not refund_details:
         raise HTTPException(status_code=404, detail="Refund details not found for the given booking ID.")
     return refund_details
+
+
+# Route for providing driver rating and feedback for a trip by a customer
+# Driver rating can be provided only once per trip by a customer for a driver. 1 trip -> 1 driver -> 1 rating by customer
+@router.post("/{booking_id}/rate-driver")
+async def rate_driver_for_trip(
+    payload: DriverRatingCreateSchema = Body(
+        ...,
+        description="Rating, feedback and overall experience for the driver for the trip",
+    ),
+    booking_id: str = Path(
+        ...,
+        description="Unique identifier for the trip booking for which the driver is being rated",
+    ),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    response = await save_driver_rating_for_trip_by_customer(
+        booking_id=booking_id, customer_id=current_customer.id, payload=payload, db=db
+    )
+    return response
