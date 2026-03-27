@@ -11,6 +11,7 @@ from api.v1.endpoints import (
     customer as customer_ep,
     location as location_ep,
     trip as trip_ep,
+    driver as driver_ep,
 )
 from api.v1.endpoints.admin import (
     auth as admin_auth_ep,
@@ -31,6 +32,8 @@ router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
 router.include_router(customer_ep.router, prefix="/customers", tags=["customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
 router.include_router(trip_ep.router, prefix="/trips", tags=["trips"])
+router.include_router(driver_ep.router, prefix="/drivers", tags=["drivers"])
+
 
 
 router.include_router(admin_auth_ep.router, prefix="/admin/auth", tags=["admin-auth"])

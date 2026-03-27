@@ -4,6 +4,7 @@ from logging.handlers import TimedRotatingFileHandler
 from core.constants import APP_NAME
 
 LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
+print(f"LOG_DIR: {LOG_DIR}")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Prevent duplicate handlers (important for reload environments)
