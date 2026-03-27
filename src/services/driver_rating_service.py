@@ -411,3 +411,95 @@ async def get_average_rating_by_driver_id(
             f"Failed to get average rating for the driver with id {driver_id}: {str(e)}",
             status_code=500,
         )
+    
+async def fetch_customer_driver_trip_review(
+    booking_id  : str,
+    customer_id: str,
+    db: AsyncSession,
+) -> DriverRatingResponseSchema:
+    """
+    Get the review given by the current customer to a driver for a specific trip.
+
+    Args:
+        booking_id (str): Unique identifier for the trip booking
+        customer_id (str): UUID of the customer who provided the rating
+        db (AsyncSession): Database session
+    Returns:
+        DriverRatingResponseSchema: The driver rating details including booking_id, driver_id, customer_id, rating, feedback and overall experience for the review given by the current customer to the driver for the specific trip.
+    """
+    try:
+        customer = await async_get_customer_by_id(
+            customer_id=customer_id, db=db
+        )
+        if not customer:
+            raise CabboException(
+                "Customer not found for the given customer_id", status_code=404
+            )
+        trip = await async_get_trip_by_booking_id(booking_id=booking_id, db=db)
+        if not trip:
+            raise CabboException(
+                "Trip not found for the given booking_id", status_code=404
+            )
+        driver_id = trip.driver_id
+        if not driver_id:
+            raise CabboException(
+                "Driver not assigned for the trip. Cannot fetch driver rating for the trip.",
+                status_code=400,
+            )
+        trip_id = trip.id
+        
+        if not trip_id:
+            raise CabboException(
+                "Trip ID not available for the trip. Cannot fetch driver rating for the trip.",
+                status_code=400,
+            )
+        if trip.creator_type != RoleEnum.customer:
+            raise CabboException(
+                "Only customers can have reviews for the driver for a trip",
+                status_code=403,
+            )
+        
+        if trip.creator_id != customer_id:
+            raise CabboException(
+                "Customer is not the creator of the trip and cannot have a review for the driver for the trip",
+                status_code=403,
+            )
+        
+        if trip.status != TripStatusEnum.completed:
+            raise CabboException(
+                "Driver can be rated only for completed trips. Cannot fetch driver rating for the trip.",
+                status_code=400,
+            )
+
+        
+        rating_record = await db.execute(
+            select(DriverRating).where(
+                DriverRating.driver_id == driver_id,
+                DriverRating.trip_id == trip_id,
+                DriverRating.customer_id == customer_id,
+            )
+        )
+        rating_record = rating_record.scalar_one_or_none()
+        if not rating_record:
+            raise CabboException(
+                "Driver rating not found.",
+                status_code=404,
+            )
+        
+        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
+        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        rating_response = DriverRatingResponseSchema(
+            id=rating_record.id,
+            rating=rating_record.rating,
+            feedback=rating_record.feedback,
+            overall_experience=rating_record.overall_experience,
+            created_at=rating_record.created_at,
+            given_by=customer_schema,
+        )
+        return rating_response
+
+    except Exception as e:
+        raise CabboException(
+            f"Failed to get driver rating for the driver against booking {booking_id}: {str(e)}",
+            status_code=500,
+        )
