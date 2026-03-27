@@ -137,10 +137,6 @@ async def save_driver_rating_for_trip_by_customer(
     return response_dict, background_task
 
 
-def simple_task():
-    print("This is a simple background task to test the background task execution.")
-
-
 async def create_new_driver_rating_for_trip_by_customer(
     trip_id: str,
     driver_id: str,
