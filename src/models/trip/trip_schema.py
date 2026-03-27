@@ -409,6 +409,6 @@ class TripExperienceSchema(BaseModel):
     driving_behavior: Optional[int] = Field(None, ge=1, le=5, description="Rating for the driver's driving behavior, on a scale of 1 to 5, where 1 is very poor and 5 is excellent")
     punctuality: Optional[int] = Field(None, ge=1, le=5, description="Rating for the driver's punctuality, on a scale of 1 to 5, where 1 is very poor and 5 is excellent")
     overall_cab_condition: Optional[int] = Field(None, ge=1, le=5, description="Rating for the overall condition of the cab, on a scale of 1 to 5, where 1 is very poor and 5 is excellent")
-    other_comments: Optional[str] = Field(None, description="Any additional comments or feedback about the trip experience")
+    other_comments: Optional[str] = Field(None, max_length=500, description="Any additional comments or feedback about the trip experience")
 
     

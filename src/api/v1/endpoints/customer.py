@@ -2,7 +2,6 @@ from fastapi import (
     APIRouter,
     Depends,
     Path,
-    Body,
     BackgroundTasks,
     Query,
     UploadFile,
@@ -11,7 +10,11 @@ from fastapi import (
 from sqlalchemy.orm import Session
 from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
-from models.customer.passenger_schema import PassengerCreate, PassengerOut, PassengerUpdate
+from models.customer.passenger_schema import (
+    PassengerCreate,
+    PassengerOut,
+    PassengerUpdate,
+)
 from services.customer_service import (
     get_active_customer_by_id,
     update_customer_profile,
@@ -43,8 +46,16 @@ from core.security import validate_customer_token
 from core.exceptions import CabboException
 from services.notification_service import notify_verification_email_to_customer
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.passenger_service import create_passenger, delete_passenger, is_passenger_belongs_to_customer, update_passenger
-from services.validation_service import validate_customer_payload, validate_passenger_payload
+from services.passenger_service import (
+    create_passenger,
+    delete_passenger,
+    is_passenger_belongs_to_customer,
+    update_passenger,
+)
+from services.validation_service import (
+    validate_customer_payload,
+    validate_passenger_payload,
+)
 
 router = APIRouter()
 
@@ -155,7 +166,7 @@ def trigger_email_verification(
         raise CabboException(
             "Failed to create email verification link", status_code=500
         )
-    
+
     customer_schema = CustomerRead.model_validate(customer)
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
     orchestrator.add_task(
@@ -165,7 +176,6 @@ def trigger_email_verification(
         verification_url=customer_email_verification.verification_url,
     )
     return {"message": "Verification email sent. Please check your inbox."}
-
 
 
 @router.get(SELF_SERVICE_CUSTOMER_EMAIL_VERIFICATION_ENDPOINT)
@@ -218,6 +228,7 @@ def add_passenger(
         raise CabboException("Failed to create passenger", status_code=500)
     return PassengerOut.model_validate(passenger)
 
+
 @router.delete("/{customer_id}/passenger/{passenger_id}/remove")
 def remove_passenger(
     customer_id: str = Path(..., description="UUID of the customer"),
@@ -231,7 +242,7 @@ def remove_passenger(
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
         raise CabboException("Customer not found", status_code=404)
-    
+
     # ?We do not need this condition check because if a passenger is deleted and they are associated with one or more trip, then in trip.passenger_id it will automatically be nullified because of the foreign key constraint with ondelete set to null
     # ?Hence removing the passenger is safe even if they are associated with trips as the trip anyway belongs to the customer and is not dependent on the passenger.
     # if is_passenger_belongs_to_any_trip(passenger_id, db):
@@ -239,7 +250,10 @@ def remove_passenger(
     delete_passenger(passenger_id, db)
     return {"message": "Passenger removed successfully."}
 
-@router.put("/{customer_id}/passenger/{passenger_id}/update", response_model=PassengerOut)
+
+@router.put(
+    "/{customer_id}/passenger/{passenger_id}/update", response_model=PassengerOut
+)
 def update_passenger_details(
     customer_id: str = Path(..., description="UUID of the customer"),
     passenger_id: str = Path(..., description="UUID of the passenger to update"),
@@ -255,7 +269,7 @@ def update_passenger_details(
     if customer is None:
         raise CabboException("Customer not found", status_code=404)
     passenger = update_passenger(passenger_id, payload, db)
-    
+
     if passenger is None:
         raise CabboException("Failed to update passenger", status_code=500)
     return PassengerOut.model_validate(passenger)
@@ -301,16 +315,4 @@ def get_passenger(
 
     return PassengerOut.model_validate(passenger)
 
-#Route for providing driver rating and feedback for a trip by a customer
-# Driver rating can be provided only once per trip by a customer for a driver. 1 trip -> 1 driver -> 1 rating by customer   
-@router.post("/{customer_id}/trips/{trip_id}/{driver_id}/rate-driver", response_model=dict)
-def rate_driver_for_trip(
-    customer_id: str = Path(..., description="UUID of the customer"),
-    trip_id: str = Path(..., description="UUID of the trip"),
-    driver_id: str = Path(..., description="UUID of the driver"),
-    rating: int = Body(..., description="Rating for the driver (1-5)"),
-    feedback: str = Body(None, description="Optional feedback for the driver"),
-    db: Session = Depends(yield_mysql_session),
-    current_customer: Customer = Depends(validate_customer_token),
-):
-    pass
+
