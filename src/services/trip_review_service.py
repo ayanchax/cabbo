@@ -5,7 +5,7 @@ from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.common import AppBackgroundTask, FlagsEnum
 from models.customer.customer_schema import CustomerReadWithProfilePicture
-from models.driver.driver_orm import Driver, DriverRating
+from models.driver.driver_orm import Driver, TripRating
 from models.driver.driver_schema import (
     DriverRatingCreateSchema,
     DriverRatingResponseSchema,
@@ -19,7 +19,7 @@ from services.driver_service import a_get_driver_by_id
 from services.trips.trip_service import async_get_trip_by_booking_id
 
 
-async def save_driver_rating_for_trip_by_customer(
+async def save_trip_rating(
     booking_id: str,
     customer_id: str,
     payload: DriverRatingCreateSchema,
@@ -27,7 +27,10 @@ async def save_driver_rating_for_trip_by_customer(
     validate_time_window=False,
 ) -> tuple[dict[str, str], Optional[AppBackgroundTask]]:
     """
-    Save driver rating and feedback for a trip by a customer. 1 trip -> 1 driver -> 1 rating by customer. If a rating already exists for the trip by the customer for the driver, update the existing rating and feedback with the new values provided in the payload.
+    Save or update the trip rating and feedback provided by a customer for a driver for a trip and update the average rating for the driver based on all the ratings provided by customers for their trips.
+    The review contributes to two aspects:
+        The overall trip experience.
+        The driver's average rating.
 
     Args:
         booking_id (str): Unique identifier for the trip booking
@@ -51,24 +54,24 @@ async def save_driver_rating_for_trip_by_customer(
 
     if trip.creator_type != RoleEnum.customer:
         raise CabboException(
-            "Only customers can provide rating for the driver for a trip",
+            "Only customers can provide rating for trip",
             status_code=403,
         )
 
     if trip.creator_id != customer_id:
         raise CabboException(
-            "Customer is not the creator of the trip and cannot provide rating for the driver",
+            "Customer is not the creator of the trip and cannot provide rating for the trip",
             status_code=403,
         )
 
     if trip.status != TripStatusEnum.completed:
         raise CabboException(
-            "Driver can be rated only for completed trips", status_code=400
+            "Trip can be rated only if it is completed", status_code=400
         )
 
     if not trip.driver_id:
         raise CabboException(
-            "Driver not assigned for the trip yet. Cannot provide rating for the driver.",
+            "Driver not assigned for the trip yet. Cannot provide rating for the trip.",
             status_code=400,
         )
 
@@ -81,38 +84,38 @@ async def save_driver_rating_for_trip_by_customer(
 
         if not trip.start_datetime:
             raise CabboException(
-                "Trip start datetime not available. Cannot validate time window for providing driver rating.",
+                "Trip start datetime not available. Cannot validate time window for providing trip rating.",
                 status_code=400,
             )
         current_time = datetime.now(timezone.utc)
 
         if trip.start_datetime > current_time:
             raise CabboException(
-                "Driver can be rated only for trips that have completed. Cannot provide rating for the driver before the trip starts.",
+                "Trip can be rated only if it has started. Cannot provide rating for the trip before it starts.",
                 status_code=400,
             )
 
     # Check if a rating already exists for the trip by the customer for the driver and update the existing rating and feedback with the new values provided in the payload if it exists, otherwise create a new rating entry for the trip by the customer for the driver with the values provided in the payload and return the saved or updated driver rating details including trip_id, driver_id, customer_id,
     # rating, feedback and overall experience
     existing_rating_record = await db.execute(
-        select(DriverRating).where(
-            DriverRating.trip_id == trip.id,
-            DriverRating.driver_id == trip.driver_id,
-            DriverRating.customer_id == customer_id,
+        select(TripRating).where(
+            TripRating.trip_id == trip.id,
+            TripRating.driver_id == trip.driver_id,
+            TripRating.customer_id == customer_id,
         )
     )
     existing_rating_record = existing_rating_record.scalar_one_or_none()
     response_dict = {"action": None, "message": None}
     if existing_rating_record:
-        await update_driver_rating_for_trip_by_customer(
+        await update_trip_rating(
             rating_record=existing_rating_record, payload=payload, db=db
         )
         response_dict["action"] = "update"
         response_dict["message"] = (
-            "Your driver review for the trip has been updated successfully."
+            "Your trip review has been updated successfully."
         )
     else:
-        await create_new_driver_rating_for_trip_by_customer(
+        await create_trip_rating(
             trip_id=trip.id,
             driver_id=trip.driver_id,
             customer_id=customer_id,
@@ -121,7 +124,7 @@ async def save_driver_rating_for_trip_by_customer(
         )
         response_dict["action"] = "create"
         response_dict["message"] = (
-            "Your driver review for the trip has been posted successfully."
+            "Your trip review has been posted successfully."
         )
 
     background_task = AppBackgroundTask(
@@ -137,7 +140,7 @@ async def save_driver_rating_for_trip_by_customer(
     return response_dict, background_task
 
 
-async def create_new_driver_rating_for_trip_by_customer(
+async def create_trip_rating(
     trip_id: str,
     driver_id: str,
     customer_id: str,
@@ -158,7 +161,7 @@ async def create_new_driver_rating_for_trip_by_customer(
         rating, feedback and overall experience
     """
     try:
-        new_rating = DriverRating(
+        new_rating = TripRating(
             trip_id=trip_id,
             driver_id=driver_id,
             customer_id=customer_id,
@@ -181,8 +184,8 @@ async def create_new_driver_rating_for_trip_by_customer(
         )
 
 
-async def update_driver_rating_for_trip_by_customer(
-    rating_record: DriverRating, payload: DriverRatingCreateSchema, db: AsyncSession
+async def update_trip_rating(
+    rating_record: TripRating, payload: DriverRatingCreateSchema, db: AsyncSession
 ) -> DriverRatingSchema:
     """
     Update driver rating and feedback for a trip by a customer with the new values provided in the payload.
@@ -299,12 +302,12 @@ async def _calculate_average_rating_for_driver(
         print(
             f"Calculating average rating for driver with id {driver_id} with exclude_flagged_ratings={exclude_flagged_ratings} and silently_fail={silently_fail}"
         )
-        query = select(func.avg(DriverRating.rating)).where(
-            DriverRating.driver_id == driver_id
+        query = select(func.avg(TripRating.rating)).where(
+            TripRating.driver_id == driver_id
         )
         if exclude_flagged_ratings:
             # Exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver.
-            query = query.where(DriverRating.is_flagged == False)
+            query = query.where(TripRating.is_flagged == False)
 
         result = await db.execute(query)
         average_rating = result.scalar()
@@ -335,11 +338,11 @@ async def list_reviews_by_driver_id(
                 "Driver not found for the given driver_id", status_code=404
             )
         response: List[DriverRatingResponseSchema] = []
-        query = select(DriverRating).where(DriverRating.driver_id == driver_id)
+        query = select(TripRating).where(TripRating.driver_id == driver_id)
         if flag == FlagsEnum.flagged:
-            query = query.where(DriverRating.is_flagged == True)
+            query = query.where(TripRating.is_flagged == True)
         elif flag == FlagsEnum.unflagged:
-            query = query.where(DriverRating.is_flagged == False)
+            query = query.where(TripRating.is_flagged == False)
         # For all other values of flag including FlagsEnum.none, we do not apply any filter for flagged status and return all reviews for the driver regardless of their flagged status.
         result = await db.execute(query)
         ratings = result.scalars().all()
@@ -469,10 +472,10 @@ async def fetch_customer_driver_trip_review(
 
         
         rating_record = await db.execute(
-            select(DriverRating).where(
-                DriverRating.driver_id == driver_id,
-                DriverRating.trip_id == trip_id,
-                DriverRating.customer_id == customer_id,
+            select(TripRating).where(
+                TripRating.driver_id == driver_id,
+                TripRating.trip_id == trip_id,
+                TripRating.customer_id == customer_id,
             )
         )
         rating_record = rating_record.scalar_one_or_none()

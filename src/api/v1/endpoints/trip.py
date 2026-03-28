@@ -17,9 +17,9 @@ from models.trip.trip_schema import (
 
 from sqlalchemy.orm import Session
 
-from services.driver_rating_service import (
+from services.trip_review_service import (
     fetch_customer_driver_trip_review,
-    save_driver_rating_for_trip_by_customer,
+    save_trip_rating,
 )
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.refund_service import fetch_refund_detail_by_booking_id_and_customer_id
@@ -141,7 +141,7 @@ async def rate_driver_for_trip(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    response, background_task = await save_driver_rating_for_trip_by_customer(
+    response, background_task = await save_trip_rating(
         booking_id=booking_id, customer_id=current_customer.id, payload=payload, db=db
     )
     if background_task:

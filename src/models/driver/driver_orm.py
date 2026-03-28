@@ -160,9 +160,9 @@ class DriverEarning(Base):
     trip = relationship("Trip", back_populates="driver_earning")
 
 
-#This will be populated when the customer rates the driver after the trip is completed
-class DriverRating(Base):
-    __tablename__ = "driver_ratings"
+#This will be populated when the customer rates the trip after the trip is completed
+class TripRating(Base):
+    __tablename__ = "trip_ratings"
     __table_args__ = (
         UniqueConstraint("driver_id", "trip_id", "customer_id", name="uq_driver_trip_customer_rating"),
     )

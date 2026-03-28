@@ -6,7 +6,7 @@ from db.database import a_yield_mysql_session
 from models.common import FlagsEnum
 from models.customer.customer_orm import Customer
 from models.driver.driver_schema import DriverRatingResponseSchema
-from services.driver_rating_service import (
+from services.trip_review_service import (
     get_average_rating_by_driver_id,
     fetch_customer_driver_trip_review,
     fetch_customer_driver_trip_review,
