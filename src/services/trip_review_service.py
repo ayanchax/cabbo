@@ -1,25 +1,21 @@
 from typing import List, Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.common import AppBackgroundTask, FlagsEnum
 from models.customer.customer_schema import CustomerReadWithProfilePicture
-from models.driver.driver_orm import Driver, TripRating
-from models.driver.driver_schema import (
-    TripRatingCreateSchema,
-    TripRatingResponseSchema,
-    TripRatingSchema,
-)
+from models.driver.driver_orm import TripRating
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_schema import TripRatingCreateSchema, TripRatingResponseSchema, TripRatingSchema
 from services.customer_service import async_get_customer_by_id
-from services.driver_service import a_get_driver_by_id
+from services.driver_service import a_get_driver_by_id, update_average_rating_for_driver
 from services.trips.trip_service import async_get_trip_by_booking_id
 
 
-async def save_trip_rating(
+async def save_trip_review(
     booking_id: str,
     customer_id: str,
     payload: TripRatingCreateSchema,
@@ -35,17 +31,17 @@ async def save_trip_rating(
     Args:
         booking_id (str): Unique identifier for the trip booking
         customer_id (str): UUID of the customer providing the rating
-        payload (DriverRatingCreateSchema): Rating, feedback and overall experience for the driver for the trip provided by the customer
+        payload (TripRatingCreateSchema): Rating, feedback and overall experience for the driver for the trip provided by the customer
         db (AsyncSession): Database session
 
     Returns:
         tuple[dict[str, str], Optional[AppBackgroundTask]]: A tuple containing a dictionary with the action performed ("create" or "update") and a message indicating the result of the operation, and an optional background task if any.
     """
-    # Note: One can rate inactive driver because when they took the trip the driver was active and they can provide rating for the driver based on their experience during the trip even if the driver becomes inactive later.
+    # Note: One can rate a trip for which driver is currently inactive because when they took the trip the driver was active and they can provide rating for the driver based on their experience during the trip even if the driver becomes inactive later.
 
     # We only check if the driver was assigned for the trip or not, we do not check if the driver is currently active or not because we want to allow customers to provide ratings for drivers based on their actual experience during the trip regardless of the current status of the driver.
 
-    # Similarly, one can rate a driver for an inactive trip as well because when they took the trip it was active and they can provide rating for the driver based on their experience during the trip even if the trip becomes inactive later. We only check if the trip was completed or not, we do not check if the trip is currently active or not because we want to allow customers to provide ratings for drivers based on their actual experience during the trip regardless of the current status of the trip.
+    # Similarly, one can rate an inactive trip as well because when they took the trip it was active and they can provide rating for the driver based on their experience during the trip even if the trip becomes inactive later. We only check if the trip was completed or not, we do not check if the trip is currently active or not because we want to allow customers to provide ratings for drivers based on their actual experience during the trip regardless of the current status of the trip.
 
     trip = await async_get_trip_by_booking_id(booking_id=booking_id, db=db)
 
@@ -107,7 +103,7 @@ async def save_trip_rating(
     existing_rating_record = existing_rating_record.scalar_one_or_none()
     response_dict = {"action": None, "message": None}
     if existing_rating_record:
-        await update_trip_rating(
+        await update_trip_review(
             rating_record=existing_rating_record, payload=payload, db=db
         )
         response_dict["action"] = "update"
@@ -115,7 +111,7 @@ async def save_trip_rating(
             "Your trip review has been updated successfully."
         )
     else:
-        await create_trip_rating(
+        await create_trip_review(
             trip_id=trip.id,
             driver_id=trip.driver_id,
             customer_id=customer_id,
@@ -140,7 +136,7 @@ async def save_trip_rating(
     return response_dict, background_task
 
 
-async def create_trip_rating(
+async def create_trip_review(
     trip_id: str,
     driver_id: str,
     customer_id: str,
@@ -184,19 +180,19 @@ async def create_trip_rating(
         )
 
 
-async def update_trip_rating(
+async def update_trip_review(
     rating_record: TripRating, payload: TripRatingCreateSchema, db: AsyncSession
 ) -> TripRatingSchema:
     """
-    Update driver rating and feedback for a trip by a customer with the new values provided in the payload.
+    Update trip rating and feedback by a customer with the new values provided in the payload.
 
     Args:
-        rating_record (DriverRating):Driver rating record entry for the trip by the customer for the driver
-        payload (DriverRatingCreateSchema): New rating, feedback and overall experience for the driver for the trip provided by the customer
+        rating_record (TripRating): Trip rating record entry for the trip by the customer for the driver
+        payload (TripRatingCreateSchema): New rating, feedback and overall experience for the driver for the trip provided by the customer
         db (AsyncSession): Database session
 
     Returns:
-        DriverRatingSchema: The updated driver rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience
+        TripRatingSchema: The updated trip rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience
     """
     try:
         rating_record.rating = payload.rating or rating_record.rating
@@ -217,119 +213,24 @@ async def update_trip_rating(
         )
 
 
-async def update_average_rating_for_driver(
-    driver_id: str,
-    db: AsyncSession,
-    exclude_flagged_ratings: bool = False,
-    silently_fail: bool = False,
-) -> Optional[float]:
-    """
-    Calculate the average rating for a driver based on all the ratings provided by customers for the driver for their trips and update the average rating for the driver in the database.
-
-    Args:
-        driver_id (str): Unique identifier for the driver
-        db (AsyncSession): Database session
-        exclude_flagged_ratings (bool): A flag to indicate whether to exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver. Default is False.
-        silently_fail (bool): A flag to indicate whether to silently fail if the driver is not found. Default is False.
-    Returns:
-        Optional[float]: The average rating for the driver rounded to 2 decimal places after updating it in the database. Returns None if there are no ratings for the driver.
-    """
-    average_rating = await _calculate_average_rating_for_driver(
-        driver_id=driver_id,
-        db=db,
-        exclude_flagged_ratings=exclude_flagged_ratings,
-        silently_fail=silently_fail,
-    )
-    if average_rating is not None:
-        try:
-            driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
-            if not driver:
-                if silently_fail:
-                    print(
-                        f"Driver with id {driver_id} not found. Cannot update average rating for the driver."
-                    )
-                    return None
-                raise CabboException(
-                    "Driver not found for the given driver_id", status_code=404
-                )
-            driver.avg_rating = average_rating
-            await db.commit()
-            print(
-                f"Average rating for driver with id {driver_id} updated to {average_rating}"
-            )
-            return average_rating
-        except Exception as e:
-            await db.rollback()
-            if silently_fail:
-                print(
-                    f"Failed to update average rating for the driver with id {driver_id}: {str(e)}"
-                )
-                return None
-            raise CabboException(
-                f"Failed to update average rating for the driver: {str(e)}",
-                status_code=500,
-            )
-    if silently_fail:
-        print(
-            f"No ratings found for the driver with id {driver_id}. Average rating not updated."
-        )
-        return None
-    raise CabboException(
-        "Failed to calculate average rating for the driver. Average rating not updated.",
-        status_code=500,
-    )
-
-
-async def _calculate_average_rating_for_driver(
-    driver_id: str,
-    db: AsyncSession,
-    exclude_flagged_ratings: bool = False,
-    silently_fail: bool = False,
-) -> Optional[float]:
-    """
-    Calculate the average rating for a driver based on all the ratings provided by customers for the driver for their trips.
-
-    Args:
-        driver_id (str): Unique identifier for the driver
-        db (AsyncSession): Database session
-        exclude_flagged_ratings (bool): A flag to indicate whether to exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver. Default is False.
-        silently_fail (bool): A flag to indicate whether to silently fail if the driver is not found. Default is False.
-    Returns:
-        Optional[float]: The average rating for the driver rounded to 2 decimal places. Returns
-        None if there are no ratings for the driver.
-    """
-    try:
-        print(
-            f"Calculating average rating for driver with id {driver_id} with exclude_flagged_ratings={exclude_flagged_ratings} and silently_fail={silently_fail}"
-        )
-        query = select(func.avg(TripRating.rating)).where(
-            TripRating.driver_id == driver_id
-        )
-        if exclude_flagged_ratings:
-            # Exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver.
-            query = query.where(TripRating.is_flagged == False)
-
-        result = await db.execute(query)
-        average_rating = result.scalar()
-        return round(average_rating, 2) if average_rating is not None else None
-    except Exception as e:
-        if silently_fail:
-            print(
-                f"Failed to calculate average rating for the driver with id {driver_id}: {str(e)}"
-            )
-            return None
-        raise CabboException(
-            f"Failed to calculate average rating for the driver: {str(e)}",
-            status_code=500,
-        )
-
-
-async def list_reviews_by_driver_id(
+async def fetch_trip_reviews_by_driver_id(
     driver_id: str,
     flag: FlagsEnum,
     db: AsyncSession,
 ) -> List[TripRatingResponseSchema]:
+    """
+    List trip reviews for a given driver provided by various customers.
+    
+    Args:
+    driver_id (str): Unique identifier for the driver
+    flag (FlagsEnum): Filter reviews based on their flagged status. Use 'flagged' to retrieve only flagged reviews, 'unflagged' to retrieve only non-flagged reviews, and 'none' to retrieve all reviews regardless of their flagged status.
+    db (AsyncSession): Database session
+    
+    Returns:
+    List[TripRatingResponseSchema]: A list of driver rating details including trip_id, driver
+    id, customer_id, rating, feedback and overall experience for the reviews of the driver for a given trip provided by various customers.
 
+    """
     try:
 
         driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
@@ -373,58 +274,94 @@ async def list_reviews_by_driver_id(
 
     except Exception as e:
         raise CabboException(
-            f"Failed to list driver ratings for the driver with id {driver_id}: {str(e)}",
+            f"Failed to list trip reviews for the driver with id {driver_id}: {str(e)}",
             status_code=500,
         )
 
 
-async def get_average_rating_by_driver_id(
+async def fetch_trip_reviews_by_customer_id_and_driver_id(
+    customer_id: str,
     driver_id: str,
+    flag: FlagsEnum,
     db: AsyncSession,
-) -> float:
+) -> List[TripRatingResponseSchema]:
+    """
+    List trip reviews for a given driver provided by a specific customer.
 
+    Args:
+        customer_id (str): UUID of the customer
+        driver_id (str): Unique identifier for the driver
+        flag (FlagsEnum): Filter reviews based on their flagged status. Use 'flagged' to retrieve only flagged reviews, 'unflagged' to retrieve only non-flagged reviews, and 'none' to retrieve all reviews regardless of their flagged status.
+        db (AsyncSession): Database session
+    Returns:
+        List[TripRatingSchema]: A list of driver rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience for the reviews of the driver for a given trip provided by the specific customer.
+
+    """
     try:
-        driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
-        if not driver:
-            raise CabboException(
-                "Driver not found for the given driver_id", status_code=404
-            )
-        average_rating = driver.avg_rating
-        if average_rating is None:
-            print(f"Average rating not available for the driver with id {driver_id}. Calculating average rating from existing ratings for the driver.")
-            # If avg_rating is not available for some reason, calculate it on the fly based on the existing real(not flagged or spam) ratings for the driver in the database and return it without updating it in the database because we do not want to update avg_rating in the database if it is None for some reason because it might be an indication of some issue with the driver rating records in the database and we do not want to override any existing avg_rating value in the database without investigating the issue further. So we will just calculate and return the average rating on the fly without updating it in the database if avg_rating is None for some reason.
-            average_rating = await _calculate_average_rating_for_driver(
-                driver_id=driver_id,
-                db=db,
-                exclude_flagged_ratings=True,
-                silently_fail=True,
-            )
-            if average_rating is None:
-                raise CabboException(
-                    "Average rating not available for the driver and failed to calculate it from existing ratings. No ratings found for the driver.",
-                    status_code=404,
-                )
-        return average_rating
+            reviews_by_driver_id = await fetch_trip_reviews_by_driver_id(driver_id=driver_id, flag=flag, db=db)
+            reviews_by_customer_id_and_driver_id = [
+                review for review in reviews_by_driver_id if review.given_by.id == customer_id
+            ]
+            return reviews_by_customer_id_and_driver_id
+    except Exception as e:      
+        raise CabboException(
+            f"Failed to list trip reviews for driver_id: {driver_id} and customer id: {customer_id}: {str(e)}",
+            status_code=500,
+        )
+
+async def fetch_trip_review_by_trip_id(trip_id: str, db: AsyncSession) -> Optional[TripRatingResponseSchema]:
+    """Fetch the trip review for a specific trip.
+    Args:
+        trip_id (str): Unique identifier for the trip
+        db (AsyncSession): Database session
+    Returns:
+        Optional[TripRatingResponseSchema]: The driver rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience for the review of the driver for a given trip provided by a customer if it exists, otherwise None.
+    """
+    try:
+        result = await db.execute(select(TripRating).where(TripRating.trip_id == trip_id))
+        rating = result.scalar_one_or_none()
+        if not rating:
+            return None
+        rating_schema = TripRatingSchema.model_validate(rating)
+        if not rating_schema.customer_id:
+            return None
+        customer = await async_get_customer_by_id(
+            customer_id=rating_schema.customer_id, db=db
+        )
+        if not customer:
+            return None
+        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
+        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        rating_response = TripRatingResponseSchema(
+            id=rating_schema.id,
+            rating=rating_schema.rating,
+            feedback=rating_schema.feedback,
+            overall_experience=rating_schema.overall_experience,
+            created_at=rating_schema.created_at,
+            given_by=customer_schema,
+        )
+        return rating_response
     except Exception as e:
         raise CabboException(
-            f"Failed to get average rating for the driver with id {driver_id}: {str(e)}",
+            f"Failed to fetch trip review for the trip with id {trip_id}: {str(e)}",
             status_code=500,
         )
-    
-async def fetch_trip_review(
+
+
+async def fetch_trip_review_by_booking_id_customer_id(
     booking_id  : str,
     customer_id: str,
     db: AsyncSession,
 ) -> TripRatingResponseSchema:
     """
-    Get the review given by the current customer for a specific trip.
+    Get the review given by a customer for a specific trip.
 
     Args:
         booking_id (str): Unique identifier for the trip booking
         customer_id (str): UUID of the customer who provided the rating
         db (AsyncSession): Database session
     Returns:
-        DriverRatingResponseSchema: The driver rating details including booking_id, driver_id, customer_id, rating, feedback and overall experience for the review given by the current customer for the specific trip.
+        TripRatingResponseSchema: The driver rating details including booking_id, driver_id, customer_id, rating, feedback and overall experience for the review given by the current customer for the specific trip.
     """
     try:
         customer = await async_get_customer_by_id(
@@ -499,6 +436,6 @@ async def fetch_trip_review(
 
     except Exception as e:
         raise CabboException(
-            f"Failed to get driver rating for the driver against booking {booking_id}: {str(e)}",
+            f"Failed to get trip review for booking {booking_id} by customer {customer_id}: {str(e)}",
             status_code=500,
         )

@@ -8,10 +8,11 @@ from api.v1.endpoints.admin.geography.geo_routes import router as geography_conf
 from api.v1.endpoints.admin.pricing.pricing_routes import router as pricing_config_ep
 from api.v1.endpoints import (
     auth as auth_ep,
-    customer as customer_ep,
     location as location_ep,
-    trip as trip_ep,
-    driver as driver_ep,
+)
+from api.v1.endpoints.customer import (
+     customer as customer_ep,
+    driver as driver_router,
 )
 from api.v1.endpoints.admin import (
     auth as admin_auth_ep,
@@ -25,14 +26,15 @@ from api.v1.endpoints.admin import (
     local_trip_package as admin_trip_package_ep,
     refund as admin_refund_ep,
 )
+from api.v1.endpoints.customer.trip import trip as trip_router
 
 
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
-router.include_router(customer_ep.router, prefix="/customers", tags=["customers"])
+router.include_router(customer_ep.router, prefix="/customer")
+router.include_router(trip_router, prefix="/trips", tags=["trip-operations-for-customers"])
+router.include_router(driver_router, prefix="/driver", tags=["driver-operations-for-customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
-router.include_router(trip_ep.router, prefix="/trips", tags=["trips"])
-router.include_router(driver_ep.router, prefix="/drivers", tags=["drivers"])
 
 
 

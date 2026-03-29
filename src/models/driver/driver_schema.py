@@ -120,25 +120,3 @@ class DriverEarningSchema(BaseModel):
     extra_earnings: Optional[float] = Field(0.0, description="Any extra earnings for the driver on top of the standard fare for the trip, such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.")
     extra_earnings_breakdown: Optional[ExtraPayments] = Field(None, description="Breakdown of any extra earnings for the driver on top of the standard fare for the trip in a structured format e.g., {'toll_charges': 100, 'parking_charges': 50, 'overage_payment': 30, 'tip': 1.5}")
     total_earnings: float=Field(..., description="Total earnings for the driver for the trip including the standard fare and any extra earnings (earnings + extra_earnings)")
-
-
-class TripRatingCreateSchema(BaseModel):
-    rating: int = Field(..., ge=1, le=5, description="Rating given by the customer for the trip on a scale of 1 to 5")
-    feedback: Optional[str] = Field(None, max_length=500, description="Optional review or feedback provided by the customer about the trip")
-    overall_experience: Optional[TripExperienceSchema] = Field(None, description="Overall experience of the trip as rated by the customer, including ratings for cab cleanliness, AC working condition, driving behavior, punctuality, overall cab condition, and any additional comments or feedback about the trip experience")
-
-class TripRatingSchema(TripRatingCreateSchema):
-    id:Optional[str] = Field(None, description="Unique identifier for the trip rating record")
-    trip_id: str=Field(..., description="Unique identifier for the trip")
-    driver_id: str=Field(..., description="Unique identifier for the driver")
-    customer_id: str=Field(..., description="Unique identifier for the customer who rated the driver")
-    created_at: Optional[datetime]=Field(None, description="Timestamp when the trip rating was created")
-    
-    class Config:
-        from_attributes = True
-
-class TripRatingResponseSchema(TripRatingCreateSchema):
-    id: str=Field(..., description="Unique identifier for the trip rating record")
-    created_at: datetime=Field(..., description="Timestamp when the trip rating was created")
-    given_by:CustomerReadWithProfilePicture= Field(..., description="Details of the customer who gave the rating, including their name and profile picture URL")
-    
