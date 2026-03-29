@@ -49,7 +49,7 @@ async def view_trip_reviews_by_customer_driver(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
-    """LIST View ratings given by customers for a driver."""
+    """LIST View trip reviews for a specific driver given by a specific customer."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
