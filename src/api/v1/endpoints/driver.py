@@ -5,11 +5,11 @@ from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.common import FlagsEnum
 from models.customer.customer_orm import Customer
-from models.driver.driver_schema import DriverRatingResponseSchema
+from models.driver.driver_schema import TripRatingResponseSchema
 from services.trip_review_service import (
     get_average_rating_by_driver_id,
-    fetch_customer_driver_trip_review,
-    fetch_customer_driver_trip_review,
+    fetch_trip_review,
+    fetch_trip_review,
     list_reviews_by_driver_id,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,7 @@ router = APIRouter()
 
 # List unique non-flagged reviews of a driver given by various customers.
 @router.get(
-    "/driver/{driver_id}/ratings", response_model=list[DriverRatingResponseSchema]
+    "/driver/{driver_id}/ratings", response_model=list[TripRatingResponseSchema]
 )
 async def list_unique_reviews_of_driver(
     driver_id: str,

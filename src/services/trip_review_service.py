@@ -7,9 +7,9 @@ from models.common import AppBackgroundTask, FlagsEnum
 from models.customer.customer_schema import CustomerReadWithProfilePicture
 from models.driver.driver_orm import Driver, TripRating
 from models.driver.driver_schema import (
-    DriverRatingCreateSchema,
-    DriverRatingResponseSchema,
-    DriverRatingSchema,
+    TripRatingCreateSchema,
+    TripRatingResponseSchema,
+    TripRatingSchema,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
@@ -22,7 +22,7 @@ from services.trips.trip_service import async_get_trip_by_booking_id
 async def save_trip_rating(
     booking_id: str,
     customer_id: str,
-    payload: DriverRatingCreateSchema,
+    payload: TripRatingCreateSchema,
     db: AsyncSession,
     validate_time_window=False,
 ) -> tuple[dict[str, str], Optional[AppBackgroundTask]]:
@@ -144,9 +144,9 @@ async def create_trip_rating(
     trip_id: str,
     driver_id: str,
     customer_id: str,
-    payload: DriverRatingCreateSchema,
+    payload: TripRatingCreateSchema,
     db: AsyncSession,
-) -> DriverRatingSchema:
+) -> TripRatingSchema:
     """
     Create a new driver rating and feedback entry for a trip by a customer.
 
@@ -176,7 +176,7 @@ async def create_trip_rating(
         db.add(new_rating)
         await db.commit()
         await db.refresh(new_rating)
-        return DriverRatingSchema.model_validate(new_rating)
+        return TripRatingSchema.model_validate(new_rating)
     except Exception as e:
         await db.rollback()
         raise CabboException(
@@ -185,8 +185,8 @@ async def create_trip_rating(
 
 
 async def update_trip_rating(
-    rating_record: TripRating, payload: DriverRatingCreateSchema, db: AsyncSession
-) -> DriverRatingSchema:
+    rating_record: TripRating, payload: TripRatingCreateSchema, db: AsyncSession
+) -> TripRatingSchema:
     """
     Update driver rating and feedback for a trip by a customer with the new values provided in the payload.
 
@@ -209,7 +209,7 @@ async def update_trip_rating(
         db.add(rating_record)
         await db.commit()
         await db.refresh(rating_record)
-        return DriverRatingSchema.model_validate(rating_record)
+        return TripRatingSchema.model_validate(rating_record)
     except Exception as e:
         await db.rollback()
         raise CabboException(
@@ -328,7 +328,7 @@ async def list_reviews_by_driver_id(
     driver_id: str,
     flag: FlagsEnum,
     db: AsyncSession,
-) -> List[DriverRatingResponseSchema]:
+) -> List[TripRatingResponseSchema]:
 
     try:
 
@@ -337,7 +337,7 @@ async def list_reviews_by_driver_id(
             raise CabboException(
                 "Driver not found for the given driver_id", status_code=404
             )
-        response: List[DriverRatingResponseSchema] = []
+        response: List[TripRatingResponseSchema] = []
         query = select(TripRating).where(TripRating.driver_id == driver_id)
         if flag == FlagsEnum.flagged:
             query = query.where(TripRating.is_flagged == True)
@@ -347,7 +347,7 @@ async def list_reviews_by_driver_id(
         result = await db.execute(query)
         ratings = result.scalars().all()
         ratings_schema = [
-            DriverRatingSchema.model_validate(rating) for rating in ratings
+            TripRatingSchema.model_validate(rating) for rating in ratings
         ]
 
         for rating in ratings_schema:
@@ -360,7 +360,7 @@ async def list_reviews_by_driver_id(
                 continue
             customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
             customer_schema.image_url = f"/images/customers/{customer.id}.png"
-            rating_response = DriverRatingResponseSchema(
+            rating_response = TripRatingResponseSchema(
                 id=rating.id,
                 rating=rating.rating,
                 feedback=rating.feedback,
@@ -411,20 +411,20 @@ async def get_average_rating_by_driver_id(
             status_code=500,
         )
     
-async def fetch_customer_driver_trip_review(
+async def fetch_trip_review(
     booking_id  : str,
     customer_id: str,
     db: AsyncSession,
-) -> DriverRatingResponseSchema:
+) -> TripRatingResponseSchema:
     """
-    Get the review given by the current customer to a driver for a specific trip.
+    Get the review given by the current customer for a specific trip.
 
     Args:
         booking_id (str): Unique identifier for the trip booking
         customer_id (str): UUID of the customer who provided the rating
         db (AsyncSession): Database session
     Returns:
-        DriverRatingResponseSchema: The driver rating details including booking_id, driver_id, customer_id, rating, feedback and overall experience for the review given by the current customer to the driver for the specific trip.
+        DriverRatingResponseSchema: The driver rating details including booking_id, driver_id, customer_id, rating, feedback and overall experience for the review given by the current customer for the specific trip.
     """
     try:
         customer = await async_get_customer_by_id(
@@ -487,7 +487,7 @@ async def fetch_customer_driver_trip_review(
         
         customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
         customer_schema.image_url = f"/images/customers/{customer.id}.png"
-        rating_response = DriverRatingResponseSchema(
+        rating_response = TripRatingResponseSchema(
             id=rating_record.id,
             rating=rating_record.rating,
             feedback=rating_record.feedback,

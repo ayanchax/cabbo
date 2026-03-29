@@ -122,23 +122,23 @@ class DriverEarningSchema(BaseModel):
     total_earnings: float=Field(..., description="Total earnings for the driver for the trip including the standard fare and any extra earnings (earnings + extra_earnings)")
 
 
-class DriverRatingCreateSchema(BaseModel):
-    rating: int = Field(..., ge=1, le=5, description="Rating given by the customer to the driver for the trip on a scale of 1 to 5")
-    feedback: Optional[str] = Field(None, max_length=500, description="Optional review or feedback provided by the customer about the driver for the trip")
+class TripRatingCreateSchema(BaseModel):
+    rating: int = Field(..., ge=1, le=5, description="Rating given by the customer for the trip on a scale of 1 to 5")
+    feedback: Optional[str] = Field(None, max_length=500, description="Optional review or feedback provided by the customer about the trip")
     overall_experience: Optional[TripExperienceSchema] = Field(None, description="Overall experience of the trip as rated by the customer, including ratings for cab cleanliness, AC working condition, driving behavior, punctuality, overall cab condition, and any additional comments or feedback about the trip experience")
 
-class DriverRatingSchema(DriverRatingCreateSchema):
-    id:Optional[str] = Field(None, description="Unique identifier for the driver rating record")
+class TripRatingSchema(TripRatingCreateSchema):
+    id:Optional[str] = Field(None, description="Unique identifier for the trip rating record")
     trip_id: str=Field(..., description="Unique identifier for the trip")
     driver_id: str=Field(..., description="Unique identifier for the driver")
     customer_id: str=Field(..., description="Unique identifier for the customer who rated the driver")
-    created_at: Optional[datetime]=Field(None, description="Timestamp when the driver rating was created")
+    created_at: Optional[datetime]=Field(None, description="Timestamp when the trip rating was created")
     
     class Config:
         from_attributes = True
 
-class DriverRatingResponseSchema(DriverRatingCreateSchema):
-    id: str=Field(..., description="Unique identifier for the driver rating record")
-    created_at: datetime=Field(..., description="Timestamp when the driver rating was created")
+class TripRatingResponseSchema(TripRatingCreateSchema):
+    id: str=Field(..., description="Unique identifier for the trip rating record")
+    created_at: datetime=Field(..., description="Timestamp when the trip rating was created")
     given_by:CustomerReadWithProfilePicture= Field(..., description="Details of the customer who gave the rating, including their name and profile picture URL")
     

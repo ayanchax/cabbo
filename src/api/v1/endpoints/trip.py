@@ -3,9 +3,9 @@ from core.security import validate_customer_token
 from db.database import a_yield_mysql_session, yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.driver.driver_schema import (
-    DriverRatingCreateSchema,
-    DriverRatingResponseSchema,
-    DriverRatingSchema,
+    TripRatingCreateSchema,
+    TripRatingResponseSchema,
+    TripRatingSchema,
 )
 from models.policies.refund_schema import RefundSchema
 from models.trip.trip_enums import TripStatusEnum
@@ -18,7 +18,7 @@ from models.trip.trip_schema import (
 from sqlalchemy.orm import Session
 
 from services.trip_review_service import (
-    fetch_customer_driver_trip_review,
+    fetch_trip_review,
     save_trip_rating,
 )
 from services.orchestration_service import BackgroundTaskOrchestrator
@@ -130,7 +130,7 @@ async def get_refund_details(
 @router.post("/{booking_id}/rate-driver")
 async def rate_driver_for_trip(
     background_tasks: BackgroundTasks,
-    payload: DriverRatingCreateSchema = Body(
+    payload: TripRatingCreateSchema = Body(
         ...,
         description="Rating, feedback and overall experience for the driver for the trip",
     ),
@@ -157,7 +157,7 @@ async def rate_driver_for_trip(
 # Get own review given to a driver for a trip.
 @router.get(
     "/{booking_id}/my-rating",
-    response_model=DriverRatingResponseSchema,
+    response_model=TripRatingResponseSchema,
 )
 async def get_own_review_given_to_driver_for_trip(
     booking_id: str,
@@ -165,6 +165,6 @@ async def get_own_review_given_to_driver_for_trip(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     """Get the review given by the current customer to a driver for a specific trip."""
-    return await fetch_customer_driver_trip_review(
+    return await fetch_trip_review(
         booking_id=booking_id, customer_id=current_customer.id, db=db
     )
