@@ -1,14 +1,3 @@
-# - Admin based Trip endpoints, only super_admin
-#     See trip by trip_id done
-#     See trip by booking_id done (booking_id is the unique id from the booking system, which is used to create a trip in our system) done
-#     List all trips in system done
-#     List trips by driver_id done
-#     List trips by customer_id done
-#     List trips by status -- done
-#     Update trip status --
-#     Assign driver to trip Done
-
-
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends
@@ -36,6 +25,7 @@ from services.trips.trip_service import (
     update_trip_status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from . import trip_reviews  
 
 router = APIRouter()
 
@@ -334,3 +324,10 @@ async def enable_trip(
             "You do not have permission to activate trips.", status_code=403
         )
     return await activate_trip(trip_id=trip_id, db=db) 
+
+
+
+
+# Include trip_reviews router for admin to view trip reviews by driver and by customer
+
+router.include_router(trip_reviews.router, prefix="/trip-reviews", tags=["Admin Trip Reviews"])

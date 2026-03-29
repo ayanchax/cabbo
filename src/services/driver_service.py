@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
+from typing import Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.trip_helpers import attach_relationships_to_trip
-from models.driver.driver_orm import Driver, DriverEarning
+from models.driver.driver_orm import Driver, DriverEarning, TripRating
 from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
@@ -222,7 +224,8 @@ async def assign_driver_to_trip(
                 TripTypeEnum.local,
             ] and start_datetime < datetime.now(timezone.utc):
                 raise CabboException(
-                    "Cannot assign driver to a trip that is in the past.", status_code=400
+                    "Cannot assign driver to a trip that is in the past.",
+                    status_code=400,
                 )
             # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
             if (
@@ -231,7 +234,8 @@ async def assign_driver_to_trip(
                 and expected_end_datetime < datetime.now(timezone.utc)
             ):
                 raise CabboException(
-                    "Cannot assign driver to a trip that is in the past.", status_code=400
+                    "Cannot assign driver to a trip that is in the past.",
+                    status_code=400,
                 )
         # Check Trip has a valid creator_id
         if not trip.creator_id:
@@ -416,14 +420,20 @@ async def add_driver_earning_record(
         driver_schema = DriverReadSchema.model_validate(driver) if driver else None
         if not driver_schema:
             if silently_fail:
-                print(f"Driver not found for trip {trip.id} while adding driver earning record.")
+                print(
+                    f"Driver not found for trip {trip.id} while adding driver earning record."
+                )
                 return None
             raise CabboException("Driver not found", status_code=404)
-        
-        #Delete existing driver earning record for this trip before adding a new one
-        existing_record = await get_trip_earning_for_driver(trip_id=trip.id, driver_id=driver_schema.id, db=db)
+
+        # Delete existing driver earning record for this trip before adding a new one
+        existing_record = await get_trip_earning_for_driver(
+            trip_id=trip.id, driver_id=driver_schema.id, db=db
+        )
         if existing_record:
-                await delete_driver_earning(earning_id=existing_record.id, db=db, commit=commit, hard_delete=True)
+            await delete_driver_earning(
+                earning_id=existing_record.id, db=db, commit=commit, hard_delete=True
+            )
 
         return await _add_driver_earning_record(
             payload=DriverEarningSchema(
@@ -432,8 +442,11 @@ async def add_driver_earning_record(
                 base_earnings=base_earnings,
                 extra_earnings=extra_earnings,
                 total_earnings=total_earnings,
-                extra_earnings_breakdown=additional_info.extra_payment_to_driver if additional_info and additional_info.extra_payment_to_driver else None,
-                
+                extra_earnings_breakdown=(
+                    additional_info.extra_payment_to_driver
+                    if additional_info and additional_info.extra_payment_to_driver
+                    else None
+                ),
             ),
             db=db,
             requestor=requestor,
@@ -442,6 +455,7 @@ async def add_driver_earning_record(
         )
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         if silently_fail:
             print(f"Error in add_driver_earning_record: {str(e)}")
@@ -452,7 +466,10 @@ async def add_driver_earning_record(
             include_traceback=True,
         )
 
-async def get_trip_earning_for_driver(trip_id: str, driver_id: str, db: AsyncSession) -> DriverEarning | None:
+
+async def get_trip_earning_for_driver(
+    trip_id: str, driver_id: str, db: AsyncSession
+) -> DriverEarning | None:
     try:
         result = await db.execute(
             select(DriverEarning).where(
@@ -461,10 +478,15 @@ async def get_trip_earning_for_driver(trip_id: str, driver_id: str, db: AsyncSes
         )
         return result.scalars().first()
     except Exception as e:
-        print(f"Error fetching driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}")
+        print(
+            f"Error fetching driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
+        )
         return None
 
-async def has_driver_earning_record_for_trip(trip_id: str, driver_id: str, db: AsyncSession) -> bool:
+
+async def has_driver_earning_record_for_trip(
+    trip_id: str, driver_id: str, db: AsyncSession
+) -> bool:
     try:
         result = await db.execute(
             select(DriverEarning).where(
@@ -474,12 +496,21 @@ async def has_driver_earning_record_for_trip(trip_id: str, driver_id: str, db: A
         record = result.scalars().first()
         return record is not None
     except Exception as e:
-        print(f"Error checking driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}")
+        print(
+            f"Error checking driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
+        )
         return False
-    
-async def delete_driver_earning(earning_id:str, db:AsyncSession, commit=True, hard_delete=False) -> bool:
+
+
+async def delete_driver_earning(
+    earning_id: str, db: AsyncSession, commit=True, hard_delete=False
+) -> bool:
     try:
-        result = await db.execute(select(DriverEarning).where(DriverEarning.id == earning_id, DriverEarning.is_active == True))
+        result = await db.execute(
+            select(DriverEarning).where(
+                DriverEarning.id == earning_id, DriverEarning.is_active == True
+            )
+        )
         earning_record = result.scalars().first()
         if not earning_record:
             return False
@@ -495,3 +526,148 @@ async def delete_driver_earning(earning_id:str, db:AsyncSession, commit=True, ha
         await db.rollback()
         print(f"Error deleting driver earning record with id {earning_id}: {str(e)}")
         return False
+
+
+async def calculate_average_rating_for_driver(
+    driver_id: str,
+    db: AsyncSession,
+    exclude_flagged_ratings: bool = False,
+    silently_fail: bool = False,
+) -> Optional[float]:
+    """
+    Calculate the average rating for a driver based on all the trip ratings provided by customers.
+
+    Args:
+        driver_id (str): Unique identifier for the driver
+        db (AsyncSession): Database session
+        exclude_flagged_ratings (bool): A flag to indicate whether to exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver. Default is False.
+        silently_fail (bool): A flag to indicate whether to silently fail if the driver is not found. Default is False.
+    Returns:
+        Optional[float]: The average rating for the driver rounded to 2 decimal places. Returns
+        None if there are no ratings for the driver.
+    """
+    try:
+        print(
+            f"Calculating average rating for driver with id {driver_id} with exclude_flagged_ratings={exclude_flagged_ratings} and silently_fail={silently_fail}"
+        )
+        query = select(func.avg(TripRating.rating)).where(
+            TripRating.driver_id == driver_id
+        )
+        if exclude_flagged_ratings:
+            # Exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver.
+            query = query.where(TripRating.is_flagged == False)
+
+        result = await db.execute(query)
+        average_rating = result.scalar()
+        return round(average_rating, 2) if average_rating is not None else None
+    except Exception as e:
+        if silently_fail:
+            print(
+                f"Failed to calculate average rating for the driver with id {driver_id}: {str(e)}"
+            )
+            return None
+        raise CabboException(
+            f"Failed to calculate average rating for the driver: {str(e)}",
+            status_code=500,
+        )
+
+
+async def get_average_rating_by_driver_id(
+    driver_id: str,
+    db: AsyncSession,
+) -> float:
+
+    try:
+        driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
+        if not driver:
+            raise CabboException(
+                "Driver not found for the given driver_id", status_code=404
+            )
+        average_rating = driver.avg_rating
+        if average_rating is None:
+            print(
+                f"Average rating not available for the driver with id {driver_id}. Calculating average rating from existing ratings for the driver."
+            )
+            # If avg_rating is not available for some reason, calculate it on the fly based on the existing real(not flagged or spam) ratings for the driver in the database and return it without updating it in the database because we do not want to update avg_rating in the database if it is None for some reason because it might be an indication of some issue with the driver rating records in the database and we do not want to override any existing avg_rating value in the database without investigating the issue further. So we will just calculate and return the average rating on the fly without updating it in the database if avg_rating is None for some reason.
+            average_rating = await calculate_average_rating_for_driver(
+                driver_id=driver_id,
+                db=db,
+                exclude_flagged_ratings=True,
+                silently_fail=True,
+            )
+            if average_rating is None:
+                raise CabboException(
+                    "Average rating not available for the driver and failed to calculate it from existing ratings. No ratings found for the driver.",
+                    status_code=404,
+                )
+        return average_rating
+    except Exception as e:
+        raise CabboException(
+            f"Failed to get average rating for the driver with id {driver_id}: {str(e)}",
+            status_code=500,
+        )
+
+
+async def update_average_rating_for_driver(
+    driver_id: str,
+    db: AsyncSession,
+    exclude_flagged_ratings: bool = False,
+    silently_fail: bool = False,
+) -> Optional[float]:
+    """
+    Calculate the average rating for a driver based on all the trip ratings provided by customers for their trips and update the average rating for the driver in the database.
+
+    Args:
+        driver_id (str): Unique identifier for the driver
+        db (AsyncSession): Database session
+        exclude_flagged_ratings (bool): A flag to indicate whether to exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver. Default is False.
+        silently_fail (bool): A flag to indicate whether to silently fail if the driver is not found. Default is False.
+    Returns:
+        Optional[float]: The average rating for the driver rounded to 2 decimal places after updating it in the database. Returns None if there are no ratings for the driver.
+    """
+    average_rating = await calculate_average_rating_for_driver(
+        driver_id=driver_id,
+        db=db,
+        exclude_flagged_ratings=exclude_flagged_ratings,
+        silently_fail=silently_fail,
+    )
+    if average_rating is not None:
+        try:
+            driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
+            if not driver:
+                if silently_fail:
+                    print(
+                        f"Driver with id {driver_id} not found. Cannot update average rating for the driver."
+                    )
+                    return None
+                raise CabboException(
+                    "Driver not found for the given driver_id", status_code=404
+                )
+            driver.avg_rating = average_rating
+            await db.commit()
+            print(
+                f"Average rating for driver with id {driver_id} updated to {average_rating}"
+            )
+            return average_rating
+        except Exception as e:
+            await db.rollback()
+            if silently_fail:
+                print(
+                    f"Failed to update average rating for the driver with id {driver_id}: {str(e)}"
+                )
+                return None
+            raise CabboException(
+                f"Failed to update average rating for the driver: {str(e)}",
+                status_code=500,
+            )
+    if silently_fail:
+        print(
+            f"No ratings found for the driver with id {driver_id}. Average rating not updated."
+        )
+        return None
+    raise CabboException(
+        "Failed to calculate average rating for the driver. Average rating not updated.",
+        status_code=500,
+    )
+
+ 
