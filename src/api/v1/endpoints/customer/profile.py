@@ -10,7 +10,6 @@ from models.customer.customer_orm import Customer
 from services.customer_service import (
     get_active_customer_by_id,
     update_customer_profile,
-    delete_bearer_token,
     update_customer_last_modified,
 )
 from services.file_service import (
@@ -93,14 +92,5 @@ def remove_profile_picture(
     return {"message": "Profile picture removed successfully."}
 
 
-@router.post("/logout")
-def logout_customer(
-    db: Session = Depends(yield_mysql_session),
-    current_customer: Customer = Depends(validate_customer_token),
-):
-    if delete_bearer_token(customer=current_customer, db=db):
-        # If the bearer token is deleted successfully, we can assume the logout was successful
-        return {"message": "Logged out successfully"}
 
-    raise CabboException("Logout failed", status_code=500)
 

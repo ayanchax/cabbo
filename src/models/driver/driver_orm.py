@@ -106,8 +106,8 @@ class Driver(Base):
     #A driver can have multiple earnings records for different trips, and each earning record is associated with one trip, so the relationship is one-to-many from Driver to DriverEarning and many-to-one from DriverEarning to Driver.
     earnings = relationship("DriverEarning", back_populates="driver", cascade="all, delete-orphan", passive_deletes=True)
     
-    ratings = relationship(
-        "DriverRating",
+    trip_ratings = relationship(
+        "TripRating",
         back_populates="driver",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -161,6 +161,8 @@ class DriverEarning(Base):
 
 
 #This will be populated when the customer rates the trip after the trip is completed
+#TripRatings can be seen by the customer who gave the review, the driver who did the trip and the admin, but not by other customers. 
+# We use the is_flagged field to allow the admin to flag any reviews that are found to be spam or violating the guidelines and filter out flagged reviews from the average rating calculation for the driver until the admin reviews and unflags the review; after review if the review is found to be genuine and not violating any guidelines, it will be included in the average rating calculation.
 class TripRating(Base):
     __tablename__ = "trip_ratings"
     __table_args__ = (
@@ -194,8 +196,8 @@ class TripRating(Base):
 
     is_flagged = Column(Boolean, default=False, nullable=False)  # Flag to indicate if the rating has been flagged for review by the admin, we can use this to filter out flagged ratings from the average rating calculation for the driver until the admin reviews and unflags the rating after review if the rating is found to be genuine and not violating any guidelines.
     
-    driver = relationship("Driver", back_populates="ratings")
-    trip = relationship("Trip", back_populates="driver_rating")
-    customer = relationship("Customer", back_populates="driver_ratings")
+    driver = relationship("Driver", back_populates="trip_ratings")
+    trip = relationship("Trip", back_populates="trip_rating")
+    customer = relationship("Customer", back_populates="trip_ratings")
     
 

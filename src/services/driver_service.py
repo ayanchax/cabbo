@@ -555,7 +555,7 @@ async def calculate_average_rating_for_driver(
         )
         if exclude_flagged_ratings:
             # Exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver.
-            query = query.where(TripRating.is_flagged == False)
+            query = query.where(TripRating.is_flagged == False) #pick up all ratings which are not flagged as inappropriate or fake for the average rating calculation for the driver
 
         result = await db.execute(query)
         average_rating = result.scalar()
@@ -631,8 +631,8 @@ async def update_average_rating_for_driver(
         exclude_flagged_ratings=exclude_flagged_ratings,
         silently_fail=silently_fail,
     )
-    if average_rating is not None:
-        try:
+    
+    try:
             driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
             if not driver:
                 if silently_fail:
@@ -649,7 +649,7 @@ async def update_average_rating_for_driver(
                 f"Average rating for driver with id {driver_id} updated to {average_rating}"
             )
             return average_rating
-        except Exception as e:
+    except Exception as e:
             await db.rollback()
             if silently_fail:
                 print(

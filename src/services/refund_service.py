@@ -687,7 +687,7 @@ async def fetch_refund_detail_by_booking_id(
                 Trip.is_active == True,
             )
         )
-        refund_record = result.scalar_one_or_none()
+        refund_record = result.scalar_one_or_none() #One trip can have only one refund record based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table, so we are using scalar_one_or_none which will return None if no record is found, or the record if found. It will raise an exception if multiple records are found, but that should not happen as we should have only one refund record for a trip based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table.
         if refund_record:
             return RefundSchema.model_validate(
                 {

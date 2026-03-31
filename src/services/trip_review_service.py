@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from sqlalchemy import select
 from core.exceptions import CabboException
@@ -9,7 +9,11 @@ from models.driver.driver_orm import TripRating
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 from models.trip.trip_enums import TripStatusEnum
-from models.trip.trip_schema import TripRatingCreateSchema, TripRatingResponseSchema, TripRatingSchema
+from models.trip.trip_schema import (
+    TripRatingCreateSchema,
+    TripRatingResponseSchema,
+    TripRatingSchema,
+)
 from services.customer_service import async_get_customer_by_id
 from services.driver_service import a_get_driver_by_id, update_average_rating_for_driver
 from services.trips.trip_service import async_get_trip_by_booking_id
@@ -107,9 +111,7 @@ async def save_trip_review(
             rating_record=existing_rating_record, payload=payload, db=db
         )
         response_dict["action"] = "update"
-        response_dict["message"] = (
-            "Your trip review has been updated successfully."
-        )
+        response_dict["message"] = "Your trip review has been updated successfully."
     else:
         await create_trip_review(
             trip_id=trip.id,
@@ -119,9 +121,7 @@ async def save_trip_review(
             db=db,
         )
         response_dict["action"] = "create"
-        response_dict["message"] = (
-            "Your trip review has been posted successfully."
-        )
+        response_dict["message"] = "Your trip review has been posted successfully."
 
     background_task = AppBackgroundTask(
         fn=update_average_rating_for_driver,
@@ -220,24 +220,18 @@ async def fetch_trip_reviews_by_driver_id(
 ) -> List[TripRatingResponseSchema]:
     """
     List trip reviews for a given driver provided by various customers.
-    
+
     Args:
     driver_id (str): Unique identifier for the driver
     flag (FlagsEnum): Filter reviews based on their flagged status. Use 'flagged' to retrieve only flagged reviews, 'unflagged' to retrieve only non-flagged reviews, and 'none' to retrieve all reviews regardless of their flagged status.
     db (AsyncSession): Database session
-    
+
     Returns:
     List[TripRatingResponseSchema]: A list of driver rating details including trip_id, driver
     id, customer_id, rating, feedback and overall experience for the reviews of the driver for a given trip provided by various customers.
 
     """
     try:
-
-        driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
-        if not driver:
-            raise CabboException(
-                "Driver not found for the given driver_id", status_code=404
-            )
         response: List[TripRatingResponseSchema] = []
         query = select(TripRating).where(TripRating.driver_id == driver_id)
         if flag == FlagsEnum.flagged:
@@ -247,18 +241,20 @@ async def fetch_trip_reviews_by_driver_id(
         # For all other values of flag including FlagsEnum.none, we do not apply any filter for flagged status and return all reviews for the driver regardless of their flagged status.
         result = await db.execute(query)
         ratings = result.scalars().all()
-        ratings_schema = [
-            TripRatingSchema.model_validate(rating) for rating in ratings
-        ]
+        if not ratings or len(ratings) == 0:
+            raise CabboException(
+                "No trip reviews found for the given driver_id.", status_code=404
+            )
+        ratings_schema = [TripRatingSchema.model_validate(rating) for rating in ratings]
 
         for rating in ratings_schema:
             if not rating.customer_id:
-                continue
+                continue  # to next rating if customer_id is not present for the rating, ideally this should not happen because if a rating exists by a customer then the customer_id should also be present in the database, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
             customer = await async_get_customer_by_id(
                 customer_id=rating.customer_id, db=db
             )
             if not customer:
-                continue
+                continue  # to next rating if customer details not found for the rating, ideally this should not happen because if a rating exists by a customer then the customer details should also be present in the database, because we have cascade delete set on this column, the row would not even exist had the customer_id been deleted, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
             customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
             customer_schema.image_url = f"/images/customers/{customer.id}.png"
             rating_response = TripRatingResponseSchema(
@@ -273,43 +269,71 @@ async def fetch_trip_reviews_by_driver_id(
         return response
 
     except Exception as e:
-        raise CabboException(
-            f"Failed to list trip reviews for the driver with id {driver_id}: {str(e)}",
-            status_code=500,
-        )
+        raise e
 
 
-async def fetch_trip_reviews_by_customer_id_and_driver_id(
-    customer_id: str,
-    driver_id: str,
-    flag: FlagsEnum,
-    db: AsyncSession,
+async def fetch_trip_reviews_by_customer_id(
+    customer_id: str, flag: FlagsEnum, db: AsyncSession
 ) -> List[TripRatingResponseSchema]:
     """
-    List trip reviews for a given driver provided by a specific customer.
+    List trip reviews given by a specific customer for various trips.
 
     Args:
         customer_id (str): UUID of the customer
-        driver_id (str): Unique identifier for the driver
-        flag (FlagsEnum): Filter reviews based on their flagged status. Use 'flagged' to retrieve only flagged reviews, 'unflagged' to retrieve only non-flagged reviews, and 'none' to retrieve all reviews regardless of their flagged status.
+        flag (FlagsEnum): Filter reviews based on their flagged status. Use 'flagged' to retrieve only flagged reviews, 'unflagged' to retrieve only non-flagged reviews.
         db (AsyncSession): Database session
     Returns:
-        List[TripRatingSchema]: A list of driver rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience for the reviews of the driver for a given trip provided by the specific customer.
-
+        List[TripRatingResponseSchema]: A list of trip reviews given by the specified customer.
     """
-    try:
-            reviews_by_driver_id = await fetch_trip_reviews_by_driver_id(driver_id=driver_id, flag=flag, db=db)
-            reviews_by_customer_id_and_driver_id = [
-                review for review in reviews_by_driver_id if review.given_by.id == customer_id
-            ]
-            return reviews_by_customer_id_and_driver_id
-    except Exception as e:      
-        raise CabboException(
-            f"Failed to list trip reviews for driver_id: {driver_id} and customer id: {customer_id}: {str(e)}",
-            status_code=500,
-        )
 
-async def fetch_trip_review_by_trip_id(trip_id: str, db: AsyncSession) -> Optional[TripRatingResponseSchema]:
+    try:
+        customer = await async_get_customer_by_id(customer_id=customer_id, db=db)
+        if not customer:
+            raise CabboException(
+                "Customer not found for the given customer_id", status_code=404
+            )
+
+        response: List[TripRatingResponseSchema] = []
+        query = select(TripRating).where(TripRating.customer_id == customer_id)
+        if flag == FlagsEnum.flagged:
+            # Pick up flagged reviews only for the customer
+            query = query.where(TripRating.is_flagged == True)
+        elif flag == FlagsEnum.unflagged:
+            # Pick up unflagged reviews only for the customer
+            query = query.where(TripRating.is_flagged == False)
+        # For all other values of flag including FlagsEnum.none, we do not apply any filter for flagged status and return all reviews by the customer regardless of their flagged status.
+        result = await db.execute(query)
+        ratings = result.scalars().all()
+        if not ratings or len(ratings) == 0:
+            raise CabboException(
+                "No trip reviews found for the given customer_id.", status_code=404
+            )
+        ratings_schema = [TripRatingSchema.model_validate(rating) for rating in ratings]
+        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
+        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        for rating in ratings_schema:
+            driver = await a_get_driver_by_id(driver_id=rating.driver_id, db=db)
+            if not driver:
+                continue  # to next rating if driver details not found for the rating, ideally this should not happen because if a rating exists for a driver then the driver details should also be present in the database, because we have cascade delete set on this column, the row would not even exist had the driver_id been deleted, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
+
+            rating_response = TripRatingResponseSchema(
+                id=rating.id,
+                rating=rating.rating,
+                feedback=rating.feedback,
+                overall_experience=rating.overall_experience,
+                created_at=rating.created_at,
+                given_by=customer_schema,
+            )
+            response.append(rating_response)
+        return response
+
+    except Exception as e:
+        raise e
+
+
+async def fetch_trip_review_by_trip_id(
+    trip_id: str, db: AsyncSession
+) -> Optional[TripRatingResponseSchema]:
     """Fetch the trip review for a specific trip.
     Args:
         trip_id (str): Unique identifier for the trip
@@ -318,18 +342,28 @@ async def fetch_trip_review_by_trip_id(trip_id: str, db: AsyncSession) -> Option
         Optional[TripRatingResponseSchema]: The driver rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience for the review of the driver for a given trip provided by a customer if it exists, otherwise None.
     """
     try:
-        result = await db.execute(select(TripRating).where(TripRating.trip_id == trip_id))
+        result = await db.execute(
+            select(TripRating).where(TripRating.trip_id == trip_id)
+        )
         rating = result.scalar_one_or_none()
         if not rating:
-            return None
+            raise CabboException(
+                "Trip review not found for the given trip_id", status_code=404
+            )
         rating_schema = TripRatingSchema.model_validate(rating)
         if not rating_schema.customer_id:
-            return None
+            raise CabboException(
+                "Customer ID not found for the trip review. Cannot fetch customer details for the review.",
+                status_code=404,
+            )
         customer = await async_get_customer_by_id(
             customer_id=rating_schema.customer_id, db=db
         )
         if not customer:
-            return None
+            raise CabboException(
+                "Customer not found for the trip review. Cannot fetch customer details for the review.",
+                status_code=404,
+            )
         customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
         customer_schema.image_url = f"/images/customers/{customer.id}.png"
         rating_response = TripRatingResponseSchema(
@@ -342,14 +376,58 @@ async def fetch_trip_review_by_trip_id(trip_id: str, db: AsyncSession) -> Option
         )
         return rating_response
     except Exception as e:
-        raise CabboException(
-            f"Failed to fetch trip review for the trip with id {trip_id}: {str(e)}",
-            status_code=500,
+        raise e
+
+
+async def fetch_trip_review_by_review_id(
+    review_id: str, db: AsyncSession
+) -> Optional[TripRatingResponseSchema]:
+    """Fetch the trip review for a specific review id.
+    Args:
+        review_id (str): Unique identifier for the trip review
+        db (AsyncSession): Database session
+    Returns:
+        Optional[TripRatingResponseSchema]: The driver rating details including trip_id, driver_id, customer_id, rating, feedback and overall experience for the review of the driver for a given trip provided by a customer if it exists, otherwise None.
+    """
+    try:
+        result = await db.execute(select(TripRating).where(TripRating.id == review_id))
+        rating = result.scalar_one_or_none()
+        if not rating:
+            raise CabboException(
+                "Trip review not found for the given review_id", status_code=404
+            )
+        rating_schema = TripRatingSchema.model_validate(rating)
+        if not rating_schema.customer_id:
+            raise CabboException(
+                "Customer ID not found for the trip review. Cannot fetch customer details for the review.",
+                status_code=404,
+            )
+        customer = await async_get_customer_by_id(
+            customer_id=rating_schema.customer_id, db=db
         )
+        if not customer:
+            raise CabboException(
+                "Customer not found for the trip review. Cannot fetch customer details for the review.",
+                status_code=404,
+            )
+        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
+        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        rating_response = TripRatingResponseSchema(
+            id=rating_schema.id,
+            rating=rating_schema.rating,
+            feedback=rating_schema.feedback,
+            overall_experience=rating_schema.overall_experience,
+            created_at=rating_schema.created_at,
+            given_by=customer_schema,
+        )
+        return rating_response
+    
+    except Exception as e:
+        raise e
 
 
 async def fetch_trip_review_by_booking_id_customer_id(
-    booking_id  : str,
+    booking_id: str,
     customer_id: str,
     db: AsyncSession,
 ) -> TripRatingResponseSchema:
@@ -364,9 +442,7 @@ async def fetch_trip_review_by_booking_id_customer_id(
         TripRatingResponseSchema: The driver rating details including booking_id, driver_id, customer_id, rating, feedback and overall experience for the review given by the current customer for the specific trip.
     """
     try:
-        customer = await async_get_customer_by_id(
-            customer_id=customer_id, db=db
-        )
+        customer = await async_get_customer_by_id(customer_id=customer_id, db=db)
         if not customer:
             raise CabboException(
                 "Customer not found for the given customer_id", status_code=404
@@ -383,7 +459,7 @@ async def fetch_trip_review_by_booking_id_customer_id(
                 status_code=400,
             )
         trip_id = trip.id
-        
+
         if not trip_id:
             raise CabboException(
                 "Trip ID not available for the trip. Cannot fetch driver rating for the trip.",
@@ -394,20 +470,19 @@ async def fetch_trip_review_by_booking_id_customer_id(
                 "Only customers can have reviews for the driver for a trip",
                 status_code=403,
             )
-        
+
         if trip.creator_id != customer_id:
             raise CabboException(
-                "Customer is not the creator of the trip and cannot have a review for the driver for the trip",
+                "Customer is not the creator of the trip and cannot view the review for the driver for the trip",
                 status_code=403,
             )
-        
+
         if trip.status != TripStatusEnum.completed:
             raise CabboException(
                 "Driver can be rated only for completed trips. Cannot fetch driver rating for the trip.",
                 status_code=400,
             )
 
-        
         rating_record = await db.execute(
             select(TripRating).where(
                 TripRating.driver_id == driver_id,
@@ -421,7 +496,7 @@ async def fetch_trip_review_by_booking_id_customer_id(
                 "Driver rating not found.",
                 status_code=404,
             )
-        
+
         customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
         customer_schema.image_url = f"/images/customers/{customer.id}.png"
         rating_response = TripRatingResponseSchema(
@@ -435,7 +510,112 @@ async def fetch_trip_review_by_booking_id_customer_id(
         return rating_response
 
     except Exception as e:
-        raise CabboException(
-            f"Failed to get trip review for booking {booking_id} by customer {customer_id}: {str(e)}",
-            status_code=500,
+        raise e
+
+
+async def fetch_all_trip_reviews(
+    flag: FlagsEnum, db: AsyncSession
+) -> List[TripRatingResponseSchema]:
+    """
+    List all trip reviews by various customers to various drivers.
+
+    Args:
+        flag (FlagsEnum): Filter reviews based on their flagged status. Use 'flagged' to retrieve only flagged reviews, 'unflagged' to retrieve only non-flagged reviews.
+        db (AsyncSession): Database session
+
+    Returns:
+        List[TripRatingResponseSchema]: A list of trip reviews by various customers to various drivers.
+    """
+    try:
+        response: List[TripRatingResponseSchema] = []
+        query = select(TripRating)
+        if flag == FlagsEnum.flagged:
+            # Pick up flagged reviews only
+            query = query.where(TripRating.is_flagged == True)
+        elif flag == FlagsEnum.unflagged:
+            # Pick up unflagged reviews only
+            query = query.where(TripRating.is_flagged == False)
+        # For all other values of flag including FlagsEnum.none, we do not apply any filter for flagged status and return all reviews regardless of their flagged status.
+        result = await db.execute(query)
+        ratings = result.scalars().all()
+        if not ratings or len(ratings) == 0:
+            raise CabboException(
+                "No trip reviews found.", status_code=404
+            )
+        ratings_schema = [TripRatingSchema.model_validate(rating) for rating in ratings]
+        for rating in ratings_schema:
+            if not rating.customer_id:
+                continue  # to next rating if customer_id is not present for the rating, ideally this should not happen because if a rating exists by a customer then the customer_id should also be present in the database, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
+            customer = await async_get_customer_by_id(
+                customer_id=rating.customer_id, db=db
+            )
+            if not customer:
+                continue  # to next rating if customer details not found for the rating, ideally this should not happen because if a rating exists by a customer then the customer details should also be present in the database, because we have cascade delete set on this column, the row would not even exist had the customer_id been deleted, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
+            customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
+            customer_schema.image_url = f"/images/customers/{customer.id}.png"
+            rating_response = TripRatingResponseSchema(
+                id=rating.id,
+                rating=rating.rating,
+                feedback=rating.feedback,
+                overall_experience=rating.overall_experience,
+                created_at=rating.created_at,
+                given_by=customer_schema,
+            )
+            response.append(rating_response)
+        return response
+
+    except Exception as e:
+        raise e
+
+
+async def update_trip_review_flag_status(
+    review_id: str, is_flagged: bool, db: AsyncSession
+) -> tuple[bool, Optional[Union[str, AppBackgroundTask]]]:
+    """
+    Update the flagged status of a trip review.
+
+    Args:
+        review_id (str): Unique identifier for the trip review
+        is_flagged (bool): The new flagged status to be set for the trip review
+        db (AsyncSession): Database session
+
+    Returns:
+        tuple[bool, Optional[Union[str, AppBackgroundTask]]]: A tuple containing a boolean indicating if the update was successful and an optional message or background task.
+    """
+    try:
+        rating_record = await db.execute(
+            select(TripRating).where(TripRating.id == review_id)
         )
+        rating_record = rating_record.scalar_one_or_none()
+        if not rating_record:
+            raise CabboException(
+                "Trip review not found for the given review_id", status_code=404
+            )
+        existing_flagged_status = rating_record.is_flagged
+        if existing_flagged_status == is_flagged:
+            # If the existing flagged status is same as the new flagged status, then we do not need to update and can return early.
+            return (
+                False,
+                "No update needed as the flagged status is already set to the desired value.",
+            )
+        rating_record.is_flagged = is_flagged
+        db.add(rating_record)
+        await db.commit()
+        # We will update the average rating for the driver based on all the ratings provided by customers for their trips
+        # to ensure that the average rating reflects genuine customer feedback and experience with the driver.
+        # If a review is flagged as inappropriate or fake, then we will exclude that review from the average rating calculation
+        # for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver.
+        # That is why we need to update avg rating of driver whenever the flagged status of a review is updated because it can impact the average rating of the driver.
+        background_task = AppBackgroundTask(
+            fn=update_average_rating_for_driver,
+            kwargs={
+                "driver_id": rating_record.driver_id,
+                "db": db,
+                "exclude_flagged_ratings": True,
+                "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
+            },
+        )
+        return True, background_task
+    except Exception as e:
+        await db.rollback()
+        raise e

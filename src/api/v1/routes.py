@@ -21,19 +21,18 @@ from api.v1.endpoints.admin import (
     airport as admin_airport_ep,
     customer as admin_customer_ep,
     kyc_document_types as admin_kyc_document_types_ep,
-    trip as admin_trip_ep,
     trip_type as admin_trip_type_ep,
     local_trip_package as admin_trip_package_ep,
-    refund as admin_refund_ep,
 )
 from api.v1.endpoints.customer.trip import trip as trip_router
+from api.v1.endpoints.admin.trip import trip as admin_trip_ep
 
 
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
 router.include_router(customer_ep.router, prefix="/customer")
-router.include_router(trip_router, prefix="/trips", tags=["trip-operations-for-customers"])
-router.include_router(driver_router, prefix="/driver", tags=["driver-operations-for-customers"])
+router.include_router(trip_router.router, prefix="/trips", tags=["trip-operations-for-customers"])
+router.include_router(driver_router.router, prefix="/driver", tags=["driver-operations-for-customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
 
 
@@ -83,6 +82,4 @@ router.include_router(
     prefix="/admin/config/trip-packages",
     tags=["admin-trip-package-configuration"],
 )
-router.include_router(
-    admin_refund_ep.router, prefix="/admin/refunds", tags=["admin-refund-management"]
-)
+

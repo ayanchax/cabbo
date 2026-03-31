@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+from core.security import validate_customer_token
 from db.database import yield_mysql_session
-from services.customer_service import create_customer
+from models.customer.customer_orm import Customer
+from services.customer_service import create_customer, delete_bearer_token
 from services.notification_service import notify_customer_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.otp_service import (
@@ -143,3 +145,14 @@ def login(
         expires_in=OTP_EXPIRY_MINUTES * 24 * 60 * 60,  # n days in seconds
         customer_id=str(customer.id),
     )
+
+@router.post("/customer/logout")
+def logout_customer(
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    if delete_bearer_token(customer=current_customer, db=db):
+        # If the bearer token is deleted successfully, we can assume the logout was successful
+        return {"message": "Logged out successfully"}
+
+    raise CabboException("Logout failed", status_code=500)
