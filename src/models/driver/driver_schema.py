@@ -2,13 +2,12 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from core.exceptions import CabboException
-from models.customer.customer_schema import CustomerReadWithProfilePicture
+from models.common import AmenitiesSchema
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
 from models.map.location_schema import Address
 from models.pricing.pricing_schema import ExtraPayments
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
-from models.trip.trip_schema import AmenitiesSchema, TripExperienceSchema
 from models.user.user_enum import GenderEnum, NationalityEnum, ReligionEnum
 from datetime import datetime
 
@@ -112,6 +111,9 @@ class DriverReadProfilePictureAfterUpdate(BaseModel):
 class DriverReadSchema(DriverCreateSchema):
     pass
 
+class DriverReadWithProfilePicture(DriverReadSchema):
+    image_url: str = Field(None, description="URL to the driver's profile picture")
+    
   
 class DriverEarningSchema(BaseModel):
     trip_id: str=Field(..., description="Unique identifier for the trip")

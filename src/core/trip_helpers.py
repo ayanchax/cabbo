@@ -2,12 +2,13 @@ import json
 from typing import List, Union
 from core.exceptions import CabboException
 from core.security import RoleEnum, generate_hash
+from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
 from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
-from models.trip.trip_schema import AmenitiesSchema, TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
+from models.trip.trip_schema import  TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 

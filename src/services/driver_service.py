@@ -4,11 +4,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.trip_helpers import attach_relationships_to_trip
+from models.customer.customer_schema import CustomerReadWithProfilePicture
 from models.driver.driver_orm import Driver, DriverEarning, TripRating
 from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
+    DriverReadWithProfilePicture,
     DriverUpdateSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
@@ -19,6 +21,7 @@ from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
     TripDetailSchema,
+    TripSummarySchema,
 )
 from models.user.user_orm import User
 from services.audit_trail_service import a_log_trip_audit
@@ -660,14 +663,70 @@ async def update_average_rating_for_driver(
                 f"Failed to update average rating for the driver: {str(e)}",
                 status_code=500,
             )
-    if silently_fail:
-        print(
-            f"No ratings found for the driver with id {driver_id}. Average rating not updated."
-        )
-        return None
-    raise CabboException(
-        "Failed to calculate average rating for the driver. Average rating not updated.",
-        status_code=500,
-    )
+    
 
+async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Optional[TripStatusEnum] = None) -> list[TripSummarySchema]:
+    try:
+        def _evaluate_driver(driver):
+            try:
+                driver_schema = DriverReadWithProfilePicture.model_validate(driver) if driver else None
+                driver_schema.image_url=f"/images/drivers/{driver_id}.png"
+                return driver_schema
+            except Exception as e:
+                return None
+        
+        def _evaluate_customer(customer):
+            try:
+                customer_schema = CustomerReadWithProfilePicture.model_validate(customer) if customer else None
+                if customer_schema:
+                    customer_schema.image_url=f"/images/customers/{customer_schema.id}.png"
+                return customer_schema
+            except Exception as e:
+                return None
+        
+        query = select(Trip).where(Trip.driver_id == driver_id)
+        if status:
+            query = query.where(Trip.status == status)
+        result = await db.execute(query)
+        trips = result.scalars().all()
+        # Map the trips to TripSummarySchema
+        if not trips or len(trips) == 0:
+            raise CabboException(
+                f"No trips found for the driver with id {driver_id} and status {status}",
+                status_code=404,
+            )
+        
+        for trip in trips:
+            await attach_relationships_to_trip(
+                trip, db, expose_customer_details=True
+            )
+        
+
+        trip_summaries = [
+            TripSummarySchema(
+                trip_id=trip.id,
+                booking_id=trip.booking_id,
+                driver=_evaluate_driver(trip.driver),  # Assuming trip.driver is already a DriverReadWithProfilePicture
+                customer=_evaluate_customer(trip.customer),  # Assuming trip.customer is already a CustomerReadWithProfilePicture
+                trip_type=trip.trip_type_master.trip_type if trip.trip_type_master else None,
+                status=trip.status,
+                start_datetime=trip.start_datetime,
+                end_datetime=trip.end_datetime,
+                final_price=trip.final_price,
+                price_shown_to_driver=trip.final_display_price,
+                num_passengers=trip.num_passengers,
+                num_luggages=trip.num_luggages,
+                origin=trip.origin,
+                destination=trip.destination,
+                is_round_trip=trip.is_round_trip,
+                is_interstate=trip.is_interstate,
+            )
+            for trip in trips
+        ]
+        
+        return trip_summaries
+ 
+    except Exception as e:
+        raise e
+    
  

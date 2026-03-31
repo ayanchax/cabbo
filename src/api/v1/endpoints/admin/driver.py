@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -19,6 +21,7 @@ from models.driver.driver_schema import (
     DriverReadSchema,
     DriverUpdateSchema,
 )
+from models.trip.trip_enums import TripStatusEnum
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from services.kyc_service import (
@@ -32,6 +35,7 @@ from services.driver_service import (
     create_driver,
     deactivate_driver,
     delete_driver,
+    fetch_all_trips_for_driver,
     get_all_drivers,
     get_all_drivers_by_availability,
     get_all_drivers_by_status,
@@ -117,10 +121,7 @@ def upload_driver_profile_picture(
             "Cannot upload profile picture for inactive driver", status_code=400
         )
 
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         # Proceed with upload logic (e.g., save file to storage, update driver record with file path)
         image_url = save_driver_profile_picture(driver_id=driver_id, file=file)
         updated_driver = update_driver_last_modified(driver=driver, db=db)
@@ -152,10 +153,7 @@ def delete_driver_profile_picture(
 
     current_user_role = current_user.role
 
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-         
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         # Proceed with removal logic (e.g., delete file from storage, update driver record)
         remove_driver_profile_picture(driver_id=driver_id)
         update_driver_last_modified(driver=driver, db=db)
@@ -179,10 +177,7 @@ def view_driver_profile(
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
     current_user_role = current_user.role
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         return DriverReadSchema.model_validate(driver)
 
     raise CabboException(
@@ -208,10 +203,7 @@ def upload_driver_documents(
             "Cannot upload documents for inactive driver", status_code=400
         )
 
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
 
         return update_driver_kyc_documents(
             driver=driver, files=files, document_types=document_types, db=db
@@ -235,10 +227,7 @@ def remove_driver_document(
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         if not driver.kyc_documents:
             raise CabboException("No documents found for this driver.", status_code=404)
 
@@ -260,10 +249,7 @@ def view_driver_documents(
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         if not driver.kyc_documents:
             return []
         return list_kyc_documents(driver, db)
@@ -287,10 +273,7 @@ def mark_kyc_verified(
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-         
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         return mark_kyc_verification_status_for_driver_document(
             driver, document_id, status, db
         )
@@ -321,7 +304,6 @@ def remove_driver(
             status_code=400,
         )
 
-    
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         is_deleted = delete_driver(driver_id=driver_id, db=db)
         if is_deleted:
@@ -345,7 +327,7 @@ def driver_activation(
         raise CabboException("Driver not found", status_code=404)
     if driver.is_active:
         raise CabboException("Driver is already active", status_code=400)
-    
+
     if current_user.role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         updated_driver = activate_driver(driver_id=driver_id, db=db)
         return {
@@ -371,7 +353,6 @@ def driver_deactivation(
     if not driver.is_active:
         raise CabboException("Driver is already inactive", status_code=400)
 
-    
     if current_user.role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         updated_driver = deactivate_driver(driver_id=driver_id, db=db)
         return {
@@ -435,17 +416,25 @@ def list_drivers(
 
 # View driver lifetime trips
 @router.get("/{driver_id}/trips")
-def view_driver_trips_history(driver_id: str):
+async def view_driver_trips_history(
+    driver_id: str,
+    status: Optional[TripStatusEnum] = None,    
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """LIST View trip history for a driver."""
-    return {"message": f"Trip history for driver {driver_id}"}
-
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to view driver trips.", status_code=403
+        )
+    return await fetch_all_trips_for_driver(driver_id=driver_id, status=status, db=db)
 
 @router.get("/{driver_id}/average-rating", response_model=float)
 async def get_average_rating_of_driver(
     driver_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
-    
 ):
     """Get the average rating of a driver."""
     current_user_role = current_user.role
