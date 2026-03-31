@@ -21,7 +21,6 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from db.database import Base
 from datetime import datetime, timezone
 
@@ -254,12 +253,12 @@ class Trip(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    driver_rating = relationship(
-        "DriverRating",
+    trip_rating = relationship(
+        "TripRating",
         back_populates="trip",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )  # A trip can have only one driver rating given by the customer to the driver for that trip, but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to DriverRating and one-to-many from Driver to DriverRating.
+    )  # A trip can have only one rating given by the customer but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to TripRating and one-to-many from Driver to TripRating.
 
     refund = relationship(
         "Refund",

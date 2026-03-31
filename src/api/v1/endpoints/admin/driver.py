@@ -5,14 +5,12 @@ from fastapi import (
     Form,
     Form,
     Path,
-    Query,
     UploadFile,
     File,
 )
 from core.exceptions import CabboException
 from core.security import ActiveInactiveStatusEnum, RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session, yield_mysql_session
-from models.common import FlagsEnum
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.driver.driver_schema import (
     DriverBaseSchema,
@@ -21,7 +19,6 @@ from models.driver.driver_schema import (
     DriverReadSchema,
     DriverUpdateSchema,
 )
-from models.trip.trip_schema import TripRatingResponseSchema
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from services.kyc_service import (
@@ -49,10 +46,6 @@ from services.file_service import (
 )
 from services.notification_service import notify_driver_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.trip_review_service import (
-    fetch_trip_reviews_by_customer_id_and_driver_id,
-    fetch_trip_reviews_by_driver_id,
-)
 from services.validation_service import validate_driver_payload
 from sqlalchemy.ext.asyncio import AsyncSession
 

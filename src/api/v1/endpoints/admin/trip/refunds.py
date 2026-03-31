@@ -67,7 +67,7 @@ async def list_all_refunds(
     refund_details = await fetch_all_refund_details(db)
     return refund_details
 
-# - Get endpoint to list all refunds issued for a given customer_id for one or more trips - finance_admin, super_admin
+# - Get endpoint to list all refunds issued to a given customer_id for one or more trips - finance_admin, super_admin
 @router.get("/customer/{customer_id}", response_model=list[RefundSchema])
 async def list_all_refunds_by_customer_id(
     customer_id: str | UUID,

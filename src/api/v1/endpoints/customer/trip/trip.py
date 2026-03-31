@@ -19,8 +19,8 @@ from services.trips.booking_service import (
 )
 from services.trips.search_service import search
 from utils.utility import remove_none_recursive
-from trip.reviews import router as trip_reviews
-from trip.refunds import router as trip_refunds
+from .reviews import router as trip_reviews
+from .refunds import router as trip_refunds
 
 router = APIRouter()
 
