@@ -39,6 +39,29 @@ async def view_trip_details_by_booking_id_and_customer_id(
     return serialized_trip
 
 
+#Get price breakdown for a trip by booking_id - this will be used by frontend to fetch the price breakdown details for a trip after the booking is confirmed, so that we can show the price breakdown to the customer in the trip details page. This endpoint will validate the JWT token to ensure that only authenticated customers can access their trip price breakdown details securely.
+@router.get("/{booking_id}/price-breakdown", response_model=dict,)
+async def get_price_breakdown_by_booking_id(
+    booking_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: Customer = Depends(validate_customer_token),
+):
+    """Get price breakdown for a trip by booking_id."""
+
+    trip = await async_get_trip_by_booking_id_customer_id(
+        booking_id, current_user.id, db
+    )
+
+    if trip is None:
+        raise CabboException("Trip booking not found", status_code=404)
+
+    price_breakdown = trip.price_breakdown
+    if price_breakdown is None:
+        raise CabboException("Price breakdown not found for the trip", status_code=404)
+
+    return price_breakdown
+
+
 # Get all trips for the authenticated customer
 @router.get("/", response_model=dict)
 async def list_trips_by_customer_id(

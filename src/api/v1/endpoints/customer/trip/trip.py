@@ -98,6 +98,7 @@ def cleanup_temp_trip_booking(
     return {"message": "Failed to clean up trip data."}
 
 
+
 # Trip review endpoints for customers to provide ratings and feedback for their trips and view their reviews. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trip reviews securely. The review endpoint will allow customers to submit their ratings and feedback for their completed trips, while the view reviews endpoint will enable customers to view their submitted reviews, enhancing the overall user experience and enabling better service quality through customer feedback.
 router.include_router(
     trip_reviews, prefix="/reviews", tags=["customer-trip-review-management"]

@@ -343,6 +343,31 @@ async def enable_trip(
     return await activate_trip(trip_id=trip_id, db=db)
 
 
+#Get price breakdown for a trip by trip_id - this will be used by super_admin, finance_admin, and customer_admin to view the price breakdown for a particular trip, which can help them in analyzing the fare components and understanding the pricing structure of the trips in our system, and also to resolve any pricing related disputes or issues that may arise.
+@router.get("/{trip_id}/price-breakdown", tags=["Admin Trip Management"])
+async def get_price_breakdown(
+    trip_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Get price breakdown for a trip by trip_id."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.finance_admin,
+        RoleEnum.customer_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view trip price breakdown.",
+            status_code=403,
+        )
+    trip = await async_get_trip_by_id(trip_id, db)
+    if trip is None:
+        raise CabboException("Trip not found", status_code=404)
+    return trip.price_breakdown     
+
+
+
 # Include trip_reviews router for admin to view trip reviews by driver and by customer
 
 router.include_router(
