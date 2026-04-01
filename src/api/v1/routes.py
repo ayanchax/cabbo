@@ -31,7 +31,7 @@ from api.v1.endpoints.admin.trip import trip as admin_trip_ep
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
 router.include_router(customer_ep.router, prefix="/customer")
-router.include_router(trip_router.router, prefix="/trips", tags=["trip-operations-for-customers"])
+router.include_router(trip_router.router, prefix="/trips")
 router.include_router(driver_router.router, prefix="/driver", tags=["driver-operations-for-customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
 
@@ -70,7 +70,7 @@ router.include_router(
 
 
 router.include_router(
-    admin_trip_ep.router, prefix="/admin/trips", tags=["admin-trip-management"]
+    admin_trip_ep.router, prefix="/admin/trips"
 )
 router.include_router(
     admin_trip_type_ep.router,
