@@ -33,6 +33,7 @@ from models.trip.trip_schema import (
     TripDetails,
     TripSearchRequest,
     TripTypeSchema,
+    TripUpdateRequestSchema,
 )
 from sqlalchemy.orm import Session
 
@@ -567,19 +568,24 @@ async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Tri
     result = await db.execute(
         select(Trip).filter(Trip.booking_id == booking_id, Trip.is_active == True)
     )  # Only retrieve active trips
-    trip_result = result.scalars().one_or_none() #Always returns one result or None, as booking_id is unique. Raises an error if multiple results are found, which should not happen.
+    trip_result = (
+        result.scalars().one_or_none()
+    )  # Always returns one result or None, as booking_id is unique. Raises an error if multiple results are found, which should not happen.
     if trip_result:
         await attach_relationships_to_trip(trip_result, db)
     return trip_result
 
-async def async_get_trip_by_booking_id_customer_id(booking_id: str, customer_id: str, db: AsyncSession) -> Trip:
+
+async def async_get_trip_by_booking_id_customer_id(
+    booking_id: str, customer_id: str, db: AsyncSession
+) -> Trip:
     """Asynchronously retrieve a trip by its booking ID and customer ID."""
     result = await db.execute(
         select(Trip).filter(
             Trip.booking_id == booking_id,
             Trip.creator_id == customer_id,
             Trip.creator_type == RoleEnum.customer,
-            Trip.is_active == True
+            Trip.is_active == True,
         )
     )  # Only retrieve active trips
     trip_result = result.scalars().one_or_none()
@@ -819,3 +825,49 @@ async def activate_trip(trip_id: str, db: AsyncSession):
     except Exception as e:
         await db.rollback()
         raise CabboException(f"Failed to activate trip: {str(e)}", status_code=500)
+
+
+async def update_non_cost_impacting_trip_fields(
+    trip: Trip, db: AsyncSession, payload: TripUpdateRequestSchema, validate_status: bool = False
+):
+    """
+    Updates non-cost impacting fields of a trip such as flight number, terminal number, and in-car amenities.
+    This function can be used to update trip details without affecting the pricing or cost calculations.
+
+    Args:
+        trip (Trip): The trip object to be updated.
+        db (AsyncSession): The database session for ORM operations.
+        update_data (TripUpdateRequestSchema): The data to update the trip with.
+        validate_status (bool): Whether to validate the trip status before allowing updates. Defaults to False.
+    """
+    try:
+        if validate_status and trip.status not in [TripStatusEnum.confirmed]:
+            raise CabboException(
+                f"Trip details can only be updated for trips in confirmed status. Current status: {trip.status}",
+                status_code=400,
+            )
+        if trip.trip_type_master.trip_type in [
+            TripTypeEnum.airport_pickup,
+            TripTypeEnum.airport_drop,
+        ]:
+            if payload.flight_number is not None:
+                trip.flight_number = payload.flight_number
+            if payload.terminal_number is not None:
+                trip.terminal_number = payload.terminal_number
+            if trip.placard_required and payload.placard_name is not None:
+                trip.placard_name = payload.placard_name
+
+        if payload.alternate_customer_phone is not None:
+            trip.alternate_customer_phone = payload.alternate_customer_phone
+
+        if payload.special_needs_requests is not None:
+            trip.special_needs_requests = payload.special_needs_requests
+
+        await db.commit()
+        await db.refresh(trip)
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise CabboException(
+            f"Failed to update trip details: {str(e)}", status_code=500
+        )
