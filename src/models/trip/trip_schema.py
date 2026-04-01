@@ -199,9 +199,6 @@ class TripSearchRequest(BaseModel):
         return v
 
 
-
-
-
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     fuel_type: FuelTypeEnum
@@ -660,7 +657,8 @@ class TripSummarySchema(BaseModel):
         None, description="End date and time of the trip"
     )
     price_shown_to_driver: Optional[float] = Field(
-        None, description="Final price shown to the driver admin, this can be different from the final price calculated for the trip due to various reasons like surge pricing, discounts applied after driver assignment, etc."
+        None,
+        description="Final price shown to the driver admin, this can be different from the final price calculated for the trip due to various reasons like surge pricing, discounts applied after driver assignment, etc.",
     )
     final_price: Optional[float] = Field(None, description="Final price of the trip")
     num_passengers: Optional[int] = Field(
@@ -680,3 +678,24 @@ class TripSummarySchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TripUpdateRequestSchema(BaseModel):
+    alternate_customer_phone: Optional[str] = Field(
+        None,
+        description="Alternate phone number for the customer, in case they want to be contacted on a different number for this trip",
+    )
+    special_needs_requests: Optional[str] = Field(
+        None,
+        description="Any special needs or requests from the customer regarding the trip, such as wheelchair accessibility, child seat requirement, etc.",
+    )
+    flight_number: Optional[str] = Field(
+        None, description="Flight number for airport trips"
+    )
+    terminal_number: Optional[str] = Field(
+        None, description="Terminal number for airport trips"
+    )
+    placard_name: Optional[str] = Field(
+        None,
+        description="Placard name for the trip, only applied if placard_required is already True on the trip",
+    )
