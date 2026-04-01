@@ -479,13 +479,23 @@ async def get_trip_earning_for_driver(
                 DriverEarning.trip_id == trip_id, DriverEarning.driver_id == driver_id
             )
         )
-        return result.scalars().first()
+        return result.scalars().one_or_none() # We expect only one earning record per trip per driver, so using one_or_none to get the record. If there are multiple records for some reason, this will raise an exception which will be caught and logged, and we can investigate the data issue later without impacting the trip completion flow for drivers.
     except Exception as e:
         print(
             f"Error fetching driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
         )
         return None
 
+
+async def get_all_earnings_for_driver(driver_id: str, db: AsyncSession) -> list[DriverEarning]:
+    try:
+        result = await db.execute(
+            select(DriverEarning).where(DriverEarning.driver_id == driver_id)
+        )
+        return result.scalars().all()
+    except Exception as e:
+        print(f"Error fetching driver earning records for driver {driver_id}: {str(e)}")
+        return []
 
 async def has_driver_earning_record_for_trip(
     trip_id: str, driver_id: str, db: AsyncSession
