@@ -21,6 +21,7 @@ from services.trips.search_service import search
 from utils.utility import remove_none_recursive
 from .reviews import router as trip_reviews
 from .refunds import router as trip_refunds
+from .bookings import router as trip_bookings
 
 router = APIRouter()
 
@@ -28,7 +29,7 @@ router = APIRouter()
 # Trip booking endpoints for customers to search for trips, initiate trip bookings, confirm trip bookings after payment and cleanup trip data for abandoned trips. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trips securely. The search endpoint will allow customers to search for available trips based on their preferences and criteria, while the booking endpoints will handle the initiation and confirmation of trip bookings, as well as cleanup of trip data for abandoned or failed bookings to maintain data integrity and optimize storage. Additionally, there is an endpoint for fetching refund details for a specific booking, which will allow customers to view the status and details of their refunds in case of cancellations or other issues with their trips.
 
 
-@router.post("/search")
+@router.post("/search", tags=["customer-trip-search"])
 def search_trip(
     search_in: TripSearchRequest,
     db: Session = Depends(yield_mysql_session),
@@ -39,7 +40,7 @@ def search_trip(
     return remove_none_recursive(result.model_dump())
 
 
-@router.post("/initiate-booking", response_model=dict)
+@router.post("/initiate-booking", response_model=dict, tags=["customer-trip-booking"])
 def init_booking(
     trip_in: TripBookRequest,
     db: Session = Depends(yield_mysql_session),
@@ -61,7 +62,7 @@ def init_booking(
     }
 
 
-@router.post("/confirm-booking", response_model=dict)
+@router.post("/confirm-booking", response_model=dict, tags=["customer-trip-booking"])
 def confirm_booking(
     booking: TripOut,
     db: Session = Depends(yield_mysql_session),
@@ -79,7 +80,7 @@ def confirm_booking(
     }
 
 
-@router.delete("/cleanup/{booking_id}", response_model=dict)
+@router.delete("/cleanup/{booking_id}", response_model=dict, tags=["customer-trip-booking"])
 def cleanup_temp_trip_booking(
     booking_id: str,
     db: Session = Depends(yield_mysql_session),
@@ -97,12 +98,17 @@ def cleanup_temp_trip_booking(
     return {"message": "Failed to clean up trip data."}
 
 
-#Trip review endpoints for customers to provide ratings and feedback for their trips and view their reviews. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trip reviews securely. The review endpoint will allow customers to submit their ratings and feedback for their completed trips, while the view reviews endpoint will enable customers to view their submitted reviews, enhancing the overall user experience and enabling better service quality through customer feedback.
+# Trip review endpoints for customers to provide ratings and feedback for their trips and view their reviews. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trip reviews securely. The review endpoint will allow customers to submit their ratings and feedback for their completed trips, while the view reviews endpoint will enable customers to view their submitted reviews, enhancing the overall user experience and enabling better service quality through customer feedback.
 router.include_router(
     trip_reviews, prefix="/reviews", tags=["customer-trip-review-management"]
 )
 
-#Trip refund endpoints for customers to fetch refund details for their bookings. This will allow customers to view the status and details of their refunds in case of cancellations or other issues with their trips. This endpoint will validate the JWT token to ensure that only authenticated customers can access their refund details securely.
+# Trip refund endpoints for customers to fetch refund details for their bookings. This will allow customers to view the status and details of their refunds in case of cancellations or other issues with their trips. This endpoint will validate the JWT token to ensure that only authenticated customers can access their refund details securely.
 router.include_router(
     trip_refunds, prefix="/refunds", tags=["customer-trip-refund-management"]
+)
+
+# Trip retrieval endpoints for customers to view their trip details and list their trips. These endpoints will validate the JWT token to ensure that only authenticated customers can access their trip information securely. The view trip details endpoint will allow customers to view the details of a specific trip by providing the booking ID, while the list trips endpoint will enable customers to view a list of all their trips, enhancing the overall user experience and allowing customers to manage their trips effectively.
+router.include_router(
+    trip_bookings, prefix="/bookings", tags=["customer-trip-retrieval-management"]
 )

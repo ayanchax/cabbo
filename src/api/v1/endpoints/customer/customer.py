@@ -13,5 +13,5 @@ router.include_router(profile_router, prefix="/profile", tags=["customer-profile
 router.include_router(email_verification_router, prefix="/email-verification", tags=["customer-email-verification"])
 
 #Passenger management endpoints for customers to manage their passengers which they can then associate with their trip bookings. This will allow customers to easily manage the details of their passengers and associate them with their trips for a smoother booking experience. These endpoints will also validate the JWT token to ensure that only authenticated customers can manage their passengers and that they can only manage passengers associated with their own account for privacy and security reasons.
-router.include_router(passenger_router, prefix="/manage-passengers", tags=["passenger--management-for-customers"])
+router.include_router(passenger_router, prefix="/manage-passengers", tags=["passenger-management-for-customers"])
 

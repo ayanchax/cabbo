@@ -567,7 +567,22 @@ async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Tri
     result = await db.execute(
         select(Trip).filter(Trip.booking_id == booking_id, Trip.is_active == True)
     )  # Only retrieve active trips
-    trip_result = result.scalars().first()
+    trip_result = result.scalars().one_or_none() #Always returns one result or None, as booking_id is unique. Raises an error if multiple results are found, which should not happen.
+    if trip_result:
+        await attach_relationships_to_trip(trip_result, db)
+    return trip_result
+
+async def async_get_trip_by_booking_id_customer_id(booking_id: str, customer_id: str, db: AsyncSession) -> Trip:
+    """Asynchronously retrieve a trip by its booking ID and customer ID."""
+    result = await db.execute(
+        select(Trip).filter(
+            Trip.booking_id == booking_id,
+            Trip.creator_id == customer_id,
+            Trip.creator_type == RoleEnum.customer,
+            Trip.is_active == True
+        )
+    )  # Only retrieve active trips
+    trip_result = result.scalars().one_or_none()
     if trip_result:
         await attach_relationships_to_trip(trip_result, db)
     return trip_result
@@ -614,7 +629,7 @@ async def async_get_trips_by_customer_id(
     result = await db.execute(
         select(Trip).filter(
             Trip.creator_id == customer_id,
-            Trip.creator_type == RoleEnum.customer.value,
+            Trip.creator_type == RoleEnum.customer,
             Trip.is_active == True,
         )
     )  # Only retrieve active trips
