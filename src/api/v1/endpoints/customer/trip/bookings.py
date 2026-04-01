@@ -116,14 +116,11 @@ async def list_trips_by_customer_id_and_trip_type(
     for trip in serialized_trips:
         if "id" in trip:
             trip.pop("id")
-    try:
-        filtered_trips = [
+    filtered_trips = [
             trip
             for trip in serialized_trips
             if trip.get("trip_type", {}).get("trip_type") == trip_type.value
         ]
-    except Exception as e:
-        filtered_trips = serialized_trips
 
     if not filtered_trips:
         raise CabboException(
