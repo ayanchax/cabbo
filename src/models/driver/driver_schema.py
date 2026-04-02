@@ -118,7 +118,11 @@ class DriverReadWithProfilePicture(DriverReadSchema):
 class DriverEarningSchema(BaseModel):
     trip_id: str=Field(..., description="Unique identifier for the trip")
     driver_id: str=Field(..., description="Unique identifier for the driver")
-    base_earnings: float=Field(..., description="Base earnings for the trip which is the final price minus the platform fee, this is the amount that driver earns for the trip from Cabbo's end, excluding any extra earnings such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.")
+    earnings: float=Field(..., description="Base earnings for the trip which is the final price minus the platform fee, this is the amount that driver earns for the trip from Cabbo's end, excluding any extra earnings such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.")
     extra_earnings: Optional[float] = Field(0.0, description="Any extra earnings for the driver on top of the standard fare for the trip, such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.")
     extra_earnings_breakdown: Optional[ExtraPayments] = Field(None, description="Breakdown of any extra earnings for the driver on top of the standard fare for the trip in a structured format e.g., {'toll_charges': 100, 'parking_charges': 50, 'overage_payment': 30, 'tip': 1.5}")
     total_earnings: float=Field(..., description="Total earnings for the driver for the trip including the standard fare and any extra earnings (earnings + extra_earnings)")
+
+    class Config:
+        from_attributes = True
+        extra="allow"

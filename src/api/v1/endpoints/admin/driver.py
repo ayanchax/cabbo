@@ -36,6 +36,7 @@ from services.driver_service import (
     create_driver,
     deactivate_driver,
     delete_driver,
+    fetch_all_drivers_earnings_summary,
     fetch_all_trips_for_driver,
     get_all_drivers,
     get_all_drivers_by_availability,
@@ -451,15 +452,15 @@ async def get_average_rating_of_driver(
 
 
 
-# earning detail for a specific trip (admin audit)
-@router.get("/{driver_id}/earnings/trip/{trip_id}", response_model=DriverEarningSchema)
-async def view_driver_earnings_for_trip(
+# earning detail for a driver for a specific trip (admin audit)
+@router.get("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
+async def view_driver_earning_for_trip(
     driver_id: str,
     trip_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
-    """Object View earnings for a specific trip for a driver."""
+    """Object View earning for a specific trip for a driver."""
     current_user_role = current_user.role
     if current_user_role not in [
         RoleEnum.super_admin,
@@ -472,7 +473,11 @@ async def view_driver_earnings_for_trip(
     earning= await get_trip_earning_for_driver(
         driver_id=driver_id, trip_id=trip_id, db=db
     )
-    return DriverEarningSchema.model_validate(earning) if earning else None
+    if earning is None:
+        raise CabboException(
+            "Earnings not found for the specified driver and trip.", status_code=404
+        )
+    return DriverEarningSchema.model_validate(earning)
 
 
 # all-time earnings for a driver (admin audit)
@@ -493,7 +498,11 @@ async def view_driver_earnings(
             "You do not have permission to view driver earnings.", status_code=403
         )
     earnings= await get_all_earnings_for_driver(driver_id=driver_id, db=db)
-    return [DriverEarningSchema.model_validate(e) for e in earnings] if earnings else []
+    if not earnings:
+        raise CabboException(
+            "Earnings not found for the specified driver.", status_code=404
+        )
+    return [DriverEarningSchema.model_validate(e) for e in earnings]
 
 
 # GET /earnings/summary — total across all drivers (finance admin visibility)
@@ -508,4 +517,5 @@ async def view_earnings_summary(
         raise CabboException(
             "You do not have permission to view earnings summary.", status_code=403
         )
+    return await fetch_all_drivers_earnings_summary(db=db)
     

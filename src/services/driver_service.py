@@ -29,7 +29,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 
-
 def create_driver(
     payload: DriverCreateSchema,
     db: Session,
@@ -349,7 +348,7 @@ async def _add_driver_earning_record(
         driver_earning = DriverEarning(
             trip_id=payload.trip_id,
             driver_id=payload.driver_id,
-            earnings=payload.base_earnings,
+            earnings=payload.earnings,
             extra_earnings=payload.extra_earnings,
             extra_earnings_breakdown=breakdown,
             total_earnings=payload.total_earnings,
@@ -442,7 +441,7 @@ async def add_driver_earning_record(
             payload=DriverEarningSchema(
                 trip_id=trip.id,
                 driver_id=driver_schema.id if driver_schema else None,
-                base_earnings=base_earnings,
+                earnings=base_earnings,
                 extra_earnings=extra_earnings,
                 total_earnings=total_earnings,
                 extra_earnings_breakdown=(
@@ -673,7 +672,7 @@ async def update_average_rating_for_driver(
                 f"Failed to update average rating for the driver: {str(e)}",
                 status_code=500,
             )
-    
+
 
 async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Optional[TripStatusEnum] = None) -> list[TripSummarySchema]:
     try:
@@ -684,7 +683,7 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
                 return driver_schema
             except Exception as e:
                 return None
-        
+
         def _evaluate_customer(customer):
             try:
                 customer_schema = CustomerReadWithProfilePicture.model_validate(customer) if customer else None
@@ -693,7 +692,7 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
                 return customer_schema
             except Exception as e:
                 return None
-        
+
         query = select(Trip).where(Trip.driver_id == driver_id)
         if status:
             query = query.where(Trip.status == status)
@@ -705,12 +704,11 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
                 f"No trips found for the driver with id {driver_id} and status {status}",
                 status_code=404,
             )
-        
+
         for trip in trips:
             await attach_relationships_to_trip(
                 trip, db, expose_customer_details=True
             )
-        
 
         trip_summaries = [
             TripSummarySchema(
@@ -733,10 +731,85 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
             )
             for trip in trips
         ]
-        
+
         return trip_summaries
- 
+
     except Exception as e:
         raise e
-    
- 
+
+
+async def fetch_all_drivers_earnings_summary(db: AsyncSession):
+
+    try:
+        result = await db.execute(select(DriverEarning))
+        earnings = result.scalars().all()
+        if not earnings or len(earnings) == 0:
+            raise CabboException(
+                f"No driver earnings records found in the database.",
+                status_code=404,
+            )
+        total_drivers_with_earnings = len(
+            set([earning.driver_id for earning in earnings])
+        )  # Length of unique driver ids in the earnings records to get the total number of drivers with earnings records in the database
+        total_trips_completed = len(
+            set([earning.trip_id for earning in earnings])
+        )  # Length of unique trip ids in the earnings records to get the total number of trips completed by drivers with earnings records in the database. We are using the earnings records to count the total number of trips completed by drivers because we are adding an earning record for a driver only when a trip is completed, so every earning record corresponds to a completed trip, and counting unique trip ids in the earnings records will give us the total number of trips completed by drivers with earnings records in the database.
+        total_base_earnings = sum([earning.earnings for earning in earnings])
+        total_extra_earnings = sum([earning.extra_earnings for earning in earnings])
+        total_earnings = total_base_earnings + total_extra_earnings
+        extra_earnings_breakdown = {
+            "total_toll_charges": sum(
+                [
+                    (
+                        earning.extra_earnings_breakdown.get("toll_charges", 0)
+                        if earning.extra_earnings_breakdown
+                        else 0
+                    )
+                    for earning in earnings
+                ]
+            ),
+            "total_parking_charges": sum(
+                [
+                    (
+                        earning.extra_earnings_breakdown.get("parking_charges", 0)
+                        if earning.extra_earnings_breakdown
+                        else 0
+                    )
+                    for earning in earnings
+                ]
+            ),
+            "total_overage_payments": sum(
+                [
+                    (
+                        earning.extra_earnings_breakdown.get("overage_payment", 0)
+                        if earning.extra_earnings_breakdown
+                        else 0
+                    )
+                    for earning in earnings
+                ]
+            ),
+            "total_tips": sum(
+                [
+                    (
+                        earning.extra_earnings_breakdown.get("tips", 0)
+                        if earning.extra_earnings_breakdown
+                        else 0
+                    )
+                    for earning in earnings
+                ]
+            ),
+        }
+        return {
+            "total_trips_completed": total_trips_completed,
+            "total_drivers_with_earnings": total_drivers_with_earnings,
+            "earnings": {
+                "total": total_earnings,
+                "total_base_earnings": total_base_earnings,
+                "total_extra_earnings": {
+                    "total": total_extra_earnings,
+                    "breakdown": extra_earnings_breakdown,
+                },
+            },
+        }
+    except Exception as e:
+        raise e
