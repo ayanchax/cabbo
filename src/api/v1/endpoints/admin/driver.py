@@ -17,6 +17,7 @@ from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.driver.driver_schema import (
     DriverBaseSchema,
     DriverCreateSchema,
+    DriverEarningSchema,
     DriverReadProfilePictureAfterUpdate,
     DriverReadSchema,
     DriverUpdateSchema,
@@ -35,12 +36,15 @@ from services.driver_service import (
     create_driver,
     deactivate_driver,
     delete_driver,
+    fetch_all_drivers_earnings_summary,
     fetch_all_trips_for_driver,
     get_all_drivers,
     get_all_drivers_by_availability,
     get_all_drivers_by_status,
+    get_all_earnings_for_driver,
     get_average_rating_by_driver_id,
     get_driver_by_id,
+    get_trip_earning_for_driver,
     update_driver,
     update_driver_last_modified,
 )
@@ -418,7 +422,7 @@ def list_drivers(
 @router.get("/{driver_id}/trips")
 async def view_driver_trips_history(
     driver_id: str,
-    status: Optional[TripStatusEnum] = None,    
+    status: Optional[TripStatusEnum] = None,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
@@ -429,6 +433,7 @@ async def view_driver_trips_history(
             "You do not have permission to view driver trips.", status_code=403
         )
     return await fetch_all_trips_for_driver(driver_id=driver_id, status=status, db=db)
+
 
 @router.get("/{driver_id}/average-rating", response_model=float)
 async def get_average_rating_of_driver(
@@ -445,15 +450,72 @@ async def get_average_rating_of_driver(
     return await get_average_rating_by_driver_id(driver_id=driver_id, db=db)
 
 
-# View overall driver earnings for a driver for all trips
-@router.get("/{driver_id}/earnings")
-def view_driver_earnings(driver_id: str):
+
+
+# earning detail for a driver for a specific trip (admin audit)
+@router.get("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
+async def view_driver_earning_for_trip(
+    driver_id: str,
+    trip_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Object View earning for a specific trip for a driver."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.finance_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view driver earnings.", status_code=403
+        )
+    earning= await get_trip_earning_for_driver(
+        driver_id=driver_id, trip_id=trip_id, db=db
+    )
+    if earning is None:
+        raise CabboException(
+            "Earnings not found for the specified driver and trip.", status_code=404
+        )
+    return DriverEarningSchema.model_validate(earning)
+
+
+# all-time earnings for a driver (admin audit)
+@router.get("/{driver_id}/earnings", response_model=list[DriverEarningSchema])
+async def view_driver_earnings(
+    driver_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """LIST View earnings for a driver."""
-    return {"message": f"Earnings for driver {driver_id}"}
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.finance_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view driver earnings.", status_code=403
+        )
+    earnings= await get_all_earnings_for_driver(driver_id=driver_id, db=db)
+    if not earnings:
+        raise CabboException(
+            "Earnings not found for the specified driver.", status_code=404
+        )
+    return [DriverEarningSchema.model_validate(e) for e in earnings]
 
 
-# View driver earning for a specific trip
-@router.get("/{driver_id}/earnings/trip/{trip_id}")
-def view_driver_earnings_for_trip(driver_id: str, trip_id: str):
-    """Object View earnings for a specific trip for a driver."""
-    return {"message": f"Earnings for driver {driver_id} on trip {trip_id}"}
+# GET /earnings/summary — total across all drivers (finance admin visibility)
+@router.get("/earnings/summary", response_model=dict)
+async def view_earnings_summary(
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """View earnings summary across all drivers."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.finance_admin]:
+        raise CabboException(
+            "You do not have permission to view earnings summary.", status_code=403
+        )
+    return await fetch_all_drivers_earnings_summary(db=db)
+    

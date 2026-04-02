@@ -12,9 +12,9 @@ from core.trip_helpers import (
     get_trip_type_id_by_trip_type,
 )
 from models.common import AppBackgroundTask
-from models.customer.customer_schema import CustomerRead
+from models.customer.customer_schema import CustomerRead, CustomerReadWithProfilePicture
 from models.customer.passenger_schema import PassengerRequest
-from models.driver.driver_schema import DriverReadSchema
+from models.driver.driver_schema import DriverReadSchema, DriverReadWithProfilePicture
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
@@ -58,7 +58,8 @@ from sqlalchemy import select
 def serialize_trip(trip: Trip, expose_customer_details: bool = False):
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     if trip.driver:  # Serialize the driver if it exists
-        driver_data = DriverReadSchema.model_validate(trip.driver).model_dump()
+        driver= DriverReadWithProfilePicture.model_validate(trip.driver)
+        driver_data = driver.model_dump()
         trip_dict["driver"] = driver_data
         trip_dict.pop("driver_id", None)
     else:
@@ -87,7 +88,9 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False):
 
     if expose_customer_details:
         if trip.customer:
-            customer_data = CustomerRead.model_validate(trip.customer).model_dump()
+            customer = CustomerReadWithProfilePicture.model_validate(trip.customer)
+            customer.image_url =  f"/images/customers/{customer.id}.png"
+            customer_data = customer.model_dump()
             trip_dict["customer"] = customer_data
             trip_dict.pop("creator_id", None)
             trip_dict.pop("creator_type", None)
