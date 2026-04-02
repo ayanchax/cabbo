@@ -15,6 +15,8 @@ from models.common import AppBackgroundTask
 from models.customer.customer_schema import CustomerRead, CustomerReadWithProfilePicture
 from models.customer.passenger_schema import PassengerRequest
 from models.driver.driver_schema import DriverReadSchema, DriverReadWithProfilePicture
+from models.policies.cancelation_schema import CancelationSchema
+from models.policies.dispute_schema import DisputeSchema
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
@@ -55,7 +57,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 
-def serialize_trip(trip: Trip, expose_customer_details: bool = False):
+def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False) -> dict:
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     if trip.driver:  # Serialize the driver if it exists
         driver= DriverReadWithProfilePicture.model_validate(trip.driver)
@@ -96,6 +98,21 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False):
             trip_dict.pop("creator_type", None)
         else:
             trip_dict["customer"] = None
+    if expose_cancellation_detail:
+        if trip.cancellation:
+            cancellation = CancelationSchema.model_validate(trip.cancellation)
+            cancellation_data = cancellation.model_dump()
+            trip_dict["cancellation"] = cancellation_data
+
+    if expose_dispute_details:
+        if trip.dispute:
+            dispute = DisputeSchema.model_validate(trip.dispute)
+            dispute_data = dispute.model_dump()
+            trip_dict["dispute"] = dispute_data
+            trip_dict["dispute"].pop("id", None)
+            trip_dict["dispute"].pop("entity_id", None)
+
+
 
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
@@ -580,7 +597,7 @@ async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Tri
 
 
 async def async_get_trip_by_booking_id_customer_id(
-    booking_id: str, customer_id: str, db: AsyncSession
+    booking_id: str, customer_id: str, db: AsyncSession, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False
 ) -> Trip:
     """Asynchronously retrieve a trip by its booking ID and customer ID."""
     result = await db.execute(
@@ -593,7 +610,9 @@ async def async_get_trip_by_booking_id_customer_id(
     )  # Only retrieve active trips
     trip_result = result.scalars().one_or_none()
     if trip_result:
-        await attach_relationships_to_trip(trip_result, db)
+        await attach_relationships_to_trip(
+            trip_result, db, expose_customer_details=expose_customer_details, expose_dispute_details=expose_dispute_details, expose_cancellation_detail=expose_cancellation_detail
+        )
     return trip_result
 
 

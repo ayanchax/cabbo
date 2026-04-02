@@ -24,7 +24,7 @@ from services.trips.trip_service import (
     update_trip_status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from . import reviews, refunds
+from . import reviews, refunds, dispute
 
 router = APIRouter()
 
@@ -101,7 +101,9 @@ async def list_all_trips(
 
 
 # List trips by driver_id - this will be used by driver admin to see all trips that belong to a particular driver, and also by super admin for any driver
-@router.get("/list/by/driver/{driver_id}", response_model=list, tags=["Admin Trip Management"])
+@router.get(
+    "/list/by/driver/{driver_id}", response_model=list, tags=["Admin Trip Management"]
+)
 async def list_trips_by_driver_id(
     driver_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -121,7 +123,11 @@ async def list_trips_by_driver_id(
 
 
 # List trips by customer_id - this will be used by customer admin to see all trips that belong to a particular customer, and also by super admin for any customer
-@router.get("/list/by/customer/{customer_id}", response_model=list | dict, tags=["Admin Trip Management"])
+@router.get(
+    "/list/by/customer/{customer_id}",
+    response_model=list | dict,
+    tags=["Admin Trip Management"],
+)
 async def list_trips_by_customer_id(
     customer_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -153,7 +159,9 @@ async def list_trips_by_customer_id(
 
 # List trips of customer by status: super_admin, customer_admin
 @router.get(
-    "/list/by/customer/{customer_id}/status/{status}", response_model=list | dict, tags=["Admin Trip Management"]
+    "/list/by/customer/{customer_id}/status/{status}",
+    response_model=list | dict,
+    tags=["Admin Trip Management"],
 )
 async def list_trips_by_customer_id_and_status(
     customer_id: str,
@@ -198,7 +206,9 @@ async def list_trips_by_customer_id_and_status(
 
 
 # List trips by status: super_admin and customer_admin
-@router.get("/list/by/status/{status}", response_model=list, tags=["Admin Trip Management"])
+@router.get(
+    "/list/by/status/{status}", response_model=list, tags=["Admin Trip Management"]
+)
 async def list_trips_by_status(
     status: TripStatusEnum,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -343,7 +353,7 @@ async def enable_trip(
     return await activate_trip(trip_id=trip_id, db=db)
 
 
-#Get price breakdown for a trip by trip_id - this will be used by super_admin, finance_admin, and customer_admin to view the price breakdown for a particular trip, which can help them in analyzing the fare components and understanding the pricing structure of the trips in our system, and also to resolve any pricing related disputes or issues that may arise.
+# Get price breakdown for a trip by trip_id - this will be used by super_admin, finance_admin, and customer_admin to view the price breakdown for a particular trip, which can help them in analyzing the fare components and understanding the pricing structure of the trips in our system, and also to resolve any pricing related disputes or issues that may arise.
 @router.get("/{trip_id}/price-breakdown", tags=["Admin Trip Management"])
 async def get_price_breakdown(
     trip_id: str,
@@ -364,8 +374,7 @@ async def get_price_breakdown(
     trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
         raise CabboException("Trip not found", status_code=404)
-    return trip.price_breakdown     
-
+    return trip.price_breakdown
 
 
 # Include trip_reviews router for admin to view trip reviews by driver and by customer
@@ -374,3 +383,5 @@ router.include_router(
     reviews.router, prefix="/trip-reviews", tags=["Admin Trip Reviews"]
 )
 router.include_router(refunds.router, prefix="/refunds", tags=["Admin Trip Refunds"])
+
+router.include_router(dispute.router, prefix="/disputes", tags=["Admin Trip Disputes"])
