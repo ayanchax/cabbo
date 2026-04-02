@@ -37,13 +37,13 @@ class Dispute(Base):
         nullable=False,
         default=DisputeTypeEnum.unknown,
         comment="Type of dispute, e.g., fare, service, etc.",
-    )  # Type of dispute, e.g., fare, service, etc.
+    )  # Type of dispute, e.g., fare, service, etc. immutable once set, as it defines the structure of the details field and how the dispute will be processed
     comments = Column(
         JSON, nullable=True
-    )  # Additional comments or details between customer and support regarding the dispute
+    )  # Comments(append only) between customer and support agent regarding the dispute. Hence can be updated by both customer and support agent after the dispute is raised, and can have multiple entries as a conversation thread, with each comment having metadata like author (customer or support), timestamp, etc.
     details: DisputeDetailsSchema = Column(
         JSON, nullable=True
-    )  # Additional details about the dispute DisputeDetailsSchema
+    )  # Additional details about the dispute DisputeDetailsSchema, usually updated by the admin handling the dispute after investigation, and can have different structure based on the dispute type, for example, a fare dispute may have details about the fare breakdown, while a service dispute may have details about the service issue reported by the customer.
     raised_by = Column(
         MySQL_CHAR(36), nullable=False
     )  # User ID of the person who raised the dispute

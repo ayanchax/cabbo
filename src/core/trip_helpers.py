@@ -246,7 +246,7 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
     return TripTypeEnum(trip_type_obj.trip_type)
 
 
-async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False, expose_cancellation_detail:bool=False):
+async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False, expose_cancellation_detail:bool=False, expose_dispute_details:bool=False):
         if trip.driver_id:
             await db.refresh(trip, attribute_names=["driver"])
         if trip.trip_type_id:
@@ -259,6 +259,9 @@ async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_cust
             await db.refresh(trip, attribute_names=["customer"])
         if expose_cancellation_detail:
             await db.refresh(trip, attribute_names=["cancellation"])
+        if expose_dispute_details:
+            await db.refresh(trip, attribute_names=["dispute"])
+
 
 def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
     

@@ -450,8 +450,6 @@ async def get_average_rating_of_driver(
     return await get_average_rating_by_driver_id(driver_id=driver_id, db=db)
 
 
-
-
 # earning detail for a driver for a specific trip (admin audit)
 @router.get("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
 async def view_driver_earning_for_trip(
