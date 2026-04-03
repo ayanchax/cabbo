@@ -8,7 +8,6 @@ EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME={
     "HOURS": "hours",
     "MINUTES": "minutes",
 }
-SELF_SERVICE_CUSTOMER_EMAIL_VERIFICATION_ENDPOINT="/self-service/verify-email"
 
 def is_email_verification_link_already_sent(customer_id:str, db:Session):
     now = datetime.now(timezone.utc)
@@ -39,7 +38,7 @@ def remove_email_verification(email_verification:CustomerEmailVerification, db:S
     
 def create_customer_email_verification(customer_id:str, db:Session):
     try:
-        verification_url, expiry = create_email_verification_link(id=customer_id, endpoint=f"/customers{SELF_SERVICE_CUSTOMER_EMAIL_VERIFICATION_ENDPOINT}")
+        verification_url, expiry = create_email_verification_link(id=customer_id, endpoint=f"/customer/email-verification/verify")
         email_verification = CustomerEmailVerification(
             customer_id=customer_id,
             verification_url=verification_url,

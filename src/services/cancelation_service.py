@@ -126,7 +126,7 @@ async def get_cancellation_by_trip_id(
                 Cancellation.entity_id == trip_id, Cancellation.is_active == True
             )
         )
-        cancellation = result.scalars().first()
+        cancellation = result.scalars().one_or_none()
         if cancellation:
             return CancelationSchema.model_validate(cancellation)
         return None
@@ -165,3 +165,15 @@ def get_cancelation_policy_id(policy: Optional[CancelationPolicySchema]):
         return policy.id
 
     return None
+
+
+async def fetch_all_cancelled_trips(db: AsyncSession):
+    try:
+        result = await db.execute(
+            select(Cancellation).where(Cancellation.is_active == True)
+        )
+        cancellations = result.scalars().all()
+        return [CancelationSchema.model_validate(cancellation) for cancellation in cancellations]
+    except Exception as e:
+        print(f"Error fetching all cancellations: {e}")
+        return []

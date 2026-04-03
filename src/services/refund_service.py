@@ -1,14 +1,23 @@
 from datetime import datetime, timezone
 from typing import Optional
+
+from sqlalchemy.orm import selectinload
+from core.exceptions import CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
+from core.trip_helpers import attach_relationships_to_trip
 from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import PaymentNotesSchema
 from models.policies.cancelation_schema import CancelationPolicySchema
 from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundType
 from models.pricing.pricing_schema import Currency
-from models.trip.trip_enums import CancellationSubStatusEnum, TripTypeEnum
+from models.trip.trip_enums import (
+    CancellationSubStatusEnum,
+    TripStatusEnum,
+    TripTypeEnum,
+)
+from models.trip.trip_orm import Trip
 from models.trip.trip_schema import TripDetailSchema
 from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_schema import RefundSchema
@@ -31,7 +40,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
     requestor: str = None,
 ):
     try:
-        can_proceed, existing_refund =  await _can_proceed_to_refund_initiation(
+        can_proceed, existing_refund = await _can_proceed_to_refund_initiation(
             id=trip.id, db=db, silently_fail=silently_fail
         )
         if not can_proceed:
@@ -79,15 +88,21 @@ async def refund_advance_payment_to_customer_on_cancellation(
                     if trip.trip_type_master.trip_type == TripTypeEnum.airport_drop:
                         cancellation_policy = config_store.airport_drop.get(
                             region_code
-                        ).auxiliary_pricing.cancellation_policy.get(trip.trip_type_master.id)
+                        ).auxiliary_pricing.cancellation_policy.get(
+                            trip.trip_type_master.id
+                        )
                     elif trip.trip_type_master.trip_type == TripTypeEnum.airport_pickup:
                         cancellation_policy = config_store.airport_pickup.get(
                             region_code
-                        ).auxiliary_pricing.cancellation_policy.get(trip.trip_type_master.id)
+                        ).auxiliary_pricing.cancellation_policy.get(
+                            trip.trip_type_master.id
+                        )
                     elif trip.trip_type_master.trip_type == TripTypeEnum.local:
                         cancellation_policy = config_store.local.get(
                             region_code
-                        ).auxiliary_pricing.cancellation_policy.get(trip.trip_type_master.id)
+                        ).auxiliary_pricing.cancellation_policy.get(
+                            trip.trip_type_master.id
+                        )
                 except Exception as e:
                     print(
                         f"Error while fetching cancellation policy for trip {trip.id} with region code {region_code} and trip type {trip.trip_type_master.trip_type.value}: {e}"
@@ -99,7 +114,9 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 try:
                     cancellation_policy = config_store.outstation.get(
                         state_code
-                    ).auxiliary_pricing.cancellation_policy.get(trip.trip_type_master.id)
+                    ).auxiliary_pricing.cancellation_policy.get(
+                        trip.trip_type_master.id
+                    )
                 except Exception as e:
                     print(
                         f"Error while fetching cancellation policy for trip {trip.id} with state code {state_code} and trip type {trip.trip_type_master.trip_type.value}: {e}"
@@ -170,8 +187,8 @@ async def refund_advance_payment_to_customer_on_cancellation(
             )
         ):
             print(
-            f"Refund amount calculated for trip {trip.id} is {refund_amount} with eligible_for_full_refund={eligible_for_full_refund} and eligible_for_partial_configuration_based_refund={eligible_for_partial_configuration_based_refund}"
-        )
+                f"Refund amount calculated for trip {trip.id} is {refund_amount} with eligible_for_full_refund={eligible_for_full_refund} and eligible_for_partial_configuration_based_refund={eligible_for_partial_configuration_based_refund}"
+            )
             currency_symbol = config_store.geographies.country_server.currency_symbol
             print(
                 f"Initiating refund of amount {currency_symbol}{refund_amount} for trip {trip.id} through payment provider"
@@ -231,14 +248,16 @@ async def refund_advance_payment_to_customer_on_cancellation(
             if existing_refund:
                 updated = await _update_refund_details_for_trip(
                     refund=RefundSchema(
-                        id=refund_response.get("id",existing_refund.id),
+                        id=refund_response.get("id", existing_refund.id),
                         entity_id=existing_refund.entity_id,
                         policy_id=policy_id or existing_refund.policy_id,
                         refund_status=refund_status,  # from new refund_response
                         refund_amount=refund_amount,  # recalculated
                         refund_description=refund_description,  # updated description (already built above)
                         refund_details=refund_response,  # new provider response
-                        refund_retried_datetime=datetime.now(timezone.utc),  # update retry datetime for tracking retry attempts for refund initiation in case of failures or if we want to retry for any reason
+                        refund_retried_datetime=datetime.now(
+                            timezone.utc
+                        ),  # update retry datetime for tracking retry attempts for refund initiation in case of failures or if we want to retry for any reason
                         refund_type=refund_type,
                         refund_provider=PaymentProvider(settings.PAYMENT_PROVIDER),
                     ),
@@ -288,13 +307,15 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 RefundStatus.pending.value,
                 RefundStatus.processed.value,
             ]:
-                print(f"Sending notification to customer about refund initiation for trip {trip.id}")
+                print(
+                    f"Sending notification to customer about refund initiation for trip {trip.id}"
+                )
                 decimal_places = (
                     config_store.geographies.country_server.currency_decimal_places
                 )
                 formatted_refund_amount = f"{refund_amount:.{decimal_places}f}"
                 formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"
-                # Send notification to customer about the refund. This is a placeholder and should be replaced with actual implementation to send notification to the customer.
+                # Send notification to customer about the refund.
                 await notify_refund_initiated_to_customer(
                     customer=trip.customer,
                     refund_id=refund_response.get("id"),
@@ -407,7 +428,8 @@ async def get_refund_details_by_trip_id(
                 RefundORM.entity_id == trip_id, RefundORM.is_active == True
             )
         )
-        refund_record = result.scalars().first()
+        # This will return None if no record is found, or the record if found. It will raise an exception if multiple records are found, but that should not happen as we should have only one refund record for a trip based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table.
+        refund_record = result.scalar_one_or_none()
         if refund_record:
             return RefundSchema.model_validate(refund_record)
         return None
@@ -430,7 +452,7 @@ async def remove_refund_details_by_trip_id(
             )
         )
 
-        refund_record = result.scalars().first()
+        refund_record = result.scalar_one_or_none()
         if refund_record:
             if hard_delete:
                 await db.delete(refund_record)
@@ -459,7 +481,7 @@ async def _update_refund_status(
             )
         )
 
-        refund_record = result.scalars().first()
+        refund_record = result.scalar_one_or_none()
         if refund_record:
             refund_record.refund_status = new_status
             db.add(refund_record)
@@ -534,3 +556,214 @@ async def _can_proceed_to_refund_initiation(
         True,
         None,
     )  # No existing refund record found, can proceed with refund initiation
+
+
+async def fetch_refund_detail_by_booking_id_and_customer_id(
+    booking_id: str, requestor: str, db: AsyncSession
+) -> Optional[RefundSchema]:
+    try:
+        result = await db.execute(
+            select(RefundORM)
+            .join(Trip, RefundORM.entity_id == Trip.id)
+            .where(
+                Trip.booking_id == booking_id,
+                RefundORM.is_active == True,
+                Trip.creator_id == requestor,
+                Trip.creator_type == RoleEnum.customer,
+                Trip.is_active == True,
+            )
+        )
+        refund_record = result.scalar_one_or_none()
+        if refund_record:
+            return RefundSchema.model_validate(
+                {
+                    c.key: getattr(refund_record, c.key)
+                    for c in RefundORM.__table__.columns
+                    if c.key in RefundSchema.model_fields.keys()
+                }
+            )
+        return None
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Error in fetch_refund_detail_by_booking_id_and_customer_id: {e}")
+        return None
+
+
+async def fetch_refund_details_by_customer_id(
+    customer_id: str, db: AsyncSession
+) -> list[RefundSchema]:
+    try:
+        result = await db.execute(
+            select(RefundORM)
+            .join(Trip, RefundORM.entity_id == Trip.id)
+            .where(
+                Trip.creator_id == customer_id,
+                Trip.creator_type == RoleEnum.customer,
+                Trip.is_active == True,
+                RefundORM.is_active == True,
+            )
+        )
+        refund_records = result.scalars().all()
+        return [
+            RefundSchema.model_validate(
+                {
+                    c.key: getattr(refund_record, c.key)
+                    for c in RefundORM.__table__.columns
+                    if c.key in RefundSchema.model_fields.keys()
+                }
+            )
+            for refund_record in refund_records
+        ]
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Error in fetch_refund_details_by_customer_id: {e}")
+        return []
+
+
+async def fetch_all_refund_details(db: AsyncSession) -> list[RefundSchema]:
+    try:
+        result = await db.execute(select(RefundORM).where(RefundORM.is_active == True))
+        refund_records = result.scalars().all()
+        return [
+            RefundSchema.model_validate(
+                {
+                    c.key: getattr(refund_record, c.key)
+                    for c in RefundORM.__table__.columns
+                    if c.key in RefundSchema.model_fields.keys()
+                }
+            )
+            for refund_record in refund_records
+        ]
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Error in fetch_all_refund_details: {e}")
+        return []
+
+
+async def fetch_refund_detail_by_refund_id(
+    refund_id: str, db: AsyncSession
+) -> Optional[RefundSchema]:
+    try:
+        result = await db.execute(
+            select(RefundORM).where(
+                RefundORM.id == refund_id,
+                RefundORM.is_active == True,
+            )
+        )
+        refund_record = result.scalar_one_or_none()
+        if refund_record:
+            return RefundSchema.model_validate(
+                {
+                    c.key: getattr(refund_record, c.key)
+                    for c in RefundORM.__table__.columns
+                    if c.key in RefundSchema.model_fields.keys()
+                }
+            )
+        return None
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Error in fetch_refund_detail_by_refund_id: {e}")
+        return None
+
+
+async def fetch_refund_detail_by_booking_id(
+    booking_id: str, db: AsyncSession
+) -> Optional[RefundSchema]:
+    try:
+        result = await db.execute(
+            select(RefundORM)
+            .join(Trip, RefundORM.entity_id == Trip.id)
+            .where(
+                Trip.booking_id == booking_id,
+                RefundORM.is_active == True,
+                Trip.is_active == True,
+            )
+        )
+        refund_record = result.scalar_one_or_none() #One trip can have only one refund record based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table, so we are using scalar_one_or_none which will return None if no record is found, or the record if found. It will raise an exception if multiple records are found, but that should not happen as we should have only one refund record for a trip based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table.
+        if refund_record:
+            return RefundSchema.model_validate(
+                {
+                    c.key: getattr(refund_record, c.key)
+                    for c in RefundORM.__table__.columns
+                    if c.key in RefundSchema.model_fields.keys()
+                }
+            )
+        return None
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Error in fetch_refund_detail_by_booking_id: {e}")
+        return None
+
+
+async def initiate_refund_by_booking_id(
+    booking_id: str,
+    requestor: str,
+    db: AsyncSession,
+    cancelation_sub_status: (
+        CancellationSubStatusEnum | None
+    ) = CancellationSubStatusEnum.other,
+    silently_fail: bool = False,
+) -> bool:
+    try:
+        result = await db.execute(
+            select(Trip).where(
+                Trip.booking_id == booking_id,
+                Trip.is_active == True,
+            )
+        )
+        trip = result.scalar_one_or_none()
+        if not trip:
+            if not silently_fail:
+                raise CabboException(
+                    f"No active trip found for booking ID {booking_id}, cannot initiate refund",
+                    status_code=404,
+                )
+            print(
+                f"No active trip found for booking ID {booking_id}, cannot initiate refund"
+            )
+            return False
+
+        if trip.status != TripStatusEnum.cancelled:
+            if not silently_fail:
+                raise CabboException(
+                    f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled",
+                    status_code=400
+                )
+            print(
+                f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled"
+            )
+            return False
+
+        await attach_relationships_to_trip(
+            trip, db, expose_customer_details=True, expose_cancellation_detail=True
+        )
+
+        trip_schema = TripDetailSchema.model_validate(trip)
+        refund_initiated= await refund_advance_payment_to_customer_on_cancellation(
+            trip=trip_schema,
+            requestor=requestor,
+            db=db,
+            cancelation_sub_status=cancelation_sub_status,
+            silently_fail=silently_fail,
+        )
+        return refund_initiated
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Error in initiate_refund_by_booking_id: {e}")
+        # Log the exception or handle it as needed
+        if not silently_fail:
+            raise e
+        return False

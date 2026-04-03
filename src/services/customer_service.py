@@ -63,7 +63,7 @@ def create_customer(
 
 
 def is_existing_customer(phone_number: str, db: Session) -> bool:
-    existing = db.query(Customer).filter(Customer.phone_number == phone_number).first()
+    existing = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
     return existing is not None
 
 
@@ -79,20 +79,20 @@ def get_active_customer_by_id(customer_id: str, db: Session) -> Customer:
 
 
 def get_customer_by_phone_number(phone_number: str, db: Session) -> Customer:
-    customer = db.query(Customer).filter(Customer.phone_number == phone_number).first()
+    customer = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
     if not customer:
         raise CabboException("Customer not found", status_code=404)
     return customer
 
 
 def get_customer_by_id(customer_id: str, db: Session) -> Customer:
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False).first()
     if not customer:
         raise CabboException("Customer not found", status_code=404)
     return customer
 
 async def a_get_customer_by_id(customer_id: str, db: AsyncSession) -> Customer:
-    result = await db.execute(select(Customer).filter(Customer.id == customer_id))
+    result = await db.execute(select(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False))
     customer = result.scalar_one_or_none()
     if not customer:
         raise CabboException("Customer not found", status_code=404)

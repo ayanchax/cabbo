@@ -2,12 +2,13 @@ import json
 from typing import List, Union
 from core.exceptions import CabboException
 from core.security import RoleEnum, generate_hash
+from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
 from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
-from models.trip.trip_schema import AmenitiesSchema, TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
+from models.trip.trip_schema import  TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,7 +64,7 @@ def get_trip_package_configuration_list_by_region_code(
         db.query(TripPackageConfig)
         .join(RegionModel, TripPackageConfig.region_id == RegionModel.id)
         .filter(
-            RegionModel.region_code == region_code,
+            RegionModel.region_code == region_code, TripPackageConfig.is_active == True
         )
         .all()
     )
@@ -245,7 +246,7 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
     return TripTypeEnum(trip_type_obj.trip_type)
 
 
-async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False, expose_cancellation_detail:bool=False):
+async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False, expose_cancellation_detail:bool=False, expose_dispute_details:bool=False):
         if trip.driver_id:
             await db.refresh(trip, attribute_names=["driver"])
         if trip.trip_type_id:
@@ -258,6 +259,9 @@ async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_cust
             await db.refresh(trip, attribute_names=["customer"])
         if expose_cancellation_detail:
             await db.refresh(trip, attribute_names=["cancellation"])
+        if expose_dispute_details:
+            await db.refresh(trip, attribute_names=["dispute"])
+
 
 def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
     

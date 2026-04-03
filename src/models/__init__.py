@@ -2,7 +2,7 @@ from .airport.airport_orm import AirportModel
 from .cab.cab_orm import CabType, FuelType
 from .customer.customer_orm import Customer, PreOnboardingCustomer, CustomerEmailVerification
 from .documents.kyc_document_orm import KYCDocumentTypes
-from .driver.driver_orm import Driver,DriverEarning,DriverRating
+from .driver.driver_orm import Driver,DriverEarning,TripRating
 from .geography.country_orm import CountryModel
 from .geography.state_orm import StateModel
 from .geography.region_orm import RegionModel
@@ -20,6 +20,6 @@ __all__ = [
     "CountryModel", "StateModel", "RegionModel", "CancellationPolicy",
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",
     "CommonPricingConfiguration", "FixedPlatformPricingConfiguration", "PermitFeeConfiguration",
-    "Trip", "Refund", "Dispute", "Driver","DriverEarning","DriverRating","TripTypeMaster", "TripStatusAudit","TripPackageConfig",
+    "Trip", "Refund", "Dispute", "Driver","DriverEarning","TripRating","TripTypeMaster", "TripStatusAudit","TripPackageConfig",
     "TempTrip", "User"
 ]

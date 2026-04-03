@@ -36,7 +36,9 @@ class RoleEnum(str, Enum):
     driver_admin = "driver_admin"  # Administrator for driver management such as onboarding, verification etc.
     finance_admin = "fin_admin"  # Administrator for financial operations such as payments etc.
     customer_admin = "cust_admin"  # Administrator for customer management such as deactivation, reactivation etc.
-
+    regional_admin = "regional_admin"  # Regional admin with access to manage operations in specific regions
+    state_admin = "state_admin"  # State admin with access to manage operations in specific states
+    
     #Internal roles for seeding or migrations
     system = (
         "system"  # System role for internal operations during seeding or migrations
@@ -44,8 +46,9 @@ class RoleEnum(str, Enum):
     #Regular roles
     customer = "customer"  # Regular customer role
     driver = "driver"  # Regular driver role
+    support_agent = "support_agent"  # Support agent role for handling customer support queries
 
-
+#Customer validation for customer routes, this will validate the JWT token and return the customer details for accessing the customer routes. We can use this to manage access control for different types of users in the system based on their roles and permissions.
 def validate_customer_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
     db: Session = Depends(yield_mysql_session),
@@ -75,6 +78,7 @@ def validate_customer_token(
         raise CabboException("Invalid token.", status_code=401)
 
 
+# System user validation for admin routes, support agent routes etc. This will validate the JWT token and return the user details along with their role and permissions for accessing the admin or support agent routes. We can use this to manage access control for different types of users in the system based on their roles and permissions.
 def validate_user_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
     db: Session = Depends(yield_mysql_session),
@@ -107,6 +111,11 @@ def validate_user_token(
     except jwt.InvalidTokenError:
         raise CabboException("Invalid token.", status_code=401)
 
+
+#Note: 
+# When we release driver app(when app scales and we get investment), we can have a separate validation function for driver token which will validate the JWT token and return the driver details along with their role and permissions for accessing the driver routes. 
+# This will use the the Driver orm table to validate the driver token and return the driver details. 
+# This will help us to keep the actors of the system viz., system user, customer and driver authentication separate and manage them independently based on their specific requirements and access controls. We can also have separate JWT secret keys for customer and driver tokens for added security.
 
 def generate_jwt_token(payload, secret=settings.JWT_SECRET, algorithm="HS256"):
     """

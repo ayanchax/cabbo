@@ -33,12 +33,11 @@ class BackgroundTaskOrchestrator:
             raise ValueError("task_func must be callable")
 
         name = task_name or task_func.__name__
-
         logger.info(
             "Registering background task",
             extra={
                 "task": name,
-                "args": kwargs,
+                "task_kwargs": kwargs,
             },
         )
 

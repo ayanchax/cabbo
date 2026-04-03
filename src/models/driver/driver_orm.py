@@ -106,8 +106,8 @@ class Driver(Base):
     #A driver can have multiple earnings records for different trips, and each earning record is associated with one trip, so the relationship is one-to-many from Driver to DriverEarning and many-to-one from DriverEarning to Driver.
     earnings = relationship("DriverEarning", back_populates="driver", cascade="all, delete-orphan", passive_deletes=True)
     
-    ratings = relationship(
-        "DriverRating",
+    trip_ratings = relationship(
+        "TripRating",
         back_populates="driver",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -132,7 +132,7 @@ class DriverEarning(Base):
         MySQL_CHAR(36), ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False
     )
     trip_id = Column(
-        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, unique=True # Each trip will have one earning record for the driver, but a driver can have multiple earning records for different trips, so we will set unique constraint on trip_id to ensure that there is only one earning record per trip, and we will set up a one-to-one relationship between Trip and DriverEarning based on trip_id.
     )
     earnings = Column(Float, nullable=False)  # total base Earnings for the trip which is the final price minus the platform fee, this is the amount that driver earns for the trip from Cabbo's end, excluding any extra earnings such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.
     extra_earnings = Column(Float, nullable=True)  # any extra earnings for the driver on top of the standard fare for the trip, such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc. 
@@ -159,10 +159,15 @@ class DriverEarning(Base):
     driver = relationship("Driver", back_populates="earnings")
     trip = relationship("Trip", back_populates="driver_earning")
 
-#Create a orm for the driver ratings per customer per trip
-#This will be populated when the customer rates the driver after the trip is completed
-class DriverRating(Base):
-    __tablename__ = "driver_ratings"
+
+#This will be populated when the customer rates the trip after the trip is completed
+#TripRatings can be seen by the customer who gave the review, the driver who did the trip and the admin, but not by other customers. 
+# We use the is_flagged field to allow the admin to flag any reviews that are found to be spam or violating the guidelines and filter out flagged reviews from the average rating calculation for the driver until the admin reviews and unflags the review; after review if the review is found to be genuine and not violating any guidelines, it will be included in the average rating calculation.
+class TripRating(Base):
+    __tablename__ = "trip_ratings"
+    __table_args__ = (
+        UniqueConstraint("driver_id", "trip_id", "customer_id", name="uq_driver_trip_customer_rating"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -182,22 +187,17 @@ class DriverRating(Base):
     )
     rating = Column(Float, nullable=False)  # Rating given by the customer out of 5
     feedback = Column(String(500), nullable=True)  # Optional feedback from the customer
+    overall_experience = Column(
+        JSON, nullable=True #Validated by TripExperienceSchema in trip_schema.py to ensure the overall experience is in the correct format and contains valid ratings for cab cleanliness, AC working condition, driving behavior, punctuality, overall cab condition, and any additional comments or feedback about the trip experience.
+    )  # Overall experience of the trip as rated by the customer, including ratings for cab cleanliness, AC working condition, driving behavior, punctuality, overall cab condition, and any additional comments or feedback about the trip experience e.g., {"cab_cleanliness": 4, "ac_working": true, "driving_behavior": 5, "punctuality": 4, "overall_cab_condition": 4, "other_comments": "Good experience overall, but the cab could have been cleaner."}
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
-    #rating cannot be updated once set, so no onupdate
-    created_by = Column(
-        MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
-    )  # Created by customer id who gave the rating, this will be used to ensure that the customer can only give one rating per trip and to identify the customer who gave the rating for any follow up if needed.
-    last_modified = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
+
+    is_flagged = Column(Boolean, default=False, nullable=False)  # Flag to indicate if the rating has been flagged for review by the admin, we can use this to filter out flagged ratings from the average rating calculation for the driver until the admin reviews and unflags the rating after review if the rating is found to be genuine and not violating any guidelines.
     
-    driver = relationship("Driver", back_populates="ratings")
-    trip = relationship("Trip", back_populates="driver_rating")
-    customer = relationship("Customer", back_populates="driver_ratings")
+    driver = relationship("Driver", back_populates="trip_ratings")
+    trip = relationship("Trip", back_populates="trip_rating")
+    customer = relationship("Customer", back_populates="trip_ratings")
     
 

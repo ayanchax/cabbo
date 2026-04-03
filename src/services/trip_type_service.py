@@ -1,6 +1,7 @@
 # Add trip type
 
 from core.security import RoleEnum
+from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_orm import TripTypeMaster
 from models.trip.trip_schema import TripTypeSchema, TripTypeUpdateSchema
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,6 +89,14 @@ async def async_activate_trip_type(trip_type_id: str, db: AsyncSession):
 async def async_get_trip_type_by_id(trip_type_id: str, db: AsyncSession):
     """Asynchronously retrieve a trip type by its ID from the database."""
     result = await db.execute(select(TripTypeMaster).where(TripTypeMaster.id == trip_type_id))
+    trip_type = result.scalar_one_or_none()
+    if trip_type:
+        return TripTypeSchema.model_validate(trip_type)
+    return None
+
+async def async_get_trip_type_by_name(trip_type_name: TripTypeEnum, db: AsyncSession):
+    """Asynchronously retrieve a trip type by its name from the database."""
+    result = await db.execute(select(TripTypeMaster).where(TripTypeMaster.trip_type == trip_type_name))
     trip_type = result.scalar_one_or_none()
     if trip_type:
         return TripTypeSchema.model_validate(trip_type)

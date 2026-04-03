@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -10,15 +12,18 @@ from fastapi import (
 )
 from core.exceptions import CabboException
 from core.security import ActiveInactiveStatusEnum, RoleEnum, validate_user_token
-from db.database import yield_mysql_session
+from db.database import a_yield_mysql_session, yield_mysql_session
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.driver.driver_schema import (
     DriverBaseSchema,
     DriverCreateSchema,
+    DriverEarningSchema,
     DriverReadProfilePictureAfterUpdate,
     DriverReadSchema,
     DriverUpdateSchema,
 )
+from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from services.kyc_service import (
@@ -29,13 +34,19 @@ from services.kyc_service import (
 )
 from services.driver_service import (
     activate_driver,
+    add_driver_earning_record_manually,
     create_driver,
     deactivate_driver,
     delete_driver,
+    fetch_all_drivers_earnings_summary,
+    fetch_all_trips_for_driver,
     get_all_drivers,
     get_all_drivers_by_availability,
     get_all_drivers_by_status,
+    get_all_earnings_for_driver,
+    get_average_rating_by_driver_id,
     get_driver_by_id,
+    get_trip_earning_for_driver,
     update_driver,
     update_driver_last_modified,
 )
@@ -46,6 +57,7 @@ from services.file_service import (
 from services.notification_service import notify_driver_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.validation_service import validate_driver_payload
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -68,8 +80,10 @@ def add_driver(
     driver = create_driver(payload=payload, db=db, created_by=current_user_role)
     # Send welcome email in background if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
-    orchestrator.add_task(notify_driver_onboarded, task_name="NotifyDriverOnboarded", driver=driver)
-   
+    orchestrator.add_task(
+        notify_driver_onboarded, task_name="NotifyDriverOnboarded", driver=driver
+    )
+
     return DriverBaseSchema.model_validate(driver)
 
 
@@ -113,10 +127,7 @@ def upload_driver_profile_picture(
             "Cannot upload profile picture for inactive driver", status_code=400
         )
 
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         # Proceed with upload logic (e.g., save file to storage, update driver record with file path)
         image_url = save_driver_profile_picture(driver_id=driver_id, file=file)
         updated_driver = update_driver_last_modified(driver=driver, db=db)
@@ -148,10 +159,7 @@ def delete_driver_profile_picture(
 
     current_user_role = current_user.role
 
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         # Proceed with removal logic (e.g., delete file from storage, update driver record)
         remove_driver_profile_picture(driver_id=driver_id)
         update_driver_last_modified(driver=driver, db=db)
@@ -175,10 +183,7 @@ def view_driver_profile(
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
     current_user_role = current_user.role
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         return DriverReadSchema.model_validate(driver)
 
     raise CabboException(
@@ -204,10 +209,7 @@ def upload_driver_documents(
             "Cannot upload documents for inactive driver", status_code=400
         )
 
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
 
         return update_driver_kyc_documents(
             driver=driver, files=files, document_types=document_types, db=db
@@ -231,10 +233,7 @@ def remove_driver_document(
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         if not driver.kyc_documents:
             raise CabboException("No documents found for this driver.", status_code=404)
 
@@ -256,10 +255,7 @@ def view_driver_documents(
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         if not driver.kyc_documents:
             return []
         return list_kyc_documents(driver, db)
@@ -283,10 +279,7 @@ def mark_kyc_verified(
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
         raise CabboException("Driver not found", status_code=404)
-    if (
-        current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]
-        or driver.id == current_user.id
-    ):
+    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         return mark_kyc_verification_status_for_driver_document(
             driver, document_id, status, db
         )
@@ -317,9 +310,6 @@ def remove_driver(
             status_code=400,
         )
 
-    if driver.id == current_user.id:
-        raise CabboException("You cannot remove yourself.", status_code=403)
-
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         is_deleted = delete_driver(driver_id=driver_id, db=db)
         if is_deleted:
@@ -343,8 +333,7 @@ def driver_activation(
         raise CabboException("Driver not found", status_code=404)
     if driver.is_active:
         raise CabboException("Driver is already active", status_code=400)
-    if driver.id == current_user.id:
-        raise CabboException("You cannot activate yourself.", status_code=403)
+
     if current_user.role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         updated_driver = activate_driver(driver_id=driver_id, db=db)
         return {
@@ -369,9 +358,6 @@ def driver_deactivation(
 
     if not driver.is_active:
         raise CabboException("Driver is already inactive", status_code=400)
-
-    if driver.id == current_user.id:
-        raise CabboException("You cannot deactivate yourself.", status_code=403)
 
     if current_user.role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         updated_driver = deactivate_driver(driver_id=driver_id, db=db)
@@ -436,43 +422,122 @@ def list_drivers(
 
 # View driver lifetime trips
 @router.get("/{driver_id}/trips")
-def view_driver_trips_history(driver_id: str):
+async def view_driver_trips_history(
+    driver_id: str,
+    status: Optional[TripStatusEnum] = None,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """LIST View trip history for a driver."""
-    return {"message": f"Trip history for driver {driver_id}"}
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to view driver trips.", status_code=403
+        )
+    return await fetch_all_trips_for_driver(driver_id=driver_id, status=status, db=db)
 
 
-# View driver ratings/feedback for a driver against all trips by all customers
-@router.get("/{driver_id}/ratings")
-def view_driver_ratings(driver_id: str):
-    """LIST View ratings and feedback for a driver."""
-    return {"message": f"Ratings/feedback for driver {driver_id}"}
+@router.get("/{driver_id}/average-rating", response_model=float)
+async def get_average_rating_of_driver(
+    driver_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Get the average rating of a driver."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to view driver ratings.", status_code=403
+        )
+    return await get_average_rating_by_driver_id(driver_id=driver_id, db=db)
 
 
-# View driver ratings by a specific customer for a driver against all trips
-@router.get("/{driver_id}/ratings/customer/{customer_id}")
-def view_driver_ratings_by_customer(driver_id: str, customer_id: str):
-    """LIST View ratings given by customers for a driver."""
-    return {
-        "message": f"Customer ratings for driver {driver_id} by customer {customer_id}"
-    }
+# earning detail for a driver for a specific trip (admin audit)
+@router.get("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
+async def view_driver_earning_for_trip(
+    driver_id: str,
+    trip_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Object View earning for a specific trip for a driver."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.finance_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view driver earnings.", status_code=403
+        )
+    earning= await get_trip_earning_for_driver(
+        driver_id=driver_id, trip_id=trip_id, db=db
+    )
+    if earning is None:
+        raise CabboException(
+            "Earnings not found for the specified driver and trip.", status_code=404
+        )
+    return DriverEarningSchema.model_validate(earning)
 
+#Post earnings manually for a driver for a specific trip (admin action in case of any discrepancies in workflow(status_service.py._complete) or adjustments needed after investigation)
+@router.post("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
+async def post_driver_earning_for_trip(
+    driver_id: str,
+    trip_id: str,
+    payload:AdditionalDetailsOnTripStatusChange,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Post earnings manually for a specific trip for a driver (admin action in case of any discrepancies in workflow or adjustments needed after investigation)."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.finance_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to post driver earnings.", status_code=403
+        )
+    return await add_driver_earning_record_manually(trip_id=trip_id, driver_id=driver_id, payload=payload, db=db, requestor=current_user.id)
+    
+   
 
-# View driver rating for a specific trip
-@router.get("/{driver_id}/ratings/trip/{trip_id}")
-def view_driver_ratings_by_trip(driver_id: str, trip_id: str):
-    """Object View ratings for a specific trip for a driver."""
-    return {"message": f"Ratings for driver {driver_id} on trip {trip_id}"}
-
-
-# View overall driver earnings for a driver for all trips
-@router.get("/{driver_id}/earnings")
-def view_driver_earnings(driver_id: str):
+# all-time earnings for a driver (admin audit)
+@router.get("/{driver_id}/earnings", response_model=list[DriverEarningSchema])
+async def view_driver_earnings(
+    driver_id: str,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
     """LIST View earnings for a driver."""
-    return {"message": f"Earnings for driver {driver_id}"}
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.finance_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to view driver earnings.", status_code=403
+        )
+    earnings= await get_all_earnings_for_driver(driver_id=driver_id, db=db)
+    if not earnings:
+        raise CabboException(
+            "Earnings not found for the specified driver.", status_code=404
+        )
+    return [DriverEarningSchema.model_validate(e) for e in earnings]
 
 
-# View driver earning for a specific trip
-@router.get("/{driver_id}/earnings/trip/{trip_id}")
-def view_driver_earnings_for_trip(driver_id: str, trip_id: str):
-    """Object View earnings for a specific trip for a driver."""
-    return {"message": f"Earnings for driver {driver_id} on trip {trip_id}"}
+# GET /earnings/summary — total across all drivers (finance admin visibility)
+@router.get("/earnings/summary", response_model=dict)
+async def view_earnings_summary(
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """View earnings summary across all drivers."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.finance_admin]:
+        raise CabboException(
+            "You do not have permission to view earnings summary.", status_code=403
+        )
+    return await fetch_all_drivers_earnings_summary(db=db)
+    

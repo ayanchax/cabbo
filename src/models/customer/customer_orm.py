@@ -54,10 +54,10 @@ class Customer(Base):
     last_seen = Column(DateTime, nullable=True)
     is_suspended = Column(Boolean, default=False, nullable=False, comment="Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.")
     suspension_reason = Column(Text, nullable=True, comment="If the customer is suspended, this field can store the reason for suspension.")
-    driver_ratings = relationship(
-        "DriverRating", back_populates="customer", cascade="all, delete-orphan",
+    trip_ratings = relationship(
+        "TripRating", back_populates="customer", cascade="all, delete-orphan",
         passive_deletes=True
-    )  # Ratings given by customer to one or more drivers across different trips
+    )  # Ratings given by customer to one or more trips
     trips = relationship(
         "Trip",
         back_populates="customer",

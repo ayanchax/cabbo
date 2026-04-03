@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 from models.support.support_enum import TicketStatusEnum
 from models.policies.dispute_enum import DisputeTypeEnum, DisputeTriggerEnum
-from models.support.support_schema import SupportCommentSchema
+from models.support.support_schema import CommentSchema
 
 
 class FareDisputeDetails(BaseModel):
@@ -51,7 +51,7 @@ class DisputeSchema(BaseModel):
     dispute_type: DisputeTypeEnum | None = Field(
         DisputeTypeEnum.other, description="Type of dispute, e.g., fare, service, etc."
     )
-    comments: Optional[List[SupportCommentSchema]] | List[dict] | None = Field(
+    comments: Optional[List[CommentSchema]] = Field(
         None,
         description="Additional comments or details between customer and support regarding the dispute",
     )
@@ -91,10 +91,29 @@ class InitialDisputeSchema(BaseModel):
     dispute_type: DisputeTypeEnum | None = Field(
         DisputeTypeEnum.other, description="Type of dispute, e.g., fare, service, etc."
     )
-    comments: Optional[List[SupportCommentSchema]] | List[dict] | None = Field(
+    comments: Optional[List[CommentSchema]] | List[dict] | None = Field(
         None,
         description="Additional comments or details between customer and support regarding the dispute",
     )
     details: Optional[DisputeDetailsSchema] | None = Field(
         None, description="Additional details about the dispute"
+    )
+
+
+class DisputeUpdateSchema(BaseModel):
+    status: Optional[TicketStatusEnum] = Field(
+        None,
+        description="Updated status of the dispute (e.g., open, resolved, rejected)",
+    )
+    details: Optional[DisputeDetailsSchema] = Field(
+        None, description="Additional details about the dispute update"
+    )
+    comment: Optional[CommentSchema] = Field(
+        None, description="Single comment to append to the dispute"
+    )
+
+
+class DisputeAddCommentSchema(BaseModel):
+    comment: CommentSchema = Field(
+        ..., description="Comment to add to the dispute (required for customer)"
     )

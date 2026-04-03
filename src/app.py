@@ -1,4 +1,4 @@
-from core.cabbo_logging import *
+from core.cabbo_logging import * #Cabbo Logging is configured in this module at the top/root, importing it ensures it's set up before any logs are emitted and that any logs are emitted during import of other modules are captured within the cabbo logger. This is important for a consistent logging setup across the entire application.
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT
 from core.config import settings
 import warnings
