@@ -113,7 +113,9 @@ class DriverReadSchema(DriverCreateSchema):
 
 class DriverReadWithProfilePicture(DriverReadSchema):
     image_url: str = Field(None, description="URL to the driver's profile picture")
-    
+
+
+
   
 class DriverEarningSchema(BaseModel):
     trip_id: str=Field(..., description="Unique identifier for the trip")
@@ -126,3 +128,4 @@ class DriverEarningSchema(BaseModel):
     class Config:
         from_attributes = True
         extra="allow"
+

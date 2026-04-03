@@ -568,7 +568,7 @@ def get_trip_by_id(trip_id: str, db: Session) -> Trip:
 
 
 async def async_get_trip_by_id(
-    trip_id: str, db: AsyncSession, expose_customer_details: bool = False
+    trip_id: str, db: AsyncSession, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False
 ) -> Trip:
     """Asynchronously retrieve a trip by its ID."""
     query = select(Trip).filter(
@@ -578,12 +578,14 @@ async def async_get_trip_by_id(
     trip_result = result.scalars().first()
     if trip_result:
         await attach_relationships_to_trip(
-            trip_result, db, expose_customer_details=expose_customer_details
+            trip_result, db, expose_customer_details=expose_customer_details,
+            expose_dispute_details=expose_dispute_details,
+            expose_cancellation_detail=expose_cancellation_detail
         )
     return trip_result
 
 
-async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Trip:
+async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False) -> Trip:
     """Asynchronously retrieve a trip by its booking ID."""
     result = await db.execute(
         select(Trip).filter(Trip.booking_id == booking_id, Trip.is_active == True)
@@ -592,7 +594,11 @@ async def async_get_trip_by_booking_id(booking_id: str, db: AsyncSession) -> Tri
         result.scalars().one_or_none()
     )  # Always returns one result or None, as booking_id is unique. Raises an error if multiple results are found, which should not happen.
     if trip_result:
-        await attach_relationships_to_trip(trip_result, db)
+        await attach_relationships_to_trip(
+            trip_result, db, expose_customer_details=expose_customer_details,
+            expose_dispute_details=expose_dispute_details,
+            expose_cancellation_detail=expose_cancellation_detail
+        )
     return trip_result
 
 

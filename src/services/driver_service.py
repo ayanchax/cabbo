@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 
+
 def create_driver(
     payload: DriverCreateSchema,
     db: Session,
@@ -435,7 +436,7 @@ async def add_driver_earning_record(
         if existing_record:
             await delete_driver_earning(
                 earning_id=existing_record.id, db=db, commit=commit, hard_delete=True
-            )
+            ) #Delete so that we do not hit integrity error.
 
         return await _add_driver_earning_record(
             payload=DriverEarningSchema(
@@ -462,11 +463,7 @@ async def add_driver_earning_record(
         if silently_fail:
             print(f"Error in add_driver_earning_record: {str(e)}")
             return None
-        raise CabboException(
-            f"Error in add_driver_earning_record: {str(e)}",
-            status_code=500,
-            include_traceback=True,
-        )
+        raise e
 
 
 async def get_trip_earning_for_driver(
@@ -735,6 +732,38 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
         return trip_summaries
 
     except Exception as e:
+        raise e
+
+
+async def add_driver_earning_record_manually(trip_id: str, driver_id: str, payload: AdditionalDetailsOnTripStatusChange, db: AsyncSession, requestor:str):
+    from services.trips.trip_service import async_get_trip_by_id
+    try:
+        trip= await async_get_trip_by_id(trip_id=trip_id, db=db, expose_customer_details=True, expose_cancellation_detail=True)
+        if trip is None:
+            raise CabboException(
+                "Trip not found for the specified trip_id.", status_code=404
+            )
+        if trip.driver_id != driver_id:
+            raise CabboException(
+                "The specified driver is not associated with the specified trip.", status_code=400
+            )
+        if trip.status != TripStatusEnum.completed:
+            raise CabboException(
+                "Earnings can only be posted for completed trips. The specified trip is not completed yet.", status_code=400
+            )
+        trip_schema = TripDetailSchema.model_validate(trip)
+        earning = await add_driver_earning_record(
+            trip=trip_schema,
+            additional_info=payload,
+            db=db,
+            requestor=requestor)
+        if earning is None:
+            raise CabboException(
+                "Failed to post earnings for the specified driver and trip.", status_code=500
+            )
+        return DriverEarningSchema.model_validate(earning)  
+    except Exception as e:
+        await db.rollback()
         raise e
 
 
