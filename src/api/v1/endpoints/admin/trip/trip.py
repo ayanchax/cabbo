@@ -24,7 +24,7 @@ from services.trips.trip_service import (
     update_trip_status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from . import reviews, refunds, dispute
+from . import reviews, refunds, dispute, cancellations
 
 router = APIRouter()
 
@@ -385,3 +385,7 @@ router.include_router(
 router.include_router(refunds.router, prefix="/refunds", tags=["Admin Trip Refunds"])
 
 router.include_router(dispute.router, prefix="/disputes", tags=["Admin Trip Disputes"])
+
+router.include_router(
+    cancellations.router, prefix="/cancellations", tags=["Admin Trip Cancellations"]
+)
