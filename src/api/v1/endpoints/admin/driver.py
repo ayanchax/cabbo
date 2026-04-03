@@ -23,6 +23,7 @@ from models.driver.driver_schema import (
     DriverUpdateSchema,
 )
 from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from services.kyc_service import (
@@ -33,6 +34,7 @@ from services.kyc_service import (
 )
 from services.driver_service import (
     activate_driver,
+    add_driver_earning_record_manually,
     create_driver,
     deactivate_driver,
     delete_driver,
@@ -477,6 +479,28 @@ async def view_driver_earning_for_trip(
         )
     return DriverEarningSchema.model_validate(earning)
 
+#Post earnings manually for a driver for a specific trip (admin action in case of any discrepancies in workflow(status_service.py._complete) or adjustments needed after investigation)
+@router.post("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
+async def post_driver_earning_for_trip(
+    driver_id: str,
+    trip_id: str,
+    payload:AdditionalDetailsOnTripStatusChange,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Post earnings manually for a specific trip for a driver (admin action in case of any discrepancies in workflow or adjustments needed after investigation)."""
+    current_user_role = current_user.role
+    if current_user_role not in [
+        RoleEnum.super_admin,
+        RoleEnum.driver_admin,
+        RoleEnum.finance_admin,
+    ]:
+        raise CabboException(
+            "You do not have permission to post driver earnings.", status_code=403
+        )
+    return await add_driver_earning_record_manually(trip_id=trip_id, driver_id=driver_id, payload=payload, db=db, requestor=current_user.id)
+    
+   
 
 # all-time earnings for a driver (admin audit)
 @router.get("/{driver_id}/earnings", response_model=list[DriverEarningSchema])

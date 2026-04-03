@@ -132,7 +132,7 @@ class DriverEarning(Base):
         MySQL_CHAR(36), ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False
     )
     trip_id = Column(
-        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, unique=True # Each trip will have one earning record for the driver, but a driver can have multiple earning records for different trips, so we will set unique constraint on trip_id to ensure that there is only one earning record per trip, and we will set up a one-to-one relationship between Trip and DriverEarning based on trip_id.
     )
     earnings = Column(Float, nullable=False)  # total base Earnings for the trip which is the final price minus the platform fee, this is the amount that driver earns for the trip from Cabbo's end, excluding any extra earnings such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc.
     extra_earnings = Column(Float, nullable=True)  # any extra earnings for the driver on top of the standard fare for the trip, such as tolls paid by driver, parking charges paid by driver, overage payment for extra distance or time beyond what was estimated, tips given to driver by customer for good performance, high ratings, or completing a certain number of trips, etc. 

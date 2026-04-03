@@ -138,7 +138,7 @@ async def get_refund_detail_by_trip_id(
         raise HTTPException(status_code=404, detail="Refund detail not found.")
     return refund_detail
 
-# Initiate a refund for a trip by booking_id - finance_admin, super_admin
+# Initiate a refund for a trip by booking_id - finance_admin, super_admin, if the workflow based refund initiation failed to complete/execute successfully(Refer #status_service.py._cancelled() method)
 @router.get("/booking/{booking_id}/initiate-refund")
 async def init_refund_by_booking_id(
     booking_id: str | UUID,
