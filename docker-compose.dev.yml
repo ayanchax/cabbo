@@ -16,7 +16,7 @@ services:
     volumes:
       - /home/ubuntu/cabbo-shared-data/logs:/app/logs
       - /home/ubuntu/cabbo-shared-data/share:/app/share        
-    restart: always
+    restart: no
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]    
