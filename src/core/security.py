@@ -5,7 +5,7 @@ import jwt
 from models.customer.customer_orm import Customer
 from db.database import yield_mysql_session
 from sqlalchemy.orm import Session
-from core.constants import APP_NAME
+from core.constants import APP_NAME, Environment
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import hmac
@@ -58,7 +58,8 @@ def validate_customer_token(
             "Authorization header missing or invalid.", status_code=401
         )
     token = authorization.split(" ", 1)[1]
-    print(f"Token: {token}")
+    if settings.ENV == Environment.DEV.value:
+            print(f"Token: {token}")
     if not token:
         raise CabboException("Token is missing.", status_code=401)
     try:
@@ -92,7 +93,8 @@ def validate_user_token(
             "Authorization header missing or invalid.", status_code=401
         )
     token = authorization.split(" ", 1)[1]
-    print(f"Token: {token}")
+    if settings.ENV == Environment.DEV.value:
+            print(f"Token: {token}")
     if not token:
         raise CabboException("Token is missing.", status_code=401)
     try:
