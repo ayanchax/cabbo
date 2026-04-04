@@ -7,11 +7,11 @@ from core.constants import Environment
 from sqlalchemy.orm import Session
 
 
-ENV = os.getenv("ENV", Environment.DEV.value)
+ENV = os.getenv("ENV", Environment.LOCAL.value)
 ENV_FILE = (
-    f".env.{Environment.DEV.value}"
-    if ENV == Environment.DEV.value
-    else f".env.{Environment.PROD.value}"
+    f".env.{Environment.LOCAL.value}"
+    if ENV == Environment.LOCAL.value
+    else None
 )
 
 
