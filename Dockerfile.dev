@@ -1,13 +1,35 @@
-# Dockerfile for development
+# Dockerfile.dev
+
 FROM python:3.10-slim
+
+# Prevent python from buffering stdout/stderr
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install uv && uv pip install -r pyproject.toml
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
+# Install uv (Astral)
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files first (for caching)
+COPY pyproject.toml ./
+
+# Install dependencies using uv
+RUN uv pip install --system .
+
+# Copy application code
 COPY . .
 
+# Expose port
+EXPOSE 8000
+
+# Set environment
 ENV ENV=dev
 
+# Start FastAPI (reload for dev)
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
