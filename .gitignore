@@ -57,3 +57,5 @@ build/
 dist/
 
 .postman/
+infra/
+*.pem
