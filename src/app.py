@@ -1,5 +1,5 @@
 from core.cabbo_logging import * #Cabbo Logging is configured in this module at the top/root, importing it ensures it's set up before any logs are emitted and that any logs are emitted during import of other modules are captured within the cabbo logger. This is important for a consistent logging setup across the entire application.
-from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT
+from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT, Environment
 from core.config import settings
 import warnings
 
@@ -128,6 +128,39 @@ def get_diagnostics(request: Request):
         }
     return {}
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        logger.exception(
+            f"Unhandled error during request: {request.method} {request.url.path}"
+        )
+        raise
+
+    duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+    response_size = response.headers.get("content-length", "unknown")
+    if ENV == Environment.DEV.value:
+        logger.info(
+        f"{request.method} {request.url.path} "
+        f"Query: {dict(request.query_params)} "
+        f"Status: {response.status_code} "
+        f"Time: {round(duration, 2)}ms "
+        f"Size: {response_size} bytes "
+        f"Client: {request.client.host if request.client else 'unknown'}"
+    )
+    else:
+        logger.info(
+            f"{request.method} {request.url.path} "
+            f"Status: {response.status_code} "
+            f"Time: {round(duration, 2)}ms "
+            f"Client: {request.client.host if request.client else 'unknown'}"
+        )
+
+    return response
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
