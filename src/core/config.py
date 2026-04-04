@@ -13,6 +13,8 @@ ENV_FILE = (
     if ENV == Environment.LOCAL.value
     else None
 )
+if not ENV_FILE:
+    print("Running in non-local mode, relying on system env vars")
 
 
 class Settings(BaseSettings):
