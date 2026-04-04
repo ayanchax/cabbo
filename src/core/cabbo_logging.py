@@ -16,11 +16,11 @@ if not logger.handlers:
     # cabbo_debug_handler.setLevel(logging.DEBUG)
     # cabbo_debug_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
 
-    cabbo_error_handler = TimedRotatingFileHandler(
-        os.path.join(LOG_DIR, 'error.log'), when='midnight', interval=1, backupCount=15, encoding='utf-8', delay=True
-    )
-    cabbo_error_handler.setLevel(logging.ERROR)
-    cabbo_error_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
+    # cabbo_error_handler = TimedRotatingFileHandler(
+    #     os.path.join(LOG_DIR, 'error.log'), when='midnight', interval=1, backupCount=15, encoding='utf-8', delay=True
+    # )
+    # cabbo_error_handler.setLevel(logging.ERROR)
+    # cabbo_error_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
@@ -30,7 +30,7 @@ if not logger.handlers:
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(console_handler)
     #root_logger.addHandler(cabbo_debug_handler)
-    root_logger.addHandler(cabbo_error_handler)
+    #root_logger.addHandler(cabbo_error_handler)
 
 # Optionally, set root logger to propagate if you want logs everywhere
 #logging.getLogger().setLevel(logging.DEBUG)
