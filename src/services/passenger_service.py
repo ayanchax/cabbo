@@ -1,0 +1,275 @@
+from typing import Union
+from core.exceptions import CabboException
+from core.security import RoleEnum
+from models.customer.passenger_orm import Passenger
+from models.customer.passenger_schema import PassengerCreate, PassengerRead, PassengerRequest, PassengerUpdate
+from sqlalchemy.orm import Session
+
+from models.trip.trip_schema import TripSearchRequest
+
+
+def create_passenger(
+    customer_id: str, payload: PassengerCreate, db: Session
+) -> Passenger:
+    """Create a new passenger for a customer.
+    Args:
+        customer_id (str): The UUID of the customer.
+        payload (PassengerCreate): The passenger creation payload containing name and phone number.
+        db (Session): The database session.
+    Returns:
+        Passenger: The created passenger object.
+
+    """
+    try:
+        passenger = Passenger(
+            customer_id=customer_id,
+            name=payload.name,
+            phone_number=payload.phone_number,
+            is_active=True,
+            created_by=RoleEnum.customer,
+        )
+        db.add(passenger)
+        db.commit()
+        db.refresh(passenger)
+        return passenger
+    except Exception as e:
+        db.rollback()
+        raise CabboException(
+            f"Error creating passenger: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+        )
+
+
+def get_all_passengers_by_customer_id(customer_id: str, db: Session):
+    """Retrieve all passengers for a given customer.
+    Args:
+        customer_id (str): The UUID of the customer.
+        db (Session): The database session.
+    Returns:
+        List[Passenger]: A list of passenger objects associated with the customer.
+    """
+    return db.query(Passenger).filter(Passenger.customer_id == customer_id).all()
+
+
+def get_all_active_passengers_by_customer_id(customer_id: str, db: Session):
+    """Retrieve all active passengers for a given customer.
+    Args:
+        customer_id (str): The UUID of the customer.
+        db (Session): The database session.
+    Returns:
+        List[Passenger]: A list of active passenger objects associated with the customer.
+    """
+    return (
+        db.query(Passenger)
+        .filter(Passenger.customer_id == customer_id, Passenger.is_active == True)
+        .all()
+    )
+
+
+def get_all_passengers(db: Session):
+    """Retrieve all passengers in the database.
+    Args:
+        db (Session): The database session.
+    Returns:
+        List[Passenger]: A list of all passenger objects.
+    """
+    return db.query(Passenger).all()
+
+
+def get_all_active_passengers(db: Session):
+    """Retrieve all active passengers in the database.
+    Args:
+        db (Session): The database session.
+    Returns:
+        List[Passenger]: A list of all active passenger objects.
+    """
+    return db.query(Passenger).filter(Passenger.is_active == True).all()
+
+
+def update_passenger(
+    passenger_id: str, payload: PassengerUpdate, db: Session
+) -> Union[Passenger, None]:
+    """Update an existing passenger's details.
+    Args:
+        passenger_id (str): The UUID of the passenger to update.
+        payload (PassengerCreate): The updated passenger data.
+        db (Session): The database session.
+    Returns:
+        Passenger: The updated passenger object.
+    """
+    try:
+        passenger = get_passenger_by_id(passenger_id, db)
+        if not passenger:
+            raise CabboException("Passenger not found", status_code=404)
+
+        passenger.name = payload.name
+        passenger.phone_number = payload.phone_number
+        db.commit()
+        db.refresh(passenger)
+        return passenger
+    except Exception as e:
+        db.rollback()
+    return None
+
+
+def delete_passenger(passenger_id: str, db: Session) -> bool:
+    """Delete a passenger by their ID.
+    Args:
+        passenger_id (str): The UUID of the passenger to delete.
+        db (Session): The database session.
+    Returns:
+        bool: True if deletion was successful, False otherwise.
+    """
+    try:
+        passenger = get_passenger_by_id(passenger_id, db)
+        if not passenger:
+            raise CabboException("Passenger not found", status_code=404)
+        db.delete(passenger)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise CabboException("Failed to delete passenger", status_code=500)
+    return True
+
+
+def deactivate_passenger(passenger_id: str, db: Session) -> Passenger:
+    """Deactivate a passenger by their ID.
+    Args:
+        passenger_id (str): The UUID of the passenger to deactivate.
+        db (Session): The database session.
+    Returns:
+        Passenger: The deactivated passenger object.
+    """
+    passenger = get_passenger_by_id(passenger_id, db)
+    if not passenger:
+        raise CabboException("Passenger not found", status_code=404)
+
+    passenger.is_active = False
+    db.commit()
+    db.refresh(passenger)
+    return passenger
+
+
+def activate_passenger(passenger_id: str, db: Session) -> Passenger:
+    """Activate a passenger by their ID.
+    Args:
+        passenger_id (str): The UUID of the passenger to activate.
+        db (Session): The database session.
+    Returns:
+        Passenger: The activated passenger object.
+    """
+    passenger = get_passenger_by_id(passenger_id, db)
+    if not passenger:
+        raise CabboException("Passenger not found", status_code=404)
+
+    passenger.is_active = True
+    db.commit()
+    db.refresh(passenger)
+    return passenger
+
+
+def get_passenger_by_phone_number(phone_number: str, db: Session) -> Passenger:
+    """Retrieve a passenger by their phone number.
+    Args:
+        phone_number (str): The phone number of the passenger.
+        db (Session): The database session.
+    Returns:
+        Passenger: The passenger object if found, otherwise None.
+    """
+    return db.query(Passenger).filter(Passenger.phone_number == phone_number).first()
+
+
+def get_passenger_id_from_preferences(preferences:TripSearchRequest):
+    """Extract passenger ID from trip search preferences.
+    Args:
+        preferences (TripSearchRequest): The trip search request containing passenger details.
+    Returns:
+        str: The passenger ID if found, otherwise None.
+    """
+    if not preferences or not preferences.passenger or isinstance(preferences.passenger, str):
+        return None
+    # If preferences.passenger is a PassengerRequest object, extract the ID
+    if preferences.passenger and preferences.passenger.id:
+        return preferences.passenger.id
+    return None
+
+def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Session):
+    if (
+        search_in.passenger
+        and isinstance(search_in.passenger, PassengerRequest)
+        and search_in.passenger.id
+    ):
+        search_in.passenger.id = search_in.passenger.id.strip()
+        passenger = get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
+        if not passenger:
+            raise CabboException("Invalid passenger ID provided", status_code=400)
+        if passenger.customer_id != requestor:
+            raise CabboException(
+                "Passenger does not belong to the requesting customer", status_code=403
+            )
+        if not passenger.is_active:
+            raise CabboException("Passenger is not active", status_code=403)
+        passenger_read = PassengerRead.model_validate(
+            passenger
+        )  # Validate passenger schema
+        search_in.passenger.name = (
+            passenger_read.name
+        )  # Attach passenger details to request
+        search_in.passenger.phone_number = passenger_read.phone_number
+    else:
+
+        search_in.passenger = "self"  # Use a string to indicate self-booking
+
+def get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
+    """Retrieve a passenger by their ID.
+    Args:
+        passenger_id (str): The UUID of the passenger.
+        db (Session): The database session.
+    Returns:
+        Passenger: The passenger object if found, otherwise None.
+    """
+    return db.query(Passenger).filter(Passenger.id == passenger_id).first() 
+
+def populate_passenger_details(passenger_id:str, db:Session):
+    """
+    This function is a placeholder for any future logic that might be needed to populate passenger details.
+    Currently, it does nothing but can be extended as needed.
+    """
+    if passenger_id:
+              # Validate passenger details
+            passenger=get_passenger_by_id(passenger_id=passenger_id, db=db)
+            if passenger:
+                return PassengerRequest.model_validate(passenger)
+    return None
+
+def is_passenger_belongs_to_any_trip(passenger_id:str, db:Session):
+    """Check if a passenger is associated with any trip.
+    Args:
+        passenger_id (str): The UUID of the passenger.
+        db (Session): The database session.
+    Returns:
+        bool: True if the passenger is associated with any other trip, False otherwise.
+    """
+    from models.trip.trip_orm import Trip
+
+    trip = (
+        db.query(Trip)
+        .filter(Trip.passenger_id == passenger_id)
+        .first()
+    )
+    return trip is not None
+
+def is_passenger_belongs_to_customer(passenger_id:str, customer_id:str, db:Session):
+    """Check if a passenger belongs to a specific customer.
+    Args:
+        passenger_id (str): The UUID of the passenger.
+        customer_id (str): The UUID of the customer.
+        db (Session): The database session.
+    Returns:
+        Union[Passenger, bool]: The passenger object if they belong to the customer, False otherwise.
+    """
+    passenger = get_passenger_by_id(passenger_id=passenger_id, db=db)
+    if not passenger:
+        return False
+    return passenger if passenger.customer_id == customer_id else False

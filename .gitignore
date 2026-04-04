@@ -31,6 +31,10 @@ Thumbs.db
 
 # Logs
 *.log
+*.log.*
+logs/
+debug.log.*
+error.log.*
 
 # MySQL dumps
 *.sql
@@ -42,3 +46,16 @@ dist/
 
 # Ignore local dev files
 *.local
+share/
+application-requirements.txt
+notes/
+test/testdata/
+seed_data_completed.chk
+
+#Builds
+build/
+dist/
+
+.postman/
+infra/
+*.pem

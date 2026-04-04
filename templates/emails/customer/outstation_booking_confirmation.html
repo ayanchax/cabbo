@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>🚗 {{ app_name }} Outstation Booking Confirmed</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f6f8fb;
+            color: #23272f;
+            margin: 0;
+            padding: 0
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 36px auto;
+            background: #fff;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(25, 40, 60, 0.06)
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2px;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 1.3rem;
+            color: #2d7ff9;
+            font-weight: 500;
+            margin-bottom: 6px
+        }
+
+        .sub {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .col-left {
+            color: #6b7280;
+            font-weight: 600;
+            flex: 0 0 140px;
+            /* fixed column */
+            padding-right: 8px;
+        }
+
+        /* right column takes remaining space and right-aligns content */
+        .col-right {
+            font-weight: 700;
+            color: #23272f;
+            text-align: right;
+            flex: 1 1 0;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f4f8ff 60%, #eaf6e7 100%);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px #f0f4fa
+        }
+
+        h3 {
+            color: #2d7ff9;
+            margin: 0 0 12px 0;
+            font-size: 1.05rem
+        }
+
+        .cta {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: linear-gradient(90deg, #2d7ff9 60%, #00c6fb 100%);
+            color: #fff;
+            padding: 14px 0;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.08rem;
+            margin: 32px 0 0 0;
+            box-shadow: 0 2px 8px #e0e8f8;
+            transition: background 0.2s;
+        }
+
+        .cta:hover {
+            background: linear-gradient(90deg, #1a5fd7 60%, #00a6d6 100%);
+        }
+
+        .meta-list {
+            font-size: 13px;
+            color: #4a5568;
+            margin-top: 8px
+        }
+
+        .badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px
+        }
+
+        .badge {
+            display: inline-flex;
+            /* Ensures emoji and text are on the same line */
+            align-items: center;
+            /* Vertically aligns emoji and text */
+            background: #eef6ff;
+            color: #1b5fd6;
+            padding: 6px 8px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 11px;
+            white-space: nowrap;
+            /* Prevents text from wrapping to the next line */
+        }
+
+        ul {
+            margin: 8px 0 0 18px;
+            color: #4a5568
+        }
+
+        .footer {
+            text-align: center;
+            color: #9aa6b6;
+            font-size: 12px;
+            margin-top: 20px;
+            line-height: 1.5
+        }
+
+        /* very small terms & conditions style */
+        .tnc {
+            font-size: 11px;
+            color: #64748b;
+            text-align: left;
+            margin-top: 10px;
+            line-height: 1.35;
+            white-space: pre-line;
+        }
+
+        @media(max-width:600px) {
+            .row {
+                flex-direction: column;
+                align-items: flex-start
+            }
+
+            .col-right {
+                text-align: left
+            }
+
+            .tnc {
+                font-size: 10px;
+            }
+        }
+
+        /* route timeline - vertical (fixed left column for dots, text on right) */
+        .route-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 6px 0;
+        }
+
+        /* each point is a horizontal row: left = dot+connector, right = text */
+        .route-point {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            position: relative;
+        }
+
+        /* left column holds dot and vertical connector (absolute) */
+        .route-left {
+            width: 36px;
+            min-width: 36px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            position: relative;
+            padding-top: 2px;
+        }
+
+        .route-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2d7ff9;
+            margin-top: 4px;
+            box-shadow: 0 2px 6px rgba(45, 127, 249, 0.18);
+            z-index: 2;
+            flex-shrink: 0;
+        }
+
+        .route-dot.small {
+            width: 8px;
+            height: 8px;
+            background: #cfe4ff;
+            margin-top: 6px;
+            box-shadow: none;
+        }
+
+        .route-dot.end {
+            background: #22bb33;
+            box-shadow: 0 2px 6px rgba(34, 187, 51, 0.18);
+        }
+
+        /* vertical connector line — spans between points; hidden on last point */
+        .route-left .route-line {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: 18px;
+            /* starts below dot */
+            bottom: -18px;
+            /* extends to next point; removed for last */
+            width: 2px;
+            background: #e6eefc;
+            z-index: 1;
+        }
+
+        .route-point:last-child .route-left .route-line {
+            display: none;
+        }
+
+        .route-text {
+            font-size: 0.96rem;
+            color: #23272f;
+            flex: 1;
+        }
+
+        .route-text .label {
+            font-weight: 700;
+            display: block;
+        }
+
+        .route-text .sub {
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.92rem;
+            margin-top: 2px;
+        }
+
+        .route-text.hop .sub {
+            color: #8b95a6;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width:600px) {
+            .route-left {
+                width: 28px;
+                min-width: 28px;
+            }
+
+            .route-left .route-line {
+                top: 16px;
+                bottom: -16px;
+            }
+
+            .route-text .sub {
+                font-size: 0.9rem;
+            }
+        }
+
+        .detail-row {
+            width: 100%;
+            margin-bottom: 10px;
+            font-size: 13px;
+            clear: both;
+        }
+
+        .label {
+            color: #6b7280;
+            font-weight: 500;
+            min-width: 140px;
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .value {
+            color: #23272f;
+            font-weight: 600;
+            text-align: right;
+            float: right;
+            word-break: break-word;
+        }
+
+        /* Route table (email friendly) */
+        .route-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        .route-dots {
+            width: 36px;
+            padding-right: 10px;
+            vertical-align: top;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .dot.pickup {
+            background: #2d7ff9;
+            box-shadow: 0 2px 6px rgba(45, 127, 249, 0.18);
+        }
+
+        .dot.hop {
+            width: 8px;
+            height: 8px;
+            background: #cfe4ff;
+            margin-top: 6px;
+        }
+
+        .dot.drop {
+            background: #22bb33;
+            box-shadow: 0 2px 6px rgba(34, 187, 51, 0.18);
+        }
+
+        .dot-line {
+            width: 2px;
+            height: 40px;
+            margin: 4px auto;
+            background: #e6eefc;
+        }
+
+        /* small text styles for hops */
+        .route-label {
+            color: #2d7ff9;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: block;
+            font-size: 0.95rem;
+        }
+
+        .route-sub {
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width:600px) {
+            .label {
+                min-width: 110px;
+                padding-right: 12px;
+            }
+
+            .dot-line {
+                height: 28px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Expected Jinja fields (examples):
+         app_name, app_url,
+         customer_name, booking_id,
+         pickup_location, drop_location,
+         start_date, end_date, trip_time,
+         total_trip_days, included_km,
+         package_label,
+         overages -> (disclaimer, extra_charges_disclaimers),
+         in_car_amenities -> ac, music_system, water_bottle, tissues, candies, snacks, phone_charger, aux_cable, bluetooth, wifi
+         inclusions (list), exclusions (list),
+         driver_name, driver_contact, cab_number, cab_type, model, fuel_type,
+         total_fare, amount_paid, amount_due
+         passenger_name (optional)
+         current_year (injected from message_service.py)
+    -->
+    <div class="container">
+
+        <!-- Logo -->
+        {% if app_logo_url %}
+        <div class="logo">
+            <img src="{{ app_logo_url }}" alt="Cabbo logo" width="200" height="200"
+                style="display: block; margin: 0 auto;" />
+        </div>
+        {% endif %}
+
+        <div class="header">🎉 Booking Confirmed</div>
+        <div class="sub">Hi {{ customer_name }}, your outstation trip with <strong>{{ app_name }}</strong> is confirmed.
+        </div>
+
+
+        <!-- Route  -->
+        <div class="card">
+            <h3>📍 Route<span
+                    style="display:inline-block;background:rgba(45,127,249,0.12);color:#2d7ff9;padding:6px 8px;border-radius:999px;font-weight:700;font-size:12px;margin-left:8px;vertical-align:middle;">Round
+                    trip</span></h3>
+
+            <table class="route-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <!-- LEFT: dots column -->
+                    <td class="route-dots" valign="top">
+                        <table cellpadding="0" cellspacing="0" align="center">
+                            <!-- pickup dot -->
+                            <tr>
+                                <td align="center">
+                                    <div class="dot pickup" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+                            {% if hops %}
+                            <!-- connector after pickup -->
+                            <tr>
+                                <td align="center">
+                                    <div class="dot-line" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+                            {% endif %}
+
+                            {% for hop in hops or [] %}
+                            <tr>
+                                <td align="center">
+                                    <div class="dot hop" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+                            {% if not loop.last %}
+                            <tr>
+                                <td align="center">
+                                    <div class="dot-line" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+
+                            <!-- connector after hops -->
+                            <tr>
+                                <td align="center">
+                                    <div class="dot-line" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+
+                            <!-- destination dot -->
+                            <tr>
+                                <td align="center">
+                                    <div class="dot drop" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+
+                            <!-- connector back to pickup -->
+                            <tr>
+                                <td align="center">
+                                    <div class="dot-line" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+
+                            <!-- final drop (same as pickup) -->
+                            <tr>
+                                <td align="center">
+                                    <div class="dot pickup" aria-hidden="true"></div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+
+                    <!-- RIGHT: text column -->
+                    <td valign="top">
+                        <div style="margin-bottom:12px;">
+                            <span class="route-label">Pickup</span>
+                            <div class="route-sub">{{ pickup_location }}</div>
+                        </div>
+
+                        {% for hop in hops or [] %}
+                        <div style="margin:10px 0;">
+                            <span style="color:#8b95a6;font-weight:600;display:block;margin-bottom:4px;">Hop {{
+                                loop.index }}</span>
+                            <div class="route-sub">{{ hop.display_name or hop.address or hop.state or '—' }}</div>
+                        </div>
+                        {% endfor %}
+
+                        <div style="margin-top:12px;">
+                            <span
+                                style="color:#22bb33;font-weight:600;display:block;margin-bottom:6px;">Destination</span>
+                            <div class="route-sub">{{ drop_location }}</div>
+                        </div>
+
+                        <div style="margin-top:12px;">
+                            <span class="route-label">Drop</span>
+                            <div class="route-sub">{{ pickup_location }}</div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+
+        <!-- TRIP & PACKAGE: use email-friendly detail rows (label/value) -->
+        <div class="card">
+            <h3>📅 Trip & Package</h3>
+            <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Start — End</span><span class="value">{{ start_date }}{% if
+                    end_date %} — {{ end_date }}{% endif %}</span></div>
+            <!-- Example 1200 km | Round trip | (4 days) - AC Sedan(4+1) - (petrol) -->
+            <div class="detail-row"><span class="label">Package</span><span class="value">{{ package_label }}</span>
+            </div>
+
+        </div>
+
+        <!-- CAB & DRIVER -->
+        <div class="card">
+            <h3>🚕 Cab & Driver</h3>
+            <div class="detail-row"><span class="label">Driver</span><span class="value">{{ driver_name or '-' }}</span>
+            </div>
+            <div class="detail-row"><span class="label">Driver Contact</span><span class="value">{{ driver_contact or
+                    '-' }}</span></div>
+
+            <!-- We are having only model (e.g, Maruti Suzuki Alto) because the package label contains the car type and fuel type -->
+            {% if model %}
+            <div class="detail-row"><span class="label">Cab</span><span class="value">{{ model or 'Unknown model'
+                    }}</span></div>
+            {% endif %}
+            <div class="detail-row"><span class="label">Cab No.</span><span class="value">{{ cab_number or '-' }}</span>
+            </div>
+        </div>
+
+        <!-- FARE SUMMARY -->
+        <div class="card" style="background:linear-gradient(135deg,#eaf6e7 60%,#fdf8ff 100%)">
+            <h3>💳 Fare Summary</h3>
+            <div class="detail-row" style="font-weight:700;font-size:1.02rem;"><span class="label">Total
+                    Fare</span><span class="value">{{currency}}{{ total_fare }}</span></div>
+            <div class="detail-row"><span class="label">Amount Paid</span><span class="value">{{currency}}{{ amount_paid
+                    or 0 }}</span></div>
+            <div class="detail-row"><span class="label">Amount Due</span><span class="value">{{currency}}{{ amount_due
+                    or (total_fare - (amount_paid or 0)) }}</span></div>
+            <div style="margin-top: 12px; font-size: 0.7rem; color: #6b7280;">
+                For a detailed price breakdown, please refer to your trip details in the app.
+            </div>
+        </div>
+
+
+        <!-- Inclusions & Amenities and Exclusions -->
+        {% if inclusions and exclusions and in_car_amenities %}
+        <div class="card">
+            <h3>🧰 In-car amenities & inclusions</h3>
+            <div class="badges">
+                {% if in_car_amenities.ac %}<div class="badge"> ❄️ AC</div>{% endif %}
+                {% if in_car_amenities.music_system %}<div class="badge">🎵 Music</div>{% endif %}
+                {% if in_car_amenities.water_bottle %}<div class="badge">💧 Water bottle</div>{% endif %}
+                {% if in_car_amenities.tissues %}<div class="badge">🧻 Tissues</div>{% endif %}
+                {% if in_car_amenities.candies %}<div class="badge">🍬 Candies</div>{% endif %}
+                {% if in_car_amenities.snacks %}<div class="badge">🍿 Snacks</div>{% endif %}
+                {% if in_car_amenities.phone_charger %}<div class="badge">🔌 Phone charger</div>{% endif %}
+                {% if in_car_amenities.aux_cable %}<div class="badge">🔌 Aux cable</div>{% endif %}
+                {% if in_car_amenities.bluetooth %}<div class="badge">🔊 Bluetooth</div>{% endif %}
+                {% if in_car_amenities.wifi %}<div class="badge">🌐 Wi-Fi</div>{% endif %}
+            </div>
+            <div style="margin-top:10px">
+                <div style="font-weight:600;color:#2d7ff9; font-size: 15px;">What's included</div>
+                <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
+                    {% for inc in inclusions %}
+                    <li style="margin-bottom: 8px; font-size: 12px;">
+                        <span style="margin-right: 8px;">✅</span>{{ inc }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div style="font-weight:600;color:#f05555;margin-top:8px; font-size: 15px;">What's excluded</div>
+                <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
+                    {% for ex in exclusions %}
+                    <li style="margin-bottom: 8px; font-size: 12px;">
+                        <span style="margin-right: 8px;">❌</span>{{ ex }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Overages Disclaimer Terms and Conditions -->
+        {% if overages and overages.disclaimer %}
+        <div class="card" style="background:#fff8e8;">
+            <h3>⚠️ Important Terms and Conditions</h3>
+            <ul
+                style="margin: 0; padding: 0 0 0 20px; list-style: none; color: #4a5568; font-size: 0.7rem; line-height: 1.6;">
+                {% for item in overages.disclaimer %}
+                <li style="margin-bottom: 8px;">
+                    <span style="margin-right: 8px;">➔</span>{{ item }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- If there is passenger info, then it means trip has been booked by user for someone else -->
+
+        {% if passenger_name %}
+        <div class="card" style="background: #f4f8ff; padding: 16px; margin-top: 16px;">
+            <h3>👤 Passenger: {{ passenger_name }}</h3>
+            <div class="sub" style="font-size: 0.9rem; color: #6b7280; text-align: left;">You booked this trip for
+                someone else.</div>
+        </div>
+        {% endif %}
+
+        <!-- View Trip in App CTA -->
+        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
+            View Trip in App</a>
+
+        <!-- Footer with terms and conditions -->
+        <div class="footer">
+            If you have any questions or need to make changes, please contact our support team.<br>
+            Wishing you a pleasant journey!<br><br>
+            This email was sent by <b>{{ app_name }}</b>.<br>
+            Maa Sarada Tours and Travels, Bangalore, India<br>
+            &copy; {{ current_year }} {{ app_name }}. All rights reserved.
+
+        </div>
+    </div>
+</body>
+
+</html>
