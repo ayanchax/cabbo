@@ -15,6 +15,7 @@ SUPER_ADMIN={
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class Environment(str, Enum):
+    LOCAL="local"
     DEV = "dev"
     PROD = "prod"
 
