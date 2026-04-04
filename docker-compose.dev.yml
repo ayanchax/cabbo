@@ -14,8 +14,8 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./logs:/app/logs
-      - ./share:/app/share
+      - /home/ubuntu/cabbo-shared-data/logs:${LOG_DIR}
+      - /home/ubuntu/cabbo-shared-data/share:${SHARE_PATH}
     restart: always
 
     healthcheck:
@@ -46,4 +46,4 @@ services:
       start_period: 20s
 
 volumes:
-  db_data:
+  db_data: 
