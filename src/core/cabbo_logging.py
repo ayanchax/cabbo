@@ -1,9 +1,9 @@
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
-from core.constants import APP_NAME
+from core.constants import APP_NAME, PROJECT_ROOT
 
-LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
+LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
 print(f"LOG_DIR: {LOG_DIR}")
 os.makedirs(LOG_DIR, exist_ok=True)
 
