@@ -14,6 +14,7 @@ ENV = os.getenv("ENV", Environment.LOCAL.value)
 
 if not logger.handlers:
     if ENV == Environment.LOCAL.value:
+        print("Setting up file handlers for logging in local environment")
         cabbo_debug_handler = TimedRotatingFileHandler(
             os.path.join(LOG_DIR, 'debug.log'), when='midnight', interval=1, backupCount=15, encoding='utf-8', delay=True
         )
@@ -37,5 +38,3 @@ if not logger.handlers:
         root_logger.addHandler(cabbo_debug_handler)
         root_logger.addHandler(cabbo_error_handler)
 
-# Optionally, set root logger to propagate if you want logs everywhere
-#logging.getLogger().setLevel(logging.DEBUG)
