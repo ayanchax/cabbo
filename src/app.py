@@ -6,6 +6,7 @@ import warnings
 from db.database import check_db_connection, get_mysql_local_session
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
 from services.file_service import copy_file, create_directories
+from services.seed_data_service import init_seed_data
 
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize ConfigStore at startup to ensure it's ready when needed
     with get_mysql_local_session() as db:
+        init_seed_data(db)  # Ensure seed data is initialized at startup
         settings.init_config_store(db=db)
     
     yield
