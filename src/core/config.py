@@ -91,6 +91,8 @@ class Settings(BaseSettings):
         """Get the configuration store, initializing it if necessary."""
         if not self.CONFIG_STORE:
             return self.init_config_store(db)
+        else:
+            print("ConfigStore already initialized, returning existing instance for retrieving configurations from in-memory store.")
         return self.CONFIG_STORE
 
 

@@ -217,9 +217,9 @@ async def async_get_all_airports_in_state(
         .filter(
             AirportModel.state_code == state_code, AirportModel.is_serviceable == True
         )
-        .all()
     )
-    return [AirportSchema.model_validate(airport) for airport in airports]
+    result = airports.scalars().all()
+    return [AirportSchema.model_validate(airport) for airport in result]
 
 
 async def async_get_all_airports_in_country(
@@ -233,9 +233,9 @@ async def async_get_all_airports_in_country(
             AirportModel.country_code == country_code,
             AirportModel.is_serviceable == True,
         )
-        .all()
     )
-    return [AirportSchema.model_validate(airport) for airport in airports]
+    result = airports.scalars().all()
+    return [AirportSchema.model_validate(airport) for airport in result]
 
 
 async def async_get_airport_by_region_code(
@@ -248,10 +248,10 @@ async def async_get_airport_by_region_code(
             AirportModel.region_code == region_code,
             AirportModel.is_serviceable == True,
         )
-        .all()
     )
-    if airports:
-        return [AirportSchema.model_validate(airport) for airport in airports]
+    result = airports.scalars().all()
+    if result:
+        return [AirportSchema.model_validate(airport) for airport in result]
     return None
 
 
