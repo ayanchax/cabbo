@@ -16,7 +16,7 @@ services:
     volumes:
       - /home/ubuntu/cabbo-shared-data/logs:/app/logs
       - /home/ubuntu/cabbo-shared-data/share:/app/share        
-    restart: no
+    restart: "no"
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]    
@@ -28,7 +28,7 @@ services:
   db:
     image: mysql:8 #Use the latest MySQL 8 image
     container_name: cabbo-db-dev
-    restart: always
+    restart: "no"
     env_file:
       - .env.dev
     environment:
