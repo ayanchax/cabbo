@@ -34,8 +34,6 @@ from services.pricing_service import (
     get_base_pricings_outstation,
     get_cancellation_policies_by_region_code,
     get_cancellation_policies_by_state_code,
-    get_cancellation_policy_by_region_code,
-    get_cancellation_policy_by_state_code,
     get_common_pricing_configurations_by_trip_type_id,
     get_fixed_platform_pricing_configuration,
     get_night_pricing_configuration,
@@ -46,10 +44,33 @@ from core.config import settings
 
 
 class ConfigStore(BaseModel):
-    """Thread-safe singleton configuration store with TTL-based cache invalidation.
-    Stores various configuration data of Cabbo like geography, cab types, fuel types, trip types, and pricing configurations loaded from the database for quick access.
-    Uses Pydantic for data validation and serialization.
     """
+    Singleton in-memory configuration store that is loaded once at application startup.
+
+    Responsible for eagerly loading all application configuration data — including
+    pricing rules (outstation, local, airport pickup/drop), master table data
+    (cab types, fuel types, trip types, airport locations), geography data, platform
+    fee configurations, and cancellation policies — from the database into memory,
+    so that business workflows throughout the application lifecycle can access them
+    without additional database queries.
+
+    Lifecycle:
+        - On startup, `settings.init_config_store(db)` initializes this store via
+          `initialize_config_store(db)`, and the resulting instance is cached in
+          `settings.CONFIG_STORE`.
+        - Callers retrieve the store via `settings.get_config_store(db)`, which returns
+          the cached instance from `settings.CONFIG_STORE` if already initialized, or
+          initializes it first(lazy load) if not.
+        - The cache is TTL-based (default: 1 day). Once expired, the next call to
+          `_lazy_load` will reload all configurations from the database.
+        - The TTL serves as a safety net for any rare case where `reset_instance` wasn't
+          called — e.g., no admin mutations occurred to trigger explicit invalidation.
+
+    Thread Safety:
+        Uses a class-level lock (`_instance_lock`) to ensure only one singleton instance
+        is created, and an instance-level lock (`_lock`) to prevent concurrent reloads.
+    """
+
 
     # Singleton instance
     _instance: ClassVar[Optional["ConfigStore"]] = None
@@ -134,6 +155,7 @@ class ConfigStore(BaseModel):
             if cls._instance is not None:
                 cls._instance._is_initialized = False
                 cls._instance._last_loaded_at = None
+                settings.CONFIG_STORE = None
             cls._instance = None
 
     def initialize_config_store(self, db: Session):
@@ -162,15 +184,6 @@ class ConfigStore(BaseModel):
 
     def _initialize_pricing_configuration(self):
         return MasterPricingConfiguration()
-
-    def warm_up_cache(self, db: Session):
-        """Force reload all configurations from database, bypassing cache."""
-        with self._lock:
-            self._clear_all_data()
-            self._load_all_configurations(db)
-            self._last_loaded_at = datetime.now(timezone.utc)
-            self._is_initialized = True
-            print("Configuration store force reloaded successfully.")
 
     def _lazy_load(self, db: Session):
         """

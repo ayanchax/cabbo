@@ -3,7 +3,7 @@ from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT,
 from core.config import settings
 import warnings
 
-from db.database import check_db_connection
+from db.database import check_db_connection, get_mysql_local_session
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
 from services.file_service import copy_file, create_directories
 
@@ -33,6 +33,11 @@ async def lifespan(app: FastAPI):
 
     print("Starting scheduler...")
     start_scheduler()
+
+    # Initialize ConfigStore at startup to ensure it's ready when needed
+    with get_mysql_local_session() as db:
+        settings.init_config_store(db=db)
+    
     yield
     
     # Shutdown
