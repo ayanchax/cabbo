@@ -7,6 +7,8 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+ENV PYTHONPATH=/app/src
+
 # Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -32,4 +34,6 @@ EXPOSE 8000
 ENV ENV=dev
 
 # Start FastAPI (reload for dev)
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+#CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+#t3.micro setup
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
