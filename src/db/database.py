@@ -74,12 +74,6 @@ def yield_mysql_session():
 def get_mysql_local_session():
     return SessionLocal()
 
-# def a_yield_mysql_session():
-#     async def _get_session():
-#         async with AsyncSessionLocal() as session:
-#             yield session
-
-#     return contextlib.asynccontextmanager(_get_session)()
 
 async def a_yield_mysql_session():
     async with AsyncSessionLocal() as session:
