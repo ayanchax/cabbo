@@ -86,7 +86,7 @@ def create_trip_types(trip_types: list, db: Session):
         for entry in trip_types
     ]
     db.add_all(trip_type_master_objs)
-    db.commit()
+    db.flush()  # Flush to get IDs assigned
 
 
 def derive_trip_sort_priority(search_in: TripSearchRequest, option: TripSearchOption):

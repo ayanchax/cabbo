@@ -417,11 +417,10 @@ def add_region(payload: RegionSchema, db: Session) -> RegionSchema:
             ),
         )
         db.add(region_model)
-        db.commit()
+        db.flush()
         db.refresh(region_model)
         return RegionSchema.model_validate(region_model)
     except Exception as e:
-        db.rollback()
         raise e
 
 
@@ -500,11 +499,11 @@ def add_country(payload: CountrySchema, db: Session) -> CountrySchema:
             is_default=payload.is_default if payload.is_default else False,
         )
         db.add(country_model)
-        db.commit()
+        db.flush()
         db.refresh(country_model)
         return CountrySchema.model_validate(country_model)
     except Exception as e:
-        db.rollback()
+        
         raise e
 
 
@@ -677,11 +676,10 @@ def add_state(payload: StateSchema, db: Session) -> StateSchema:
             country_id=country_model.id,
         )
         db.add(state_model)
-        db.commit()
+        db.flush()
         db.refresh(state_model)
         return StateSchema.model_validate(state_model)
     except Exception as e:
-        db.rollback()
         raise e
 
 

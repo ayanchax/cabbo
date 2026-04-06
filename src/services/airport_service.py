@@ -90,7 +90,7 @@ def _create_airports(data: List[AirportSchema], session: Session):
             )
         )
     session.add_all(airport_models)
-    session.commit()
+    session.flush()
     return [AirportSchema.model_validate(airport) for airport in airport_models]
 
 

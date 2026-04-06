@@ -268,7 +268,7 @@ def create_super_admin_user(db:Session):
         is_active=True,
     )
     db.add(super_admin)
-    db.commit()
+    db.flush()  # Flush to assign an ID to the super admin
          
 # if __name__ == "__main__":
 #     secret = generate_password_hash("P@55w0rd1234")

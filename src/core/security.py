@@ -2,7 +2,6 @@ from fastapi import Depends, Header
 from core.exceptions import CabboException
 from core.config import settings
 import jwt
-from models.customer.customer_orm import Customer
 from db.database import yield_mysql_session
 from sqlalchemy.orm import Session
 from core.constants import APP_NAME, Environment
@@ -10,7 +9,10 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 import hmac
 import hashlib
-import json
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.customer.customer_orm import Customer
 
 
 JWT_EXPIRY_UNIT = 5
@@ -52,7 +54,8 @@ class RoleEnum(str, Enum):
 def validate_customer_token(
     authorization: str = Header(..., description="Bearer token for authentication"),
     db: Session = Depends(yield_mysql_session),
-) -> Customer:
+) -> "Customer":
+    
     if not authorization or not authorization.lower().startswith("bearer "):
         raise CabboException(
             "Authorization header missing or invalid.", status_code=401

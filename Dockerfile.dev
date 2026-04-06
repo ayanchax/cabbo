@@ -27,11 +27,13 @@ RUN uv pip install --system .
 # Copy application code
 COPY . .
 
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port
 EXPOSE 8000
 
 # Set environment
 ENV ENV=dev
 
-# Start FastAPI
-CMD ["sh", "-c", "sleep 5 && alembic upgrade head && uvicorn app:app --host 0.0.0.0 --port 8000"]
+# Start the application by running the entrypoint script
+CMD ["./entrypoint.sh"]
