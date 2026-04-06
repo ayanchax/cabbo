@@ -1,8 +1,8 @@
-"""init tables
+"""cabbo-dev-db
 
-Revision ID: 8275b51091cf
+Revision ID: 25eb18dea4e4
 Revises: 
-Create Date: 2026-04-06 02:41:13.864655
+Create Date: 2026-04-07 02:53:12.725591
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision: str = '8275b51091cf'
+revision: str = '25eb18dea4e4'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -254,6 +254,17 @@ def upgrade() -> None:
     op.create_index(op.f('ix_refunds_entity_id'), 'refunds', ['entity_id'], unique=True)
     op.create_index(op.f('ix_refunds_id'), 'refunds', ['id'], unique=True)
     op.create_index(op.f('ix_refunds_policy_id'), 'refunds', ['policy_id'], unique=False)
+    op.create_table('seed_metadata',
+    sa.Column('id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('key', sa.Enum('INITIAL_SEED_COMPLETED', 'SEED_MASTER_DATA_V1', 'SEED_GEO_CORE_V1', 'SEED_GEO_REGIONS_V1', 'SEED_PRICING_LOCAL_V1', 'SEED_PRICING_OUTSTATION_V1', 'SEED_PRICING_AIRPORT_V1', 'SEED_PRICING_PLATFORM_V1', 'SEED_PRICING_NIGHT_V1', 'SEED_PRICING_PERMIT_V1', 'SEED_PRICING_CANCELLATION_POLICY_V1', name='seed_key_enum'), nullable=False),
+    sa.Column('value', sa.String(length=255), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('key', name='uq_seed_metadata_key')
+    )
+    op.create_index(op.f('ix_seed_metadata_id'), 'seed_metadata', ['id'], unique=True)
+    op.create_index(op.f('ix_seed_metadata_key'), 'seed_metadata', ['key'], unique=True)
     op.create_table('temp_trips',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('creator_id', mysql.CHAR(length=36), nullable=False),
@@ -428,14 +439,15 @@ def upgrade() -> None:
     sa.Column('min_included_km_per_day', sa.Integer(), nullable=False),
     sa.Column('is_available_in_network', sa.Boolean(), nullable=False),
     sa.Column('overage_amount_per_km', sa.Float(), nullable=False),
-    sa.Column('state_id', mysql.CHAR(length=36), nullable=True),
+    sa.Column('state_id', mysql.CHAR(length=36), nullable=False),
     sa.Column('created_by', mysql.CHAR(length=36), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['cab_type_id'], ['cab_types_master.id'], ),
     sa.ForeignKeyConstraint(['fuel_type_id'], ['fuel_types_master.id'], ),
     sa.ForeignKeyConstraint(['state_id'], ['states_master.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('state_id', 'cab_type_id', 'fuel_type_id', name='uq_outstation_state_cab_fuel')
     )
     op.create_index(op.f('ix_outstation_cab_pricing_id'), 'outstation_cab_pricing', ['id'], unique=True)
     op.create_table('permit_fee_config',
@@ -493,7 +505,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['cab_type_id'], ['cab_types_master.id'], ),
     sa.ForeignKeyConstraint(['fuel_type_id'], ['fuel_types_master.id'], ),
     sa.ForeignKeyConstraint(['region_id'], ['regions_master.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('region_id', 'cab_type_id', 'fuel_type_id', name='uq_airport_region_cab_fuel')
     )
     op.create_index(op.f('ix_airport_cab_pricing_id'), 'airport_cab_pricing', ['id'], unique=True)
     op.create_table('cancellation_policies',
@@ -534,7 +547,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['cab_type_id'], ['cab_types_master.id'], ),
     sa.ForeignKeyConstraint(['fuel_type_id'], ['fuel_types_master.id'], ),
     sa.ForeignKeyConstraint(['region_id'], ['regions_master.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('region_id', 'cab_type_id', 'fuel_type_id', name='uq_local_region_cab_fuel')
     )
     op.create_index(op.f('ix_local_cab_pricing_id'), 'local_cab_pricing', ['id'], unique=True)
     op.create_table('night_pricing_config',
@@ -551,7 +565,9 @@ def upgrade() -> None:
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['region_id'], ['regions_master.id'], ),
     sa.ForeignKeyConstraint(['state_id'], ['states_master.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('region_id', name='uq_night_region'),
+    sa.UniqueConstraint('state_id', name='uq_night_state')
     )
     op.create_index(op.f('ix_night_pricing_config_id'), 'night_pricing_config', ['id'], unique=True)
     op.create_table('trip_package_config',
@@ -594,7 +610,9 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['region_id'], ['regions_master.id'], ),
     sa.ForeignKeyConstraint(['state_id'], ['states_master.id'], ),
     sa.ForeignKeyConstraint(['trip_type_id'], ['trip_types_master.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('trip_type_id', 'region_id', name='uq_trip_region'),
+    sa.UniqueConstraint('trip_type_id', 'state_id', name='uq_trip_state')
     )
     op.create_index(op.f('ix_tripwise_pricing_config_id'), 'tripwise_pricing_config', ['id'], unique=True)
     op.create_table('trips',
@@ -792,6 +810,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_temp_trips_id'), table_name='temp_trips')
     op.drop_index(op.f('ix_temp_trips_creator_id'), table_name='temp_trips')
     op.drop_table('temp_trips')
+    op.drop_index(op.f('ix_seed_metadata_key'), table_name='seed_metadata')
+    op.drop_index(op.f('ix_seed_metadata_id'), table_name='seed_metadata')
+    op.drop_table('seed_metadata')
     op.drop_index(op.f('ix_refunds_policy_id'), table_name='refunds')
     op.drop_index(op.f('ix_refunds_id'), table_name='refunds')
     op.drop_index(op.f('ix_refunds_entity_id'), table_name='refunds')

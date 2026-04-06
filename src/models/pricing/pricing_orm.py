@@ -19,6 +19,9 @@ from datetime import datetime, timezone
 # Outstation pricing
 class OutstationCabPricing(Base):
     __tablename__ = "outstation_cab_pricing"
+    __table_args__ = (UniqueConstraint(
+        "state_id", "cab_type_id", "fuel_type_id", name="uq_outstation_state_cab_fuel"
+    ),)
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -44,11 +47,13 @@ class OutstationCabPricing(Base):
     overage_amount_per_km = Column(Float, nullable=False)
     # Since Outstation pricing may vary by state, we have the state_id foreign key here instead of region_id
     state_id = Column(
-        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
+        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
     )  # FK to GeoStateModel.id
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -60,6 +65,11 @@ class OutstationCabPricing(Base):
 # Local pricing
 class LocalCabPricing(Base):
     __tablename__ = "local_cab_pricing"
+    __table_args__ = (
+        UniqueConstraint(
+            "region_id", "cab_type_id", "fuel_type_id", name="uq_local_region_cab_fuel"
+        ),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -79,11 +89,13 @@ class LocalCabPricing(Base):
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for local trips
-    region_id = Column(
-        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
-    )
+    region_id = Column(MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -95,6 +107,9 @@ class LocalCabPricing(Base):
 # Airport pricing
 class AirportCabPricing(Base):
     __tablename__ = "airport_cab_pricing"
+    __table_args__ = (UniqueConstraint(
+        "region_id", "cab_type_id", "fuel_type_id", name="uq_airport_region_cab_fuel"
+    ),)
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -113,11 +128,13 @@ class AirportCabPricing(Base):
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for airport trips
-    region_id = Column(
-        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
-    )
+    region_id = Column(MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -130,6 +147,10 @@ class AirportCabPricing(Base):
 # We are keeping this separate from CommonPricingConfiguration since night charges may vary by region/state
 class NightPricingConfiguration(Base):
     __tablename__ = "night_pricing_config"
+    __table_args__ = ((
+        UniqueConstraint("region_id", name="uq_night_region"),
+        UniqueConstraint("state_id", name="uq_night_state"),
+    ))
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -148,21 +169,22 @@ class NightPricingConfiguration(Base):
     night_block_hours = Column(
         Integer, nullable=False, default=1
     )  # Applies to all trip types, but now mostly used for outstation
-    region_id = Column(
-        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True
-    )
+    region_id = Column(MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True)
 
-    state_id = Column(
-        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
-    )
+    state_id = Column(MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
 
 # Trip type wise pricing configuration. These are common configurations applicable to all cab types, fuel types for a given trip type
 # and are referenced in the trip fare calculation logic
@@ -171,6 +193,10 @@ class NightPricingConfiguration(Base):
 # They are different from PermitFeeConfiguration which is mainly for permit fee per state, cab type and fuel type
 class CommonPricingConfiguration(Base):
     __tablename__ = "tripwise_pricing_config"
+    __table_args__ = ((
+        UniqueConstraint("trip_type_id", "region_id", name="uq_trip_region"),
+        UniqueConstraint("trip_type_id", "state_id", name="uq_trip_state"),
+    ))
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -181,8 +207,10 @@ class CommonPricingConfiguration(Base):
     trip_type_id = Column(
         MySQL_CHAR(36), ForeignKey("trip_types_master.id"), nullable=False
     )  # FK to TripTypeMaster.id
-    dynamic_platform_fee_percent = Column(Float, nullable=False)  #The dynamic platform fee as percentage of total fare is applied to the trip type per booking per region. We need this to support different platform fee percentages for different trip types. E.g, airport trips may have lower platform fee percentage than local trips in one region, while in another region it may be different, based on the economics of that region. This dynamic platform fee percentage is a convenience fee charged to the customer to cover the cost of operating the platform for that trip type in that region.
-    
+    dynamic_platform_fee_percent = Column(
+        Float, nullable=False
+    )  # The dynamic platform fee as percentage of total fare is applied to the trip type per booking per region. We need this to support different platform fee percentages for different trip types. E.g, airport trips may have lower platform fee percentage than local trips in one region, while in another region it may be different, based on the economics of that region. This dynamic platform fee percentage is a convenience fee charged to the customer to cover the cost of operating the platform for that trip type in that region.
+
     min_included_hours = Column(
         Integer, nullable=True, default=None
     )  # Local cab minimum included hours
@@ -198,23 +226,21 @@ class CommonPricingConfiguration(Base):
     placard_charge = Column(
         Float, nullable=True
     )  # Only for airport pickup, can be null for others
-    max_included_km = Column(
-        Integer, nullable=True, default=None
-    )  # For airport pickup/drop
+    
     overage_warning_km_threshold = Column(
         Float, nullable=True
     )  # For airport pickup/drop and outstation
     toll = Column(Float, nullable=True)  # For airport pickup and drop
     parking = Column(Float, nullable=True)  # For airport pickup
-    
-    region_id = Column(
-        MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True  
-    )
-    state_id = Column(
-        MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True
-    )
+
+    region_id = Column(MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True)
+    state_id = Column(MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -235,32 +261,34 @@ class FixedPlatformPricingConfiguration(Base):
     )
     # Add country_id for country-specific platform fees
     country_id = Column(
-        MySQL_CHAR(36), 
-        ForeignKey("countries_master.id"), 
+        MySQL_CHAR(36),
+        ForeignKey("countries_master.id"),
         nullable=True,  # Nullable for backward compatibility or "default" fee
         index=True,
         unique=True,
-        comment="FK to countries_master; null means applies to all countries"
-
+        comment="FK to countries_master; null means applies to all countries",
     )
     # The fixed platform fee as a flat amount per booking, e.g., payment gateway fee, SMS fee, customer database management cost etc.
-    
+
     # This is different from dynamic platform fee percentage which is calculated as percentage of total fare and serves as a convenience fee charged to the customer to cover the cost of operating the platform for that trip type in that region.
-    
+
     # Fixed Platform fee = Cost of serving per booking in the platform in the given country, which is a fixed amount charged to the customer to cover the cost of operating the platform for that booking in that country, regardless of trip type or region. This is a flat fee that helps cover the fixed costs associated with each booking, such as payment gateway fees, SMS notifications, and customer support, which are not dependent on the trip type or region.
     # Dynamic Platform fee = Percentage of total fare charged to customer to cover platform operations for that trip type in that region
-    
+
     fixed_platform_fee = Column(Float, nullable=False)  # e.g., 50.0 for ₹50
-     
+
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-    
 
 
 # Since Permit fee varies by state, so we have the state_id foreign key here instead of region_id
@@ -283,12 +311,15 @@ class PermitFeeConfiguration(Base):
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
     )  # FK to GeoStateModel.id
-    
 
     permit_fee = Column(Float, nullable=False)  # Permit fee amount
-    
+
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -297,5 +328,7 @@ class PermitFeeConfiguration(Base):
     )
     # Add a composite unique constraint
     __table_args__ = (
-        UniqueConstraint("cab_type_id", "fuel_type_id", "state_id", name="uq_cab_fuel_state"),
+        UniqueConstraint(
+            "cab_type_id", "fuel_type_id", "state_id", name="uq_cab_fuel_state"
+        ),
     )

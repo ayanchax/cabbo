@@ -24,9 +24,8 @@ def create_fuel_types(fuel_types:list, db:Session, created_by:RoleEnum=RoleEnum.
     ]
     try:
         db.bulk_save_objects(_fuel_types)  # More efficient for bulk inserts
-        db.commit()
+        db.flush()  # Flush to assign IDs before commit
     except Exception as e:
-        db.rollback()
         print(f"Error seeding fuel types: {e}")
 
 async def async_add_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession, created_by: RoleEnum = RoleEnum.system) -> FuelTypeSchema:

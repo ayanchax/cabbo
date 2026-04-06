@@ -3,10 +3,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from core.config import settings
 import mysql.connector
-import contextlib
 import logging
 
-from core.constants import Environment
 
 
 logger = logging.getLogger(__name__)
