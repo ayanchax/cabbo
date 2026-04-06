@@ -29,9 +29,8 @@ def create_cabs(cabs:dict, db:Session, created_by:RoleEnum=RoleEnum.system):
         )
     try:
         db.bulk_save_objects(cab_types)  # More efficient for bulk inserts
-        db.commit()
+        db.flush()  # Flush to assign IDs before commit
     except Exception as e:
-        db.rollback()
         print(f"Error seeding cab types: {e}")
 
 

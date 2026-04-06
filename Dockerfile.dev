@@ -27,13 +27,13 @@ RUN uv pip install --system .
 # Copy application code
 COPY . .
 
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port
 EXPOSE 8000
 
 # Set environment
 ENV ENV=dev
 
-# Start FastAPI (reload for dev)
-#CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-#t3.micro setup
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application by running the entrypoint script
+CMD ["./entrypoint.sh"]

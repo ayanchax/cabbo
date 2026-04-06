@@ -162,7 +162,7 @@ def create_master_kyc_data(db: Session):
         ),
     ]
     db.add_all(kyc_document_types)
-    db.commit()
+    db.flush()
 
 
 def remove_kyc_document_by_id_for_driver(
