@@ -1,5 +1,4 @@
 from core.security import RoleEnum
-from core.trip_helpers import get_default_trip_amenities
 from models.financial.payments_enum import PaymentModeEnum
 from models.trip.trip_enums import (
     CarTypeEnum,
@@ -57,9 +56,12 @@ class Driver(Base):
     fuel_type = Column(Enum(FuelTypeEnum), nullable=False, default=FuelTypeEnum.diesel)  # petrol, diesel, electric, hybrid
     cab_model_and_make = Column(String(255), nullable=False) # Cab model and make free text (e.g., Maruti Swift) 
     cab_registration_number = Column(String(32), nullable=False, unique=True) # e.g., KA-01-AB-1234
-    cab_amenities= Column(
-        JSON, default=get_default_trip_amenities().model_dump(), nullable=True # e.g., {"ac": true, "music_system": true, "wifi": false, "phone_charger": true}
-    )  # Cab amenities details
+    # Cab amenities details
+    cab_amenities = Column(
+    JSON,
+    default=lambda: {"water_bottle": True, "tissues": True, "ac": True, "music_system": True},
+    nullable=True
+)
 
     #Payment intake details
     payment_mode = Column(Enum(PaymentModeEnum), nullable=False)  # gpay, phonepe, paytm

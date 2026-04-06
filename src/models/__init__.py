@@ -13,8 +13,10 @@ from .trip.temp_trip_orm import TempTrip
 from .policies.refund_orm import Refund
 from .policies.dispute_orm import Dispute
 from .user.user_orm import User
+from .seed.seed_orm import SeedMetaData
 
 __all__ = [
+    "SeedMetaData",
     "AirportModel", "CabType", "FuelType", "Customer", "PreOnboardingCustomer", "CustomerEmailVerification",
     "KYCDocumentTypes",
     "CountryModel", "StateModel", "RegionModel", "CancellationPolicy",
