@@ -144,7 +144,7 @@ def notify_customer_onboarded(customer: CustomerRead) -> bool:
     )
 
 
-def notify_driver_onboarded(driver: Driver) -> bool:
+async def notify_driver_onboarded(driver: Driver) -> bool:
     if not driver.email:
         return False  # No email to send notification, do not proceed
 
@@ -158,7 +158,7 @@ def notify_driver_onboarded(driver: Driver) -> bool:
         app_name=APP_NAME.capitalize(),
     )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
-    send_email(
+    await send_email(
         to_email=driver.email,
         subject=subject,
         html_content=html_content,

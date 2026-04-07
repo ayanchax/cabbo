@@ -1,18 +1,24 @@
+import sys
+from pathlib import Path
+
+parent_dir = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(parent_dir))
 import asyncio
 import logging
 from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from db.database import AsyncSessionLocal, get_mysql_local_session
 from models.customer.customer_schema import CustomerRead
 from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_enum import RefundStatus
 from models.trip.trip_orm import Trip
 from scheduler.task_registry import task
-from services.payment_service import get_refund_status
+from services.payment_service import (
+    get_refund_status,
+)
 from services.notification_service import notify_refund_processed_to_customer
-
+from services.refund_service import inactivate_refund, retry_failed_refund_initiation
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +33,7 @@ def sync_pending_refund_statuses_task():
     asyncio.run(_run_refund_status_sync())
 
 
+ 
 async def _run_refund_status_sync():
     async with AsyncSessionLocal() as db:
         try:
@@ -94,11 +101,18 @@ async def _fetch_actionable_refunds(db: AsyncSession) -> list[RefundORM]:
 
 async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     """
-    Polls the payment provider for the current status of a refund.
-    - Skips records that don't have a valid provider refund ID (e.g. previously failed
-      initiations whose refund_details["id"] is a payment ID or something else, not a refund ID).
-    - Updates the DB when status changes.
-    - Sends a 'refund credited' notification if status moved to processed.
+    Processes a single refund record from the scheduler sync cycle.
+
+    Behaviour by refund_details["id"] type:
+    - Missing ID: inactivates the record to exclude it from future cycles.
+    
+    - pay_ ID: initiation previously failed (e.g. payment not yet settled).
+      Delegates to retry_failed_refund_initiation which checks settlement status
+      and re-attempts the refund. Skips silently if still unsettled.
+    
+    - rfnd_ ID: valid provider refund ID. Polls Razorpay for current status,
+      updates DB if changed, and sends a 'refund credited' notification if
+      status moved to processed.
     """
     provider_refund_id = (refund.refund_details or {}).get("id")
     if not provider_refund_id:
@@ -110,8 +124,30 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
             f"[process_refund] Refund {refund.id} has no provider refund ID in "
             f"refund_details, skipping"
         )
+        #Inactivate the refund record to prevent it from being picked up again in the next sync cycle since it doesn't have a valid provider refund ID to poll for status updates and it's likely a failed initiation attempt where refund_details contains payment details instead of refund details, so we can set is_active to False to exclude it from future sync attempts and avoid unnecessary polling and processing of invalid refund records.
+        await inactivate_refund(refund, db)
+        return
+    
+    #Neither refund ID nor payment ID in refund_details — can't do anything with this record, skip it and make it inactive for now and let support/finance investigate and fix the data if needed
+    if not str(provider_refund_id).startswith("rfnd_") and not str(provider_refund_id).startswith("pay_"):
+        print(
+            f"[process_refund] Refund {refund.id} has invalid provider refund ID "
+            f"{provider_refund_id!r} in refund_details, skipping"
+        )
+        logger.warning(
+            f"[process_refund] Refund {refund.id} has invalid provider refund ID "
+            f"{provider_refund_id!r} in refund_details, skipping"
+         )
+        await inactivate_refund(refund, db)  # Inactivate the refund record since it has invalid provider refund ID and can't be processed in future sync cycles until the data is fixed, so we can set is_active to False to exclude it from future sync attempts and avoid unnecessary polling and processing of invalid refund records.
+        return
+    
+    # pay_ ID = initiation previously failed, no rfnd_ was ever created
+    # Don't poll for status instead — retry initiation if payment is now settled
+    if str(provider_refund_id).startswith("pay_"):
+        await retry_failed_refund_initiation(payment_id=str(provider_refund_id), refund=refund, db=db)
         return
 
+    #rfnd_ ID = valid refund record with provider refund ID, can poll for status updates as usual
     current_status = get_refund_status(
         refund_id=str(provider_refund_id), silently_fail=True
     )
@@ -175,7 +211,7 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
             f"for refund {refund.id}, skipping DB update"
         )
         return
-    if provider_refund_id !=refund.id:
+    if provider_refund_id != refund.id:
         refund.id = provider_refund_id  # Update the refund record's ID to match the provider refund ID if they differ
     refund.refund_status = new_db_status
     db.add(refund)
@@ -254,6 +290,6 @@ async def _send_refund_credited_notification(
         )
 
 
-# if __name__ == "__main__":
-#     # For local testing/debugging of the refund status sync task without running the entire scheduler
-#     asyncio.run(_run_refund_status_sync())
+if __name__ == "__main__":
+    # For local testing/debugging of the refund status sync task without running the entire scheduler
+    asyncio.run(_run_refund_status_sync())

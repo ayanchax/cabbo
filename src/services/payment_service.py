@@ -10,6 +10,7 @@ from services.razorpay_service import (
     get_razorpay_payment_order,
     get_razorpay_refund_status,
     initiate_razorpay_refund,
+    is_razorpay_payment_settled,
     verify_razorpay_payment,
 )
 
@@ -71,5 +72,16 @@ def get_refund_status(refund_id: str, silently_fail: bool = False):
         return None
     raise CabboException(
         "Refund status retrieval is not supported for the configured payment provider",
+        status_code=400,
+    )
+
+def is_payment_settled(payment_id: str, silently_fail: bool = False):
+    if PAYMENT_PROVIDER == PaymentProvider.razorpay.value:
+        return is_razorpay_payment_settled(payment_id)
+
+    if silently_fail:
+        return None
+    raise CabboException(
+        "Payment settlement status retrieval is not supported for the configured payment provider",
         status_code=400,
     )

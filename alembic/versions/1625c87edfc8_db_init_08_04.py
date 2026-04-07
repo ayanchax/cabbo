@@ -1,8 +1,8 @@
-"""cabbo-dev-db
+"""db-init-08-04
 
-Revision ID: 25eb18dea4e4
+Revision ID: 1625c87edfc8
 Revises: 
-Create Date: 2026-04-07 02:53:12.725591
+Create Date: 2026-04-08 00:17:03.308637
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision: str = '25eb18dea4e4'
+revision: str = '1625c87edfc8'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -139,6 +139,7 @@ def upgrade() -> None:
     sa.Column('last_seen', sa.DateTime(), nullable=True),
     sa.Column('is_suspended', sa.Boolean(), nullable=False, comment='Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.'),
     sa.Column('suspension_reason', sa.Text(), nullable=True, comment='If the customer is suspended, this field can store the reason for suspension.'),
+    sa.Column('s3_image_info', sa.JSON(), nullable=True, comment="Stores S3 key and URL for the customer's profile picture if using S3 for storage."),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('id')
@@ -185,6 +186,7 @@ def upgrade() -> None:
     sa.Column('kyc_verified', sa.Boolean(), nullable=False),
     sa.Column('avg_rating', sa.Float(), nullable=True),
     sa.Column('is_available', sa.Boolean(), nullable=False),
+    sa.Column('s3_image_info', sa.JSON(), nullable=True, comment="Stores S3 key and URL for the driver's profile picture if using S3 for storage."),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
@@ -217,7 +219,8 @@ def upgrade() -> None:
     sa.Column('created_by', mysql.CHAR(length=36), nullable=False),
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False, comment='Indicates if the document type is active and can be used for KYC verification. Inactive types are not available for new document submissions but existing documents of that type remain unaffected.'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('document_type')
     )
     op.create_index(op.f('ix_kyc_document_types_id'), 'kyc_document_types', ['id'], unique=True)
     op.create_table('pre_onboarding_customers',

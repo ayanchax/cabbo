@@ -19,7 +19,7 @@ class KYCDocumentTypes(Base):
     )
 
     document_type = Column(
-        Enum(KYCDocumentTypeEnum), nullable=False
+        Enum(KYCDocumentTypeEnum), nullable=False, unique=True,
     )  # e.g., driver_license, aadhar_card
     document_alias = Column(
         String(255), nullable=True

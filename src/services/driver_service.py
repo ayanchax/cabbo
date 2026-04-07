@@ -4,13 +4,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.trip_helpers import attach_relationships_to_trip
-from models.customer.customer_schema import CustomerReadWithProfilePicture
+from models.common import S3ObjectInfo
+from models.customer.customer_schema import CustomerBase
 from models.driver.driver_orm import Driver, DriverEarning, TripRating
 from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
-    DriverReadWithProfilePicture,
     DriverUpdateSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
@@ -176,15 +176,13 @@ def deactivate_driver(driver_id: str, db: Session) -> Driver:
     db.refresh(driver)
     return driver
 
-
-def update_driver_last_modified(driver: Driver, db: Session):
-    try:
-        driver.last_modified = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(driver)
-    except Exception as e:
-        db.rollback()
+def update_driver_profile_picture(driver: Driver, db: Session, s3_image_info: S3ObjectInfo=None) -> Driver:
+    """Update a driver's profile picture."""
+    driver.s3_image_info = s3_image_info.model_dump() if s3_image_info else None
+    db.commit()
+    db.refresh(driver)
     return driver
+
 
 
 async def assign_driver_to_trip(
@@ -675,17 +673,14 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
     try:
         def _evaluate_driver(driver):
             try:
-                driver_schema = DriverReadWithProfilePicture.model_validate(driver) if driver else None
-                driver_schema.image_url=f"/images/drivers/{driver_id}.png"
+                driver_schema = DriverReadSchema.model_validate(driver) if driver else None
                 return driver_schema
             except Exception as e:
                 return None
 
         def _evaluate_customer(customer):
             try:
-                customer_schema = CustomerReadWithProfilePicture.model_validate(customer) if customer else None
-                if customer_schema:
-                    customer_schema.image_url=f"/images/customers/{customer_schema.id}.png"
+                customer_schema = CustomerBase.model_validate(customer) if customer else None
                 return customer_schema
             except Exception as e:
                 return None

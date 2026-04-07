@@ -13,12 +13,12 @@ from fastapi import (
 from core.exceptions import CabboException
 from core.security import ActiveInactiveStatusEnum, RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session, yield_mysql_session
+from models.common import S3ObjectInfo
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.driver.driver_schema import (
     DriverBaseSchema,
     DriverCreateSchema,
     DriverEarningSchema,
-    DriverReadProfilePictureAfterUpdate,
     DriverReadSchema,
     DriverUpdateSchema,
 )
@@ -48,7 +48,7 @@ from services.driver_service import (
     get_driver_by_id,
     get_trip_earning_for_driver,
     update_driver,
-    update_driver_last_modified,
+    update_driver_profile_picture,
 )
 from services.file_service import (
     remove_driver_profile_picture,
@@ -108,7 +108,7 @@ def edit_driver(
 
 # Upload driver profile picture
 @router.post(
-    "/{driver_id}/profile-picture", response_model=DriverReadProfilePictureAfterUpdate
+    "/{driver_id}/profile-picture", response_model=S3ObjectInfo
 )
 def upload_driver_profile_picture(
     driver_id: str = Path(..., description="ID of the driver"),
@@ -128,12 +128,21 @@ def upload_driver_profile_picture(
         )
 
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        # Proceed with upload logic (e.g., save file to storage, update driver record with file path)
-        image_url = save_driver_profile_picture(driver_id=driver_id, file=file)
-        updated_driver = update_driver_last_modified(driver=driver, db=db)
-        return DriverReadProfilePictureAfterUpdate(
-            image_url=image_url, last_modified=updated_driver.last_modified
-        )
+        new_s3_image_info = save_driver_profile_picture(driver_id=driver_id, file=file)
+        if new_s3_image_info:
+            existing_s3_image_info = S3ObjectInfo.model_validate(driver.s3_image_info) if driver.s3_image_info else None
+            if existing_s3_image_info and existing_s3_image_info.key:
+                # Remove old profile picture from S3 silently if it exists, and if new upload is successful
+                # We are explictly removing old picture because profile pictures are hex named and we want to avoid orphaned files in S3 which can lead to unnecessary storage costs. By removing old picture immediately after successful upload of new picture, we ensure that there is only one profile picture per driver at any given time, which simplifies management and reduces storage usage. If we don't remove old picture, we would need a separate cleanup process to identify and delete orphaned files, which adds complexity and overhead.
+                removed = remove_driver_profile_picture(key=existing_s3_image_info.key)
+                if not removed:
+                    #just print the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
+                    print("Failed to cleanup old profile picture from storage.")
+            
+            #Finally update driver record with new profile picture info
+            _ = update_driver_profile_picture(driver=driver, db=db, s3_image_info=new_s3_image_info)
+            return new_s3_image_info
+        raise CabboException("Failed to upload new profile picture.", status_code=500)
 
     raise CabboException(
         "You do not have permission to upload driver profile picture.", status_code=403
@@ -160,10 +169,15 @@ def delete_driver_profile_picture(
     current_user_role = current_user.role
 
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        # Proceed with removal logic (e.g., delete file from storage, update driver record)
-        remove_driver_profile_picture(driver_id=driver_id)
-        update_driver_last_modified(driver=driver, db=db)
-        return {"message": "Profile picture removed successfully."}
+        existing_s3_image_info = S3ObjectInfo.model_validate(driver.s3_image_info) if driver.s3_image_info else None
+        if existing_s3_image_info and existing_s3_image_info.key:
+            removed = remove_driver_profile_picture(key=existing_s3_image_info.key)
+            if removed:
+                update_driver_profile_picture(driver=driver, db=db, s3_image_info=None)
+                return {"message": "Profile picture removed successfully."}
+            else:
+                raise CabboException("Failed to remove profile picture from storage.", status_code=500)
+        raise CabboException("No profile picture found for this driver.", status_code=404)
 
     raise CabboException(
         "You do not have permission to remove driver profile picture.", status_code=403

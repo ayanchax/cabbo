@@ -28,7 +28,7 @@ from services.cancelation_service import get_cancelation_policy_id
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.notification_service import notify_refund_initiated_to_customer
-from services.payment_service import get_refund_status, initiate_refund
+from services.payment_service import get_refund_status, initiate_refund, is_payment_settled
 
 
 async def refund_advance_payment_to_customer_on_cancellation(
@@ -767,3 +767,87 @@ async def initiate_refund_by_booking_id(
         if not silently_fail:
             raise e
         return False
+    
+async def retry_failed_refund_initiation(
+  payment_id: str,  refund: RefundORM,  db: AsyncSession,
+):
+    # Only retry if payment has settled — unsettled payments will fail again
+    is_settled = is_payment_settled(payment_id, silently_fail=True)
+    if not is_settled:
+        print(
+            f"[process_refund] Cannot retry refund {refund.id} initiation because "
+            f"payment {payment_id} is not settled yet"
+        )
+        
+        return
+
+    trip = refund.trip
+    if not trip:
+        print(
+            f"[process_refund] Cannot retry refund {refund.id} initiation because no trip found for the refund's entity_id {refund.entity_id}"
+        )
+        return
+
+    stored_notes = (refund.refund_details or {}).get("notes", {})
+    customer = trip.customer
+    notes = PaymentNotesSchema(
+        reference_source_id=trip.id,
+        refund_type=stored_notes.get("refund_type"),
+        requestor=stored_notes.get("requestor"),
+        customer=CustomerPayment(
+            id=customer.id if customer else stored_notes.get("customer_id", ""),
+            name=customer.name if customer else stored_notes.get("customer_name", ""),
+        ),
+    )
+
+    with get_mysql_local_session() as sync_db:
+        config_store = settings.get_config_store(sync_db)
+
+    currency = Currency(
+        code=config_store.geographies.country_server.currency,
+        lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
+    )
+
+    print(
+        f"[process_refund] Retrying refund initiation for refund {refund.id} (payment {payment_id})"
+    )
+    refund_response = initiate_refund(
+        payment_id=payment_id,
+        refund_amount=refund.refund_amount,
+        notes=notes,
+        currency=currency,
+        silently_fail=True,
+    )
+
+    if not refund_response:
+        print(
+            f"[process_refund] Retry returned no response for refund {refund.id}"
+        )
+        return
+
+    new_status_str: str = refund_response.get("status", RefundStatus.failed.value)
+    try:
+        new_status = RefundStatus(new_status_str)
+    except ValueError:
+        new_status = RefundStatus.failed
+
+    refund.id = refund_response.get("id", payment_id)
+    refund.refund_status = new_status
+    refund.refund_details = refund_response
+    refund.refund_retried_datetime = datetime.now(timezone.utc)
+    db.add(refund)
+    await db.commit()
+    await db.refresh(refund)
+
+    print(
+        f"[process_refund] Retry complete. New ID: {refund.id}, status: {new_status_str}"
+    )
+
+async def inactivate_refund(refund:RefundORM, db: AsyncSession):
+    refund.is_active = False
+    db.add(refund)
+    await db.commit()
+    await db.refresh(refund)
+    print(f"Refund {refund.id} has been inactivated")
+    
+

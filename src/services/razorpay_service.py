@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(parent_dir))
 from enum import Enum
 import logging
 
@@ -238,6 +243,7 @@ def initiate_razorpay_refund(
     Returns:
         dict: A dictionary containing the refund details.
     """
+    refund_data={}
     try:
         client = RAZOR_PAY_CLIENT
         client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
@@ -248,6 +254,7 @@ def initiate_razorpay_refund(
                     refund_amount, currency.lowest_unit_conversion_factor
                 )
             ),  # Convert rupees to paise
+            
         }
 
         if notes:
@@ -280,6 +287,8 @@ def initiate_razorpay_refund(
                     )
                 ),
             }
+        
+        
         refund = client.payment.refund(payment_id, refund_data)
 
         if not refund or "id" not in refund:
@@ -307,7 +316,10 @@ def initiate_razorpay_refund(
         return formatted_refund
 
     except razorpay.errors.BadRequestError as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Razorpay refund creation failed: {str(e)}")
+        
         return _populate_failed_razorpay_refund_response(
             payment_id=payment_id,
             refund_amount=refund_amount,
@@ -370,3 +382,34 @@ def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
         return (
             RazorPayRefundStatusEnum.FAILED
         )  # Treat unexpected errors as failed status
+
+def is_razorpay_payment_settled(payment_id: str) -> bool:
+    """
+    Check if a Razorpay payment is settled (captured).
+    Args:
+        payment_id (str): The Razorpay payment ID to check.
+    Returns:
+        bool: True if the payment is settled, False otherwise.
+    """
+    client = RAZOR_PAY_CLIENT
+    client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
+    try:
+        payment = client.payment.fetch(payment_id)
+        print(f"Payment details for settlement check: {payment}")
+        settlement_id = payment.get("settlement_id", None)
+        return settlement_id is not None  # If settlement_id is present, payment is settled
+    except razorpay.errors.BadRequestError as e:
+        logger.error(
+            f"Failed to fetch Razorpay payment status for {payment_id}: {str(e)}"
+        )
+        return False  # Treat errors as not settled
+    except Exception as e:
+        logger.error(
+            f"Unexpected error while fetching Razorpay payment status for {payment_id}: {str(e)}"
+        )
+        return False  # Treat unexpected errors as not settled
+
+if __name__ == "__main__":
+    # Quick test to verify Razorpay integration is working
+    test_payment_id = "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
+    print(is_razorpay_payment_settled(test_payment_id))

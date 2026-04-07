@@ -1,5 +1,6 @@
 from typing import Literal, Optional
 from sqlalchemy.orm import Session
+from models.common import S3ObjectInfo
 from models.customer.customer_schema import (
     CustomerCreate,
     CustomerSuspensionRequest,
@@ -322,15 +323,19 @@ def mark_customer_email_verified(customer_id: str, db: Session) -> bool:
             include_traceback=True,
         )
 
-
-def update_customer_last_modified(customer: Customer, db: Session):
+def update_customer_profile_picture(customer:Customer, db:Session, s3_image_info:S3ObjectInfo=None):
     try:
-        customer.last_modified = datetime.now(timezone.utc)
+        customer.s3_image_info = s3_image_info.model_dump() if s3_image_info else None
         db.commit()
         db.refresh(customer)
+        return customer
     except Exception as e:
         db.rollback()
-    return customer
+        raise CabboException(
+            f"Error updating customer profile picture info: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+        )
 
 
 async def async_get_all_customers(

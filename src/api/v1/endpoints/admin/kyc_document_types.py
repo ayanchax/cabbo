@@ -6,6 +6,7 @@ from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.documents.kyc_document_schema import (
     KYCDocumentSchema,
+    KYCDocumentTypeSchema,
     KYCDocumentUpdateSchema,
 )
 from models.user.user_orm import User
@@ -22,7 +23,7 @@ router = APIRouter()
 
 
 # Add a new kyc document type
-@router.post("/add", response_model=KYCDocumentSchema)
+@router.post("/add", response_model=KYCDocumentTypeSchema)
 async def add_kyc_document_type(
     payload: KYCDocumentSchema,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -35,7 +36,7 @@ async def add_kyc_document_type(
             "You do not have permission to add KYC document types.", status_code=403
         )
     kyc_document_type, error = await async_add_kyc_document_record(
-        payload=payload, db=db, created_by=current_user_role
+        payload=payload, db=db, created_by=current_user.id
     )
     if error:
         raise CabboException(error, status_code=400)
@@ -45,7 +46,7 @@ async def add_kyc_document_type(
 
 
 # Get all kyc document types in system
-@router.get("/list", response_model=list[KYCDocumentSchema])
+@router.get("/list", response_model=list[KYCDocumentTypeSchema])
 async def list_kyc_document_types(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
@@ -61,7 +62,7 @@ async def list_kyc_document_types(
 
 
 # Get a kyc document type by id
-@router.get("/{document_id}", response_model=KYCDocumentSchema)
+@router.get("/{document_id}", response_model=KYCDocumentTypeSchema)
 async def get_kyc_document_type_by_id(
     document_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
@@ -82,7 +83,7 @@ async def get_kyc_document_type_by_id(
 
 
 # Update a kyc document type by id
-@router.put("/{document_id}", response_model=KYCDocumentSchema)
+@router.put("/{document_id}", response_model=KYCDocumentTypeSchema)
 async def update_kyc_document_type_by_id(
     document_id: str,
     payload: KYCDocumentUpdateSchema,
