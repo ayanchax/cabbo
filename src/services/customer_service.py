@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from models.common import S3ObjectInfo
 from models.customer.customer_schema import (
     CustomerCreate,
+    CustomerRead,
     CustomerSuspensionRequest,
     CustomerUpdate,
 )
@@ -427,3 +428,6 @@ async def async_suspend_customer(
 
     except Exception as e:
         return False, f"Error suspending customer: {str(e)}"
+    
+def get_customer_email(customer:CustomerRead):
+    return customer.email if customer.email else None
