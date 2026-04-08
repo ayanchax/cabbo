@@ -12,7 +12,6 @@ services:
       - .env.dev
     volumes:
       - /home/ubuntu/cabbo-shared-data/logs:/app/logs
-      - /home/ubuntu/cabbo-shared-data/share:/app/share        
     restart: "no"
 
     healthcheck:
