@@ -1,8 +1,9 @@
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Union
 from core.exceptions import CabboException
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
+from models.customer.customer_orm import Customer
 from models.trip.trip_enums import CancellationSubStatusEnum, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
@@ -34,7 +35,7 @@ async def change_status(
     trip: Trip,
     db: AsyncSession,
     status: TripStatusEnum,
-    requestor: User,
+    requestor: Union[User, Customer],
     payload: Optional[AdditionalDetailsOnTripStatusChange],
     validate_time_window: bool = False,  # Added a flag to allow skipping time window validation for certain scenarios like marking past trips as ongoing for record keeping or analysis purposes, but by default we will validate the time window to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
 ):
@@ -104,7 +105,7 @@ async def _ongoing(
     trip: Trip,
     db: AsyncSession,
     status: TripStatusEnum,
-    requestor: User,
+    requestor: Union[User,Customer],
     payload: Optional[AdditionalDetailsOnTripStatusChange],
 ):
 
@@ -174,7 +175,7 @@ async def _complete(
     trip: Trip,
     db: AsyncSession,
     status: TripStatusEnum,
-    requestor: User,
+    requestor: Union[User, Customer],
     payload: Optional[AdditionalDetailsOnTripStatusChange],
 ):
     
@@ -257,7 +258,7 @@ async def _cancelled(
     trip: Trip,
     db: AsyncSession,
     status: TripStatusEnum,
-    requestor: User,
+    requestor: Union[User, Customer],
     payload: Optional[AdditionalDetailsOnTripStatusChange],
 ):
      
@@ -359,7 +360,7 @@ async def _dispute(
     trip: Trip,
     db: AsyncSession,
     status: TripStatusEnum,
-    requestor: User,
+    requestor: Union[User, Customer],
     payload: Optional[AdditionalDetailsOnTripStatusChange],
 ):
     
