@@ -1,4 +1,5 @@
-from typing import List
+import math
+from typing import List, Optional
 
 from models.cab.cab_orm import CabType, FuelType
 from models.geography.state_orm import StateModel
@@ -29,9 +30,12 @@ from models.pricing.pricing_orm import (
 from models.trip.trip_enums import TripTypeEnum
 from core.exceptions import CabboException
 from models.trip.trip_schema import TripBookRequest, TripSearchOption
+import logging
+
+logger = logging.getLogger(__name__)
 
 APP_COUNTRY_CURRENCY_SYMBOL = "₹"  # Placeholder for currency symbol, adjust as needed
- 
+
 
 def retrieve_trip_wise_pricing_config(
     db: Session, trip_type: TripTypeEnum
@@ -142,10 +146,13 @@ def get_tolls(booking_request: TripBookRequest) -> float:
     Returns:
         float: The tolls for the trip.
     """
-    if booking_request.preferences.trip_type in [TripTypeEnum.local, TripTypeEnum.outstation]:
+    if booking_request.preferences.trip_type in [
+        TripTypeEnum.local,
+        TripTypeEnum.outstation,
+    ]:
         # For local trips and outstation trips, tolls are not estimated in advance
         return 0.0
-    
+
     elif booking_request.preferences.trip_type in [
         TripTypeEnum.airport_pickup,
         TripTypeEnum.airport_drop,
@@ -218,27 +225,29 @@ def get_base_pricings_outstation(db: Session):
         .all()
     )
 
+
 def get_base_pricings_airport(db: Session):
     return (
-            db.query(AirportCabPricing, CabType, FuelType)
-            .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
-            .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
-            .filter(
-                AirportCabPricing.is_available_in_network == True
-            )  # Ensure only available cabs are considered
-            .all()
+        db.query(AirportCabPricing, CabType, FuelType)
+        .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
+        .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+        .filter(
+            AirportCabPricing.is_available_in_network == True
+        )  # Ensure only available cabs are considered
+        .all()
     )
+
 
 def get_base_pricings_local(db: Session):
     base_pricings = (
-            db.query(LocalCabPricing, CabType, FuelType)
-            .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
-            .join(FuelType, LocalCabPricing.fuel_type_id == FuelType.id)
-            .filter(
-                LocalCabPricing.is_available_in_network == True,
-            )  # Ensure only available cabs are considered
-            .all()
-        )
+        db.query(LocalCabPricing, CabType, FuelType)
+        .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
+        .join(FuelType, LocalCabPricing.fuel_type_id == FuelType.id)
+        .filter(
+            LocalCabPricing.is_available_in_network == True,
+        )  # Ensure only available cabs are considered
+        .all()
+    )
     return base_pricings
 
 
@@ -280,79 +289,136 @@ def get_permit_fee_configuration(
         return PermitFeeConfigurationSchema.model_validate(permit_fee)
     return None
 
-def get_fixed_platform_pricing_configuration(db:Session)->FixedPlatformFeeConfigurationSchema:
+
+def get_fixed_platform_pricing_configuration(
+    db: Session,
+) -> FixedPlatformFeeConfigurationSchema:
     platform_fee_data = db.query(FixedPlatformPricingConfiguration).first()
     if not platform_fee_data:
-            return None
+        return None
     platform_fee_data_schema = FixedPlatformFeeConfigurationSchema.model_validate(
-            platform_fee_data
-        )
+        platform_fee_data
+    )
     return platform_fee_data_schema
 
-def create_local_cab_pricing(payload:LocalCabPricingSchema,db:Session)->LocalCabPricingSchema:
-    local_cab_pricing_orm = LocalCabPricing(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_local_cab_pricing(
+    payload: LocalCabPricingSchema, db: Session
+) -> LocalCabPricingSchema:
+    local_cab_pricing_orm = LocalCabPricing(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(local_cab_pricing_orm)
     db.flush()
     db.refresh(local_cab_pricing_orm)
     return LocalCabPricingSchema.model_validate(local_cab_pricing_orm)
 
-def create_outstation_cab_pricing(payload:OutstationCabPricingSchema,db:Session)->OutstationCabPricingSchema:
-    outstation_cab_pricing_orm = OutstationCabPricing(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_outstation_cab_pricing(
+    payload: OutstationCabPricingSchema, db: Session
+) -> OutstationCabPricingSchema:
+    outstation_cab_pricing_orm = OutstationCabPricing(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(outstation_cab_pricing_orm)
     db.flush()
     db.refresh(outstation_cab_pricing_orm)
     return OutstationCabPricingSchema.model_validate(outstation_cab_pricing_orm)
 
-def create_airport_cab_pricing(payload:AirportCabPricingSchema,db:Session)->AirportCabPricingSchema:
-    airport_cab_pricing_orm = AirportCabPricing(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_airport_cab_pricing(
+    payload: AirportCabPricingSchema, db: Session
+) -> AirportCabPricingSchema:
+    airport_cab_pricing_orm = AirportCabPricing(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(airport_cab_pricing_orm)
     db.flush()
     db.refresh(airport_cab_pricing_orm)
     return AirportCabPricingSchema.model_validate(airport_cab_pricing_orm)
 
-def create_common_pricing_configuration(payload:CommonPricingConfigurationSchema,db:Session)->CommonPricingConfigurationSchema:
-    common_pricing_configuration_orm = CommonPricingConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_common_pricing_configuration(
+    payload: CommonPricingConfigurationSchema, db: Session
+) -> CommonPricingConfigurationSchema:
+    common_pricing_configuration_orm = CommonPricingConfiguration(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(common_pricing_configuration_orm)
     db.flush()
     db.refresh(common_pricing_configuration_orm)
-    return CommonPricingConfigurationSchema.model_validate(common_pricing_configuration_orm)
+    return CommonPricingConfigurationSchema.model_validate(
+        common_pricing_configuration_orm
+    )
 
-def create_trip_package_pricing_configuration(payload:TripPackageConfigSchema,db:Session)->TripPackageConfigSchema:
-    trip_package_pricing_configuration_orm = TripPackageConfig(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_trip_package_pricing_configuration(
+    payload: TripPackageConfigSchema, db: Session
+) -> TripPackageConfigSchema:
+    trip_package_pricing_configuration_orm = TripPackageConfig(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(trip_package_pricing_configuration_orm)
     db.flush()
     db.refresh(trip_package_pricing_configuration_orm)
-    return TripPackageConfigSchema.model_validate(trip_package_pricing_configuration_orm)
+    return TripPackageConfigSchema.model_validate(
+        trip_package_pricing_configuration_orm
+    )
 
-def create_night_pricing_configuration(payload:NightPricingConfigurationSchema,db:Session)->NightPricingConfigurationSchema:
-    night_pricing_configuration_orm = NightPricingConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_night_pricing_configuration(
+    payload: NightPricingConfigurationSchema, db: Session
+) -> NightPricingConfigurationSchema:
+    night_pricing_configuration_orm = NightPricingConfiguration(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(night_pricing_configuration_orm)
     db.flush()
     db.refresh(night_pricing_configuration_orm)
-    return NightPricingConfigurationSchema.model_validate(night_pricing_configuration_orm)
+    return NightPricingConfigurationSchema.model_validate(
+        night_pricing_configuration_orm
+    )
 
-def create_permit_fee_configuration(payload:PermitFeeConfigurationSchema,db:Session)->PermitFeeConfigurationSchema:
-    permit_fee_configuration_orm = PermitFeeConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_permit_fee_configuration(
+    payload: PermitFeeConfigurationSchema, db: Session
+) -> PermitFeeConfigurationSchema:
+    permit_fee_configuration_orm = PermitFeeConfiguration(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(permit_fee_configuration_orm)
     db.flush()
     db.refresh(permit_fee_configuration_orm)
     return PermitFeeConfigurationSchema.model_validate(permit_fee_configuration_orm)
 
-def create_cancellation_policy_pricing(payload:CancelationPolicySchema,db:Session)->CancelationPolicySchema:
-    cancellation_policy_orm = CancellationPolicy(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_cancellation_policy_pricing(
+    payload: CancelationPolicySchema, db: Session
+) -> CancelationPolicySchema:
+    cancellation_policy_orm = CancellationPolicy(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(cancellation_policy_orm)
     db.flush()
     db.refresh(cancellation_policy_orm)
     return CancelationPolicySchema.model_validate(cancellation_policy_orm)
 
-def create_fixed_platform_fee(payload:FixedPlatformFeeConfigurationSchema, db:Session):
-    fixed_platform_fee_config = FixedPlatformPricingConfiguration(**payload.model_dump(exclude={"id"}, exclude_none=True))
+
+def create_fixed_platform_fee(
+    payload: FixedPlatformFeeConfigurationSchema, db: Session
+):
+    fixed_platform_fee_config = FixedPlatformPricingConfiguration(
+        **payload.model_dump(exclude={"id"}, exclude_none=True)
+    )
     db.add(fixed_platform_fee_config)
     db.flush()
     db.refresh(fixed_platform_fee_config)
     return FixedPlatformFeeConfigurationSchema.model_validate(fixed_platform_fee_config)
 
-def get_cancellation_policy_by_state_code(state_code: str, db: Session) -> CancelationPolicySchema:
+
+def get_cancellation_policy_by_state_code(
+    state_code: str, db: Session
+) -> CancelationPolicySchema:
     cancellation_policy = (
         db.query(CancellationPolicy)
         .join(StateModel, CancellationPolicy.state_id == StateModel.id)
@@ -365,7 +431,10 @@ def get_cancellation_policy_by_state_code(state_code: str, db: Session) -> Cance
         return CancelationPolicySchema.model_validate(cancellation_policy)
     return None
 
-def get_cancellation_policies_by_state_code(state_code: str, db: Session) -> List[CancelationPolicySchema]:
+
+def get_cancellation_policies_by_state_code(
+    state_code: str, db: Session
+) -> List[CancelationPolicySchema]:
     policies = (
         db.query(CancellationPolicy)
         .join(StateModel, CancellationPolicy.state_id == StateModel.id)
@@ -378,7 +447,10 @@ def get_cancellation_policies_by_state_code(state_code: str, db: Session) -> Lis
         return [CancelationPolicySchema.model_validate(policy) for policy in policies]
     return None
 
-def get_cancellation_policy_by_region_code(region_code: str, db: Session) -> CancelationPolicySchema:
+
+def get_cancellation_policy_by_region_code(
+    region_code: str, db: Session
+) -> CancelationPolicySchema:
     cancellation_policy = (
         db.query(CancellationPolicy)
         .join(RegionModel, CancellationPolicy.region_id == RegionModel.id)
@@ -389,16 +461,81 @@ def get_cancellation_policy_by_region_code(region_code: str, db: Session) -> Can
     )
     if cancellation_policy:
         return CancelationPolicySchema.model_validate(cancellation_policy)
-    return None 
+    return None
 
-def get_cancellation_policies_by_region_code(region_code: str, db: Session) -> List[CancelationPolicySchema]:
+
+def get_cancellation_policies_by_region_code(
+    region_code: str, db: Session
+) -> List[CancelationPolicySchema]:
     policies = (
         db.query(CancellationPolicy)
         .join(RegionModel, CancellationPolicy.region_id == RegionModel.id)
         .filter(
             RegionModel.region_code == region_code,
-        ).all()
+        )
+        .all()
     )
     if policies:
         return [CancelationPolicySchema.model_validate(policy) for policy in policies]
-    return None 
+    return None
+
+
+def round_fee(x):
+    return int(math.ceil(x / 10.0)) * 10 - 1
+
+
+def compute_final_platform_fee(
+    total_price: float,
+    fixed_fee: float,  # Cost recovery component of the platform fee, which is a fixed amount per trip to cover basic costs like payment gateway fees, SMS/OTP costs, and infrastructure costs. This ensures that the platform recovers its base costs on every trip, regardless of the total price.
+    dynamic_percent: float,  # Margin component of the platform fee, which is a percentage of the total trip price. This allows the platform to earn more on higher-value trips while keeping fees reasonable on lower-value trips.
+    min_cap: Optional[float] = None,
+    max_cap: Optional[float] = None,
+) -> int:
+    """
+        Computes final platform fee with:
+        - fixed + dynamic %
+        - min/max capping
+        - rounding to nearest 9/10 pricing psychology so that prices end with 9 (e.g. 149 instead of 150) which is known to increase conversion rates by creating a perception of a better deal.
+
+        Platform fee:
+
+    Fixed (cost recovery)
+    Dynamic % (margin)
+    Caps (trust control)
+    Rounding (UX psychology)
+    """
+
+    # Step 1: Raw computation
+    fee = fixed_fee + (dynamic_percent * total_price / 100)
+
+    # Step 2: Apply caps
+    if min_cap is not None:
+        fee = max(fee, min_cap)
+
+    if max_cap is not None:
+        fee = min(fee, max_cap)
+    after_cap_fee = fee
+
+    # Step 3: Round to nearest 9/10
+    final_fee = round_fee(after_cap_fee)
+    print(
+        f"""
+Platform Fee Computation:
+Base Price: {total_price}
+Fixed Fee: {fixed_fee}
+Dynamic %: {dynamic_percent}
+After Cap: {after_cap_fee}
+Final Rounded: {final_fee}
+"""
+    )
+    logger.debug(
+        f"""
+Platform Fee Computation:
+Base Price: {total_price}
+Fixed Fee: {fixed_fee}
+Dynamic %: {dynamic_percent}
+After Cap: {after_cap_fee}
+Final Rounded: {final_fee}
+"""
+    )
+    return final_fee
