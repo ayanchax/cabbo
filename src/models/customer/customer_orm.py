@@ -1,8 +1,8 @@
 from sqlalchemy import (
+    JSON,
     Column,
     String,
     DateTime,
-    func,
     Integer,
     Boolean,
     Text,
@@ -54,6 +54,7 @@ class Customer(Base):
     last_seen = Column(DateTime, nullable=True)
     is_suspended = Column(Boolean, default=False, nullable=False, comment="Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.")
     suspension_reason = Column(Text, nullable=True, comment="If the customer is suspended, this field can store the reason for suspension.")
+    s3_image_info=Column(JSON, nullable=True, comment="Stores S3 key and URL for the customer's profile picture if using S3 for storage.")
     trip_ratings = relationship(
         "TripRating", back_populates="customer", cascade="all, delete-orphan",
         passive_deletes=True

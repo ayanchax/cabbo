@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Union
 
 from core.security import RoleEnum
+from models.customer.customer_orm import Customer
 from models.policies.cancelation_orm import Cancellation
 from models.policies.cancelation_schema import (
     CancelationPolicySchema,
@@ -32,12 +33,12 @@ def get_cancelation_payload(
 
 
 def get_cancelation_sub_status(
-    requestor: User,
+    requestor: Union[User, Customer],
     creator_id: str,
     cancelation_detail: Optional[CancelationSchema] = None,
 ):
     cancelation_sub_status = CancellationSubStatusEnum.other
-    if requestor.role == RoleEnum.customer and requestor.id == creator_id:
+    if isinstance(requestor, Customer) and requestor.id == creator_id:
         # Customer-initiated cancellation
         cancelation_sub_status = CancellationSubStatusEnum.customer_cancelled
 

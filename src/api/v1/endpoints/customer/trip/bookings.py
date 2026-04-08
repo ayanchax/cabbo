@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends
 from core.exceptions import CabboException
 from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.support.support_schema import CommentSchema
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
-from models.trip.trip_schema import TripUpdateRequestSchema
+from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange, TripUpdateRequestSchema
 from services.dispute_service import add_comment_to_dispute_by_trip_id
+from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import (
     async_get_trip_by_booking_id_customer_id,
     async_get_trips_by_customer_id,
@@ -14,6 +17,7 @@ from services.trips.trip_service import (
     serialize_trip,
     serialize_trips,
     update_non_cost_impacting_trip_fields,
+    update_trip_status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -187,6 +191,38 @@ async def list_trips_by_customer_id_and_trip_type(
         )
     return group_by_trip_status(trips=filtered_trips, validate_by_tz=True)
 
+#Cancel a trip by booking_id and customer_id - this will be used by frontend to allow customers to cancel their trip bookings, so that customers can cancel their trips from the trip details page. This endpoint will validate the JWT token to ensure that only authenticated customers can cancel their trips securely.
+@router.patch("/{booking_id}/cancel", response_model=dict)
+async def cancel_trip_by_booking_id_and_customer_id(
+    background_tasks: BackgroundTasks,
+    booking_id: str,
+    payload: Optional[AdditionalDetailsOnTripStatusChange] = None,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+     
+     trip = await async_get_trip_by_booking_id_customer_id(
+        booking_id, current_customer.id, db)
+     trip_schema, background_task = await update_trip_status(
+        trip_id=trip.id,
+        new_status=TripStatusEnum.cancelled,
+        payload=payload,
+        db=db,
+        requestor=current_customer,
+        validate_time_window=True,
+    )  # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
+     if not trip_schema:
+        raise CabboException("Failed to cancel trip", status_code=500)
+     if background_task:
+        orchestrator = BackgroundTaskOrchestrator(background_tasks)
+        orchestrator.add_task(
+            background_task.fn,
+            task_name=f"BackgroundTaskForTrip{trip.id}StatusUpdateTo{TripStatusEnum.cancelled.value}",
+            **background_task.kwargs,
+        )
+     return {"message": f"Trip status updated to {TripStatusEnum.cancelled.value} successfully."}
+
+    
 
 # Get dispute details for a trip by booking_id and customer_id - this will be used by frontend to fetch the dispute details for a trip, so that we can show the dispute details to the customer in the trip details page. This endpoint will validate the JWT token to ensure that only authenticated customers can access their trip dispute details securely.
 @router.get("/{booking_id}/dispute-details", response_model=dict)

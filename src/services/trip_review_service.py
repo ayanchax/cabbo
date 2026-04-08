@@ -4,10 +4,9 @@ from sqlalchemy import select
 from core.exceptions import CabboException
 from core.security import RoleEnum
 from models.common import AppBackgroundTask, FlagsEnum
-from models.customer.customer_schema import CustomerReadWithProfilePicture
+from models.customer.customer_schema import CustomerBase
 from models.driver.driver_orm import TripRating
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import func
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_schema import (
     TripRatingCreateSchema,
@@ -255,8 +254,7 @@ async def fetch_trip_reviews_by_driver_id(
             )
             if not customer:
                 continue  # to next rating if customer details not found for the rating, ideally this should not happen because if a rating exists by a customer then the customer details should also be present in the database, because we have cascade delete set on this column, the row would not even exist had the customer_id been deleted, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
-            customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
-            customer_schema.image_url = f"/images/customers/{customer.id}.png"
+            customer_schema = CustomerBase.model_validate(customer)
             rating_response = TripRatingResponseSchema(
                 id=rating.id,
                 rating=rating.rating,
@@ -309,8 +307,7 @@ async def fetch_trip_reviews_by_customer_id(
                 "No trip reviews found for the given customer_id.", status_code=404
             )
         ratings_schema = [TripRatingSchema.model_validate(rating) for rating in ratings]
-        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
-        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        customer_schema = CustomerBase.model_validate(customer)
         for rating in ratings_schema:
             driver = await a_get_driver_by_id(driver_id=rating.driver_id, db=db)
             if not driver:
@@ -364,8 +361,7 @@ async def fetch_trip_review_by_trip_id(
                 "Customer not found for the trip review. Cannot fetch customer details for the review.",
                 status_code=404,
             )
-        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
-        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        customer_schema = CustomerBase.model_validate(customer)
         rating_response = TripRatingResponseSchema(
             id=rating_schema.id,
             rating=rating_schema.rating,
@@ -410,8 +406,7 @@ async def fetch_trip_review_by_review_id(
                 "Customer not found for the trip review. Cannot fetch customer details for the review.",
                 status_code=404,
             )
-        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
-        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        customer_schema = CustomerBase.model_validate(customer)
         rating_response = TripRatingResponseSchema(
             id=rating_schema.id,
             rating=rating_schema.rating,
@@ -497,8 +492,7 @@ async def fetch_trip_review_by_booking_id_customer_id(
                 status_code=404,
             )
 
-        customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
-        customer_schema.image_url = f"/images/customers/{customer.id}.png"
+        customer_schema = CustomerBase.model_validate(customer)
         rating_response = TripRatingResponseSchema(
             id=rating_record.id,
             rating=rating_record.rating,
@@ -551,8 +545,7 @@ async def fetch_all_trip_reviews(
             )
             if not customer:
                 continue  # to next rating if customer details not found for the rating, ideally this should not happen because if a rating exists by a customer then the customer details should also be present in the database, because we have cascade delete set on this column, the row would not even exist had the customer_id been deleted, but we add this check just to be safe and avoid any potential errors in case of any data inconsistencies in the database.
-            customer_schema = CustomerReadWithProfilePicture.model_validate(customer)
-            customer_schema.image_url = f"/images/customers/{customer.id}.png"
+            customer_schema = CustomerBase.model_validate(customer)
             rating_response = TripRatingResponseSchema(
                 id=rating.id,
                 rating=rating.rating,

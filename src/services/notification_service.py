@@ -144,7 +144,7 @@ def notify_customer_onboarded(customer: CustomerRead) -> bool:
     )
 
 
-def notify_driver_onboarded(driver: Driver) -> bool:
+async def notify_driver_onboarded(driver: Driver) -> bool:
     if not driver.email:
         return False  # No email to send notification, do not proceed
 
@@ -158,7 +158,7 @@ def notify_driver_onboarded(driver: Driver) -> bool:
         app_name=APP_NAME.capitalize(),
     )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
-    send_email(
+    await send_email(
         to_email=driver.email,
         subject=subject,
         html_content=html_content,
@@ -194,9 +194,8 @@ async def notify_verification_email_to_customer(
 
 
 
-async def notify_refund_initiated_to_customer(
+async def notify_trip_cancellation_to_customer(
     customer: CustomerRead,
-    refund_id: str,
     refund_amount: float,
     refund_type: str,
     currency: str,
@@ -205,17 +204,16 @@ async def notify_refund_initiated_to_customer(
     currency_position: str = "before",
     
 ) -> bool:
-    subject = f"Yay! Your Refund for {APP_NAME.capitalize()} Booking is on its Way!"
+    subject = f"Your {APP_NAME.capitalize()} Booking #{booking_id} Has Been Cancelled"
     if not customer:
         return False
     if not customer.email:
         return False  # No email to send notification, do not proceed
     name = customer.name if customer.name else customer.email.split("@")[0]
     html_content = render_email_template(
-        "refund-initiated-on-trip-cancellation.html",
+        "booking-cancelled.html",
         for_customer=True,
         name=name,
-        refund_id=refund_id,
         currency=currency,
         original_amount=original_amount,
         refund_amount=refund_amount,

@@ -5,7 +5,7 @@ from scheduler.tasks.process_refund import sync_pending_refund_statuses_task
 from .cleanup_temp_trips import cleanup_temp_trips_task
 
 DEFAULT_INTERVAL_MINUTES = 15
-REFUND_POLL_INTERVAL_MINUTES = 60
+REFUND_POLL_INTERVAL_MINUTES = 720 # 12 hours, can be adjusted based on typical refund processing times and desired sync frequency
 
 
 # Centralized TASKS list for the scheduler to consume

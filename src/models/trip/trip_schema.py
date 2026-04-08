@@ -3,8 +3,8 @@ from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
 from models.common import AmenitiesSchema
-from models.customer.customer_schema import CustomerRead, CustomerReadWithProfilePicture
-from models.driver.driver_schema import DriverReadWithProfilePicture
+from models.customer.customer_schema import CustomerBase, CustomerRead
+from models.driver.driver_schema import DriverReadSchema
 from models.policies.cancelation_schema import CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
 from models.pricing.pricing_schema import (
@@ -631,7 +631,7 @@ class TripRatingResponseSchema(TripRatingCreateSchema):
     created_at: datetime = Field(
         ..., description="Timestamp when the trip rating was created"
     )
-    given_by: CustomerReadWithProfilePicture = Field(
+    given_by: CustomerBase = Field(
         ...,
         description="Details of the customer who gave the rating, including their name and profile picture URL",
     )
@@ -640,11 +640,11 @@ class TripRatingResponseSchema(TripRatingCreateSchema):
 class TripSummarySchema(BaseModel):
     trip_id: str = Field(..., description="Unique identifier for the trip")
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
-    driver: Optional[DriverReadWithProfilePicture] = Field(
+    driver: Optional[DriverReadSchema] = Field(
         None,
         description="Details of the assigned driver, including their name and profile picture URL",
     )
-    customer: Optional[CustomerReadWithProfilePicture] = Field(
+    customer: Optional[CustomerBase] = Field(
         None,
         description="Details of the customer, including their name and profile picture URL",
     )
