@@ -47,7 +47,8 @@ class User(Base):
     emergency_contact_number = Column(String(20), nullable=True)
     bearer_token = Column(Text, nullable=True) # Bearer token for authentication
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    
+    #Intentionally we are not having image field for system users, as we 
+    # we do not want to store images for system users, and it is not a critical information for them.
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -83,11 +83,13 @@ class Driver(Base):
    
     #we will use this to track the driver availability status when we implement the driver app
     is_available = Column(Boolean, default=True, nullable=False)  # Driver availability status
+    s3_image_info=Column(JSON, nullable=True, comment="Stores S3 key and URL for the driver's profile picture if using S3 for storage.")
     
     is_active = Column(Boolean, default=True, nullable=False)  # Active status
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
     last_modified = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

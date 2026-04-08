@@ -2,7 +2,7 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from core.exceptions import CabboException
-from models.common import AmenitiesSchema
+from models.common import AmenitiesSchema, S3ObjectInfo
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
 from models.map.location_schema import Address
@@ -26,9 +26,10 @@ class DriverBaseSchema(BaseModel):
     religion: Optional[ReligionEnum] = None  # e.g., Hindu, Muslim, Christian
     address:Optional[Address]=None
     is_active: Optional[bool] = True  # Flag to indicate if the driver is currently active and available for trips, we can use this field to temporarily deactivate a driver without deleting their record from the database, for example, if they are on a break, on vacation, or if they have been suspended for any reason, we can set is_active to false and they will not be assigned any new trips until they are reactivated by setting is_active back to true. This way we can maintain the driver's historical data and trip records while also managing their availability for new trips effectively.
-
+    s3_image_info: Optional[S3ObjectInfo] = None  # Stores S3 key and URL for the driver's profile picture if using S3 for storage.
     
     class Config:
+        extra="allow"
         from_attributes = True
         exclude_none = True  # Exclude fields with None values from the model dump
 
@@ -102,21 +103,11 @@ class DriverUpdateSchema(DriverBaseSchema):
         exclude_none = True  # Exclude fields with None values from the model dump
 
 
-class DriverReadProfilePictureAfterUpdate(BaseModel):
-    image_url: str = Field(None, description="URL to the driver's profile picture")
-    last_modified: datetime = Field(
-        None, description="Last modified date of the driver's profile"
-    )
 
 class DriverReadSchema(DriverCreateSchema):
     pass
 
-class DriverReadWithProfilePicture(DriverReadSchema):
-    image_url: str = Field(None, description="URL to the driver's profile picture")
 
-
-
-  
 class DriverEarningSchema(BaseModel):
     trip_id: str=Field(..., description="Unique identifier for the trip")
     driver_id: str=Field(..., description="Unique identifier for the driver")

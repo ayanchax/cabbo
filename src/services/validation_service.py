@@ -900,7 +900,7 @@ def validate_customer_payload(
         )
     
     #Validate emergency contact phone number
-    if payload.emergency_contact_number or payload.emergency_contact_number.strip() != "":
+    if payload.emergency_contact_number and payload.emergency_contact_number.strip() != "":
         payload.emergency_contact_number = validate_phone_by_country(
             phone=payload.emergency_contact_number, country=country
         )

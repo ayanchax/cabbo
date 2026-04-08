@@ -12,9 +12,10 @@ from core.trip_helpers import (
     get_trip_type_id_by_trip_type,
 )
 from models.common import AppBackgroundTask
-from models.customer.customer_schema import CustomerRead, CustomerReadWithProfilePicture
+from models.customer.customer_orm import Customer
+from models.customer.customer_schema import CustomerBase, CustomerRead
 from models.customer.passenger_schema import PassengerRequest
-from models.driver.driver_schema import DriverReadSchema, DriverReadWithProfilePicture
+from models.driver.driver_schema import DriverReadSchema
 from models.policies.cancelation_schema import CancelationSchema
 from models.policies.dispute_schema import DisputeSchema
 from models.pricing.pricing_schema import (
@@ -60,7 +61,7 @@ from sqlalchemy import select
 def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False) -> dict:
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     if trip.driver:  # Serialize the driver if it exists
-        driver= DriverReadWithProfilePicture.model_validate(trip.driver)
+        driver= DriverReadSchema.model_validate(trip.driver)
         driver_data = driver.model_dump()
         trip_dict["driver"] = driver_data
         trip_dict.pop("driver_id", None)
@@ -90,8 +91,7 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
 
     if expose_customer_details:
         if trip.customer:
-            customer = CustomerReadWithProfilePicture.model_validate(trip.customer)
-            customer.image_url =  f"/images/customers/{customer.id}.png"
+            customer = CustomerRead.model_validate(trip.customer)
             customer_data = customer.model_dump()
             trip_dict["customer"] = customer_data
             trip_dict.pop("creator_id", None)
@@ -775,7 +775,7 @@ async def update_trip_status(
     trip_id: str,
     db: AsyncSession,
     new_status: TripStatusEnum,
-    requestor: User,
+    requestor: Union[User, Customer],
     payload: AdditionalDetailsOnTripStatusChange = None,
     validate_time_window: bool = False,
 ):

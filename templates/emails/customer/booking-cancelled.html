@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>💰 {{ app_name }} Refund Initiated</title>
+    <title>{{ app_name }} - Booking Cancelled</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
         body {
@@ -242,7 +242,6 @@
          refund_amount, currency, refund_type(full/partial),
          currency_position (before/after),
          original_amount,
-         refund_id,
          estimated_days (5-7 business days),
          current_year
     -->
@@ -265,7 +264,7 @@
         </div>
 
         <!-- Header -->
-        <div class="header">✅ Refund Initiated</div>
+        <div class="header">❌ Booking Cancelled</div>
 
         <div class="sub">Hi {{ name }}, your booking <strong>#{{ booking_id }}</strong> has been cancelled and your
             refund has been initiated to your original payment method.</div>
@@ -292,8 +291,7 @@
         <!-- Refund Details -->
         <div class="card">
             <h3>💳 Refund Details</h3>
-            <div class="detail-row"><span class="label">Refund ID</span><span class="value">{{ refund_id }}</span>
-            </div>
+            
             <div class="detail-row"><span class="label">Booking ID</span><span class="value">{{ booking_id }}</span>
             </div>
             <div class="detail-row"><span class="label">Refund Type</span><span class="value">{{ refund_type|capitalize
@@ -322,34 +320,7 @@
         </div>
 
 
-        <!-- What's Next Timeline -->
-        <div class="card" style="background: #f9fafb;">
-            <h3>🔄 What Happens Next?</h3>
-            <div class="timeline">
-                <div class="timeline-item">
-                    <div class="timeline-icon">✓</div>
-                    <div class="timeline-content">
-                        <div class="title">Refund Initiated</div>
-                        <div class="desc">Your refund request has been approved and processed.</div>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-icon pending">⏳</div>
-                    <div class="timeline-content">
-                        <div class="title">Payment Provider Processing</div>
-                        <div class="desc">The refund is being processed by our payment partner (Razorpay).</div>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-icon pending">💳</div>
-                    <div class="timeline-content">
-                        <div class="title">Bank Processing</div>
-                        <div class="desc">Your bank will credit the amount to your account ({{ estimated_days or '5-7'
-                            }} business days).</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+         
 
         <!-- Important Notes -->
         <div
@@ -372,7 +343,7 @@
 
         <!-- Footer -->
         <div class="footer">
-            If you have any questions about your refund, please contact our support team.<br>
+            If you have any questions about your cancellation and refund, please contact our support team.<br>
             We appreciate your understanding and look forward to serving you again.<br><br>
             This email was sent by <b>{{ app_name }}</b>.<br>
             Maa Sarada Tours and Travels, Bangalore, India<br>

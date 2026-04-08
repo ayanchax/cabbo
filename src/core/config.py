@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     CABBO_DEFAULT_TIMEZONE: str
     CONFIG_STORE: Any = None
 
+    #AWS S3 Settings
+    AWS_ACCESS_KEY: str
+    AWS_SECRET_KEY: str
+    AWS_REGION: str
+    S3_BUCKET: str
+    S3_BASE_URL: str
+
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"

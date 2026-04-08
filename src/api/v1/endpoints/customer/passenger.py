@@ -62,9 +62,7 @@ def remove_passenger(
         raise CabboException("Customer not found", status_code=404)
 
     # ?We do not need this condition check because if a passenger is deleted and they are associated with one or more trip, then in trip.passenger_id it will automatically be nullified because of the foreign key constraint with ondelete set to null
-    # ?Hence removing the passenger is safe even if they are associated with trips as the trip anyway belongs to the customer and is not dependent on the passenger.
-    # if is_passenger_belongs_to_any_trip(passenger_id, db):
-    #     pass
+    
     delete_passenger(passenger_id, db)
     return {"message": "Passenger removed successfully."}
 

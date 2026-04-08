@@ -6,32 +6,14 @@ from models.documents.kyc_document_orm import KYCDocumentTypes
 from sqlalchemy.orm import Session
 import os
 from fastapi import UploadFile
-from core.config import settings
-from models.documents.kyc_document_schema import KYCDocumentSchema, KYCDocumentUpdateSchema
+from models.documents.kyc_document_schema import KYCDocumentSchema, KYCDocumentTypeSchema, KYCDocumentUpdateSchema
 from models.driver.driver_orm import Driver
-from services.file_service import create_directory
+from services.file_service import remove_driver_kyc_document_file, save_driver_kyc_document_file
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 ALLOWED_EXTENSIONS = [".pdf"]
 
-
-def _save_driver_kyc_document_file(
-    driver_id: str, file: UploadFile, doc_type: KYCDocumentTypeEnum
-) -> str:
-    """
-    Save the uploaded KYC document file to the driver's folder, renaming it according to the document type.
-    Returns the relative file path.
-    """
-    folder = os.path.join(settings.SHARE_PATH, "documents", "drivers", driver_id)
-    create_directory(folder)
-    ext = os.path.splitext(file.filename)[-1]
-    filename = f"{doc_type.value.lower()}{ext}"
-    file_path = os.path.join(folder, filename)
-    with open(file_path, "wb") as f:
-        f.write(file.file.read())
-
-    return file_path, ext, file.size if hasattr(file, "size") else None
 
 
 def update_driver_kyc_documents(
@@ -42,7 +24,9 @@ def update_driver_kyc_documents(
 ) -> list[KYCDocumentSchema]:
     """
     For each file and document type:
-    - If document type exists in kyc_documents, overwrite it and update file.
+    - If document type exists in kyc_documents, overwrite it and update file, because
+    we only want the latest version of each document type. This also simplifies the logic since we don't have to manage multiple versions of the same document type.
+
     - If not, append new document entry.
     - Always save file as {doc_type}.{ext} in share/documents/drivers/{driver_id}/
     """
@@ -69,16 +53,23 @@ def update_driver_kyc_documents(
                 print("Unsupported file type for document type:", doc_type)
                 continue  # Skip unsupported file types
 
-            file_path, ext, size = _save_driver_kyc_document_file(
+            # Overwrite existing document of the same type or add new document entry
+            # Here unlike profile pictures, we do not remove the existing document type entry as kyc documents are
+            # actually names of files (instead of hex) and hence we keep on adding or overwriting the same document type entry with new file info. 
+            # This way we can maintain the history of document uploads by looking at the file info (like upload timestamp) without having to manage multiple versions of the same document type in the database.
+            s3_result = save_driver_kyc_document_file(
                 driver.id, file, doc_type
             )
+            if not s3_result:
+                print("Failed to save file for document type:", doc_type)
+                continue  # Skip if file saving failed
             doc_entry = KYCDocumentSchema(
                 document_id=uuid4().hex,
                 document_type=doc_type.value,
-                document_url=file_path,
+                document_info=s3_result,
                 verified=False,  # We have separate endpoint to verify
-                extension=ext,
-                size=size,
+                extension=extension,
+                size=file.size if hasattr(file, "size") else None,
             )
 
             # Overwrite or add
@@ -184,20 +175,24 @@ def remove_kyc_document_by_id_for_driver(
         }
 
         if document_id in kyc_docs_dict:
-            url = kyc_docs_dict[document_id].document_url or None
-            # Delete the file from storage
-            if url and os.path.exists(url):
-                os.remove(url)
-            # Remove from dict
-            del kyc_docs_dict[document_id]
-            driver.kyc_documents = [
-                doc.model_dump(exclude_none=True, exclude_unset=True)
-                for doc in kyc_docs_dict.values()
-            ]
+            s3_document_info = kyc_docs_dict[document_id].document_info or None
+            # Delete the file from S3 storage
+            if s3_document_info is not None:
+                removed = remove_driver_kyc_document_file(s3_document_info.key)
+                if not removed:
+                    return False, "Failed to remove KYC document file from storage"
 
-            db.commit()
-            db.refresh(driver)
-            return True, None
+                # Remove from dict
+                del kyc_docs_dict[document_id]
+                driver.kyc_documents = [
+                    doc.model_dump(exclude_none=True, exclude_unset=True)
+                    for doc in kyc_docs_dict.values()
+                ]
+
+                db.commit()
+                db.refresh(driver)
+                return True, None
+            return False, "No document info found for the specified document ID"
         else:
             return (
                 False,
@@ -279,7 +274,7 @@ def mark_kyc_verification_status_for_driver_document(
 
 
 async def async_add_kyc_document_record(
-    payload: KYCDocumentSchema, db: AsyncSession, created_by: RoleEnum = RoleEnum.system
+    payload: KYCDocumentSchema, db: AsyncSession, created_by: str = RoleEnum.system.value
 ):
     """
     Async function to add a KYC document record to the database.
@@ -294,24 +289,24 @@ async def async_add_kyc_document_record(
         db.add(new_record)
         await db.commit()
         await db.refresh(new_record)
-        return KYCDocumentSchema.model_validate(new_record), None
+        return KYCDocumentTypeSchema.model_validate(new_record), None
     except Exception as e:
         await db.rollback()
         print(f"Error adding KYC document record: {e}")
         return None, str(e)
 
-async def async_get_all_kyc_document_records(db: AsyncSession) -> list[KYCDocumentSchema]:
+async def async_get_all_kyc_document_records(db: AsyncSession) -> list[KYCDocumentTypeSchema]:
     """Async function to retrieve all KYC document records from the database."""
     result = await db.execute(select(KYCDocumentTypes))
     records = result.scalars().all()
-    return [KYCDocumentSchema.model_validate(record) for record in records]
+    return [KYCDocumentTypeSchema.model_validate(record) for record in records]
 
-async def async_get_kyc_document_record_by_id(document_id: str, db: AsyncSession) -> KYCDocumentSchema | None:
+async def async_get_kyc_document_record_by_id(document_id: str, db: AsyncSession) -> KYCDocumentTypeSchema | None:
     """Async function to retrieve a KYC document record by its ID."""
     result = await db.execute(select(KYCDocumentTypes).where(KYCDocumentTypes.id == document_id))
     record = result.scalar_one_or_none()
     if record:
-        return KYCDocumentSchema.model_validate(record)
+        return KYCDocumentTypeSchema.model_validate(record)
     return None
 
 async def async_delete_kyc_document_record(document_id: str, db: AsyncSession) -> tuple[bool, str | None]:
@@ -332,7 +327,7 @@ async def async_delete_kyc_document_record(document_id: str, db: AsyncSession) -
         return False, str(e)
 
 
-async def async_update_kyc_document_record(document_id: str, payload: KYCDocumentUpdateSchema, db: AsyncSession) -> tuple[KYCDocumentSchema | None, str | None]:
+async def async_update_kyc_document_record(document_id: str, payload: KYCDocumentUpdateSchema, db: AsyncSession) -> tuple[KYCDocumentTypeSchema | None, str | None]:
     """Async function to update an existing KYC document record in the database."""
     try:
         result = await db.execute(select(KYCDocumentTypes).where(KYCDocumentTypes.id == document_id))
@@ -345,7 +340,7 @@ async def async_update_kyc_document_record(document_id: str, payload: KYCDocumen
             record.document_description = payload.document_description
         await db.commit()
         await db.refresh(record)
-        return KYCDocumentSchema.model_validate(record), None
+        return KYCDocumentTypeSchema.model_validate(record), None
     except Exception as e:
         await db.rollback()
         print(f"Error updating KYC document record: {e}")

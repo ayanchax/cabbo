@@ -24,3 +24,7 @@ class AmenitiesSchema(BaseModel):
     aux_cable: bool = False  # Aux cable for music
     bluetooth: bool = False  # Bluetooth connectivity
     wifi: bool = False  # Wifi connectivity
+
+class S3ObjectInfo(BaseModel):
+    key: str
+    url: str
