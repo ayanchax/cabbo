@@ -35,6 +35,7 @@ from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km, get_state_from_location
 from services.passenger_service import get_passenger_by_id
 
+from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_outstation_trip_schedule
 
 
@@ -329,17 +330,21 @@ def get_outstation_trip_options(
             base_price
             + driver_allowance_amount
             + permit_fee
-            + overage_amount
+            # + overage_amount # We do not include overage amount in the price shown to customer until they actually incur the overage, and that is why we have a disclaimer for overage charges in the UI, we will charge the overage amount directly on the trip fare when the trip is completed and customer has incurred the overage
         )
         # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
-        platform_fee_amount = config_store.platform_fee.fixed_platform_fee + (
-            platform_fee_percent * total_price_before_platform_fee / 100
+        platform_fee_amount = compute_final_platform_fee(
+            total_price=total_price_before_platform_fee,
+            fixed_fee=config_store.platform_fee.fixed_platform_fee,
+            dynamic_percent=platform_fee_percent,
+            min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
+            max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
         price_breakdown = OutstationPricingBreakdownSchema(
             base_fare=math.ceil(base_price),
             driver_allowance=math.ceil(driver_allowance_amount),
             permit_fee=math.ceil(permit_fee),
-            platform_fee=math.ceil(platform_fee_amount),
+            platform_fee=platform_fee_amount,
         )
         extra_day_rate = math.ceil(base_fare_per_km * min_included_km_per_day + driver_allowance_per_day)
         disclaimer_lines = _get_outstation_trips_disclaimer_lines(

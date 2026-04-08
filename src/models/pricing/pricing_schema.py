@@ -149,6 +149,8 @@ class CommonPricingConfigurationSchema(BaseModel):
     max_included_hours: Optional[int] = None  # Local cab maximum included hours
     min_included_km: Optional[int] = None  # For local cab minimum included km
     max_included_km: Optional[int] = None  # For local cab maximum included
+    min_platform_fee: Optional[float] = None  # Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.
+    max_platform_fee: Optional[float] = None  # Maximum platform fee charged to customer
     placard_charge: Optional[float] = (
         None  # Only for airport pickup, can be null for others
     )
