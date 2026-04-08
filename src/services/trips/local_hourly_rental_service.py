@@ -35,6 +35,7 @@ from models.trip.trip_schema import (
 from services.customer_service import a_get_customer_by_id
 from services.passenger_service import get_passenger_by_id
 
+from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -223,14 +224,17 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         total_price_before_platform_fee = base_fare  + driver_allowance_amount
 
         # Platform fee is a sum of a fixed cost(infra cost) to service and a percentage of the total price calculated before adding platform fee/convenience fee
-
-        platform_fee_amount = config_store.platform_fee.fixed_platform_fee + (
-            platform_fee_percent * total_price_before_platform_fee / 100
+        platform_fee_amount= compute_final_platform_fee(
+            total_price=total_price_before_platform_fee,
+            fixed_fee=config_store.platform_fee.fixed_platform_fee,
+            dynamic_percent=platform_fee_percent,
+            min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
+            max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
 
         price_breakdown = LocalPricingBreakdownSchema(
             base_fare=math.ceil(base_fare),
-            platform_fee=math.ceil(platform_fee_amount),
+            platform_fee=platform_fee_amount,
             driver_allowance=(
                 math.ceil(package.driver_allowance) if package.driver_allowance else 0.0
             ),

@@ -27,6 +27,7 @@ from models.trip.trip_schema import (
 )
 from services.location_service import get_distance_km
 from core.config import settings
+from services.pricing_service import compute_final_platform_fee
 from services.validation_service import (
     validate_airport_schedule,
     validate_placard_requirements,
@@ -166,7 +167,6 @@ def _get_airport_trips_disclaimer_lines(
     return [
         f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{overage_amount_per_km} per kilometre will apply.",
     ]
-    
 
 
 def _get_airport_dropoff_pricing_configuration_by_region(
@@ -259,12 +259,18 @@ def get_airport_pickup_trip_options(
             base_price + toll + parking + placard_charge
         )
 
+        
         margin = max_included_km - est_km  # Allow negative values for overage
         indicative_overage_warning = margin <= warning_km_threshold
         # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
-        platform_fee_amount = config_store.platform_fee.fixed_platform_fee + (
-            platform_fee_percent * total_price_before_platform_fee / 100
+        platform_fee_amount = compute_final_platform_fee(
+            total_price=total_price_before_platform_fee,
+            fixed_fee=config_store.platform_fee.fixed_platform_fee,
+            dynamic_percent=platform_fee_percent,
+            min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
+            max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
+
         package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
 
         price_breakdown = AirportPricingBreakdownSchema(
@@ -272,7 +278,7 @@ def get_airport_pickup_trip_options(
             placard_charge=math.ceil(placard_charge),
             toll=math.ceil(toll),
             parking=math.ceil(parking),
-            platform_fee=math.ceil(platform_fee_amount),
+            platform_fee=platform_fee_amount,
         )
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
             overage_amount_per_km, currency, max_included_km
@@ -337,7 +343,7 @@ def get_airport_pickup_trip_options(
         ),
         choices=len(_options),  # Total number of options returned
     )
-     
+
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
@@ -403,14 +409,19 @@ def get_airport_dropoff_trip_options(
         margin = max_included_km - est_km  # Allow negative values for overage
         indicative_overage_warning = margin <= warning_km_threshold
         # Platform fee is a sum of a fixed cost to service fee and a percentage of the total price calculated before adding platform fee
-        platform_fee_amount = config_store.platform_fee.fixed_platform_fee + (
-            platform_fee_percent * total_price_before_platform_fee / 100
+        platform_fee_amount = compute_final_platform_fee(
+            total_price=total_price_before_platform_fee,
+            fixed_fee=config_store.platform_fee.fixed_platform_fee,
+            dynamic_percent=platform_fee_percent,
+            min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
+            max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
+        
         package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
         price_breakdown = AirportPricingBreakdownSchema(
             base_fare=math.ceil(base_price),
             toll=math.ceil(toll),
-            platform_fee=math.ceil(platform_fee_amount),
+            platform_fee=platform_fee_amount,
         )
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
             overage_amount_per_km, currency, max_included_km

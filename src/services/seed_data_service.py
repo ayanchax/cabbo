@@ -191,7 +191,12 @@ PLATFORM_FEE_BY_COUNTRY = {
     # These are fixed platform fees per booking per country
     # The fees are in local currency of the country
     # These are seed data and can be updated later via admin interface
-    "IN": 3.0,  # 3 for India
+    #Breakdown of estimated costs for platform fee for a typical ₹800 local trip in India:
+    # Payment gateway (Razorpay): ~2% of ₹800 = ₹16
+    # SMS / OTP: ₹1–₹2
+    # Infra (AWS amortized): ₹10–₹20
+    # Misc (email, logging, etc): ₹5
+    "IN": 65,  # 65 INR for India, sweet spot to cover costs and ensure profitability while remaining competitive.
     # Future countries:
     # "US": 2.5,  # $2.5 for USA
     # "AE": 10.0, # AED 10 for UAE
@@ -996,12 +1001,14 @@ def _seed_local_cab_pricing(session: Session):
         common_payload: CommonPricingConfigurationSchema = (
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.local],
-                dynamic_platform_fee_percent=4,  # platform fee
+                dynamic_platform_fee_percent=3,  # platform fee
                 min_included_hours=4,  # Minimum 4 hours for local trips
                 max_included_hours=12,  # Maximum 12 hours for local trips
                 min_included_km=40,  # Minimum 40 km included for local trips
                 max_included_km=120,  # Maximum 120 km included for local trips
                 region_id=region_id,
+                min_platform_fee=100,  # Minimum platform fee of Rs. 50 for local trips
+                max_platform_fee=400,  # Maximum platform fee of Rs. 200 for local trips
             )
         )
         create_common_pricing_configuration(common_payload, session)
@@ -1066,9 +1073,11 @@ def _seed_outstation_cab_pricing(session: Session):
         common_payload: CommonPricingConfigurationSchema = (
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-                dynamic_platform_fee_percent=3,  # 3% platform fee/convenience fee
+                dynamic_platform_fee_percent=1.5,  # 3% platform fee/convenience fee
                 overage_warning_km_threshold=50,  # Warning threshold for overages
                 state_id=state_id,
+                min_platform_fee=300,  # Minimum platform fee of Rs. 300 for outstation trips
+                max_platform_fee=1200,  # Maximum platform fee of Rs. 1200 for outstation trips
             )
         )
         create_common_pricing_configuration(common_payload, session)
@@ -1120,22 +1129,26 @@ def _seed_airport_cab_pricing(session: Session):
         common_payload: List[CommonPricingConfigurationSchema] = [
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.airport_pickup],
-                dynamic_platform_fee_percent=3,  # platform fee/convenience fee
+                dynamic_platform_fee_percent=3.5,  # platform fee/convenience fee
                 placard_charge=50.0,  # Fixed charge for airport pickup if customer opts for it
                 max_included_km=42,  # 42 km included for airport trips is a common standard
                 overage_warning_km_threshold=2,  # Warning threshold for overages
                 toll=120,  # toll for airport pickup set to 120 if customer opts for it
                 parking=100,  # parking charge for airport pickup
                 region_id=region_id,
+                min_platform_fee=150,  # Minimum platform fee of Rs. 100 for airport pickup trips
+                max_platform_fee=500,  # Maximum platform fee of Rs. 400 for airport pickup trips
             ),
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
-                dynamic_platform_fee_percent=3,  # platform fee/convenience fee
+                dynamic_platform_fee_percent=3.5,  # platform fee/convenience fee
                 max_included_km=42,  # 42 km included for airport trips is a standard
                 overage_warning_km_threshold=2,  # Warning threshold for overages
                 toll=120,  # toll for airport drop set to 120 if customer opts for it
                 parking=0,  # no parking charge for airport drop
                 region_id=region_id,
+                min_platform_fee=150,  # Minimum platform fee of Rs. 150 for airport drop trips
+                max_platform_fee=500,  # Maximum platform fee of Rs. 500 for airport drop trips
             ),
         ]
         for common_payload in common_payload:

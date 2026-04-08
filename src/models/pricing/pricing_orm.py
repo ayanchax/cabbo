@@ -223,6 +223,8 @@ class CommonPricingConfiguration(Base):
     max_included_km = Column(
         Integer, nullable=True, default=None
     )  # For local cab maximum included km
+    min_platform_fee = Column(Float, nullable=True, comment="Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.")
+    max_platform_fee = Column(Float, nullable=True, comment="Maximum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we do not overcharge for high-fare trips.")
     placard_charge = Column(
         Float, nullable=True
     )  # Only for airport pickup, can be null for others
