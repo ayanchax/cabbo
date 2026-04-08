@@ -1,11 +1,10 @@
 from core.cabbo_logging import * #Cabbo Logging is configured in this module at the top/root, importing it ensures it's set up before any logs are emitted and that any logs are emitted during import of other modules are captured within the cabbo logger. This is important for a consistent logging setup across the entire application.
-from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, PROJECT_ROOT, Environment
+from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, Environment
 from core.config import settings
 import warnings
 
 from db.database import check_db_connection, get_mysql_local_session
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
-from services.file_service import copy_file, create_directories
 
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 logger = logging.getLogger(APP_NAME)
@@ -17,9 +16,7 @@ from contextlib import asynccontextmanager
 from core.exceptions import CabboException
 from fastapi.exceptions import RequestValidationError
 from fastapi import HTTPException as FastAPIHTTPException
-import os
 from datetime import datetime, timezone
-from fastapi.staticfiles import StaticFiles
 from api.v1.routes import router as v1_router
 
 
@@ -74,25 +71,6 @@ def health():
 
 # Include routers
 app.include_router(v1_router, prefix="/api/v1")
-
-# Ensure share/images and share/documents directory exists relative to this file (project root)
-SHARE_IMAGES_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "images")
-SHARE_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, settings.SHARE_PATH, "documents")
-# Create directories if they don't exist
-create_directories([SHARE_IMAGES_DIR, SHARE_DOCUMENTS_DIR])
-# Copy default logo to share/images if not already present, this logo can be used in emails or other places
-copy_file(
-    os.path.join(PROJECT_ROOT,"resources", "logo-without-tagline.svg"),
-    os.path.join(SHARE_IMAGES_DIR, "logo.svg"),
-    overwrite=False,
-)
-
- 
-
-# Mount the static images directory
-app.mount("/images", StaticFiles(directory=SHARE_IMAGES_DIR), name="images")
-# Mount the static documents directory
-app.mount("/documents", StaticFiles(directory=SHARE_DOCUMENTS_DIR), name="documents")
 
 
 # Custom OpenAPI schema (optional, for branding or extensions)
