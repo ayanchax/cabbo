@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
@@ -66,6 +68,11 @@ class CustomerReadAfterUpdate(CustomerUpdate):
     class Config:
         from_attributes = True  # Read from ORM attributes of customer_orm
 
+
+class CustomerOTPRequest(BaseModel):
+    phone_number: str
+    otp:Optional[str] = None  # OTP is optional here because for resend OTP endpoint, we might not require it in the payload
+    
 
 class CustomerOnboardInitiationRequest(BaseModel):
     phone_number: str

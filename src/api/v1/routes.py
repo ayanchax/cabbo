@@ -8,6 +8,7 @@ from api.v1.endpoints.admin.pricing.pricing_routes import router as pricing_conf
 from api.v1.endpoints import (
     auth as auth_ep,
     location as location_ep,
+    geography as geography_ep,
 )
 from api.v1.endpoints.customer import (
      customer as customer_ep,
@@ -25,16 +26,14 @@ from api.v1.endpoints.admin import (
 )
 from api.v1.endpoints.customer.trip import trip as trip_router
 from api.v1.endpoints.admin.trip import trip as admin_trip_ep
-from api.v1.endpoints.s3 import router as s3_router
 
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
 router.include_router(customer_ep.router, prefix="/customer")
 router.include_router(trip_router.router, prefix="/trips")
-router.include_router(s3_router, prefix="/s3", tags=["s3"])
 router.include_router(driver_router.router, prefix="/driver", tags=["driver-operations-for-customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
-
+router.include_router(geography_ep.router, prefix="/geography", tags=["geography"])
 
 
 router.include_router(admin_auth_ep.router, prefix="/admin/auth", tags=["admin-auth"])

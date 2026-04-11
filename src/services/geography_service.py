@@ -6,8 +6,9 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.security import RoleEnum
+from db.database import get_mysql_local_session
 from models.geography.country_orm import CountryModel
-from models.geography.country_schema import CountrySchema, CountryUpdateSchema
+from models.geography.country_schema import CountryReadSchema, CountrySchema, CountryUpdateSchema
 from models.geography.region_orm import RegionModel
 from models.geography.region_schema import RegionSchema, RegionUpdate
 from models.geography.state_orm import StateModel
@@ -1856,3 +1857,12 @@ async def async_remove_car_type_from_region(
     except Exception as e:
         await db.rollback()
         return False, str(e)
+
+async def get_geography_data() -> CountryReadSchema:
+    from core.config import settings
+    with get_mysql_local_session() as db:
+        config_store = settings.get_config_store(db=db)
+    geo_data =  config_store.geographies.country_server
+    if not geo_data:
+        raise CabboException("Geography data not found", status_code=404)
+    return CountryReadSchema.model_validate(geo_data)  # Validate the data against the schema

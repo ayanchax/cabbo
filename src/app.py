@@ -165,7 +165,7 @@ async def cabbo_exception_handler(request: Request, exc: CabboException):
     diagnostics = get_diagnostics(request)
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.message, "error": str(exc), **diagnostics},
+        content={"detail": exc.message, "error": str(exc), **diagnostics, "error_code": exc.error_code or "UNKNOWN_ERROR"},
     )
 
 

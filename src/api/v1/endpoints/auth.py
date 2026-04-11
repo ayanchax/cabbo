@@ -7,13 +7,16 @@ from services.customer_service import create_customer, delete_bearer_token
 from services.notification_service import notify_customer_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.otp_service import (
+    OTP_RESEND_INTERVAL_SECONDS,
     generate_otp,
+    resend_otp,
     verify_otp,
     delete_otp,
     OTP_EXPIRY_MINUTES,
 )
 from models.customer.customer_schema import (
     CustomerCreate,
+    CustomerOTPRequest,
     CustomerOnboardInitiationRequest,
     CustomerLoginRequest,
     CustomerLoginResponse,
@@ -31,14 +34,20 @@ from services.message_service import (
 )
 from core.exceptions import CabboException
 from core.constants import APP_NAME
-from services.validation_service import validate_customer_login_payload, validate_customer_onboarding_payload, validate_customer_payload
+from services.validation_service import (
+    validate_customer_login_payload,
+    validate_customer_onboarding_payload,
+    validate_customer_payload,
+)
 
 router = APIRouter()
 
 
 @router.post("/onboard/initiate")
 def initiate_onboarding(
-    payload: CustomerOnboardInitiationRequest = Depends(validate_customer_onboarding_payload),
+    payload: CustomerOnboardInitiationRequest = Depends(
+        validate_customer_onboarding_payload
+    ),
     db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
@@ -46,11 +55,11 @@ def initiate_onboarding(
     if is_existing_customer(phone_number, db):
         raise CabboException("Phone number already registered.", status_code=400)
     # Generate OTP and return
-    otp = generate_otp(phone_number, db)
+    otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
 
     if send_otp(to_number=phone_number, message=message):
-        return {"message": "OTP sent to phone number.", "phone_number": phone_number}
+        return {"message": "OTP sent to phone number.", "phone_number": phone_number, "last_sent_at": last_sent_at, "resend_interval_seconds": OTP_RESEND_INTERVAL_SECONDS}
     else:
         # If sending OTP fails, delete the OTP record from the database
         delete_otp(phone_number, db)
@@ -58,6 +67,19 @@ def initiate_onboarding(
             "Failed to send OTP. Please try again later.", status_code=500
         )
 
+
+@router.post("/onboard/verify")
+def verify_onboarding_otp(
+    payload: CustomerOTPRequest = Depends(validate_customer_onboarding_payload),
+    db: Session = Depends(yield_mysql_session),
+):
+    phone_number = payload.phone_number
+    otp = payload.otp
+    # Verify OTP
+    valid, message = verify_otp(phone_number, otp, db)
+    if not valid:
+        raise CabboException(message, status_code=400)
+    return {"message": "OTP verified successfully. You can proceed with account setup."}
 
 @router.post("/register", response_model=CustomerLoginResponse)
 def register(
@@ -70,21 +92,23 @@ def register(
     # Check if already registered
     if is_existing_customer(phone_number, db):
         raise CabboException("Phone number already registered.", status_code=400)
+    
     # Verify OTP
     valid, message = verify_otp(phone_number, otp, db)
     if not valid:
         raise CabboException(message, status_code=400)
 
     customer = create_customer(data=payload, db=db, phone_verified=True, activate=True)
-    
+
     # Send welcome email in background if email is provided
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
     customer_schema = CustomerRead.model_validate(customer)
     orchestrator.add_task(
-        notify_customer_onboarded, task_name="notify_customer_onboarded", customer= customer_schema
+        notify_customer_onboarded,
+        task_name="notify_customer_onboarded",
+        customer=customer_schema,
     )
 
-    
     # Give login token directly after registration
     token = persist_bearer_token(
         customer=customer, token=generate_customer_jwt(customer=customer), db=db
@@ -100,16 +124,23 @@ def register(
 
 @router.post("/login/initiate")
 def initiate_login(
-    payload: CustomerOnboardInitiationRequest = Depends(validate_customer_login_payload),
+    payload: CustomerOnboardInitiationRequest = Depends(
+        validate_customer_login_payload
+    ),
     db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
-    if not is_existing_customer(phone_number, db):
+    customer = get_customer_by_phone_number(phone_number, db)
+    if not customer:
         raise CabboException("Phone number not registered.", status_code=404)
-    otp = generate_otp(phone_number, db)
+
+    if is_customer_logged_in(customer=customer):
+        raise CabboException("Cannot initiate login. You are already logged in.", status_code=400)
+    
+    otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to login into your account. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
     if send_otp(to_number=phone_number, message=message):
-        return {"message": "OTP sent to phone number.", "phone_number": phone_number}
+        return {"message": "OTP sent to phone number.", "phone_number": phone_number, "last_sent_at": last_sent_at, "resend_interval_seconds": OTP_RESEND_INTERVAL_SECONDS}
     else:
         delete_otp(phone_number, db)
         raise CabboException(
@@ -119,7 +150,8 @@ def initiate_login(
 
 @router.post("/login", response_model=CustomerLoginResponse)
 def login(
-    payload: CustomerLoginRequest = Depends(validate_customer_login_payload), db: Session = Depends(yield_mysql_session)
+    payload: CustomerLoginRequest = Depends(validate_customer_login_payload),
+    db: Session = Depends(yield_mysql_session),
 ):
     phone_number = payload.phone_number
     otp = payload.otp
@@ -146,6 +178,7 @@ def login(
         customer_id=str(customer.id),
     )
 
+
 @router.post("/customer/logout")
 def logout_customer(
     db: Session = Depends(yield_mysql_session),
@@ -156,3 +189,31 @@ def logout_customer(
         return {"message": "Logged out successfully"}
 
     raise CabboException("Logout failed", status_code=500)
+
+
+@router.post("/resend-otp")
+def resend_one_time_password(
+    payload: CustomerOTPRequest = Depends(validate_customer_onboarding_payload),
+    db: Session = Depends(yield_mysql_session),
+):
+    customer = get_customer_by_phone_number(payload.phone_number, db, silently_fail=True)
+    if customer and is_customer_logged_in(customer=customer):
+        raise CabboException("Failed to resend OTP. You are already logged in.", status_code=400)
+
+    otp, _, _, last_sent_at = resend_otp(payload.phone_number, db)
+    message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
+
+    if send_otp(to_number=payload.phone_number, message=message):
+        return {
+            "message": "OTP resent to phone number.",
+            "phone_number": payload.phone_number,
+            "last_sent_at": last_sent_at,
+            "resend_interval_seconds": OTP_RESEND_INTERVAL_SECONDS
+
+        }
+    else:
+        # If resending OTP fails, delete the OTP record from the database
+        delete_otp(payload.phone_number, db)
+        raise CabboException(
+            "Failed to resend OTP. Please try again later.", status_code=500, error_code="OTP_RESEND_FAILED"
+        )

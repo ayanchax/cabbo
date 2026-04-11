@@ -104,5 +104,8 @@ def remove_profile_picture(
     else:
         raise CabboException("No profile picture to remove.", status_code=400)
 
-
-
+@router.get("/logged-in")
+def check_logged_in_status(
+    _: Customer = Depends(validate_customer_token),
+):
+    return True # If the token is valid and we have a current_customer, it means the user is logged in, so we return True. If the token was invalid or expired, the validate_customer_token dependency would have already raised an exception and this code would not be reached.

@@ -12,7 +12,7 @@ from core.config import settings
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.airport.airport_schema import AirportSchema
-from models.customer.customer_schema import CustomerCreate, CustomerLoginRequest, CustomerOnboardInitiationRequest, CustomerUpdate
+from models.customer.customer_schema import CustomerCreate, CustomerLoginRequest, CustomerOTPRequest, CustomerOnboardInitiationRequest, CustomerUpdate
 from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
 from models.driver.driver_schema import DriverCreateSchema, DriverUpdateSchema
 from models.geography.country_schema import CountrySchema
@@ -931,7 +931,7 @@ def validate_passenger_payload(
     return payload
 
 def validate_customer_onboarding_payload(
-        payload:CustomerOnboardInitiationRequest = Body(...),
+        payload:Union[CustomerOTPRequest,CustomerOnboardInitiationRequest] = Body(...),
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)

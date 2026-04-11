@@ -49,3 +49,4 @@ def get_distance(
     destination_obj = parse_loc(destination)
     distance = get_distance_km(origin_obj, destination_obj)
     return {"distance_km": distance}
+

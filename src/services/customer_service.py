@@ -80,9 +80,11 @@ def get_active_customer_by_id(customer_id: str, db: Session) -> Customer:
     return customer
 
 
-def get_customer_by_phone_number(phone_number: str, db: Session) -> Customer:
+def get_customer_by_phone_number(phone_number: str, db: Session, silently_fail: bool = False) -> Customer:
     customer = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
     if not customer:
+        if silently_fail:
+            return None
         raise CabboException("Customer not found", status_code=404)
     return customer
 
