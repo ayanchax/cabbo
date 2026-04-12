@@ -124,7 +124,7 @@ async def notify_customer_booking_confirmed(booking: Trip) -> bool:
     return False
 
 
-def notify_customer_onboarded(customer: CustomerRead) -> bool:
+async def notify_customer_onboarded(customer: CustomerRead) -> bool:
     if not customer.email:
         return False  # No email to send notification, do not proceed
     name = customer.name if customer.name else customer.email.split("@")[0]
@@ -137,7 +137,7 @@ def notify_customer_onboarded(customer: CustomerRead) -> bool:
         app_url=settings.APP_URL,
     )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
-    send_email(
+    return await send_email(
         to_email=customer.email,
         subject=subject,
         html_content=html_content,

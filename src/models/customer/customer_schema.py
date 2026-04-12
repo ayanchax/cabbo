@@ -34,8 +34,7 @@ class CustomerBase(BaseModel):
 
 
 class CustomerCreate(CustomerBase):
-    otp: str
-
+    pass
     # All other optional fields are inherited from CustomerBase
 
 

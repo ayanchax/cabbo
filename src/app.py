@@ -2,7 +2,8 @@ from core.cabbo_logging import * #Cabbo Logging is configured in this module at 
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, Environment
 from core.config import settings
 import warnings
-
+from sqlalchemy.exc import SQLAlchemyError
+from core.exceptions import get_mysql_exception
 from db.database import check_db_connection, get_mysql_local_session
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
 
@@ -167,6 +168,11 @@ async def cabbo_exception_handler(request: Request, exc: CabboException):
         status_code=exc.status_code,
         content={"detail": exc.message, "error": str(exc), **diagnostics, "error_code": exc.error_code or "UNKNOWN_ERROR"},
     )
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    cabbo_exc = get_mysql_exception(exc)
+    return await cabbo_exception_handler(request, cabbo_exc)
 
 
 @app.exception_handler(FastAPIHTTPException)

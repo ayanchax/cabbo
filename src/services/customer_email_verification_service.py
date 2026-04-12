@@ -9,13 +9,13 @@ EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME={
     "MINUTES": "minutes",
 }
 
-def is_email_verification_link_already_sent(customer_id:str, db:Session):
+def get_existing_email_verification_link(customer_id:str, db:Session):
     now = datetime.now(timezone.utc)
     existing = db.query(CustomerEmailVerification).filter(
         CustomerEmailVerification.customer_id == customer_id,
         CustomerEmailVerification.expiry > now
     ).first()
-    return existing is not None
+    return existing or None
 
 def is_email_verification_link_valid(customer_id:str, token:str, db:Session):
     

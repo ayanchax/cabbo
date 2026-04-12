@@ -10,6 +10,11 @@ from models.common import S3ObjectInfo
 from models.customer.customer_orm import Customer
 from services.customer_service import (
     get_active_customer_by_id,
+    update_customer_dob,
+    update_customer_emergency_contact,
+    update_customer_gender,
+    update_customer_name,
+    update_customer_email,
     update_customer_profile,
     update_customer_profile_picture,
 )
@@ -49,6 +54,63 @@ def modify_customer_profile(
 ):
     return update_customer_profile(current_customer.id, payload, db)
 
+
+#Atomic single updates
+@router.patch("/update/email", response_model=dict)
+def modify_customer_email_field(
+    payload: CustomerUpdate = Depends(validate_customer_payload),
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    if payload.email is None:
+        raise CabboException("Email field is required.", status_code=400)
+    updated_email= update_customer_email(current_customer.id, payload.email, db)
+    return {"email": updated_email, "message": "Email updated successfully. Please verify your new email address."}
+
+@router.patch("/update/name", response_model=dict)
+def modify_customer_name_field(
+    payload: CustomerUpdate = Depends(validate_customer_payload),
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    if payload.name is None:
+        raise CabboException("Name field is required.", status_code=400)
+    updated_name = update_customer_name(current_customer.id, payload.name, db)
+    return {"name": updated_name, "message": "Name updated successfully."}
+
+@router.patch("/update/dob", response_model=dict)
+def modify_customer_dob_field(
+    payload: CustomerUpdate = Depends(validate_customer_payload),
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    if payload.dob is None:
+        raise CabboException("DOB field is required.", status_code=400)
+    updated_dob = update_customer_dob(current_customer.id, payload.dob, db)
+    return {"dob": updated_dob, "message": "Date of Birth updated successfully."}
+
+@router.patch("/update/gender", response_model=dict)
+def modify_customer_gender_field(
+    payload: CustomerUpdate = Depends(validate_customer_payload),
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    if payload.gender is None:
+        raise CabboException("Gender field is required.", status_code=400)
+    updated_gender = update_customer_gender(current_customer.id, payload.gender, db)
+    return {"gender": updated_gender, "message": "Gender updated successfully."}
+
+
+@router.patch("/update/emergency-contact", response_model=dict)
+def modify_customer_emergency_contact(
+    payload: CustomerUpdate = Depends(validate_customer_payload),
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    if payload.emergency_contact_number is None:
+        raise CabboException("Emergency contact number is required.", status_code=400)
+    
+    return update_customer_emergency_contact(current_customer.id, payload, db)
 
 @router.post(
     "/upload/profile-picture",
@@ -104,8 +166,11 @@ def remove_profile_picture(
     else:
         raise CabboException("No profile picture to remove.", status_code=400)
 
-@router.get("/logged-in")
+@router.get("/is-logged-in")
 def check_logged_in_status(
     _: Customer = Depends(validate_customer_token),
-):
-    return True # If the token is valid and we have a current_customer, it means the user is logged in, so we return True. If the token was invalid or expired, the validate_customer_token dependency would have already raised an exception and this code would not be reached.
+):  
+    try:
+        return True # If the token is valid and we have a current_customer, it means the user is logged in, so we return True. If the token was invalid or expired, the validate_customer_token dependency would have already raised an exception and this code would not be reached.
+    except Exception:
+        return False # If there was any exception (e.g., token validation failed), we catch it and return False, indicating that the user is not logged in. This way, instead of returning an error response, we simply return a boolean indicating the login status.

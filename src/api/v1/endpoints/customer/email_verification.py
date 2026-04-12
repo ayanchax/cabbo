@@ -14,7 +14,7 @@ from services.customer_service import (
     is_customer_email_verified,
 )
 from services.customer_email_verification_service import (
-    is_email_verification_link_already_sent,
+    get_existing_email_verification_link,
     create_customer_email_verification,
     is_email_verification_link_valid,
     remove_email_verification,
@@ -40,24 +40,36 @@ def trigger_email_verification(
     if is_customer_email_verified(customer_id, db):
         return {"message": "Email already verified."}
     customer = get_active_customer_by_id(customer_id, db)
-    # Check for existing, unexpired verification link
-    if is_email_verification_link_already_sent(customer.id, db):
-        return {
-            "message": "A verification link has already been sent. Please check your email."
-        }
-    customer_email_verification = create_customer_email_verification(customer.id, db)
-    if not customer_email_verification:
+    if customer and not customer.email:
         raise CabboException(
-            "Failed to create email verification link", status_code=500
-        )
+            "Cannot send verification email. No email address found for the customer.",
+            status_code=400,
+            error_code="NO_EMAIL_FOUND"
+        ) 
+    verification_link = None
+    # Check for existing, unexpired verification link
+    existing_email_verification=get_existing_email_verification_link(customer.id, db)
+    if existing_email_verification:
+        verification_link = existing_email_verification.verification_url
+    else:
+        customer_email_verification = create_customer_email_verification(customer.id, db)
+        if not customer_email_verification:
+            raise CabboException(
+                "Failed to create email verification link", status_code=500, error_code="EMAIL_VERIFICATION_CREATION_FAILED"
+            )
+        verification_link = customer_email_verification.verification_url if customer_email_verification else None
+        
 
-    customer_schema = CustomerRead.model_validate(customer)
+    if not verification_link:
+        raise CabboException(
+            "Failed to create email verification link", status_code=500, error_code="EMAIL_VERIFICATION_CREATION_FAILED"
+        )
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
     orchestrator.add_task(
         notify_verification_email_to_customer,
         task_name="notify_verification_email_to_customer",
-        customer=customer_schema,
-        verification_url=customer_email_verification.verification_url,
+        customer=CustomerRead.model_validate(customer),
+        verification_url=verification_link,
     )
     return {"message": "Verification email sent. Please check your inbox."}
 
@@ -77,7 +89,7 @@ def verify_email(
     """
     # Only allow self-service
     if str(current_customer.id) != id:
-        raise CabboException("Unauthorized", status_code=403)
+        raise CabboException("Unauthorized", status_code=403, error_code="UNAUTHORIZED")
 
     if is_customer_email_verified(id, db):
         return {"message": "Email already verified."}

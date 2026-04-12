@@ -20,6 +20,8 @@ from core.security import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from models.user.user_enum import GenderEnum
+
 
 def create_customer(
     data: CustomerCreate, db: Session, phone_verified=False, activate=False
@@ -57,11 +59,7 @@ def create_customer(
         return customer
     except Exception as e:
         db.rollback()
-        raise CabboException(
-            f"Error creating customer: {str(e)}",
-            status_code=500,
-            include_traceback=True,
-        )
+        raise e
 
 
 def is_existing_customer(phone_number: str, db: Session) -> bool:
@@ -102,6 +100,47 @@ async def a_get_customer_by_id(customer_id: str, db: AsyncSession) -> Customer:
         raise CabboException("Customer not found", status_code=404)
     return customer
 
+def update_customer_name(customer_id:str, new_name:str, db:Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_name(CustomerUpdate(name=new_name), customer):
+        db.commit()
+        db.refresh(customer)
+    return customer.name
+
+def update_customer_email(customer_id:str, new_email:str, db:Session, unverify_email:bool=True):
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer.email == new_email:
+        return customer.email  # No update needed if email is the same
+    customer.email = new_email
+    if unverify_email:
+        customer.is_email_verified = False
+    db.commit()
+    db.refresh(customer)
+    return customer.email
+
+def update_customer_dob(customer_id:str, new_dob:datetime, db:Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_dob(CustomerUpdate(dob=new_dob), customer):
+        db.commit()
+        db.refresh(customer)
+    return customer.dob
+
+def update_customer_gender(customer_id, new_gender:GenderEnum, db:Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_gender(CustomerUpdate(gender=new_gender), customer):
+        db.commit()
+        db.refresh(customer)
+    return customer.gender
+
+def update_customer_emergency_contact(customer_id, payload:CustomerUpdate, db:Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_emergency_contact(payload, customer):
+        db.commit()
+        db.refresh(customer)
+    return {
+        "emergency_contact_name": customer.emergency_contact_name,
+        "emergency_contact_number": customer.emergency_contact_number,
+    }
 
 def update_customer_profile(
     customer_id: str, payload: CustomerUpdate, db: Session
@@ -110,12 +149,12 @@ def update_customer_profile(
         customer = get_active_customer_by_id(customer_id, db)
         updated_flags = [
             # Primary fields that can be updated
-            update_customer_name(payload, customer),
+            update_name(payload, customer),
             update_email(customer_id, payload, customer, db),
             # Secondary fields that can be updated
-            update_customer_dob(payload, customer),
-            update_customer_gender(payload, customer),
-            update_customer_emergency_contact(payload, customer),
+            update_dob(payload, customer),
+            update_gender(payload, customer),
+            update_emergency_contact(payload, customer),
             update_opt_in_status(payload, customer),
         ]
         if any(updated_flags):
@@ -133,7 +172,8 @@ def update_customer_profile(
         )
 
 
-def update_customer_name(payload: CustomerUpdate, customer: Customer):
+
+def update_name(payload: CustomerUpdate, customer: Customer):
     if payload.name is not None:
         if customer.name != payload.name:
             customer.name = payload.name
@@ -173,7 +213,7 @@ def update_opt_in_status(payload: CustomerUpdate, customer: Customer):
     return False
 
 
-def update_customer_emergency_contact(payload: CustomerUpdate, customer: Customer):
+def update_emergency_contact(payload: CustomerUpdate, customer: Customer):
     updated = False
     if payload.emergency_contact_name is not None:
         if customer.emergency_contact_name != payload.emergency_contact_name:
@@ -186,7 +226,7 @@ def update_customer_emergency_contact(payload: CustomerUpdate, customer: Custome
     return updated
 
 
-def update_customer_gender(payload: CustomerUpdate, customer: Customer):
+def update_gender(payload: CustomerUpdate, customer: Customer):
     if payload.gender is not None:
         gender_value = (
             payload.gender.value if hasattr(payload.gender, "value") else payload.gender
@@ -197,7 +237,7 @@ def update_customer_gender(payload: CustomerUpdate, customer: Customer):
     return False
 
 
-def update_customer_dob(payload: CustomerUpdate, customer: Customer):
+def update_dob(payload: CustomerUpdate, customer: Customer):
     if payload.dob is not None:
         if customer.dob != payload.dob:
             customer.dob = payload.dob

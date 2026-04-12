@@ -34,13 +34,20 @@ class Customer(Base):
     # Secondary data
     dob = Column(DateTime, nullable=True)
     gender = Column(SqlEnum(GenderEnum, name="gender_enum"), nullable=True)
+    # Optional emergency contact for reaching someone on behalf of the customer
+    # when neither their primary nor alternate phone number(provided in trip) is reachable.
+    # Unlike the alternate_customer_phone in trip_orm.py (which is trip-specific),
+    # this contact is platform-wide — used by support agents for account issues,
+    # safety concerns, or critical trip emergencies.
     emergency_contact_name = Column(String(255), nullable=True)
     emergency_contact_number = Column(String(20), nullable=True)
     opt_in_updates = Column(
         Boolean, default=False, nullable=False
     )  # consent for offers/updates
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
     is_phone_verified = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
@@ -52,12 +59,27 @@ class Customer(Base):
     )
     bearer_token = Column(Text, nullable=True)
     last_seen = Column(DateTime, nullable=True)
-    is_suspended = Column(Boolean, default=False, nullable=False, comment="Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.")
-    suspension_reason = Column(Text, nullable=True, comment="If the customer is suspended, this field can store the reason for suspension.")
-    s3_image_info=Column(JSON, nullable=True, comment="Stores S3 key and URL for the customer's profile picture if using S3 for storage.")
+    is_suspended = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.",
+    )
+    suspension_reason = Column(
+        Text,
+        nullable=True,
+        comment="If the customer is suspended, this field can store the reason for suspension.",
+    )
+    s3_image_info = Column(
+        JSON,
+        nullable=True,
+        comment="Stores S3 key and URL for the customer's profile picture if using S3 for storage.",
+    )
     trip_ratings = relationship(
-        "TripRating", back_populates="customer", cascade="all, delete-orphan",
-        passive_deletes=True
+        "TripRating",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )  # Ratings given by customer to one or more trips
     trips = relationship(
         "Trip",
@@ -66,6 +88,7 @@ class Customer(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
 
 class PreOnboardingCustomer(Base):
     __tablename__ = "pre_onboarding_customers"
@@ -79,11 +102,17 @@ class PreOnboardingCustomer(Base):
     )
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
     otp_hash = Column(String(128), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
     expires_at = Column(DateTime(timezone=True), nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
-    last_sent_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    last_sent_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
 
 class CustomerEmailVerification(Base):
@@ -98,4 +127,8 @@ class CustomerEmailVerification(Base):
     )
     verification_url = Column(String(512), nullable=False, unique=True)
     expiry = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

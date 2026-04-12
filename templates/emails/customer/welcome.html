@@ -62,7 +62,7 @@
             <img src="{{ app_logo_url }}" alt="Cabbo logo" width="200" height="200"
                 style="display: block; margin: 0 auto;" />
         </div>
-        {% else %}
+        {% endif %}
         
         <h2>Welcome, {{ name }}!</h2>
         <p>Thank you for joining <b>{{app_name}}</b>. We’re excited to have you on board.</p>
@@ -74,7 +74,8 @@
         <p class="footer">
             This email was sent by <b>{{app_name}}</b>.<br>
             Maa Sarada Tours and Travels, Bangalore, India<br>
-            &copy; 2025 {{app_name}}. All rights reserved.
+            &copy; {{ current_year }} {{ app_name }}. All rights reserved.
+
         </p>
     </div>
 </body>

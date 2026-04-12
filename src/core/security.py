@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 
 JWT_EXPIRY_UNIT = 5
+JWT_EXPIRES_IN=JWT_EXPIRY_UNIT * 24 * 60 * 60  # Default expiry in seconds (5 days)
 JWT_EXPIRY_UNIT_TIME_FRAME = {
     "DAYS": "days",
     "HOURS": "hours",
