@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from typing import Union
-from services.location_service import get_state_from_location, get_distance_km
+from services.location_service import get_location_from_coordinates, get_location_suggestions, get_state_from_location, get_distance_km
 
 router = APIRouter()
 
@@ -50,3 +50,21 @@ def get_distance(
     distance = get_distance_km(origin_obj, destination_obj)
     return {"distance_km": distance}
 
+@router.get("/search")
+def search_location(
+    query: str = Query(..., description="Partial location string to search for")
+):
+    """
+    Get location suggestions based on a partial query string.
+    """
+    return get_location_suggestions(query)
+
+@router.get("/reverse-geocode")
+def reverse_geocode(
+    lat: float = Query(..., description="Latitude for reverse geocoding"),
+    lng: float = Query(..., description="Longitude for reverse geocoding"),
+):
+    """
+    Get location details from latitude and longitude.
+    """
+    return get_location_from_coordinates(lat, lng)

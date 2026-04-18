@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     AWS_SECRET_KEY: str
     AWS_REGION: str
     S3_BUCKET: str
-    S3_BASE_URL: str
+    S3_BASE_URL: str    
 
     class Config:
         env_file = ENV_FILE

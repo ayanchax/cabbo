@@ -151,6 +151,10 @@ class CommonPricingConfigurationSchema(BaseModel):
     max_included_km: Optional[int] = None  # For local cab maximum included
     min_platform_fee: Optional[float] = None  # Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.
     max_platform_fee: Optional[float] = None  # Maximum platform fee charged to customer
+    min_distance_km: Optional[float] = None  # For airport trips and outstation trips minimum distance threshold for fare calculation, e.g., 2 km for airport trips and 150 km for outstation trips
+    max_distance_km: Optional[float] = None  # For airport trips and out
+    max_days_allowed: Optional[int]= None  # Max days allowed for outstation trips, e.g., 7 days
+    max_hops_allowed: Optional[int] = None  # Max hops/stops allowed for outstation trips, e.g., 2 hops
     placard_charge: Optional[float] = (
         None  # Only for airport pickup, can be null for others
     )

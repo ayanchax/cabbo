@@ -41,6 +41,8 @@ class OutstationCabPricing(Base):
     min_included_km_per_day = Column(
         Integer, nullable=False, default=300
     )  # 200 for hatchback, 300 for others
+    
+    
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for high-demand outstation trips
@@ -223,8 +225,16 @@ class CommonPricingConfiguration(Base):
     max_included_km = Column(
         Integer, nullable=True, default=None
     )  # For local cab maximum included km
+    #Platform fee capping fields to ensure that we have a minimum and maximum platform fee charged to customer for each trip type in each region or state, regardless of total fare, to ensure that we cover our costs for low-fare trips and do not overcharge for high-fare trips.
+    #This is important since the dynamic platform fee is calculated as percentage of total fare and can be very low for low-fare trips and very high for high-fare trips, which can lead to undercharging or overcharging customers and can impact our unit economics and customer satisfaction.
     min_platform_fee = Column(Float, nullable=True, comment="Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.")
     max_platform_fee = Column(Float, nullable=True, comment="Maximum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we do not overcharge for high-fare trips.")
+    
+    #Distance thresholds for validating airport trips and outstation trips, we can have different thresholds for different trip types and regions since the economics of airport trips and outstation trips can vary significantly by region. We do not need thresholds for intracity/local rental trips since local trips are package based and we are validating at region level and have all region level and higher level info, so any trip within the same region is valid as intracity trip regardless of distance.
+    min_distance_km = Column(Float, nullable=True)  # For airport trips and outstation trips minimum distance threshold for fare calculation, e.g., 2 km for airport trips and 150 km for outstation trips
+    max_distance_km = Column(Float, nullable=True)  # For airport trips and outstation trips maximum distance threshold for fare calculation, e.g., 100 km for airport trips and 2100 km for outstation trips
+    max_days_allowed = Column(Integer, nullable=True, comment="Max days allowed for outstation trips")  # Max 7 days allowed for outstation trips
+    max_hops_allowed = Column(Integer, nullable=True, comment="Max hops/stops allowed for outstation trips")  # Max 2 hops allowed for outstation trips, to prevent very long routes with multiple stops which can impact our unit economics and customer satisfaction
     placard_charge = Column(
         Float, nullable=True
     )  # Only for airport pickup, can be null for others

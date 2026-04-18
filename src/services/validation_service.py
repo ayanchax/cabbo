@@ -12,10 +12,17 @@ from core.config import settings
 from core.store import ConfigStore
 from db.database import get_mysql_local_session
 from models.airport.airport_schema import AirportSchema
-from models.customer.customer_schema import CustomerCreate, CustomerLoginRequest, CustomerOTPRequest, CustomerOnboardInitiationRequest, CustomerUpdate
+from models.customer.customer_schema import (
+    CustomerCreate,
+    CustomerLoginRequest,
+    CustomerOTPRequest,
+    CustomerOnboardInitiationRequest,
+    CustomerUpdate,
+)
 from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
 from models.driver.driver_schema import DriverCreateSchema, DriverUpdateSchema
 from models.geography.country_schema import CountrySchema
+from models.geography.state_schema import StateSchema
 from models.map.location_schema import LocationInfo
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
@@ -27,6 +34,7 @@ from services.configuration_service import (
     get_region_from_location,
     get_state_from_location_v2,
 )
+from services.location_service import get_distance_km
 from utils.utility import (
     calculate_age_from_dob,
     remove_none_recursive,
@@ -227,20 +235,19 @@ def validate_serviceable_area(
             dest_region = get_region_from_location(
                 location=drop, config_store=config_store
             )
-            
 
             if not dest_region:
                 raise CabboException(
                     "Destination region is not serviceable", status_code=400
                 )
-            
+
             drop.region = dest_region.region_name
             drop.region_code = dest_region.region_code
-            drop.state= dest_region.state_name
-            drop.state_code= dest_region.state_code
-            drop.country_code= dest_region.country_code
-            drop.country= dest_region.country_name
-            
+            drop.state = dest_region.state_name
+            drop.state_code = dest_region.state_code
+            drop.country_code = dest_region.country_code
+            drop.country = dest_region.country_name
+
             if not pickup:
                 dest_region_airport_locations = (
                     dest_region.airport_locations or []
@@ -269,7 +276,9 @@ def validate_serviceable_area(
                     raise CabboException("No airport found in region", status_code=400)
 
                 pickup = LocationInfo.model_validate(
-                    json.loads(airport_in_dest_region.model_dump_json(exclude_none=True))
+                    json.loads(
+                        airport_in_dest_region.model_dump_json(exclude_none=True)
+                    )
                 )
                 search_in.origin = pickup
             else:
@@ -307,10 +316,10 @@ def validate_serviceable_area(
                     )
                 pickup.region = origin_region.region_name
                 pickup.region_code = origin_region.region_code
-                pickup.state= origin_region.state_name
-                pickup.state_code= origin_region.state_code
-                pickup.country_code= origin_region.country_code
-                pickup.country= origin_region.country_name
+                pickup.state = origin_region.state_name
+                pickup.state_code = origin_region.state_code
+                pickup.country_code = origin_region.country_code
+                pickup.country = origin_region.country_name
 
         elif trip_type == TripTypeEnum.airport_drop:
             if not pickup:
@@ -324,13 +333,13 @@ def validate_serviceable_area(
                 raise CabboException(
                     "Origin region is not serviceable", status_code=400
                 )
-            
+
             pickup.region = origin_region.region_name
             pickup.region_code = origin_region.region_code
-            pickup.state= origin_region.state_name
-            pickup.state_code= origin_region.state_code
-            pickup.country_code= origin_region.country_code
-            pickup.country= origin_region.country_name
+            pickup.state = origin_region.state_name
+            pickup.state_code = origin_region.state_code
+            pickup.country_code = origin_region.country_code
+            pickup.country = origin_region.country_name
 
             if not drop:
                 # Set drop as first airport location of origin region
@@ -387,12 +396,12 @@ def validate_serviceable_area(
                         "Destination location is not a valid airport in the region",
                         status_code=400,
                     )
-                drop.region=dest_region.region_name
+                drop.region = dest_region.region_name
                 drop.region_code = dest_region.region_code
-                drop.state= dest_region.state_name
-                drop.state_code= dest_region.state_code
-                drop.country_code= dest_region.country_code
-                drop.country= dest_region.country_name
+                drop.state = dest_region.state_name
+                drop.state_code = dest_region.state_code
+                drop.country_code = dest_region.country_code
+                drop.country = dest_region.country_name
 
         elif trip_type == TripTypeEnum.local:
             if not pickup:
@@ -406,12 +415,12 @@ def validate_serviceable_area(
                 raise CabboException(
                     "Origin region is not serviceable", status_code=400
                 )
-            pickup.region=origin_region.region_name
+            pickup.region = origin_region.region_name
             pickup.region_code = origin_region.region_code
-            pickup.state= origin_region.state_name
-            pickup.state_code= origin_region.state_code
-            pickup.country_code= origin_region.country_code
-            pickup.country= origin_region.country_name
+            pickup.state = origin_region.state_name
+            pickup.state_code = origin_region.state_code
+            pickup.country_code = origin_region.country_code
+            pickup.country = origin_region.country_name
             if not drop:
                 drop = pickup  # For local trips, set drop as same as pickup if not provided
                 search_in.destination = drop
@@ -423,17 +432,18 @@ def validate_serviceable_area(
                     raise CabboException(
                         "Destination region is not serviceable", status_code=400
                     )
-                drop.region=dest_region.region_name
+                drop.region = dest_region.region_name
                 drop.region_code = dest_region.region_code
-                drop.state= dest_region.state_name
-                drop.state_code= dest_region.state_code
-                drop.country_code= dest_region.country_code
-                drop.country= dest_region.country_name
+                drop.state = dest_region.state_name
+                drop.state_code = dest_region.state_code
+                drop.country_code = dest_region.country_code
+                drop.country = dest_region.country_name
         # Final check: Ensure both pickup and drop are in the same region
         if pickup.region_code != drop.region_code:
             raise CabboException(
                 "Both origin and destination must be in the same region",
                 status_code=400,
+                error_code="ORIGIN_DESTINATION_REGION_MISMATCH",
             )
 
     # Outstation trips
@@ -467,12 +477,12 @@ def validate_serviceable_area(
                 f"Outstation trips are only serviceable from: {', '.join(allowed_states)}.",
                 status_code=400,
             )
-        
-        #At this point as we have the state_code, we will enrich origin_state pick up with 
-          
-        pickup.state= origin_state.state_name
-        pickup.country_code= origin_state.country_code
-        pickup.country= origin_state.country_name
+
+        # At this point as we have the state_code, we will enrich origin_state pick up with
+
+        pickup.state = origin_state.state_name
+        pickup.country_code = origin_state.country_code
+        pickup.country = origin_state.country_name
 
         dest_state = get_state_from_location_v2(
             location=drop, config_store=config_store
@@ -487,95 +497,227 @@ def validate_serviceable_area(
                 f"Outstation trips are only serviceable to: {', '.join(allowed_states)}.",
                 status_code=400,
             )
-        
-        drop.state= dest_state.state_name
-        drop.country_code= dest_state.country_code
-        drop.country= dest_state.country_name
-        #There is no need of having region or postal code for outstation trips since we are validating at state level and have all state level and higher level info
 
+        drop.state = dest_state.state_name
+        drop.country_code = dest_state.country_code
+        drop.country = dest_state.country_name
+        # There is no need of having region or postal code for outstation trips since we are validating at state level and have all state level and higher level info
+        # Also since outstation trips can happen within same or different region and/or state, there is no need to validate
+        # both pickup and drop are in the same region or state.
 
         if search_in.hops:
-            invalid_hops = []
-            same_as_drop_hops = []
-            zero_coord_hops = []
-            duplicate_hops = []
-            seen_hop_keys = set()
-            unique_hops = []
-            
-            for hop in search_in.hops:
-                hop_state = get_state_from_location_v2(
-                    location=hop, config_store=config_store
-                )
-                # Build a stable key to detect duplicate hops (prefer place_id, fallback to coords)
-                if getattr(hop, "place_id", None):
-                        hop_key = f"place:{hop.place_id}"
-                else:
-                        hop_key = f"coord:{hop.lat}:{hop.lng}"
-                if hop_key in seen_hop_keys:
-                    duplicate_hops.append(hop.state_code)
-                    continue  # Skip adding this duplicate hop
-
-                seen_hop_keys.add(hop_key)
-                if not hop_state:
-                    invalid_hops.append(hop.state_code)
-                elif hop_state.state_code not in allowed_states:
-                    invalid_hops.append(hop_state.state_code)
-                elif hop.lat is None or hop.lng is None:
-                    zero_coord_hops.append(hop_state.state_code if hop_state else hop_key)
-                elif hop.lat == 0.0 or hop.lng == 0.0:
-                    zero_coord_hops.append(hop_state.state_code if hop_state else hop_key)
-                elif (hop.lat == drop.lat and hop.lng == drop.lng) or (
-                        getattr(hop, "place_id", None) and hop.place_id == drop.place_id
-                    ): # Same as drop, do not consider and si
-                    same_as_drop_hops.append(hop_state.state_code if hop_state else hop_key)
-                    continue  # Skip adding this hop
-                
-                if hop_state and hop_state.state_code not in same_as_drop_hops:
-                    hop.state= hop_state.state_name
-                    hop.country_code= hop_state.country_code
-                    hop.country= hop_state.country_name
-                unique_hops.append(hop)
-            
-            if duplicate_hops:
-                    print(
-                        f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}"
-                    )
-            if same_as_drop_hops:
-                    print(
-                        f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
-                    )
-            if zero_coord_hops:
-                    print(
-                        f"Note: The following hops have zero or missing coordinates and will be ignored: {', '.join(zero_coord_hops)}"
-                    )
-            # Keep only unique, valid hops (invalid hops cause an exception below)
-            search_in.hops = [
-                    h
-                    for h in unique_hops
-                    if (getattr(h, "state_code", None) not in zero_coord_hops)
-                ]
-            if invalid_hops:
-                message = f"Outstation trips are only serviceable to: {', '.join(allowed_states)}."
-                # Convert None to 'Unknown' or just str
-                context = (
-                    "One or more hops in your trip is not serviceable: "
-                    f"{', '.join([str(h) if h is not None else 'Unknown' for h in invalid_hops])}, "
-                    "try again with different hops within serviceable states or remove them."
-                )
-                #Only raise exception if there are invalid hops
-                raise CabboException(
-                    {
-                        "message": message,
-                        "context": context,
-                    },
-                    status_code=400,
-                )
-            
-
+            search_in.hops = validate_hops(
+                hops=search_in.hops,
+                config_store=config_store,
+                dest_state=dest_state,
+                allowed_states=allowed_states,
+                drop=drop,
+            )
     else:
         raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)
+
+    validate_distance(
+        pickup=pickup, drop=drop, config_store=config_store, trip_type=trip_type
+    )
     print("Serviceable area validation passed")
     return search_in
+
+
+def validate_hops(
+    hops: List[Union[LocationInfo, str]],
+    config_store: ConfigStore,
+    dest_state: StateSchema,
+    allowed_states: set,
+    drop: LocationInfo,
+):
+    if hops:
+        max_allowed_hops = config_store.outstation.get(
+            dest_state.state_code
+        ).auxiliary_pricing.common.max_hops_allowed
+
+        if len(hops) > max_allowed_hops:
+            raise CabboException(
+                f"Number of hops/stops in outstation trip cannot exceed {max_allowed_hops}, please reduce the number of hops and try again",
+                status_code=400,
+                error_code="OUTSTATION_HOPS_EXCEEDS_MAX_LIMIT",
+            )
+        invalid_hops = []
+        same_as_drop_hops = []
+        zero_coord_hops = []
+        duplicate_hops = []
+        seen_hop_keys = set()
+        unique_hops = []
+
+        for hop in hops:
+            hop_state = get_state_from_location_v2(
+                location=hop, config_store=config_store
+            )
+            # Build a stable key to detect duplicate hops (prefer place_id, fallback to coords)
+            if getattr(hop, "place_id", None):
+                hop_key = f"place:{hop.place_id}"
+            else:
+                hop_key = f"coord:{hop.lat}:{hop.lng}"
+            if hop_key in seen_hop_keys:
+                duplicate_hops.append(hop.state_code if hop_state else hop_key)
+                continue  # Skip adding this duplicate hop
+
+            seen_hop_keys.add(hop_key)
+            if not hop_state:
+                invalid_hops.append(hop.state_code if hop_state else hop_key)
+                continue
+            elif hop_state.state_code not in allowed_states:
+                invalid_hops.append(hop_state.state_code if hop_state else hop_key)
+                continue
+            elif hop.lat is None or hop.lng is None:
+                zero_coord_hops.append(
+                    hop_key
+                )  # For missing coordinates, we don't have state info, so we just use the coordinate key for messaging
+                continue
+
+            elif hop.lat == 0.0 or hop.lng == 0.0:
+                zero_coord_hops.append(
+                    hop_key
+                )  # For zero coordinates, we don't have state info, so we just use the coordinate key for messaging
+                continue
+            elif (hop.lat == drop.lat and hop.lng == drop.lng) or (
+                getattr(hop, "place_id", None) and hop.place_id == drop.place_id
+            ):  # Same as drop, do not consider as invalid but ignore and do not add to hops, also add to same_as_drop_hops for messaging
+                same_as_drop_hops.append(hop.state_code if hop_state else hop_key)
+                continue  # Skip adding this hop
+
+            if hop_state:
+                hop.state = hop_state.state_name
+                hop.country_code = hop_state.country_code
+                hop.country = hop_state.country_name
+            unique_hops.append(hop)
+
+        if duplicate_hops:
+            print(f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}")
+        if same_as_drop_hops:
+            print(
+                f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
+            )
+        if zero_coord_hops:
+            print(
+                f"Note: The following hops have zero or missing coordinates and will be ignored: {', '.join(zero_coord_hops)}"
+            )
+
+        if invalid_hops:
+            # For one or more invalid hops, we will raise an exception with details of which hops are invalid and allowed states for outstation trips. We will convert None values to 'Unknown' in the messaging for better clarity.
+            message = f"Outstation trips are only serviceable to: {', '.join(allowed_states)}."
+            # Convert None to 'Unknown' or just str
+            context = (
+                "One or more hops in your trip is not serviceable: "
+                f"{', '.join([str(h) if h is not None else 'Unknown' for h in invalid_hops])}, "
+                "try again with different hops within serviceable states or remove them."
+            )
+            # Only raise exception if there are invalid hops
+            raise CabboException(
+                {
+                    "message": message,
+                    "context": context,
+                },
+                status_code=400,
+                error_code="OUTSTATION_HOP_NOT_SERVICEABLE",
+            )
+
+        # After unique_hops is fully built, do the consecutive zero-distance check
+
+        if len(unique_hops) >= 2:  # We need at least 2 hops to have consecutive hops
+            for i in range(len(unique_hops) - 1):
+                d = get_distance_km(
+                    origin=unique_hops[i], destination=unique_hops[i + 1]
+                )
+                if d is not None and d == 0:
+                    raise CabboException(
+                        f"Consecutive hops cannot be at the same location: stop {i + 1} and stop {i + 2} are identical",
+                        status_code=400,
+                        error_code="OUTSTATION_CONSECUTIVE_HOPS_ZERO_DISTANCE",
+                    )
+
+        # Keep only unique, valid hops (invalid hops cause an exception below)
+        hops = [h for h in unique_hops]
+
+    print("Hops validation passed")
+    return hops
+
+
+def validate_distance(
+    pickup: LocationInfo,
+    drop: LocationInfo,
+    config_store: ConfigStore,
+    trip_type: TripTypeEnum,
+):
+    try:
+        if trip_type == TripTypeEnum.local:
+            return 0  # For local trips, we can skip distance validation as it is package based and not distance based
+        distance = get_distance_km(origin=pickup, destination=drop)
+        if distance is None:
+            raise CabboException(
+                "Could not calculate distance between origin and destination, please check the locations and try again",
+                status_code=400,
+                error_code="DISTANCE_NOT_DETERMINED",
+            )
+        if distance == 0:
+            raise CabboException(
+                "Distance between origin and destination cannot be zero, please check the locations and try again",
+                status_code=400,
+                error_code="DISTANCE_ZERO",
+            )
+        origin_code = (
+            pickup.region_code
+            if trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]
+            else pickup.state_code
+        )
+        if not origin_code:
+            raise CabboException(
+                "Could not determine region for origin location, please check the location and try again",
+                status_code=400,
+                error_code="ORIGIN_REGION_NOT_DETERMINED",
+            )
+        target_config_dict = {}
+        if trip_type == TripTypeEnum.airport_pickup:
+            target_config_dict = config_store.airport_pickup
+        elif trip_type == TripTypeEnum.airport_drop:
+            target_config_dict = config_store.airport_drop
+        elif trip_type == TripTypeEnum.outstation:
+            target_config_dict = config_store.outstation
+
+        if len(target_config_dict) == 0:
+            raise CabboException(
+                "No configuration found for trip type, cannot validate distance for airport trips, please contact support",
+                status_code=500,
+                error_code="TRIP_TYPE_NOT_CONFIGURED",
+            )
+
+        if target_config_dict.get(origin_code) is None:
+            raise CabboException(
+                "No configuration found for origin region, please check the location and try again",
+                status_code=400,
+                error_code="ORIGIN_REGION_NOT_CONFIGURED",
+            )
+        min_distance_km = target_config_dict.get(
+            origin_code
+        ).auxiliary_pricing.common.min_distance_km
+        if min_distance_km and distance < min_distance_km:
+            raise CabboException(
+                f"Distance between origin and destination is below the minimum threshold of {min_distance_km} km for airport trips in this region, please check the locations and try again",
+                status_code=400,
+                error_code="DISTANCE_BELOW_MINIMUM_THRESHOLD",
+            )
+        max_distance_km = target_config_dict.get(
+            origin_code
+        ).auxiliary_pricing.common.max_distance_km
+        if max_distance_km and distance > max_distance_km:
+            raise CabboException(
+                f"Distance between origin and destination exceeds the maximum threshold of {max_distance_km} km for airport trips in this region, please check the locations and try again",
+                status_code=400,
+                error_code="DISTANCE_ABOVE_MAXIMUM_THRESHOLD",
+            )
+        print("Distance validation passed")
+        return distance
+    except CabboException as e:
+        raise e
 
 
 def validate_placard_requirements(search_in: TripSearchRequest):
@@ -761,8 +903,12 @@ def validate_phone_by_country(phone: str, country: CountrySchema) -> str:
 
     # Validate length
     if len(num) < country.phone_min_length or len(num) > country.phone_max_length:
-        example = country.phone_example if country.phone_example else f"+<country code>{'X'*country.phone_min_length}"
-        
+        example = (
+            country.phone_example
+            if country.phone_example
+            else f"+<country code>{'X'*country.phone_min_length}"
+        )
+
         raise CabboException(
             f"Invalid phone number. Expected {country.phone_min_length} digits. Example: {example}",
             status_code=422,
@@ -770,14 +916,18 @@ def validate_phone_by_country(phone: str, country: CountrySchema) -> str:
 
     # Validate regex
     if not re.fullmatch(country.phone_regex, num):
-        example = country.phone_example if country.phone_example else f"+<country code>{'X'*country.phone_min_length}"
-      
+        example = (
+            country.phone_example
+            if country.phone_example
+            else f"+<country code>{'X'*country.phone_min_length}"
+        )
+
         raise CabboException(
             f"Invalid phone number format for {country.name}. Example: {example}",
             status_code=422,
         )
 
-    return country.phone_code+" "+num
+    return country.phone_code + " " + num
 
 
 def validate_postal_code_by_country(postal_code: str, country: CountrySchema) -> str:
@@ -819,9 +969,9 @@ def validate_system_user_age_by_country(age: int, country: CountrySchema):
             status_code=422,
         )
 
+
 def validate_driver_payload(
     payload: Union[DriverUpdateSchema, DriverCreateSchema] = Body(...),
-  
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
@@ -830,40 +980,36 @@ def validate_driver_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
-    
-    
-    
+
     if isinstance(payload, DriverCreateSchema):
         if not payload.phone or payload.phone.strip() == "":
-            raise CabboException(
-                "Phone number is required for driver", status_code=400
-            )
-        
+            raise CabboException("Phone number is required for driver", status_code=400)
+
         if not payload.dob:
             raise CabboException(
-    "Please enter the driver's date of birth so we can check if they meet the minimum age requirement.",
-    status_code=400
-)
-        
+                "Please enter the driver's date of birth so we can check if they meet the minimum age requirement.",
+                status_code=400,
+            )
+
     # Validate driver age
     if payload.dob:
-        #Get age from dob
+        # Get age from dob
         age = calculate_age_from_dob(payload.dob)
         validate_driver_age_by_country(age=age, country=country)
-    
+
     # Validate phone number
-    payload.phone = validate_phone_by_country(
-        phone=payload.phone, country=country
-    )
+    payload.phone = validate_phone_by_country(phone=payload.phone, country=country)
     # Validate payment phone number
     if payload.payment_phone_number:
         payload.payment_phone_number = validate_phone_by_country(
             phone=payload.payment_phone_number, country=country
         )
     if not payload.payment_phone_number or payload.payment_phone_number.strip() == "":
-        payload.payment_phone_number= payload.phone # Use driver's primary phone number if alternate not provided
-    
-    #Validate emergency contact phone number
+        payload.payment_phone_number = (
+            payload.phone
+        )  # Use driver's primary phone number if alternate not provided
+
+    # Validate emergency contact phone number
     if payload.emergency_contact_number:
         payload.emergency_contact_number = validate_phone_by_country(
             phone=payload.emergency_contact_number, country=country
@@ -871,9 +1017,9 @@ def validate_driver_payload(
 
     return payload
 
+
 def validate_customer_payload(
     payload: Union[CustomerUpdate, CustomerCreate] = Body(...),
-  
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
@@ -882,13 +1028,13 @@ def validate_customer_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
-    
+
     # Validate customer age
     if payload.dob:
-        #Get age from dob
+        # Get age from dob
         age = calculate_age_from_dob(payload.dob)
         validate_customer_age_by_country(age=age, country=country)
-    
+
     if isinstance(payload, CustomerCreate):
         if not payload.phone_number or payload.phone_number.strip() == "":
             raise CabboException(
@@ -898,18 +1044,21 @@ def validate_customer_payload(
         payload.phone_number = validate_phone_by_country(
             phone=payload.phone_number, country=country
         )
-    
-    #Validate emergency contact phone number
-    if payload.emergency_contact_number and payload.emergency_contact_number.strip() != "":
+
+    # Validate emergency contact phone number
+    if (
+        payload.emergency_contact_number
+        and payload.emergency_contact_number.strip() != ""
+    ):
         payload.emergency_contact_number = validate_phone_by_country(
             phone=payload.emergency_contact_number, country=country
         )
 
     return payload
 
+
 def validate_passenger_payload(
     payload: Union[PassengerUpdate, PassengerCreate] = Body(...),
-  
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
@@ -918,20 +1067,18 @@ def validate_passenger_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
-    
-    
-    
+
     # Validate phone number
     if payload.phone_number:
         payload.phone_number = validate_phone_by_country(
             phone=payload.phone_number, country=country
         )
-    
 
     return payload
 
+
 def validate_customer_onboarding_payload(
-        payload:Union[CustomerOTPRequest,CustomerOnboardInitiationRequest] = Body(...),
+    payload: Union[CustomerOTPRequest, CustomerOnboardInitiationRequest] = Body(...),
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
@@ -940,23 +1087,22 @@ def validate_customer_onboarding_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
-    
+
     if not payload.phone_number or payload.phone_number.strip() == "":
         raise CabboException(
             "Phone number is required for customer onboarding", status_code=400
         )
-    
+
     # Validate phone number
     payload.phone_number = validate_phone_by_country(
         phone=payload.phone_number, country=country
     )
-    
-   
 
     return payload
 
+
 def validate_customer_login_payload(
-        payload:Union[CustomerLoginRequest, CustomerOnboardInitiationRequest] = Body(...),
+    payload: Union[CustomerLoginRequest, CustomerOnboardInitiationRequest] = Body(...),
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
@@ -965,22 +1111,22 @@ def validate_customer_login_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
-    
+
     if not payload.phone_number or payload.phone_number.strip() == "":
         raise CabboException(
             "Phone number is required for customer login", status_code=400
         )
-    
+
     # Validate phone number
     payload.phone_number = validate_phone_by_country(
         phone=payload.phone_number, country=country
     )
-    
+
     return payload
+
 
 def validate_system_user_payload(
     payload: Union[UserCreateSchema, UserUpdateSchema] = Body(...),
-  
 ):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
@@ -989,25 +1135,25 @@ def validate_system_user_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
-    
+
     # Validate system user age
     if payload.dob:
-        #Get age from dob
+        # Get age from dob
         age = calculate_age_from_dob(payload.dob)
         validate_system_user_age_by_country(age=age, country=country)
-    
+
     if isinstance(payload, UserCreateSchema):
         if not payload.phone_number or payload.phone_number.strip() == "":
             raise CabboException(
                 "Phone number is required for system user creation", status_code=400
             )
-        
+
     # Validate phone number
     if payload.phone_number:
         payload.phone_number = validate_phone_by_country(
             phone=payload.phone_number, country=country
         )
-    
+
     if payload.emergency_contact_number:
         payload.emergency_contact_number = validate_phone_by_country(
             phone=payload.emergency_contact_number, country=country

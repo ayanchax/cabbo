@@ -267,6 +267,58 @@ def get_location_suggestions(
 
     return suggestions
 
+def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationInfo]:
+    """
+    Given latitude and longitude, return the corresponding location details using Mapbox reverse geocoding.
+    The returned LocationInfo includes display_name, lat, lng, place_id, address, and geography fields.
+
+    Args:
+        lat: Latitude of the location
+        lng: Longitude of the location
+    Returns:
+        LocationInfo object with location details, or None if not found
+    """
+    geocoder = Geocoder(access_token=MAPBOX_TOKEN)
+    resp = geocoder.reverse(lon=lng, lat=lat)
+    geojson = resp.geojson()
+    features = geojson.get("features", [])
+    if not features:
+        print(f"No reverse geocoding result for coordinates: {lat}, {lng}")
+        return None
+
+    feature = features[0]  # Take the most relevant feature
+    display_name = feature.get("place_name")
+    place_id = feature.get("id")
+
+    # Extract geography from context
+    geography = _extract_geography_from_context(feature)
+
+    try:
+        location_info = LocationInfo(
+            display_name=display_name,
+            lat=lat,
+            lng=lng,
+            place_id=place_id,
+            address=display_name,
+            country=geography["country"],
+            country_code=geography["country_code"],
+            state=geography["state"],
+            state_code=geography["state_code"],
+            region=geography["region"],
+            region_code=geography["region_code"],
+            postal_code=geography["postal_code"],
+        )
+        return location_info
+    except Exception as e:
+        print(f"Error creating LocationInfo from reverse geocode: {e}")
+        return LocationInfo(
+            display_name=display_name,
+            lat=lat,
+            lng=lng,
+            place_id=place_id,
+            address=display_name,
+        )
+
 # if __name__ == "__main__":
 #     # Test location suggestions
 #     test_query = "mysore palace"

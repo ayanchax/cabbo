@@ -17,4 +17,7 @@ def get_distance_km(
 def get_location_suggestions(query: str):
     pass
 
+def get_location_from_coordinates(lat: float, lng: float):
+    pass
+
 

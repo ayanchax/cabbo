@@ -50,3 +50,21 @@ def get_location_suggestions(query: str):
 
         return google_suggest(query)
     return []
+
+
+def get_location_from_coordinates(lat: float, lng: float):
+    """
+    Given latitude and longitude, return the corresponding location details using the configured provider.
+    The returned location details should include 'display_name', 'lat', 'lng', and optionally 'place_id' or 'address'.
+    """
+    if provider == "mapbox":
+        from services.mapbox_service import get_location_from_coordinates as mapbox_reverse
+
+        return mapbox_reverse(lat, lng)
+    elif provider == "google":
+        from services.google_map_service import (
+            get_location_from_coordinates as google_reverse,
+        )
+
+        return google_reverse(lat, lng)
+    return None

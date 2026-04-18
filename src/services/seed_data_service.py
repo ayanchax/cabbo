@@ -1009,6 +1009,7 @@ def _seed_local_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=100,  # Minimum platform fee of Rs. 50 for local trips
                 max_platform_fee=400,  # Maximum platform fee of Rs. 200 for local trips
+                #We do not need distance thresholds for local trips as fare is primarily time based and distance is secondary, but we can keep some reasonable thresholds to manage outliers and for better fare estimation for users
             )
         )
         create_common_pricing_configuration(common_payload, session)
@@ -1078,6 +1079,10 @@ def _seed_outstation_cab_pricing(session: Session):
                 state_id=state_id,
                 min_platform_fee=300,  # Minimum platform fee of Rs. 300 for outstation trips
                 max_platform_fee=1200,  # Maximum platform fee of Rs. 1200 for outstation trips
+                min_distance_km=150,  # Minimum distance threshold for fare calculation, e.g., 150 km for outstation trips
+                max_distance_km=2100,  # Maximum distance threshold for fare calculation, e.g., 2100 km for outstation trips
+                max_days_allowed=7,  # Maximum days allowed for outstation trips, e.g., 7 days
+                max_hops_allowed=3,  # Maximum hops allowed for outstation trips, e.g., 3 hops (to manage complexity of multi-city trips and for better fare estimation for users)
             )
         )
         create_common_pricing_configuration(common_payload, session)
@@ -1138,6 +1143,8 @@ def _seed_airport_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=150,  # Minimum platform fee of Rs. 100 for airport pickup trips
                 max_platform_fee=500,  # Maximum platform fee of Rs. 400 for airport pickup trips
+                min_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
+                max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g., 42 km for airport trips
             ),
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
@@ -1149,6 +1156,8 @@ def _seed_airport_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=150,  # Minimum platform fee of Rs. 150 for airport drop trips
                 max_platform_fee=500,  # Maximum platform fee of Rs. 500 for airport drop trips
+                min_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
+                max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g
             ),
         ]
         for common_payload in common_payload:
