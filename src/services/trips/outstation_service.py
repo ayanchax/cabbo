@@ -30,6 +30,7 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
+from services.configuration_service import get_state_from_location_v2
 from services.customer_service import get_customer_by_id
 from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km, get_state_from_location
@@ -538,3 +539,22 @@ def get_kwargs_for_outstation_trip(
     except Exception as e:
         print("Error preparing kwargs for outstation trip:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
+
+
+def get_outstation_min_distance(
+    pickup: LocationInfo, config_store: ConfigStore
+) -> Optional[float]:
+    """
+    Returns the outstation minimum distance threshold (km) for the pickup state
+    from config. Returns None if state or config entry is unavailable.
+    """
+    state = get_state_from_location_v2(location=pickup, config_store=config_store)
+    if not state:
+        return None
+    outstation_config = config_store.outstation.get(state.state_code)
+    if not outstation_config:
+        return None
+    try:
+        return outstation_config.auxiliary_pricing.common.min_distance_km
+    except AttributeError:
+        return None

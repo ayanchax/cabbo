@@ -1,30 +1,16 @@
-from fastapi import APIRouter, Query
-from typing import Union
-from services.location_service import get_location_from_coordinates, get_location_suggestions, get_state_from_location, get_distance_km
+from fastapi import APIRouter, Depends, Query
+from db.database import yield_mysql_session
+from models.map.location_schema import LocationProximity
+from services.geography_service import get_allowed_countries
+from services.location_service import (
+    get_location_from_coordinates,
+    get_location_suggestions,
+    get_distance_km,
+)
+from core.config import settings
+from sqlalchemy.orm import Session
 
 router = APIRouter()
-
-
-@router.get("/state")
-def get_state(
-    location: Union[str, None] = Query(
-        None, description="Location name or lat,lng as 'lat,lng'"
-    )
-):
-    """
-    Get the state name for a given location (string or lat,lng as 'lat,lng').
-    """
-    # If lat,lng string, convert to dict
-    if location and "," in location:
-        try:
-            lat, lng = map(float, location.split(","))
-            location_obj = {"lat": lat, "lng": lng}
-        except Exception:
-            return {"error": "Invalid lat,lng format. Use 'lat,lng' or a place name."}
-    else:
-        location_obj = location
-    state = get_state_from_location(location_obj)
-    return {"state": state}
 
 
 @router.get("/distance")
@@ -50,14 +36,24 @@ def get_distance(
     distance = get_distance_km(origin_obj, destination_obj)
     return {"distance_km": distance}
 
+
 @router.get("/search")
 def search_location(
-    query: str = Query(..., description="Partial location string to search for")
+    query: str = Query(..., description="Partial location string to search for"),
+    lat: float = Query(None, description="Optional latitude to bias results"),
+    lng: float = Query(None, description="Optional longitude to bias results"),
+    session: Session = Depends(yield_mysql_session),
 ):
     """
     Get location suggestions based on a partial query string.
     """
-    return get_location_suggestions(query)
+    
+    return get_location_suggestions(
+        query,
+        allowed_countries=get_allowed_countries(),
+        proximity=LocationProximity(lat=lat, lng=lng) if lat and lng else None,
+    )
+
 
 @router.get("/reverse-geocode")
 def reverse_geocode(

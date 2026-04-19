@@ -1,6 +1,6 @@
 from functools import lru_cache
-from typing import Union
-from models.map.location_schema import LocationInfo
+from typing import List, Union
+from models.map.location_schema import LocationInfo, LocationProximity
 from core.config import settings
 
 provider = settings.LOCATION_SERVICE_PROVIDER
@@ -34,7 +34,7 @@ def get_distance_km(
     return None
 
 
-def get_location_suggestions(query: str):
+def get_location_suggestions(query: str, allowed_countries:List[str], proximity:Union[LocationProximity,None]=None) -> List[LocationInfo]:
     """
     Given a partial location string, return a list of suggested addresses/locations using the configured provider.
     Each suggestion should be a dict with at least 'display_name', 'lat', 'lng', and optionally 'place_id' or 'address'.
@@ -42,7 +42,7 @@ def get_location_suggestions(query: str):
     if provider == "mapbox":
         from services.mapbox_service import get_location_suggestions as mapbox_suggest
 
-        return mapbox_suggest(query)
+        return mapbox_suggest(query, allowed_countries=allowed_countries, proximity=proximity)
     elif provider == "google":
         from services.google_map_service import (
             get_location_suggestions as google_suggest,

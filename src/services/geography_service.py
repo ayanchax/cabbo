@@ -3,6 +3,7 @@ from pydantic_core import ValidationError
 import json
 from typing import Optional
 from pydantic import ValidationError
+from requests import session
 from sqlalchemy.orm import Session
 from core.exceptions import CabboException
 from core.security import RoleEnum
@@ -1866,3 +1867,13 @@ async def get_geography_data() -> CountryReadSchema:
     if not geo_data:
         raise CabboException("Geography data not found", status_code=404)
     return CountryReadSchema.model_validate(geo_data)  # Validate the data against the schema
+
+def get_allowed_countries():
+    from core.config import settings
+    with get_mysql_local_session() as session:
+        config_store = settings.get_config_store(db=session)
+    
+    allowed_countries = list(config_store.geographies.countries.keys()) or [
+        settings.COUNTRY_CODE
+    ]
+    return allowed_countries

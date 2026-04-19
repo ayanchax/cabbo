@@ -699,3 +699,8 @@ class TripUpdateRequestSchema(BaseModel):
         None,
         description="Placard name for the trip, only applied if placard_required is already True on the trip",
     )
+
+class TripClassificationRequest(BaseModel):
+    pickup: LocationInfo = Field(..., description="Origin location details")
+    dropoff: Optional[LocationInfo] = Field(None, description="Destination location details")
+     

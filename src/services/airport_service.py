@@ -362,3 +362,12 @@ async def async_get_airport_by_id(airport_id: str, db: AsyncSession) -> AirportS
     if airport:
         return AirportSchema.model_validate(airport)
     return None
+
+def get_all_airports_configuration(
+    config_store: ConfigStore
+) -> List[AirportSchema]:
+    airports: List[AirportSchema] = []
+    for airport in config_store.airport_locations:
+                if airport.is_serviceable:
+                    airports.append(airport)
+    return airports

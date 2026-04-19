@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
 from core.config import settings
+import requests
 
 
 def validate_date_time(date_time: Union[str, datetime]):
@@ -88,6 +89,21 @@ def convert_based_on_currency(
             f"Invalid conversion factor. Using original amount without conversion."
         )
         return amount
+    
+def safe_request(url, params, timeout=3):
+    try:
+        response = requests.get(url, params=params, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Request failed: {e}")
+        return {}
+    
+def log_lru_cache(name, func):
+    info = func.cache_info()
+    print(
+        f"[CACHE:{name}] hits={info.hits}, misses={info.misses}, size={info.currsize}"
+    )
     
 
 

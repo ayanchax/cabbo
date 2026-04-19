@@ -477,7 +477,6 @@ def validate_serviceable_area(
                 f"Outstation trips are only serviceable from: {', '.join(allowed_states)}.",
                 status_code=400,
             )
-
         # At this point as we have the state_code, we will enrich origin_state pick up with
 
         pickup.state = origin_state.state_name
@@ -497,7 +496,7 @@ def validate_serviceable_area(
                 f"Outstation trips are only serviceable to: {', '.join(allowed_states)}.",
                 status_code=400,
             )
-
+        
         drop.state = dest_state.state_name
         drop.country_code = dest_state.country_code
         drop.country = dest_state.country_name
@@ -513,11 +512,12 @@ def validate_serviceable_area(
                 allowed_states=allowed_states,
                 drop=drop,
             )
+        
     else:
         raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)
 
-    validate_distance(
-        pickup=pickup, drop=drop, config_store=config_store, trip_type=trip_type
+    validate_distance_and_time_constraints(
+        pickup=pickup, drop=drop, config_store=config_store, trip_type=trip_type, start_date=search_in.start_date, end_date=search_in.end_date
     )
     print("Serviceable area validation passed")
     return search_in
@@ -628,7 +628,7 @@ def validate_hops(
                 d = get_distance_km(
                     origin=unique_hops[i], destination=unique_hops[i + 1]
                 )
-                if d is not None and d == 0:
+                if d is not None and d <= 0:
                     raise CabboException(
                         f"Consecutive hops cannot be at the same location: stop {i + 1} and stop {i + 2} are identical",
                         status_code=400,
@@ -642,11 +642,13 @@ def validate_hops(
     return hops
 
 
-def validate_distance(
+def validate_distance_and_time_constraints(
     pickup: LocationInfo,
     drop: LocationInfo,
     config_store: ConfigStore,
     trip_type: TripTypeEnum,
+    start_date: Union[str, datetime] = None,
+    end_date: Union[str, datetime] = None,
 ):
     try:
         if trip_type == TripTypeEnum.local:
@@ -658,9 +660,9 @@ def validate_distance(
                 status_code=400,
                 error_code="DISTANCE_NOT_DETERMINED",
             )
-        if distance == 0:
+        if distance <= 0:
             raise CabboException(
-                "Distance between origin and destination cannot be zero, please check the locations and try again",
+                "Distance between origin and destination cannot be zero or negative, please check the locations and try again",
                 status_code=400,
                 error_code="DISTANCE_ZERO",
             )
@@ -699,6 +701,8 @@ def validate_distance(
         min_distance_km = target_config_dict.get(
             origin_code
         ).auxiliary_pricing.common.min_distance_km
+        
+        # Min and max distance constraint validation.
         if min_distance_km and distance < min_distance_km:
             raise CabboException(
                 f"Distance between origin and destination is below the minimum threshold of {min_distance_km} km for airport trips in this region, please check the locations and try again",
@@ -708,13 +712,38 @@ def validate_distance(
         max_distance_km = target_config_dict.get(
             origin_code
         ).auxiliary_pricing.common.max_distance_km
+        
         if max_distance_km and distance > max_distance_km:
             raise CabboException(
                 f"Distance between origin and destination exceeds the maximum threshold of {max_distance_km} km for airport trips in this region, please check the locations and try again",
                 status_code=400,
                 error_code="DISTANCE_ABOVE_MAXIMUM_THRESHOLD",
             )
-        print("Distance validation passed")
+        
+        # Time constraints validation for outstation trips
+        if trip_type == TripTypeEnum.outstation:
+            if start_date is None or end_date is None:
+                    raise CabboException(
+                    "Start date and end date are required for outstation trip", status_code=400
+                )
+            
+            
+            total_trip_days = _get_total_trip_days(
+                start_date=validate_date_time(start_date),
+                end_date=validate_date_time(end_date),
+            )
+            total_allowed_days = target_config_dict.get(
+                origin_code).auxiliary_pricing.common.max_days_allowed 
+            
+
+            if total_allowed_days and total_trip_days > total_allowed_days:
+                raise CabboException(
+                    f"Total trip days for outstation trip exceeds the maximum threshold of {total_allowed_days} days for this state, please check the dates and try again",
+                    status_code=400,
+                    error_code="OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD",
+                )
+            
+        print("Distance and time constraints validation passed")
         return distance
     except CabboException as e:
         raise e
@@ -822,13 +851,13 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
             "Start date cannot be after end date for outstation trip", status_code=400
         )
     # Calculate total number of trip days (inclusive, ceil if fractional)
-    total_seconds = (end_date - start_date).total_seconds()
-    total_days = math.ceil(total_seconds / 86400)
+    total_days = _get_total_trip_days(start_date=start_date, end_date=end_date)
     if total_days <= 1:
         raise CabboException(
             "Total trip days must be greater than 1 for outstation trips",
             status_code=400,
         )
+    
     return total_days
 
 
@@ -1160,3 +1189,8 @@ def validate_system_user_payload(
         )
 
     return payload
+
+def _get_total_trip_days(start_date: datetime, end_date: datetime) -> int:
+    total_seconds = (end_date - start_date).total_seconds()
+    total_days = math.ceil(total_seconds / 86400)
+    return total_days

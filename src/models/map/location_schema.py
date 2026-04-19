@@ -35,3 +35,7 @@ class Address(BaseModel):
     country: Optional[str] = Field(None, description="Country name")
     landmark: Optional[str] = Field(None, description="Landmark near the address")
     postal_code: Optional[str] = Field(None, description="Postal or ZIP code")
+
+class LocationProximity(BaseModel):
+    lat: float
+    lng: float
