@@ -75,6 +75,8 @@ class Settings(BaseSettings):
 
     DEBUG_LRU_CACHE: bool = ENV == Environment.LOCAL.value  # Enable detailed LRU cache logging in local environment for debugging 
 
+    GOOGLE_MAPS_API_KEY: str
+
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"

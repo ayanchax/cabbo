@@ -89,6 +89,13 @@ class Customer(Base):
         passive_deletes=True,
     )
 
+    recent_locations = relationship(
+        "CustomerRecentLocation",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 
 class PreOnboardingCustomer(Base):
     __tablename__ = "pre_onboarding_customers"

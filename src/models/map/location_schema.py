@@ -10,8 +10,8 @@ class LocationInfo(BaseModel):
     place_id: Optional[str] = None
     address: Optional[str] = None
 
-    # ✅ Add structured geography fields (populated by Mapbox context)
-    country: Optional[str] = Field(None, description="Country name from Mapbox")
+    # ✅ Add structured geography fields (populated by Location provider)
+    country: Optional[str] = Field(None, description="Country name from Location provider")
     country_code: Optional[str] = Field(None, description="ISO country code (e.g., IN, US)")
     state: Optional[str] = Field(None, description="State/province name")
     state_code: Optional[str] = Field(None, description="State code (e.g., KA, TN)")
@@ -20,6 +20,7 @@ class LocationInfo(BaseModel):
     postal_code: Optional[str] = Field(None, description="Postal/ZIP code")
 
     class Config:
+        extra="allow"
         exclude_none = True  # Exclude fields with None values from the model dump
          
 

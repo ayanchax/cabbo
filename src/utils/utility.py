@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
 from core.config import settings
 import requests
+import re
 
 
 def validate_date_time(date_time: Union[str, datetime]):
@@ -104,6 +105,9 @@ def log_lru_cache(name, func):
     print(
         f"[CACHE:{name}] hits={info.hits}, misses={info.misses}, size={info.currsize}"
     )
+
+def tokenize(text: str):
+    return set(re.findall(r"\w+", text.lower()))
     
 
 

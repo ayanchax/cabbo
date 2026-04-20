@@ -1,9 +1,10 @@
-from sqlalchemy import Boolean, Column, String, DateTime, Enum as SAEnum, func, Float
+from sqlalchemy import Boolean, Column, String, DateTime, Float
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
 from core.security import RoleEnum
 from db.database import Base
 from datetime import datetime, timezone
+from core.config import settings
 
 class AirportModel(Base):
     __tablename__ = "airports_master"
@@ -20,6 +21,7 @@ class AirportModel(Base):
     source = Column(String(64), nullable=True)
     lat = Column(Float, nullable=False)
     lng = Column(Float, nullable=False)
+    provider = Column(String(64), nullable=True, default=settings.LOCATION_SERVICE_PROVIDER)
     place_id = Column(String(128), nullable=False, unique=True)
     address = Column(String(512), nullable=False)
     country = Column(String(64), nullable=True)

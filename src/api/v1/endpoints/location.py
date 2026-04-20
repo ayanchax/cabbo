@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, Query
-from db.database import yield_mysql_session
+from fastapi import APIRouter, Query
 from models.map.location_schema import LocationProximity
 from services.geography_service import get_allowed_countries
 from services.location_service import (
@@ -7,8 +6,6 @@ from services.location_service import (
     get_location_suggestions,
     get_distance_km,
 )
-from core.config import settings
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -42,7 +39,7 @@ def search_location(
     query: str = Query(..., description="Partial location string to search for"),
     lat: float = Query(None, description="Optional latitude to bias results"),
     lng: float = Query(None, description="Optional longitude to bias results"),
-    session: Session = Depends(yield_mysql_session),
+    limit: int = Query(5, description="Maximum number of suggestions to return"),
 ):
     """
     Get location suggestions based on a partial query string.
@@ -52,6 +49,7 @@ def search_location(
         query,
         allowed_countries=get_allowed_countries(),
         proximity=LocationProximity(lat=lat, lng=lng) if lat and lng else None,
+        limit=limit
     )
 
 

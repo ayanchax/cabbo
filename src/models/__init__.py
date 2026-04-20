@@ -1,6 +1,7 @@
 from .airport.airport_orm import AirportModel
 from .cab.cab_orm import CabType, FuelType
 from .customer.customer_orm import Customer, PreOnboardingCustomer, CustomerEmailVerification
+from .customer.recent_location_orm import CustomerRecentLocation
 from .documents.kyc_document_orm import KYCDocumentTypes
 from .customer.passenger_orm import Passenger
 from .driver.driver_orm import Driver,DriverEarning,TripRating
@@ -18,7 +19,7 @@ from .seed.seed_orm import SeedMetaData
 
 __all__ = [
     "SeedMetaData",
-    "AirportModel", "CabType", "FuelType",  "Customer", "Passenger", "PreOnboardingCustomer", "CustomerEmailVerification",
+    "AirportModel", "CabType", "FuelType",  "Customer", "Passenger", "PreOnboardingCustomer", "CustomerEmailVerification", "CustomerRecentLocation",
     "KYCDocumentTypes",
     "CountryModel", "StateModel", "RegionModel", "CancellationPolicy",
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",

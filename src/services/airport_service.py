@@ -11,17 +11,18 @@ from services.geography_service import (
     async_get_state_by_id,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from core.config import settings
 
+LOCATION_SERVICE_PROVIDER = settings.LOCATION_SERVICE_PROVIDER
 
-SEED_AIRPORTS_DATA = [
-    # It can contain multiple airports for a city in a state in a country.
-    # Admin can add more airports for a city/region inside a (state, country) via admin panel if needed.
-    # Admin can also add more regions/cities under a (state, country) via admin panel if needed.
+LOCATION_SERVICE_PROVIDER = settings.LOCATION_SERVICE_PROVIDER
+
+SEED_AIRPORTS_DATA_GOOGLE = [
     {
         "display_name": "Kempegowda International Airport, Bengaluru",
         "lat": 13.1986,
         "lng": 77.7066,
-        "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",  # official Mapbox place ID for the airport in Bengaluru
+        "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",  # Google Maps place ID for BLR airport
         "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India",
         "country": "India",
         "country_code": "IN",
@@ -30,12 +31,13 @@ SEED_AIRPORTS_DATA = [
         "region": "Bangalore",
         "region_code": "BLR",
         "postal_code": "560300",
+        "provider": "google",
     },
     {
         "display_name": "Mysore Airport, Mysore",
         "lat": 12.3052,
         "lng": 76.6536,
-        "place_id": "ChIJX8f5gq6rDTkR6e-8K5J7hYzA",  # official Mapbox place ID for the airport in Mysore
+        "place_id": "ChIJX8f5gq6rDTkR6e-8K5J7hYzA",  # Google Maps place ID for Mysore airport
         "address": "Mysore Airport, Mandakalli, Mysore, Karnataka 570008, India",
         "country": "India",
         "country_code": "IN",
@@ -44,12 +46,13 @@ SEED_AIRPORTS_DATA = [
         "region": "Mysore",
         "region_code": "MYS",
         "postal_code": "570008",
+        "provider": "google",
     },
     {
         "display_name": "Chennai International Airport, Chennai",
         "lat": 12.9941,
         "lng": 80.1709,
-        "place_id": "ChIJGZ0fW3KqDTkR6r1K5J7hYzA",  # official Mapbox place ID for the airport in Chennai
+        "place_id": "ChIJGZ0fW3KqDTkR6r1K5J7hYzA",  # Google Maps place ID for Chennai airport
         "address": "Chennai International Airport, Tirusulam, Chennai, Tamil Nadu 600027, India",
         "country": "India",
         "country_code": "IN",
@@ -58,10 +61,13 @@ SEED_AIRPORTS_DATA = [
         "region": "Chennai",
         "region_code": "MAA",
         "postal_code": "600027",
+        "provider": "google",
     },
 ]
 
 
+
+SEED_AIRPORTS_DATA = SEED_AIRPORTS_DATA_GOOGLE
 def _create_airports(data: List[AirportSchema], session: Session):
     airport_models = []
     for airport in data:
@@ -87,6 +93,7 @@ def _create_airports(data: List[AirportSchema], session: Session):
                 region=airport.region,
                 region_code=airport.region_code,
                 postal_code=airport.postal_code,
+                provider=airport.provider,
             )
         )
     session.add_all(airport_models)
