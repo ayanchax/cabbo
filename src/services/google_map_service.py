@@ -1,24 +1,16 @@
-import requests
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(parent_dir))
 from functools import lru_cache
 from typing import List, Optional, Union
-from urllib.parse import urlencode
-
 from core.config import settings
 from models.map.location_schema import LocationInfo, LocationProximity
-from utils.utility import safe_request
-
+from utils.utility import log_lru_cache, round_value, safe_request
+import uuid
 GOOGLE_API_KEY = settings.GOOGLE_MAPS_API_KEY
 BASE_URL = "https://maps.googleapis.com/maps/api"
 
-
-# ----------------------------------------
-# UTIL
-# ----------------------------------------
-
- 
-
-def _round_coord(val: float, precision: int = 4):
-    return round(val, precision) if val is not None else None
 
 
 # ----------------------------------------
@@ -47,15 +39,13 @@ def get_location_suggestions(
 
     if proximity:
         params["location"] = f"{proximity.lat},{proximity.lng}"
-        params["radius"] = 50000  # 50km bias
+        params["radius"] = proximity.radius_km * 1000 if proximity.radius_km else 50000  # Convert km to meters
 
     if session_token:
         params["sessiontoken"] = session_token
-
     data = safe_request(url, params)
-
     predictions = data.get("predictions", [])[:limit]
-
+     
     return [
         LocationInfo(
             display_name=p.get("description"),
@@ -100,6 +90,7 @@ def get_location_from_place_id(
         data = safe_request(url, params)
     else:
         data = _cached_place_details(place_id)
+        log_lru_cache("place_details", _cached_place_details)  # Log cache stats for place details
 
     result = data.get("result")
 
@@ -122,20 +113,23 @@ def get_location_from_place_id(
 # ----------------------------------------
 
 @lru_cache(maxsize=2000)
-def _cached_reverse_geocode(lat: float, lng: float):
+def _cached_reverse_geocode(lat: float, lng: float, session_token: Optional[str] = None):
     url = f"{BASE_URL}/geocode/json"
 
     params = {
         "latlng": f"{lat},{lng}",
         "key": GOOGLE_API_KEY,
+
     }
+    if session_token:
+        params["sessiontoken"] = session_token
 
     return safe_request(url, params)
 
 
-def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationInfo]:
-    data = _cached_reverse_geocode(_round_coord(lat), _round_coord(lng))
-
+def get_location_from_coordinates(lat: float, lng: float, session_token:Optional[str]=None) -> Optional[LocationInfo]:
+    data = _cached_reverse_geocode(round_value(lat), round_value(lng), session_token=session_token)
+    log_lru_cache("reverse_geocode", _cached_reverse_geocode)  # Log cache stats for reverse geocode
     results = data.get("results", [])
     if not results:
         return None
@@ -148,6 +142,7 @@ def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationIn
         lat=lat,
         lng=lng,
         address=result.get("formatted_address"),
+        **result.model_dump() if isinstance(result, dict) else {}
     )
 
 
@@ -155,8 +150,9 @@ def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationIn
 # GEOGRAPHY EXTRACTION (CACHED VIA REVERSE)
 # ----------------------------------------
 
-def get_geography_from_coordinates(lat: float, lng: float):
-    data = _cached_reverse_geocode(_round_coord(lat), _round_coord(lng))
+def _get_geography_from_coordinates(lat: float, lng: float, session_token: Optional[str] = None):
+    data = _cached_reverse_geocode(round_value(lat), round_value(lng), session_token=session_token)
+    log_lru_cache("reverse_geocode", _cached_reverse_geocode)  # Log cache stats for reverse geocode
 
     results = data.get("results", [])
     if not results:
@@ -198,7 +194,7 @@ def get_geography_from_coordinates(lat: float, lng: float):
 # ----------------------------------------
 
 @lru_cache(maxsize=5000)
-def _cached_distance(o_lat, o_lng, d_lat, d_lng):
+def _cached_distance(o_lat, o_lng, d_lat, d_lng, session_token: Optional[str] = None):
     url = f"{BASE_URL}/distancematrix/json"
 
     params = {
@@ -206,6 +202,8 @@ def _cached_distance(o_lat, o_lng, d_lat, d_lng):
         "destinations": f"{d_lat},{d_lng}",
         "key": GOOGLE_API_KEY,
     }
+    if session_token:
+        params["sessiontoken"] = session_token
 
     return safe_request(url, params)
 
@@ -213,17 +211,20 @@ def _cached_distance(o_lat, o_lng, d_lat, d_lng):
 def get_distance_km(
     origin: Union[LocationInfo, dict, str],
     destination: Union[LocationInfo, dict, str],
+    session_token: Optional[str] = None,
 ):
     try:
         o_lat, o_lng = origin.lat, origin.lng
         d_lat, d_lng = destination.lat, destination.lng
 
         data = _cached_distance(
-            _round_coord(o_lat),
-            _round_coord(o_lng),
-            _round_coord(d_lat),
-            _round_coord(d_lng),
+            round_value(o_lat),
+            round_value(o_lng),
+            round_value(d_lat),
+            round_value(d_lng),
+            session_token=session_token,
         )
+        log_lru_cache("distance_matrix", _cached_distance)  # Log cache stats for distance matrix
 
         meters = data["rows"][0]["elements"][0]["distance"]["value"]
         return round(meters / 1000.0, 2)
@@ -237,9 +238,10 @@ def get_distance_km(
 # STATE EXTRACTION
 # ----------------------------------------
 
-def get_state_from_location(location: Union[LocationInfo, dict, str]):
+def get_state_from_location(location: Union[LocationInfo, dict, str], session_token: Optional[str] = None) -> Union[str, None]:
     if isinstance(location, LocationInfo):
-        geo = get_geography_from_coordinates(location.lat, location.lng)
+        geo = _get_geography_from_coordinates(location.lat, location.lng, session_token=session_token)
         return geo.get("state")
 
     return None
+

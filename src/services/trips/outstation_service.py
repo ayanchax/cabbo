@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 import math
 from typing import List, Optional, Union
 from core.constants import APP_NAME
@@ -31,10 +30,7 @@ from models.trip.trip_schema import (
     TripSearchResponse,
 )
 from services.configuration_service import get_state_from_location_v2
-from services.customer_service import get_customer_by_id
-from services.driver_service import get_driver_by_id
 from services.location_service import get_distance_km, get_state_from_location
-from services.passenger_service import get_passenger_by_id
 
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_outstation_trip_schedule
@@ -94,13 +90,13 @@ def _track_state_transitions(search_in: TripSearchRequest):
     all_locations.append(search_in.destination)  # Instance of LocationInfo
     unique_states = set[str]()
     state_borders_crossed = 0
-    prev_state = get_state_from_location(all_locations[0])  # Origin location state
+    prev_state = get_state_from_location(all_locations[0],search_in.session_token)  # Origin location state
     if prev_state:
         unique_states.add(prev_state.lower())
     for loc in all_locations[
         1:
     ]:  # Iterate through all locations including hops and destination except the first one
-        curr_state = get_state_from_location(loc)
+        curr_state = get_state_from_location(loc,search_in.session_token)
         if curr_state.lower() != prev_state.lower():
             state_borders_crossed += 1
             unique_states.add(curr_state.lower())

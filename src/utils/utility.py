@@ -108,6 +108,10 @@ def log_lru_cache(name, func):
 
 def tokenize(text: str):
     return set(re.findall(r"\w+", text.lower()))
+
+def round_value(val: float, precision: int = 4):
+    return round(val, precision) if val is not None else None
+
     
 
 

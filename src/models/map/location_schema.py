@@ -4,9 +4,9 @@ from pydantic import BaseModel, Field
 
 
 class LocationInfo(BaseModel):
-    display_name: str
-    lat: float
-    lng: float
+    display_name: Optional[str] = None
+    lat: Optional[float]=None
+    lng: Optional[float]=None
     place_id: Optional[str] = None
     address: Optional[str] = None
 
@@ -18,7 +18,6 @@ class LocationInfo(BaseModel):
     region: Optional[str] = Field(None, description="City/region name")
     region_code: Optional[str] = Field(None, description="Region code (e.g., BLR, MYS)")
     postal_code: Optional[str] = Field(None, description="Postal/ZIP code")
-
     class Config:
         extra="allow"
         exclude_none = True  # Exclude fields with None values from the model dump
@@ -40,3 +39,4 @@ class Address(BaseModel):
 class LocationProximity(BaseModel):
     lat: float
     lng: float
+    radius_km: Optional[float] = Field(50, description="Radius in kilometers to bias location suggestions")

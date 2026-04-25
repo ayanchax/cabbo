@@ -180,6 +180,9 @@ class TripSearchRequest(BaseModel):
     )
     passenger: Optional[Union[str, PassengerRequest]] = None
 
+    session_token: Optional[str] = Field(
+        None, description="Session token to be passed to location service for caching related location requests and improving the accuracy of location suggestions and details"
+    )
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
     @classmethod
