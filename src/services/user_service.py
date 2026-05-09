@@ -14,7 +14,7 @@ from core.config import settings
 from models.user.user_schema import UserCreateSchema, UserUpdateSchema
 import logging
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 def persist_bearer_token(user: User, token: str, db: Session) -> str:
     try:
@@ -170,8 +170,8 @@ def get_users_by_role(role: RoleEnum, db: Session) -> list[User]:
 def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
     """Update user details."""
     try:
-        print(user.username)
-        print(data.username)
+        log.info(f"Updating user: {user.username}")
+        log.info(f"New data: {data.username}")
         if data.name is not None:
             if user.name != data.name:
                 user.name = data.name.strip()
@@ -259,7 +259,7 @@ def auto_logoff_user_after_password_change(user: User, db: Session) -> bool:
             delete_bearer_token(user=user, db=db)
         return True
     except Exception as e:
-        logger.error(f"Error logging off user after password change: {str(e)}")
+        log.error(f"Error logging off user after password change: {str(e)}")
 
 def create_super_admin_user(db:Session):
     super_admin = User(
@@ -270,6 +270,3 @@ def create_super_admin_user(db:Session):
     db.add(super_admin)
     db.flush()  # Flush to assign an ID to the super admin
          
-# if __name__ == "__main__":
-#     secret = generate_password_hash("P@55w0rd1234")
-#     print(secret)

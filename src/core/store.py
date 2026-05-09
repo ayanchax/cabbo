@@ -41,6 +41,7 @@ from services.pricing_service import (
 )
 
 from core.config import settings
+import logging
 
 
 class ConfigStore(BaseModel):
@@ -71,7 +72,7 @@ class ConfigStore(BaseModel):
         is created, and an instance-level lock (`_lock`) to prevent concurrent reloads.
     """
 
-
+    log: ClassVar[logging.Logger] = logging.getLogger(__name__)
     # Singleton instance
     _instance: ClassVar[Optional["ConfigStore"]] = None
     _instance_lock: ClassVar[threading.Lock] = threading.Lock()
@@ -132,20 +133,20 @@ class ConfigStore(BaseModel):
     @classmethod
     def get_instance(cls) -> "ConfigStore":
         """Get or create the singleton instance."""
-        print("ConfigStore.get_instance() called")
+        cls.log.info("ConfigStore.get_instance() called")
 
         if cls._instance is None:
-            print("Instance is None, acquiring lock...")
+            cls.log.info("Instance is None, acquiring lock...")
             with cls._instance_lock:
-                print("Lock acquired, checking again...")
+                cls.log.info("Lock acquired, checking again...")
                 if cls._instance is None:
-                    print("Creating new instance...")
+                    cls.log.info("Creating new instance...")
                     cls._instance = super(ConfigStore, cls).__new__(cls)
-                    print("Calling BaseModel.__init__...")
+                    cls.log.info("Calling BaseModel.__init__...")
                     BaseModel.__init__(cls._instance)
-                    print("Instance created successfully")
+                    cls.log.info("Instance created successfully")
 
-        print("Returning instance")
+        cls.log.info("Returning instance")
         return cls._instance
 
     @classmethod
@@ -162,11 +163,11 @@ class ConfigStore(BaseModel):
         """Initial load of all configurations from database."""
         # Only initialize if not already initialized or cache expired
         if not self._is_initialized or not self.is_cache_valid():
-            print("ConfigStore: Starting initialization...")
+            self.log.info("ConfigStore: Starting initialization...")
             self._lazy_load(db)
-            print("ConfigStore initialization completed.")
+            self.log.info("ConfigStore initialization completed.")
         else:
-            print(
+            self.log.info(
                 "ConfigStore already initialized with valid cache. Skipping initialization."
             ) 
 
@@ -192,7 +193,7 @@ class ConfigStore(BaseModel):
         """
         # Fast path: cache is valid
         if self.is_cache_valid():
-            print("Cache is valid, no need to reload.")
+            self.log.info("Cache is valid, no need to reload.")
             if not self._is_initialized:
                 self._is_initialized = True
             return
@@ -201,19 +202,19 @@ class ConfigStore(BaseModel):
         with self._lock:
             # Double-check after acquiring lock (another thread may have loaded the force reload meanwhile)
             if self.is_cache_valid():
-                print("Cache is valid after acquiring lock, no need to reload.")
+                self.log.info("Cache is valid after acquiring lock, no need to reload.")
                 if not self._is_initialized:
                     self._is_initialized = True
                 return
 
-            print("ConfigStore: Loading all configurations from database...")
+            self.log.info("ConfigStore: Loading all configurations from database...")
             try:
                 self._load_all_configurations(db)
                 self._last_loaded_at = datetime.now(timezone.utc)
                 self._is_initialized = True
-                print("Configuration store loaded/reloaded successfully.")
+                self.log.info("Configuration store loaded/reloaded successfully.")
             except Exception as e:
-                print(f"ERROR loading configurations: {e}")
+                self.log.error(f"ERROR loading configurations: {e}")
                 import traceback
 
                 traceback.print_exc()
@@ -223,36 +224,36 @@ class ConfigStore(BaseModel):
     def _load_all_configurations(self, db: Session):
         """Load all configurations from database."""
         # Load in dependency order
-        print("Step 1: Loading cabs...")
+        self.log.info("Step 1: Loading cabs...")
         self._retrieve_and_set_cabs(db)
 
-        print("Step 2: Loading fuel types...")
+        self.log.info("Step 2: Loading fuel types...")
         self._retrieve_and_set_fuel_types(db)
 
-        print("Step 3: Loading trip types...")
+        self.log.info("Step 3: Loading trip types...")
         self._retrieve_and_set_trip_types(db)
 
-        print("Step 4: Loading airport locations...")
+        self.log.info("Step 4: Loading airport locations...")
         self._retrieve_and_set_airport_locations(db)
 
-        print("Step 5: Loading geographies...")
+        self.log.info("Step 5: Loading geographies...")
         self._retrieve_and_set_serviceable_geographies(db)
 
         # Load pricing configurations
-        print("Step 6: Loading outstation pricing...")
+        self.log.info("Step 6: Loading outstation pricing...")
         self._retrieve_and_set_outstation_pricing(db)
 
-        print("Step 7: Loading local pricing...")
+        self.log.info("Step 7: Loading local pricing...")
         self._retrieve_and_set_local_pricing(db)
 
-        print("Step 8: Loading airport pickup pricing...")
+        self.log.info("Step 8: Loading airport pickup pricing...")
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_pickup, db)
 
-        print("Step 9: Loading airport drop pricing...")
+        self.log.info("Step 9: Loading airport drop pricing...")
         self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_drop, db)
 
         # Load platform fee
-        print("Step 10: Loading platform fee information...")
+        self.log.info("Step 10: Loading platform fee information...")
         self._retrieve_and_set_platform_fee_info(db)
 
          
@@ -414,29 +415,29 @@ class ConfigStore(BaseModel):
     # ===== DATA RETRIEVAL HELPERS =====
     def _retrieve_and_set_cabs(self, db: Session):
         """Load cab data into the store."""
-        print("Loading cab data into ConfigStore...")
+        self.log.info("Loading cab data into ConfigStore...")
         self._set_cabs(get_all_cabs(db))
 
     def _retrieve_and_set_fuel_types(self, db: Session):
         """Load fuel type data into the store."""
-        print("Loading fuel type data into ConfigStore...")
+        self.log.info("Loading fuel type data into ConfigStore...")
         self._set_fuel_types(get_all_fuel_types(db))
 
     def _retrieve_and_set_trip_types(self, db: Session):
         """Load trip type data into the store."""
-        print("Loading trip type data into ConfigStore...")
+        self.log.info("Loading trip type data into ConfigStore...")
         self._set_trip_types(get_all_trip_types(db))
     
     def _retrieve_and_set_airport_locations(self, db: Session):
         """Load airport location data into the store."""
-        print("Loading airport location data into ConfigStore...")
+        self.log.info("Loading airport location data into ConfigStore...")
         from services.airport_service import get_all_airports
         self._set_airport_locations(get_all_airports(db))
 
     def _retrieve_and_set_serviceable_geographies(self, db: Session):
         try:
             """Load country data from the database into the store."""
-            print("Loading geography data into ConfigStore...")
+            self.log.info("Loading geography data into ConfigStore...")
             countries = get_all_countries(db)
             country_dict = {country.country_code: country for country in countries}
             self.geographies.countries = country_dict
@@ -455,14 +456,14 @@ class ConfigStore(BaseModel):
 
             self._set_geography(self.geographies)
         except Exception as e:
-            print(f"Error loading geography data: {e}")
+            self.log.error(f"Error loading geography data: {e}")
             import traceback
             traceback.print_exc()
             raise
 
     def _retrieve_and_set_outstation_pricing(self, db: Session):
         """Load outstation master data from the database into the store."""
-        print("Loading outstation pricing data into ConfigStore...")
+        self.log.info("Loading outstation pricing data into ConfigStore...")
         outstation_trip_type = self._retrieve_trip_type(
             trip_type=TripTypeEnum.outstation, db=db
         )
@@ -540,7 +541,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_local_pricing(self, db: Session):
         """Load local pricing data from the database into the store."""
-        print("Loading local pricing data into ConfigStore...")
+        self.log.info("Loading local pricing data into ConfigStore...")
         local_trip_type = self._retrieve_trip_type(trip_type=TripTypeEnum.local, db=db)
         if not local_trip_type:
             return
@@ -611,7 +612,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_airport_pricing(self, trip_type: TripTypeEnum, db: Session):
         """Load all airport pricing data from the database into the store."""
-        print("Loading airport pricing data into ConfigStore...")
+        self.log.info("Loading airport pricing data into ConfigStore...")
         if trip_type not in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
             return
         airport_trip_type = self._retrieve_trip_type(trip_type=trip_type, db=db)
@@ -673,7 +674,7 @@ class ConfigStore(BaseModel):
 
     def _retrieve_and_set_platform_fee_info(self, db: Session):
         """Load fixed platform fee data from the database into the store."""
-        print("Loading platform fee data into ConfigStore...")
+        self.log.info("Loading platform fee data into ConfigStore...")
 
         platform_fee = get_fixed_platform_pricing_configuration(db=db)
         if not platform_fee:
@@ -683,13 +684,13 @@ class ConfigStore(BaseModel):
     def _retrieve_trip_configs(
         self, id: str, db: Session
     ) -> List[CommonPricingConfigurationSchema]:
-        print("Loading common pricing configurations into ConfigStore...")
+        self.log.info("Loading common pricing configurations into ConfigStore...")
         return get_common_pricing_configurations_by_trip_type_id(trip_type_id=id, db=db)
 
     def _retrieve_trip_type(
         self, trip_type: TripTypeEnum, db: Session
     ) -> TripTypeSchema:
-        print("Loading trip type data into ConfigStore...")
+        self.log.info("Loading trip type data into ConfigStore...")
         return get_trip_type_id_by_trip_type(
             trip_type=trip_type, db=db, include_id_only=False
         )

@@ -1,7 +1,9 @@
+import logging
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from scheduler.tasks import TASKS
 scheduler = BackgroundScheduler()
-
+log = logging.getLogger(__name__)
 def start_scheduler():
     if scheduler.running:
         return
@@ -16,13 +18,13 @@ def start_scheduler():
             args=task.get("args", ()),
             kwargs=task.get("kwargs", {}),
         )
-        print(f"Added job {task['id']} which runs every {task['trigger']} minutes")
+        log.info(f"Added job {task['id']} which runs every {task['trigger']} minutes")
     scheduler.start()
-    print(f"APScheduler started with {len(TASKS)} jobs.")
+    log.info(f"APScheduler started with {len(TASKS)} jobs.")
     
      
 
 def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
-        print("APScheduler stopped")
+        log.info("APScheduler stopped")

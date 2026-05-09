@@ -11,11 +11,10 @@ from services.geography_service import (
     async_get_state_by_id,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.config import settings
+import logging
+from core.config import settings    
 
-LOCATION_SERVICE_PROVIDER = settings.LOCATION_SERVICE_PROVIDER
 
-LOCATION_SERVICE_PROVIDER = settings.LOCATION_SERVICE_PROVIDER
 
 SEED_AIRPORTS_DATA_GOOGLE = [
     {
@@ -31,7 +30,7 @@ SEED_AIRPORTS_DATA_GOOGLE = [
         "region": "Bangalore",
         "region_code": "BLR",
         "postal_code": "560300",
-        "provider": "google",
+        "provider": settings.LOCATION_SERVICE_PROVIDER,
     },
     {
         "display_name": "Mysore Airport, Mysore",
@@ -46,7 +45,7 @@ SEED_AIRPORTS_DATA_GOOGLE = [
         "region": "Mysore",
         "region_code": "MYS",
         "postal_code": "570008",
-        "provider": "google",
+        "provider": settings.LOCATION_SERVICE_PROVIDER,
     },
     {
         "display_name": "Chennai International Airport, Chennai",
@@ -61,13 +60,14 @@ SEED_AIRPORTS_DATA_GOOGLE = [
         "region": "Chennai",
         "region_code": "MAA",
         "postal_code": "600027",
-        "provider": "google",
+        "provider": settings.LOCATION_SERVICE_PROVIDER,
     },
 ]
 
 
-
+log = logging.getLogger(__name__)
 SEED_AIRPORTS_DATA = SEED_AIRPORTS_DATA_GOOGLE
+
 def _create_airports(data: List[AirportSchema], session: Session):
     airport_models = []
     for airport in data:
@@ -210,7 +210,7 @@ async def async_add_airport(
         return AirportSchema.model_validate(new_airport), None
     except Exception as e:
         await db.rollback()
-        print(f"Error adding airport: {e}")
+        log.error(f"Error adding airport: {e}")
         return False, "Failed to add airport due to an internal error."
 
 
@@ -306,7 +306,7 @@ async def async_activate_airport(
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error activating airport: {e}")
+        log.error(f"Error activating airport: {e}")
         return False, "Failed to activate airport"
 
 
@@ -328,7 +328,7 @@ async def async_delete_airport(
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting airport: {e}")
+        log.error(f"Error deleting airport: {e}")
         return False, "Failed to delete airport"
 
 
@@ -355,7 +355,7 @@ async def async_update_airport(
         return AirportSchema.model_validate(airport), None
     except Exception as e:
         await db.rollback()
-        print(f"Error updating airport: {e}")
+        log.error(f"Error updating airport: {e}")
         return None, "Failed to update airport"
 
 async def async_get_airport_by_id(airport_id: str, db: AsyncSession) -> AirportSchema | None:

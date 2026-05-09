@@ -22,7 +22,7 @@ from services.payment_service import (
 from services.notification_service import notify_refund_processed_to_customer
 from services.refund_service import inactivate_refund, attempt_refund_initiation
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 REFUND_POLL_BATCH_SIZE = 50
 
@@ -41,15 +41,12 @@ async def _run_refund_status_sync():
         try:
             refunds = await _fetch_actionable_refunds(db)
             if len(refunds) == 0:
-                print("[process_refund] No pending/failed/initiated refunds to poll, exiting")
-                logger.info(
+                log.info(
                     "[process_refund] No pending/failed/initiated refunds to poll, exiting"
                 )
                 return
-            print(
-                f"[process_refund] Found {len(refunds)} pending/failed/initiated refunds to poll"
-            )
-            logger.info(
+            
+            log.info(
                 f"[process_refund] Found {len(refunds)} pending/failed/initiated refunds to poll"
             )
 
@@ -57,17 +54,13 @@ async def _run_refund_status_sync():
                 try:
                     await _process_single_refund(db, refund)
                 except Exception as e:
-                    print(
-                        f"[process_refund] Error processing refund {refund.id} "
-                        f"(entity={refund.entity_id}): {e}"
-                    )
-                    logger.error(
+                    
+                    log.error(
                         f"[process_refund] Error processing refund {refund.id} "
                         f"(entity={refund.entity_id}): {e}"
                     )
         except Exception as e:
-            print(f"[process_refund] Unexpected error during refund status sync: {e}")
-            logger.error(
+            log.error(
                 f"[process_refund] Unexpected error during refund status sync: {e}"
             )
 
@@ -96,8 +89,7 @@ async def _fetch_actionable_refunds(db: AsyncSession) -> list[RefundORM]:
         result = await db.execute(stmt)
         return result.scalars().unique().all()
     except Exception as e:
-        print(f"[process_refund] Error fetching actionable refunds from DB: {e}")
-        logger.error(f"[process_refund] Error fetching actionable refunds from DB: {e}")
+        log.error(f"[process_refund] Error fetching actionable refunds from DB: {e}")
         return []
 
 
@@ -115,11 +107,8 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     """
     provider_refund_id = (refund.refund_details or {}).get("id")
     if not provider_refund_id:
-        print(
-            f"[process_refund] Refund {refund.id} has no provider refund ID in "
-            f"refund_details, skipping"
-        )
-        logger.warning(
+       
+        log.warning(
             f"[process_refund] Refund {refund.id} has no provider refund ID in "
             f"refund_details, skipping"
         )
@@ -129,11 +118,8 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     
     #Neither refund ID nor payment ID in refund_details — can't do anything with this record, skip it and make it inactive for now and let support/finance investigate and fix the data if needed
     if not is_eligible_payment_identifier(str(provider_refund_id)):
-        print(
-            f"[process_refund] Refund {refund.id} has invalid provider refund or payment ID "
-            f"{provider_refund_id!r} in refund_details, skipping"
-        )
-        logger.warning(
+        
+        log.warning(
             f"[process_refund] Refund {refund.id} has invalid provider refund or payment ID "
             f"{provider_refund_id!r} in refund_details, skipping"
          )
@@ -150,11 +136,8 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
         refund_id=str(provider_refund_id), silently_fail=True
     )
     if current_status is None:
-        print(
-            f"[process_refund] Could not retrieve status from provider for refund ID "
-            f"{provider_refund_id}, skipping"
-        )
-        logger.warning(
+        
+        log.warning(
             f"[process_refund] Could not retrieve status from provider for refund ID "
             f"{provider_refund_id}, skipping"
         )
@@ -163,11 +146,8 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     current_status_value = current_status.value if current_status else None
 
     if current_status_value is None:
-        print(
-            f"[process_refund] Provider returned unknown status {current_status} "
-            f"for refund ID {provider_refund_id}, skipping"
-        )
-        logger.warning(
+        
+        log.warning(
             f"[process_refund] Provider returned unknown status {current_status} "
             f"for refund ID {provider_refund_id}, skipping"
         )
@@ -179,20 +159,15 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
         else None
     )
     if current_status_value.lower() == existing_status_value.lower():
-        print(
-            f"[process_refund] Refund {refund.id} status unchanged ({current_status_value}), skipping, scheduler will check again in the next cycle"
-        )
+     
 
-        logger.debug(
+        log.debug(
             f"[process_refund] Refund {refund.id} status unchanged ({current_status_value}), skipping, scheduler will check again in the next cycle"
         )
         return
 
-    print(
-        f"[process_refund] Refund {refund.id} (entity={refund.entity_id}) "
-        f"status changed: {existing_status_value} → {current_status_value}"
-    )
-    logger.info(
+   
+    log.info(
         f"[process_refund] Refund {refund.id} (entity={refund.entity_id}) "
         f"status changed: {existing_status_value!r} → {current_status_value!r}"
     )
@@ -200,21 +175,15 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     try:
         new_db_status = RefundStatus(current_status_value)
     except ValueError:
-        print(
-            f"[process_refund] Unknown provider status {current_status_value!r} "
-            f"for refund {refund.id}, skipping DB update, scheduler will check again in the next cycle"
-        )
-        logger.warning(
+       
+        log.warning(
             f"[process_refund] Unknown provider status {current_status_value!r} "
             f"for refund {refund.id}, skipping DB update, scheduler will check again in the next cycle"
         )
         return
     if new_db_status != RefundStatus.processed:
-        print(
-            f"[process_refund] Refund {refund.id} status is {new_db_status.value}, "
-            f"not processed yet, scheduler will check again in the next cycle, skipping notification"
-        )
-        logger.info(
+        
+        log.info(
             f"[process_refund] Refund {refund.id} status is {new_db_status.value}, "
             f"not processed yet, scheduler will check again in the next cycle, skipping notification"
         )
@@ -234,16 +203,12 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
                 provider_refund_id=provider_refund_id,
             )
     else:
-            logger.warning(
+            log.warning(
                 f"[process_refund] Refund {refund.id} is processed but trip or "
                 f"customer could not be loaded — skipping notification"
             )
-            print(
-                f"[process_refund] Refund {refund.id} is processed but trip or "
-                f"customer could not be loaded — skipping notification"
-            )
-    print(f"[process_refund] Finished processing refund {refund.id}")
-    logger.info(f"[process_refund] Finished processing refund {refund.id}")
+            
+    log.info(f"[process_refund] Finished processing refund {refund.id}")
 
 
 async def _send_refund_credited_notification(
@@ -277,21 +242,15 @@ async def _send_refund_credited_notification(
             refund_type=refund.refund_type.value if refund.refund_type else "full",
         )
 
-        print(
-            f"[process_refund] Sent refund processed notification for refund {refund.id} "
-            f"(entity={refund.entity_id}) to customer {customer.id}"
-        )
-        logger.info(
+        
+        log.info(
             f"[process_refund] Sent refund processed notification for refund {refund.id} "
             f"(entity={refund.entity_id}) to customer {customer.id}"
         )
 
     except Exception as e:
-        print(
-            f"[process_refund] Failed to send refund-credited notification for "
-            f"refund {refund.id}: {e}"
-        )
-        logger.error(
+        
+        log.error(
             f"[process_refund] Failed to send refund-credited notification "
             f"for refund {refund.id}: {e}"
         )

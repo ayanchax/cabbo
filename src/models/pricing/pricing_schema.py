@@ -293,7 +293,6 @@ class ExtraPayments(BaseModel):
         
         elif calculated_total>0 and self.total_extra_payment != calculated_total:
             # If there is a discrepancy between user-provided total_extra_payment and calculated total, log a warning (or raise an exception based on your needs)
-            print(f"Warning: The provided total_extra_payment ({self.total_extra_payment}) does not match the sum of individual components ({calculated_total}). Please verify the values.")
             self.total_extra_payment = calculated_total  # Override with calculated total to ensure consistency
         
         # Otherwise, respect the user-provided total_extra_payment

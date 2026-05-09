@@ -19,8 +19,10 @@ from services.trips.local_hourly_rental_service import (
     get_kwargs_for_local_hourly_rental,
 )
 from services.trips.outstation_service import get_kwargs_for_outstation_trip
-
+import logging
+log = logging.getLogger(__name__)
 db = get_mysql_local_session()
+
 
 
 async def notify_customer_booking_confirmed(booking: Trip) -> bool:
@@ -120,7 +122,7 @@ async def notify_customer_booking_confirmed(booking: Trip) -> bool:
             )
             return True
     else:
-        print(f"Unsupported trip type for notification: {trip_type}")
+        log.error(f"Unsupported trip type for notification: {trip_type}")
     return False
 
 

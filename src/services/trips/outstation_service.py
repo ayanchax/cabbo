@@ -30,7 +30,7 @@ from models.trip.trip_schema import (
     TripSearchResponse,
 )
 from services.configuration_service import get_state_from_location_v2
-from services.location_service import get_distance_km, get_state_from_location
+from services.location_service import get_distance_km
 
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_outstation_trip_schedule
@@ -90,14 +90,14 @@ def _track_state_transitions(search_in: TripSearchRequest):
     all_locations.append(search_in.destination)  # Instance of LocationInfo
     unique_states = set[str]()
     state_borders_crossed = 0
-    prev_state = get_state_from_location(all_locations[0],search_in.session_token)  # Origin location state
+    prev_state = all_locations[0].state  # Origin location state
     if prev_state:
         unique_states.add(prev_state.lower())
     for loc in all_locations[
         1:
     ]:  # Iterate through all locations including hops and destination except the first one
-        curr_state = get_state_from_location(loc,search_in.session_token)
-        if curr_state.lower() != prev_state.lower():
+        curr_state = loc.state
+        if (curr_state or "").lower() != (prev_state or "").lower():
             state_borders_crossed += 1
             unique_states.add(curr_state.lower())
         prev_state = curr_state.lower()
@@ -538,7 +538,7 @@ def get_kwargs_for_outstation_trip(
 
 
 def get_outstation_min_distance(
-    pickup: LocationInfo, config_store: ConfigStore
+    pickup: LocationInfo, config_store: ConfigStore, session_token: Optional[str] = None
 ) -> Optional[float]:
     """
     Returns the outstation minimum distance threshold (km) for the pickup state

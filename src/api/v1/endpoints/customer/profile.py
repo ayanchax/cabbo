@@ -34,6 +34,8 @@ from services.validation_service import (
     validate_customer_payload,
 )
 router = APIRouter()
+import logging
+log= logging.getLogger(__name__)
 
 #Profile endpoints
 #View customer profile, only accessible to the customer themselves for viewing their own profile details. This will validate the JWT token and ensure that the customer can only access their own profile details and not other customers' profiles for privacy and security reasons.
@@ -133,7 +135,7 @@ def upload_profile_picture(
             removed = remove_customer_profile_picture(key=existing_s3_image_info.key)
             if not removed:
                 #just print the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
-                print("Failed to cleanup old profile picture from storage.")
+                log.error("Failed to cleanup old profile picture from storage.")
         #finally update customer record with new profile picture info
         _ = update_customer_profile_picture(customer, db, new_s3_image_info)
         return new_s3_image_info

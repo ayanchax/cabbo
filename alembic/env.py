@@ -1,4 +1,6 @@
 
+import logging
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -11,16 +13,16 @@ sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
 from dotenv import load_dotenv
 from core.constants import PROJECT_ROOT, Environment
-
+log= logging.getLogger(__name__)
 # Load .env file
 ENV = os.getenv("ENV", Environment.LOCAL.value)
 # Load ONLY for local
 if ENV == Environment.LOCAL.value:
     env_path = os.path.join(PROJECT_ROOT, f".env.{Environment.LOCAL.value}")
     load_dotenv(dotenv_path=env_path)
-    print(f"Loaded local env: {env_path}")
+    log.info(f"Loaded local env: {env_path}")
 else:
-    print("Running in non-local mode, relying on system env vars")
+    log.info("Running in non-local mode, relying on system env vars")
 
 # Build DB URL from env vars
 DB_USER = os.getenv("DB_USER")

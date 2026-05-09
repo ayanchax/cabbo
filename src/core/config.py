@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from pydantic_settings import BaseSettings
 from pydantic import ValidationError
@@ -9,9 +10,9 @@ from sqlalchemy.orm import Session
 
 ENV = os.getenv("ENV", Environment.LOCAL.value)
 ENV_FILE = f".env.{Environment.LOCAL.value}" if ENV == Environment.LOCAL.value else None
-
+log = logging.getLogger(__name__)
 if not ENV_FILE:
-    print("Running in non-local mode, relying on system env vars")
+    log.info("Running in non-local mode, relying on system env vars")
 
 
 class Settings(BaseSettings):
@@ -53,7 +54,6 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     SHARE_PATH: str
     LOG_DIR: str
-    MAPBOX_TOKEN: str
     SMS_SERVICE_PROVIDER: str
     LOCATION_SERVICE_PROVIDER: str
     EMAIL_SERVICE_PROVIDER: str
@@ -85,17 +85,17 @@ class Settings(BaseSettings):
     def init_config_store(self, db: Session):
         """Initialize configuration store with a dedicated session."""
 
-        print("Starting ConfigStore initialization...")
+        log.info("Starting ConfigStore initialization...")
         from core.store import ConfigStore
 
         try:
             store = ConfigStore.get_instance()
             store.initialize_config_store(db)
             self.CONFIG_STORE = store
-            print("ConfigStore initialization completed successfully.")
+            log.info("ConfigStore initialization completed successfully.")
             return store
         except Exception as e:
-            print(f"Error during ConfigStore initialization: {e}")
+            log.error(f"Error during ConfigStore initialization: {e}")
             raise
 
     def get_config_store(self, db: Session):
@@ -103,7 +103,7 @@ class Settings(BaseSettings):
         if not self.CONFIG_STORE:
             return self.init_config_store(db)
         else:
-            print("ConfigStore already initialized, returning existing instance for retrieving configurations from in-memory store.")
+            log.info("ConfigStore already initialized, returning existing instance for retrieving configurations from in-memory store.")
         return self.CONFIG_STORE
 
 

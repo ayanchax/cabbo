@@ -1,35 +1,14 @@
 from fastapi import (
     APIRouter,
     Depends,
-    Path,
     Query,
 )
-from sqlalchemy.orm import Session
-from db.database import a_yield_mysql_session, yield_mysql_session
+from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
-from models.customer.passenger_schema import (
-    PassengerCreate,
-    PassengerOut,
-    PassengerUpdate,
-)
-from models.customer.recent_location_schema import RecentLocationCreate, RecentLocationRead
 from models.map.location_schema import LocationInfo
-from services.customer_service import (
-    get_active_customer_by_id,
-)
 
 from core.security import validate_customer_token
-from core.exceptions import CabboException
-from services.passenger_service import (
-    create_passenger,
-    delete_passenger,
-    is_passenger_belongs_to_customer,
-    update_passenger,
-)
 from services.recent_location_service import get_recent_locations_for_customer, save_recent_location
-from services.validation_service import (
-    validate_passenger_payload,
-)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()

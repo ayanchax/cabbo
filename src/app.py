@@ -19,17 +19,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi import HTTPException as FastAPIHTTPException
 from datetime import datetime, timezone
 from api.v1.routes import router as v1_router
-
+log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("Starting application...")
+    log.info("Starting application...")
 
-    print("Checking database connection...")
+    log.info("Checking database connection...")
     check_db_connection()
 
-    print("Starting scheduler...")
+    log.info("Starting scheduler...")
     start_scheduler()
 
     # Initialize ConfigStore at startup to ensure it's ready when needed
@@ -39,10 +39,10 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    print("Shutting down scheduler...")
+    log.info("Shutting down scheduler...")
     stop_scheduler()
 
-    print("Shutting down application...")
+    log.info("Shutting down application...")
 
 
 app = FastAPI(

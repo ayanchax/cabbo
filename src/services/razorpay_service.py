@@ -27,7 +27,7 @@ from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
 from utils.utility import convert_based_on_currency
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 RAZOR_PAY_CLIENT = razorpay.Client(
     auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
@@ -121,16 +121,16 @@ def _create_razorpay_order(
             order, razorpay_order.currency_conversion_factor
         )
         _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
-        logger.info(f"Razorpay order created successfully: {_formatted_order}")
+        log.info(f"Razorpay order created successfully: {_formatted_order}")
 
         return _formatted_order
     except razorpay.errors.BadRequestError as e:
-        logger.error(f"Razorpay order creation failed: {str(e)}")
+        log.error(f"Razorpay order creation failed: {str(e)}")
         raise CabboException(
             f"Razorpay order creation failed: {str(e)}", status_code=500
         )
     except Exception as e:
-        logger.error(f"Unexpected error during Razorpay order creation: {str(e)}")
+        log.error(f"Unexpected error during Razorpay order creation: {str(e)}")
         raise CabboException(
             f"Unexpected error during Razorpay order creation: {str(e)}",
             status_code=500,
@@ -237,23 +237,23 @@ def verify_razorpay_payment(payment_detail: dict):
         payment_detail = RazorPayPaymentResponse.model_validate(payment_detail)
         payment = client.payment.fetch(payment_detail.razorpay_payment_id)
         if payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value:
-            logger.debug(
+            log.debug(
                 f"Payment {payment_detail.razorpay_payment_id} verified successfully."
             )
             return True
         else:
-            logger.error(
+            log.error(
                 f"Payment verification failed for {payment_detail.razorpay_payment_id}: Status is {payment['status']}"
             )
             return False
     except razorpay.errors.BadRequestError as e:
-        logger.error(
+        log.error(
             f"Payment verification failed for {payment_detail.razorpay_payment_id}: {str(e)}"
         )
         return False  # If there's an error, we assume payment verification failed
 
     except Exception as e:
-        logger.error(
+        log.error(
             f"Unexpected error during payment verification for {payment_detail.razorpay_payment_id}: {str(e)}"
         )
         return False
@@ -307,12 +307,10 @@ def initiate_razorpay_refund(
             existing_refund = existing_refunds["items"][
                 0
             ]  # Assuming only one refund per payment, take the first one
-            logger.info(
+            log.info(
                 f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one"
             )
-            print(
-                f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one"
-            )
+             
             return {
                 **existing_refund,
                 "amount": float(
@@ -347,14 +345,14 @@ def initiate_razorpay_refund(
             ),  # Convert paise to rupees
         }
 
-        logger.info(f"Razorpay refund initiated successfully: {formatted_refund}")
+        log.info(f"Razorpay refund initiated successfully: {formatted_refund}")
         return formatted_refund
 
     except razorpay.errors.BadRequestError as e:
         import traceback
 
         traceback.print_exc()
-        logger.error(f"Razorpay refund creation failed: {str(e)}")
+        log.error(f"Razorpay refund creation failed: {str(e)}")
 
         return _populate_failed_razorpay_refund_response(
             payment_id=payment_id,
@@ -365,7 +363,7 @@ def initiate_razorpay_refund(
         )
 
     except Exception as e:
-        logger.error(f"Unexpected error during Razorpay refund creation: {str(e)}")
+        log.error(f"Unexpected error during Razorpay refund creation: {str(e)}")
 
         return _populate_failed_razorpay_refund_response(
             payment_id=payment_id,
@@ -390,7 +388,7 @@ def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
     # A payment ID here means initiation failed — there is nothing to poll.
 
     if not refund_id or not refund_id.startswith("rfnd_"):
-        logger.warning(
+        log.warning(
             f"[razorpay_service] Skipping refund status check for {refund_id}: "
             f"no valid razorpay refund ID (got: {refund_id!r})"
         )
@@ -406,15 +404,15 @@ def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
         if status in RazorPayRefundStatusEnum._value2member_map_:
             return RazorPayRefundStatusEnum(status)
         else:
-            logger.error(f"Unknown refund status received from Razorpay: {status}")
+            log.error(f"Unknown refund status received from Razorpay: {status}")
             return RazorPayRefundStatusEnum.FAILED  # Treat unknown status as failed
     except razorpay.errors.BadRequestError as e:
-        logger.error(
+        log.error(
             f"Failed to fetch Razorpay refund status for {refund_id}: {str(e)}"
         )
         return RazorPayRefundStatusEnum.FAILED  # Treat errors as failed status
     except Exception as e:
-        logger.error(
+        log.error(
             f"Unexpected error while fetching Razorpay refund status for {refund_id}: {str(e)}"
         )
         return (
@@ -434,7 +432,7 @@ def is_razorpay_payment_settled(payment_id: str) -> bool:
     client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
     try:
         payment = client.payment.fetch(payment_id)
-        print(f"Payment details for settlement check: {payment}")
+        log.info(f"Payment details for settlement check: {payment}")
         settlement_id = payment.get("settlement_id", None)
         status = payment.get("status", None)
         refund_status = payment.get("refund_status", None)
@@ -444,12 +442,12 @@ def is_razorpay_payment_settled(payment_id: str) -> bool:
             or refund_status in (RefundType.full.value, RefundType.partial.value)
         )  # If settlement_id is present or payment is refunded, payment is settled
     except razorpay.errors.BadRequestError as e:
-        logger.error(
+        log.error(
             f"Failed to fetch Razorpay payment status for {payment_id}: {str(e)}"
         )
         return False  # Treat errors as not settled
     except Exception as e:
-        logger.error(
+        log.error(
             f"Unexpected error while fetching Razorpay payment status for {payment_id}: {str(e)}"
         )
         return False  # Treat unexpected errors as not settled
@@ -485,4 +483,4 @@ if __name__ == "__main__":
     test_payment_id = (
         "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
     )
-    print(is_razorpay_payment_settled(test_payment_id))
+    log.info(is_razorpay_payment_settled(test_payment_id))

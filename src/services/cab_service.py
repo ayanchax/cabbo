@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.security import RoleEnum
 from models.cab.cab_orm import CabType
 from models.cab.cab_schema import CabTypeSchema, CabTypeUpdateSchema
-
-
+import logging
+log = logging.getLogger(__name__)
 def get_all_cabs(db: Session)-> list[CabTypeSchema]:
     """Retrieve all cabs from the database."""
     cabs = db.query(CabType).all()
@@ -31,7 +31,7 @@ def create_cabs(cabs:dict, db:Session, created_by:RoleEnum=RoleEnum.system):
         db.bulk_save_objects(cab_types)  # More efficient for bulk inserts
         db.flush()  # Flush to assign IDs before commit
     except Exception as e:
-        print(f"Error seeding cab types: {e}")
+        log.error(f"Error seeding cab types: {e}")
 
 
 
@@ -52,7 +52,7 @@ async def add_new_cab_type(cab_type: CabTypeSchema, db: AsyncSession, created_by
         return CabTypeSchema.model_validate(new_cab)
     except Exception as e:
         await db.rollback()
-        print(f"Error adding cab type: {e}")
+        log.error(f"Error adding cab type: {e}")
         return None
     
 async def async_get_all_cabs(db: AsyncSession) -> list[CabTypeSchema]:
@@ -83,7 +83,7 @@ async def async_delete_cab_type(cab_type_id: str, db: AsyncSession) -> tuple[boo
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting cab type: {e}")
+        log.error(f"Error deleting cab type: {e}")
         return False, str(e)
     
 async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSession) -> Union[CabTypeSchema, None]:
@@ -103,7 +103,7 @@ async def async_update_cab_type(cab_type_data: CabTypeUpdateSchema, db: AsyncSes
         return CabTypeSchema.model_validate(cab)
     except Exception as e:
         await db.rollback()
-        print(f"Error updating cab type: {e}")
+        log.error(f"Error updating cab type: {e}")
         return None
 
 async def async_activate_cab(cab_type_id:str, db:AsyncSession):
@@ -119,6 +119,6 @@ async def async_activate_cab(cab_type_id:str, db:AsyncSession):
         return True, None
      except Exception as e:
         await db.rollback()
-        print(f"Error activating cab type: {e}")
+        log.error(f"Error activating cab type: {e}")
         return False, str(e)
    

@@ -14,7 +14,8 @@ from email.message import EmailMessage
 import aiosmtplib
 from core.config import settings
 from core.constants import APP_NAME, PROJECT_ROOT
-
+import logging
+log = logging.getLogger(__name__)
 EMAIL_VERIFY_EXPIRY_UNIT = 2
 EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
     "DAYS": "days",
@@ -56,7 +57,7 @@ def send_otp(to_number: str, message="Hello world") -> bool:
     elif settings.SMS_SERVICE_PROVIDER.lower() == "mock":
         return _send_mock_sms(to_number, message)
     else:
-        print(f"Unsupported SMS service provider: {settings.SMS_SERVICE_PROVIDER}")
+        log.error(f"Unsupported SMS service provider: {settings.SMS_SERVICE_PROVIDER}")
         return False
 
 
@@ -64,7 +65,7 @@ def _send_mock_sms(to_number: str, message: str) -> bool:
     """
     Mock SMS sending for testing purposes. Always returns True.
     """
-    print(f"Mock SMS to {to_number}: {message}")
+    log.info(f"Mock SMS to {to_number}: {message}")
     return True
 
 def _send_twilio_sms(to_number: str, message: str) -> bool:
@@ -75,7 +76,7 @@ def _send_twilio_sms(to_number: str, message: str) -> bool:
         client.messages.create(body=message, from_=TWILIO_FROM_NUMBER, to=to_number)
         return True
     except Exception as e:
-        print(f"Twilio SMS send failed: {e}")
+        log.error(f"Twilio SMS send failed: {e}")
         # Log the error and delete OTP from temp table if sending fails
         return False
 
@@ -94,7 +95,7 @@ async def send_email(
     elif email_provider == "brevo":
         return await _brevo_send_email(to_email, subject, html_content, from_email)
     else:
-        print(f"Unsupported email service provider: {email_provider}")
+        log.error(f"Unsupported email service provider: {email_provider}")
         return False
 
 
@@ -121,12 +122,12 @@ async def _brevo_send_email(
             password=settings.BREVO_SMTP_PASSWORD,
             timeout=20,
         )
-        print(f"Brevo email sent to {to_email}")
+        log.info(f"Brevo email sent to {to_email}")
         return True
 
     except Exception as e:
         # We will log audit logs later on failures of email sending
-        print(f"Brevo email send failed: {e}")
+        log.error(f"Brevo email send failed: {e}")
         return False
 
 
@@ -143,11 +144,11 @@ def _sendgrid_send_email(
             html_content=html_content,
         )
         response = sg_client.send(message)
-        print(f"SendGrid email sent to {to_email} with status code {response.status_code}")
+        log.info(f"SendGrid email sent to {to_email} with status code {response.status_code}")
         return 200 <= response.status_code < 300
     except Exception as e:
         # We will log audit logs later on failures of email sending
-        print(f"SendGrid email send failed: {e}")
+        log.error(f"SendGrid email send failed: {e}")
         return False
 
 
@@ -178,12 +179,12 @@ async def _aws_ses_send_email(
             password=settings.AWS_SES_SMTP_PASSWORD,
             timeout=20,
         )
-        print(f"AWS SES email sent to {to_email}")
+        log.info(f"AWS SES email sent to {to_email}")
         return True
 
     except Exception as e:
         # We will log audit logs later on failures of email sending
-        print(f"AWS SES email send failed: {e}")
+        log.error(f"AWS SES email send failed: {e}")
         return False
 
 

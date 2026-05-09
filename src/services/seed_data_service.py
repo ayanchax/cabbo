@@ -47,7 +47,8 @@ from services.pricing_service import (
     create_trip_package_pricing_configuration,
 )
 from services.user_service import create_super_admin_user
-
+import logging 
+log= logging.getLogger(__name__)
 
 SEED_COUNTRIES = [
     {
@@ -1171,13 +1172,13 @@ def _seed_local_trip_packages(session: Session):
     local_trip_type_id = trip_type_id_map.get(TripTypeEnum.local)
 
     if not local_trip_type_id:
-        print("Local trip type not found. Skipping package seeding.")
+        log.info("Local trip type not found. Skipping package seeding.")
         return
 
     for region_code, packages in HOURLY_RENTAL_PACKAGES_SEED_DATA.items():
         region = get_region_by_code(region_code.upper(), session)
         if not region:
-            print(f"Region {region_code} not found. Skipping packages.")
+            log.info(f"Region {region_code} not found. Skipping packages.")
             continue
 
         for package_data in packages:
@@ -1255,7 +1256,7 @@ def _seed_fixed_platform_pricing(session: Session):
         platform_fee = PLATFORM_FEE_BY_COUNTRY.get(country_code)
 
         if platform_fee is None:
-            print(f"No platform fee configured for {country_code}. Skipping.")
+            log.info(f"No platform fee configured for {country_code}. Skipping.")
             continue
 
         payload = FixedPlatformFeeConfigurationSchema(
@@ -1441,7 +1442,7 @@ def is_seed_completed(
 
         return record is not None and record.value == value
     except Exception as e:
-        print(f"Error checking seed completion for {key} with value {value}: {e}")
+        log.error(f"Error checking seed completion for {key} with value {value}: {e}")
         return False
 
 
@@ -1465,7 +1466,7 @@ def mark_seed_completed(
 
         db.flush()
     except Exception as e:
-        print(f"Error marking seed as completed: {e}")
+        log.error(f"Error marking seed as completed: {e}")
         raise e
 
 
@@ -1483,18 +1484,18 @@ def run_seed_registry(session: Session):
                     raise Exception(f"Dependency {dep} not completed for {key}")
             # Fail fast
             if is_seed_completed(session, key):
-                print(f"Seed already completed for key: {key}. Skipping.")
+                log.info(f"Seed already completed for key: {key}. Skipping.")
                 continue
-            print(f"Running seed function for key: {key}")
+            log.info(f"Running seed function for key: {key}")
             func(session)
             mark_seed_completed(session, key)
-            print(f"Completed seed function for key: {key}")
+            log.info(f"Completed seed function for key: {key}")
 
         session.commit()
-        print("All seed functions in registry have been processed.")
+        log.info("All seed functions in registry have been processed.")
     except Exception as e:
         session.rollback()
-        print(f"Error during seed registry execution: {e}")
+        log.error(f"Error during seed registry execution: {e}")
         raise e
 
 

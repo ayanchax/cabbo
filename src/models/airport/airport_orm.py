@@ -21,7 +21,6 @@ class AirportModel(Base):
     source = Column(String(64), nullable=True)
     lat = Column(Float, nullable=False)
     lng = Column(Float, nullable=False)
-    provider = Column(String(64), nullable=True, default=settings.LOCATION_SERVICE_PROVIDER)
     place_id = Column(String(128), nullable=False, unique=True)
     address = Column(String(512), nullable=False)
     country = Column(String(64), nullable=True)
@@ -35,5 +34,5 @@ class AirportModel(Base):
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_modified = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
+    provider =Column(String(64), nullable=True, default=settings.LOCATION_SERVICE_PROVIDER)
     # One or more airports belong to one region

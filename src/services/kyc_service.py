@@ -11,6 +11,8 @@ from models.driver.driver_orm import Driver
 from services.file_service import remove_driver_kyc_document_file, save_driver_kyc_document_file
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import logging
+log = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = [".pdf"]
 
@@ -46,11 +48,11 @@ def update_driver_kyc_documents(
 
         for file, doc_type in zip(files, document_types):
             if file.size is None or file.size == 0:
-                print("Skipping empty file for document type:", doc_type)
+                log.warning("Skipping empty file for document type: %s", doc_type)
                 continue  # Skip empty files
             extension = os.path.splitext(file.filename)[-1].lower()
             if extension not in ALLOWED_EXTENSIONS:
-                print("Unsupported file type for document type:", doc_type)
+                log.warning("Unsupported file type for document type: %s", doc_type)
                 continue  # Skip unsupported file types
 
             # Overwrite existing document of the same type or add new document entry
@@ -61,7 +63,7 @@ def update_driver_kyc_documents(
                 driver.id, file, doc_type
             )
             if not s3_result:
-                print("Failed to save file for document type:", doc_type)
+                log.error("Failed to save file for document type: %s", doc_type)
                 continue  # Skip if file saving failed
             doc_entry = KYCDocumentSchema(
                 document_id=uuid4().hex,
@@ -292,7 +294,7 @@ async def async_add_kyc_document_record(
         return KYCDocumentTypeSchema.model_validate(new_record), None
     except Exception as e:
         await db.rollback()
-        print(f"Error adding KYC document record: {e}")
+        log.error(f"Error adding KYC document record: {e}")
         return None, str(e)
 
 async def async_get_all_kyc_document_records(db: AsyncSession) -> list[KYCDocumentTypeSchema]:
@@ -323,7 +325,7 @@ async def async_delete_kyc_document_record(document_id: str, db: AsyncSession) -
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting KYC document record: {e}")
+        log.error(f"Error deleting KYC document record: {e}")
         return False, str(e)
 
 
@@ -343,7 +345,7 @@ async def async_update_kyc_document_record(document_id: str, payload: KYCDocumen
         return KYCDocumentTypeSchema.model_validate(record), None
     except Exception as e:
         await db.rollback()
-        print(f"Error updating KYC document record: {e}")
+        log.error(f"Error updating KYC document record: {e}")
         return None, str(e)
     
 async def async_activate_kyc_document_record(document_id:str, db:AsyncSession) -> tuple[bool, str | None]:
@@ -360,5 +362,5 @@ async def async_activate_kyc_document_record(document_id:str, db:AsyncSession) -
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error activating KYC document record: {e}")
+        log.error(f"Error activating KYC document record: {e}")
         return False, str(e)

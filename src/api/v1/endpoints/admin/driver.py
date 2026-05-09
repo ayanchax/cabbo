@@ -58,8 +58,9 @@ from services.notification_service import notify_driver_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.validation_service import validate_driver_payload
 from sqlalchemy.ext.asyncio import AsyncSession
-
+import logging
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 # Add driver
@@ -137,7 +138,7 @@ def upload_driver_profile_picture(
                 removed = remove_driver_profile_picture(key=existing_s3_image_info.key)
                 if not removed:
                     #just print the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
-                    print("Failed to cleanup old profile picture from storage.")
+                    log.error("Failed to cleanup old profile picture from storage.")
             
             #Finally update driver record with new profile picture info
             _ = update_driver_profile_picture(driver=driver, db=db, s3_image_info=new_s3_image_info)

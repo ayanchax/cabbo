@@ -26,6 +26,7 @@ class AirportSchema(BaseModel):
     postal_code: Optional[str] = None
     is_serviceable: Optional[bool] = True
     provider: Optional[str] = None
+    
 
     class Config:
         from_attributes = True

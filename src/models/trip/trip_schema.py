@@ -706,4 +706,5 @@ class TripUpdateRequestSchema(BaseModel):
 class TripClassificationRequest(BaseModel):
     pickup: LocationInfo = Field(..., description="Origin location details")
     dropoff: Optional[LocationInfo] = Field(None, description="Destination location details")
+    
      

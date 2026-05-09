@@ -42,7 +42,8 @@ from utils.utility import (
     validate_date_time,
 )
 from sqlalchemy.orm import Session
-
+import logging
+log = logging.getLogger(__name__)
 
 def _validate_duplicate_local_bookings(
     booking_request: TripBookRequest,
@@ -511,6 +512,7 @@ def validate_serviceable_area(
                 dest_state=dest_state,
                 allowed_states=allowed_states,
                 drop=drop,
+            
             )
         
     else:
@@ -519,7 +521,7 @@ def validate_serviceable_area(
     validate_distance_and_time_constraints(
         pickup=pickup, drop=drop, config_store=config_store, trip_type=trip_type, start_date=search_in.start_date, end_date=search_in.end_date
     )
-    print("Serviceable area validation passed")
+    log.info("Serviceable area validation passed")
     return search_in
 
 
@@ -592,13 +594,13 @@ def validate_hops(
             unique_hops.append(hop)
 
         if duplicate_hops:
-            print(f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}")
+            log.info(f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}")
         if same_as_drop_hops:
-            print(
+            log.info(
                 f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
             )
         if zero_coord_hops:
-            print(
+            log.info(
                 f"Note: The following hops have zero or missing coordinates and will be ignored: {', '.join(zero_coord_hops)}"
             )
 
@@ -638,7 +640,7 @@ def validate_hops(
         # Keep only unique, valid hops (invalid hops cause an exception below)
         hops = [h for h in unique_hops]
 
-    print("Hops validation passed")
+    log.info("Hops validation passed")
     return hops
 
 
@@ -743,7 +745,7 @@ def validate_distance_and_time_constraints(
                     error_code="OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD",
                 )
             
-        print("Distance and time constraints validation passed")
+        log.info("Distance and time constraints validation passed")
         return distance
     except CabboException as e:
         raise e
@@ -872,8 +874,8 @@ def validate_airport_schedule(search_in: TripSearchRequest):
 
     now = datetime.now(timezone.utc)
 
-    print(f"Current time (UTC): {now}")
-    print(f"Start date (UTC): {start_date}")
+    log.info(f"Current time (UTC): {now}")
+    log.info(f"Start date (UTC): {start_date}")
 
     # Check for past dates
     if start_date < now:

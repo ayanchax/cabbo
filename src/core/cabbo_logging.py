@@ -3,38 +3,35 @@ import os
 from logging.handlers import TimedRotatingFileHandler
 from core.constants import APP_NAME, PROJECT_ROOT, Environment
 
-LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
-print(f"LOG_DIR: {LOG_DIR}")
-os.makedirs(LOG_DIR, exist_ok=True)
+ENV = os.getenv("ENV", Environment.LOCAL.value)
+LOG_FORMAT = f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'
 
 # Prevent duplicate handlers (important for reload environments)
-logger = logging.getLogger(APP_NAME)
-ENV = os.getenv("ENV", Environment.LOCAL.value)
+root_logger = logging.getLogger()
 
+if not root_logger.handlers:
+    handlers = []
 
-if not logger.handlers:
     if ENV == Environment.LOCAL.value:
-        print("Setting up file handlers for logging in local environment")
-        cabbo_debug_handler = TimedRotatingFileHandler(
+        LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
+        os.makedirs(LOG_DIR, exist_ok=True)
+
+        debug_handler = TimedRotatingFileHandler(
             os.path.join(LOG_DIR, 'debug.log'), when='midnight', interval=1, backupCount=15, encoding='utf-8', delay=True
         )
-        cabbo_debug_handler.setLevel(logging.DEBUG)
-        cabbo_debug_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
+        debug_handler.setLevel(logging.DEBUG) # 10 -> DEBUG and above to debug.log
 
-        cabbo_error_handler = TimedRotatingFileHandler(
+        error_handler = TimedRotatingFileHandler(
             os.path.join(LOG_DIR, 'error.log'), when='midnight', interval=1, backupCount=15, encoding='utf-8', delay=True
         )
-        cabbo_error_handler.setLevel(logging.ERROR)
-        cabbo_error_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
+        error_handler.setLevel(logging.ERROR) # 40 -> ERROR and above to error.log
+
+        handlers.extend([debug_handler, error_handler])
 
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(logging.Formatter(f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'))
+    console_handler.setLevel(logging.INFO) # 20 -> INFO and above to console
+    handlers.append(console_handler)
 
-    root_logger = logging.getLogger()  # root logger to catch any logs from libraries that don't use the app logger
-    root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(console_handler)
-    if ENV == Environment.LOCAL.value:
-        root_logger.addHandler(cabbo_debug_handler)
-        root_logger.addHandler(cabbo_error_handler)
+    log_level = logging.DEBUG if ENV == Environment.LOCAL.value else logging.INFO
+    logging.basicConfig(level=log_level, format=LOG_FORMAT, handlers=handlers)
 

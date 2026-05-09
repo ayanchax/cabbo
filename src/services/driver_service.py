@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -28,6 +29,7 @@ from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+log = logging.getLogger(__name__)
 
 
 def create_driver(
@@ -72,6 +74,7 @@ def create_driver(
         return driver
     except Exception as e:
         db.rollback()
+        log.error(f"Error creating driver: {str(e)}")
         raise CabboException(
             f"Error creating driver: {str(e)}", status_code=500, include_traceback=True
         )
@@ -362,7 +365,7 @@ async def _add_driver_earning_record(
     except Exception as e:
         await db.rollback()
         if silently_fail:
-            print(f"Error adding driver earning record: {str(e)}")
+            log.error(f"Error adding driver earning record: {str(e)}")
             return None
         raise CabboException(
             f"Error adding driver earning record: {str(e)}",
@@ -421,7 +424,7 @@ async def add_driver_earning_record(
         driver_schema = DriverReadSchema.model_validate(driver) if driver else None
         if not driver_schema:
             if silently_fail:
-                print(
+                log.error(
                     f"Driver not found for trip {trip.id} while adding driver earning record."
                 )
                 return None
@@ -459,7 +462,7 @@ async def add_driver_earning_record(
 
         traceback.print_exc()
         if silently_fail:
-            print(f"Error in add_driver_earning_record: {str(e)}")
+            log.error(f"Error in add_driver_earning_record: {str(e)}")
             return None
         raise e
 
@@ -475,7 +478,7 @@ async def get_trip_earning_for_driver(
         )
         return result.scalars().one_or_none() # We expect only one earning record per trip per driver, so using one_or_none to get the record. If there are multiple records for some reason, this will raise an exception which will be caught and logged, and we can investigate the data issue later without impacting the trip completion flow for drivers.
     except Exception as e:
-        print(
+        log.error(
             f"Error fetching driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
         )
         return None
@@ -488,7 +491,7 @@ async def get_all_earnings_for_driver(driver_id: str, db: AsyncSession) -> list[
         )
         return result.scalars().all()
     except Exception as e:
-        print(f"Error fetching driver earning records for driver {driver_id}: {str(e)}")
+        log.error(f"Error fetching driver earning records for driver {driver_id}: {str(e)}")
         return []
 
 async def has_driver_earning_record_for_trip(
@@ -503,7 +506,7 @@ async def has_driver_earning_record_for_trip(
         record = result.scalars().first()
         return record is not None
     except Exception as e:
-        print(
+        log.error(
             f"Error checking driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
         )
         return False
@@ -531,7 +534,7 @@ async def delete_driver_earning(
         return True
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting driver earning record with id {earning_id}: {str(e)}")
+        log.error(f"Error deleting driver earning record with id {earning_id}: {str(e)}")
         return False
 
 
@@ -554,7 +557,7 @@ async def calculate_average_rating_for_driver(
         None if there are no ratings for the driver.
     """
     try:
-        print(
+        log.info(
             f"Calculating average rating for driver with id {driver_id} with exclude_flagged_ratings={exclude_flagged_ratings} and silently_fail={silently_fail}"
         )
         query = select(func.avg(TripRating.rating)).where(
@@ -569,7 +572,7 @@ async def calculate_average_rating_for_driver(
         return round(average_rating, 2) if average_rating is not None else None
     except Exception as e:
         if silently_fail:
-            print(
+            log.error(
                 f"Failed to calculate average rating for the driver with id {driver_id}: {str(e)}"
             )
             return None
@@ -592,7 +595,7 @@ async def get_average_rating_by_driver_id(
             )
         average_rating = driver.avg_rating
         if average_rating is None:
-            print(
+            log.info(
                 f"Average rating not available for the driver with id {driver_id}. Calculating average rating from existing ratings for the driver."
             )
             # If avg_rating is not available for some reason, calculate it on the fly based on the existing real(not flagged or spam) ratings for the driver in the database and return it without updating it in the database because we do not want to update avg_rating in the database if it is None for some reason because it might be an indication of some issue with the driver rating records in the database and we do not want to override any existing avg_rating value in the database without investigating the issue further. So we will just calculate and return the average rating on the fly without updating it in the database if avg_rating is None for some reason.
@@ -643,7 +646,7 @@ async def update_average_rating_for_driver(
             driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
             if not driver:
                 if silently_fail:
-                    print(
+                    log.info(
                         f"Driver with id {driver_id} not found. Cannot update average rating for the driver."
                     )
                     return None
@@ -652,14 +655,14 @@ async def update_average_rating_for_driver(
                 )
             driver.avg_rating = average_rating
             await db.commit()
-            print(
+            log.info(
                 f"Average rating for driver with id {driver_id} updated to {average_rating}"
             )
             return average_rating
     except Exception as e:
             await db.rollback()
             if silently_fail:
-                print(
+                log.error(
                     f"Failed to update average rating for the driver with id {driver_id}: {str(e)}"
                 )
                 return None
@@ -676,6 +679,7 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
                 driver_schema = DriverReadSchema.model_validate(driver) if driver else None
                 return driver_schema
             except Exception as e:
+                log.error(f"Error evaluating driver: {str(e)}")
                 return None
 
         def _evaluate_customer(customer):
@@ -683,6 +687,7 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
                 customer_schema = CustomerBase.model_validate(customer) if customer else None
                 return customer_schema
             except Exception as e:
+                log.error(f"Error evaluating customer: {str(e)}")
                 return None
 
         query = select(Trip).where(Trip.driver_id == driver_id)

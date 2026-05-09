@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import logging
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 def log_trip_audit(
     db: Session,
@@ -44,11 +44,11 @@ def log_trip_audit(
         if commit:
             db.commit()
         db.refresh(audit)
-        print(f"Trip audit log created for trip ID: {trip_id} by {committer_id}")
+        log.info(f"Trip audit log created for trip ID: {trip_id} by {committer_id}")
         return audit
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to log trip audit entry: {e}")
+        log.error(f"Failed to log trip audit entry: {e}")
 
 
 async def a_log_trip_audit(
@@ -86,8 +86,8 @@ async def a_log_trip_audit(
         if commit:
             await db.commit()
             await db.refresh(audit)
-        print(f"Trip audit log created for trip ID: {trip_id} by {committer_id}")
+        log.info(f"Trip audit log created for trip ID: {trip_id} by {committer_id}")
         return audit
     except Exception as e:
         await db.rollback()
-        logger.error(f"Failed to log trip audit entry: {e}")
+        log.error(f"Failed to log trip audit entry: {e}")

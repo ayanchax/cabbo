@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from models.customer.customer_orm import Customer
 
-
+import logging
 JWT_EXPIRY_UNIT = 5
 JWT_EXPIRES_IN=JWT_EXPIRY_UNIT * 24 * 60 * 60  # Default expiry in seconds (5 days)
 JWT_EXPIRY_UNIT_TIME_FRAME = {
@@ -23,7 +23,7 @@ JWT_EXPIRY_UNIT_TIME_FRAME = {
     "MINUTES": "minutes",
 }
 SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
-
+log = logging.getLogger(__name__)
  
 
 
@@ -62,8 +62,8 @@ def validate_customer_token(
             "Authorization header missing or invalid.", status_code=401
         )
     token = authorization.split(" ", 1)[1]
-    if settings.ENV == Environment.DEV.value:
-            print(f"Token: {token}")
+    if settings.ENV in [Environment.DEV.value, Environment.LOCAL.value]:
+            log.info(f"Token: {token}")
     if not token:
         raise CabboException("Token is missing.", status_code=401)
     try:
@@ -97,8 +97,8 @@ def validate_user_token(
             "Authorization header missing or invalid.", status_code=401
         )
     token = authorization.split(" ", 1)[1]
-    if settings.ENV == Environment.DEV.value:
-            print(f"Token: {token}")
+    if settings.ENV in [Environment.DEV.value, Environment.LOCAL.value]:
+            log.info(f"Token: {token}")
     if not token:
         raise CabboException("Token is missing.", status_code=401)
     try:

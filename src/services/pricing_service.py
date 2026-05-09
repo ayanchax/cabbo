@@ -32,7 +32,7 @@ from core.exceptions import CabboException
 from models.trip.trip_schema import TripBookRequest, TripSearchOption
 import logging
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 APP_COUNTRY_CURRENCY_SYMBOL = "₹"  # Placeholder for currency symbol, adjust as needed
 
@@ -518,17 +518,8 @@ def compute_final_platform_fee(
 
     # Step 3: Round to nearest 9/10
     final_fee = round_fee(after_cap_fee)
-    print(
-        f"""
-Platform Fee Computation:
-Base Price: {total_price}
-Fixed Fee: {fixed_fee}
-Dynamic %: {dynamic_percent}
-After Cap: {after_cap_fee}
-Final Rounded: {final_fee}
-"""
-    )
-    logger.debug(
+    
+    log.debug(
         f"""
 Platform Fee Computation:
 Base Price: {total_price}
