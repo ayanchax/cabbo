@@ -110,13 +110,13 @@ def update_customer_name(customer_id:str, new_name:str, db:Session):
 def update_customer_email(customer_id:str, new_email:str, db:Session, unverify_email:bool=True):
     customer = get_active_customer_by_id(customer_id, db)
     if customer.email == new_email:
-        return customer.email  # No update needed if email is the same
+        return customer.email, False  # No update needed if email is the same
     customer.email = new_email
     if unverify_email:
         customer.is_email_verified = False
     db.commit()
     db.refresh(customer)
-    return customer.email
+    return customer.email, True
 
 def update_customer_dob(customer_id:str, new_dob:datetime, db:Session):
     customer = get_active_customer_by_id(customer_id, db)
@@ -144,7 +144,7 @@ def update_customer_emergency_contact(customer_id, payload:CustomerUpdate, db:Se
 
 def update_customer_profile(
     customer_id: str, payload: CustomerUpdate, db: Session
-) -> Customer:
+) -> tuple[Customer, bool]:
     try:
         customer = get_active_customer_by_id(customer_id, db)
         updated_flags = [
@@ -162,7 +162,9 @@ def update_customer_profile(
             customer.last_modified = datetime.now(timezone.utc)
             db.commit()
             db.refresh(customer)
-        return customer
+        
+        email_updated = updated_flags[1]  # The second item in the list corresponds to email update
+        return customer, email_updated
     except Exception as e:
         db.rollback()
         raise CabboException(
@@ -195,7 +197,7 @@ def update_email(
         )
         if existing_customer:
             raise CabboException(
-                "Email already in use, this update will not happen.",
+                "Email already in use by some other customer, this update will not happen.",
                 status_code=400,
             )
         if customer.email != payload.email:

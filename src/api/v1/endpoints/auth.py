@@ -5,6 +5,7 @@ from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
 from services.customer_service import create_customer, delete_bearer_token
 from services.notification_service import notify_customer_onboarded
+from services.customer_email_verification_service import send_email_verification
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.otp_service import (
     OTP_RESEND_INTERVAL_SECONDS,
@@ -110,6 +111,11 @@ def onboard_customer(
             notify_customer_onboarded,
             task_name="notify_customer_onboarded",
             customer=customer_schema,
+        )
+        orchestrator.add_task(
+            send_email_verification,
+            task_name="send_email_verification",
+            customer_id=str(customer.id),
         )
 
     # Give login token directly after registration

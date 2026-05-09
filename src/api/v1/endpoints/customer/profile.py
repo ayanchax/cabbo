@@ -3,6 +3,7 @@ from fastapi import (
     Depends,
     UploadFile,
     File,
+    BackgroundTasks,
 )
 from sqlalchemy.orm import Session
 from db.database import yield_mysql_session
@@ -33,6 +34,8 @@ from core.exceptions import CabboException
 from services.validation_service import (
     validate_customer_payload,
 )
+from services.customer_email_verification_service import send_email_verification
+from services.orchestration_service import BackgroundTaskOrchestrator
 router = APIRouter()
 import logging
 log= logging.getLogger(__name__)
@@ -50,24 +53,43 @@ def get_customer_profile(
 # Update customer profile, only accessible to the customer themselves for updating their own profile details. This will validate the JWT token and ensure that the customer can only update their own profile details and not other customers' profiles for privacy and security reasons.
 @router.put("/update", response_model=CustomerReadAfterUpdate)
 def modify_customer_profile(
+    background_tasks: BackgroundTasks,
     payload: CustomerUpdate = Depends(validate_customer_payload),
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    return update_customer_profile(current_customer.id, payload, db)
+    customer, email_updated =  update_customer_profile(current_customer.id, payload, db)
+    if email_updated:
+        orchestrator = BackgroundTaskOrchestrator(background_tasks)
+        orchestrator.add_task(
+            send_email_verification,
+            task_name="send_email_verification",
+            customer_id=str(current_customer.id),
+        )
+    return customer
 
 
 #Atomic single updates
 @router.patch("/update/email", response_model=dict)
 def modify_customer_email_field(
+    background_tasks: BackgroundTasks,
     payload: CustomerUpdate = Depends(validate_customer_payload),
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
+    
 ):
     if payload.email is None:
         raise CabboException("Email field is required.", status_code=400)
-    updated_email= update_customer_email(current_customer.id, payload.email, db)
-    return {"email": updated_email, "message": "Email updated successfully. Please verify your new email address."}
+    updated_email, email_updated = update_customer_email(current_customer.id, payload.email, db)
+    if email_updated:
+        orchestrator = BackgroundTaskOrchestrator(background_tasks)
+        orchestrator.add_task(
+            send_email_verification,
+            task_name="send_email_verification",
+            customer_id=str(current_customer.id),
+        )
+        return {"email": updated_email, "message": "Email updated successfully. Please verify your new email address."}
+    return {"email": updated_email, "message": "Email is the same as the current one. No update needed."}
 
 @router.patch("/update/name", response_model=dict)
 def modify_customer_name_field(
