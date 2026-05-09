@@ -52,7 +52,6 @@ class Settings(BaseSettings):
     BREVO_FROM_NO_REPLY_EMAIL: str  # Email address used for sending emails to customers on events of welcome email, booking confirmation, trip updates, etc.
 
     JWT_SECRET: str
-    SHARE_PATH: str
     LOG_DIR: str
     SMS_SERVICE_PROVIDER: str
     LOCATION_SERVICE_PROVIDER: str

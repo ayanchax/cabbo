@@ -16,7 +16,7 @@ async def save_recent_location(customer_id: str, location: LocationInfo, db: Asy
     )
     existing = existing.scalar_one_or_none()
 
-    location_payload = location.model_dump()  # or model_dump()
+    location_payload = location.model_dump()
     new_record=None
     if existing:
         existing.usage_count += 1
