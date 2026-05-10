@@ -64,12 +64,12 @@ def get_location_suggestions(
         params["sessiontoken"] = session_token
     data = safe_request(url, params)
     predictions = data.get("predictions", [])[:limit]
-
+    
     return [
         LocationInfo(
-            display_name=p.get("description"),
+            display_name=p.get("structured_formatting", {}).get("main_text") or p.get("description"),
+            address=p.get("structured_formatting", {}).get("secondary_text") or p.get("description"),
             place_id=p.get("place_id"),
-            address=p.get("description"),
         )
         for p in predictions
     ]
@@ -165,6 +165,32 @@ def _extract_geo_from_components(components: list) -> dict:
 
     return geo
 
+def _extract_display_name_from_components(components: list) -> Optional[str]:
+    priority = [
+        "premise",
+        "street_address",
+        "establishment",
+        "sublocality_level_1",
+        "sublocality_level_2",
+        "sublocality_level_3",
+        "sublocality",
+        "locality",
+        "administrative_area_level_2",
+        "administrative_area_level_1",  
+        "political",
+        "country",
+    ]
+    buckets = {p: None for p in priority}
+    for comp in components:
+        types = comp.get("types", [])
+        for p in priority:
+            if p in types and buckets[p] is None:
+                buckets[p] = comp.get("long_name")
+    for p in priority:
+        if buckets[p]:
+            return buckets[p]
+    return components[0].get("long_name") if components else None
+
 # ----------------------------------------
 # PLACE API - END
 # ----------------------------------------
@@ -194,14 +220,16 @@ def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationIn
         return None
 
     result = results[0]
-
+    address_components = result.get("address_components", [])
+    geo = _extract_geo_from_components(address_components)
+    display_name = _extract_display_name_from_components(address_components)
     return LocationInfo(
-        display_name=result.get("formatted_address"),
         place_id=result.get("place_id"),
         lat=lat,
         lng=lng,
         address=result.get("formatted_address"),
-        **result,
+        display_name=display_name,
+        **geo,
     )
 
 # ----------------------------------------

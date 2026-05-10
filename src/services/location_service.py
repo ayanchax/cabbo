@@ -41,3 +41,16 @@ def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationIn
 
         return google_reverse(lat, lng)
     return None
+
+def get_location_from_place_id(place_id: str, session_token:Optional[str]=None) -> Optional[LocationInfo]:    
+    """
+    Given a place_id, return the corresponding location details using the configured provider.
+    The returned location details should include 'display_name', 'lat', 'lng', and optionally 'address'.
+    """
+    if provider == "google":
+        from services.google_map_service import (
+            get_location_from_place_id as google_place_details,
+        )
+
+        return google_place_details(place_id, session_token=session_token)
+    return None
