@@ -706,5 +706,12 @@ class TripUpdateRequestSchema(BaseModel):
 class TripClassificationRequest(BaseModel):
     pickup: LocationInfo = Field(..., description="Origin location details")
     dropoff: Optional[LocationInfo] = Field(None, description="Destination location details")
-    
+    validate_serviceable_area: Optional[bool] = Field(
+        False,
+        description="Whether to validate if the pickup and dropoff locations are within serviceable areas. This adds overhead due to additional API calls to location service.",
+    )
+    trip_type:Optional[TripTypeEnum] = Field(
+        None,
+        description="Optionally specify the trip type if you want to classify the trip for a specific type, if not provided, the system will classify the trip for all supported types and return the best match"
+    )
      

@@ -4,7 +4,7 @@ from typing import Optional
 
 from core.security import RoleEnum
 from core.store import ConfigStore
-from models.map.location_schema import LocationInfo
+from models.map.location_schema import LocationInfo, MobilityHub
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_orm import TripTypeMaster
 from models.trip.trip_schema import TripTypeSchema, TripTypeUpdateSchema
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.location_service import get_distance_km
-from services.trips.outstation_service import get_outstation_min_distance
+from services.trips.outstation_service import get_outstation_min_outbound_distance
 from core.config import settings
 
 async def async_add_trip_type(
@@ -124,30 +124,22 @@ def classify_trip_type(
     if not dropoff:
         return TripTypeEnum.local
 
-    # Build airport place_id set for O(1) lookup
-    airport_place_ids = {
-        airport.place_id
-        for airport in (config_store.airport_locations or [])
-        if airport.place_id
-    }
-
-    # Rule 2: Airport detection — first-satisfier, pickup takes priority over dropoff
-    if pickup.place_id and pickup.place_id in airport_place_ids:
+    # Rule 2: Airport detection via mobility_hub (preferred — set from Google place types)
+    if pickup.mobility_hub == MobilityHub.airport:
         return TripTypeEnum.airport_pickup
-
-    if dropoff.place_id and dropoff.place_id in airport_place_ids:
+    if dropoff.mobility_hub == MobilityHub.airport:
         return TripTypeEnum.airport_drop
 
-    # Rule 3: Distance-based classification
-    distance = get_distance_km(origin=pickup, destination=dropoff)
-    if distance is None:
+    # Rule 3: Distance-based classification based on outbound distance(excluding hops and return distance) and config store thresholds for outstation trips (e.g., 150 km+ is outstation)
+    outbound_distance = get_distance_km(origin=pickup, destination=dropoff)
+    if outbound_distance is None:
         # Cannot calculate — default to local (non-blocking; /search will validate)
         return TripTypeEnum.local
 
-    outstation_min_km = get_outstation_min_distance(
+    outstation_min_km = get_outstation_min_outbound_distance(
         pickup=pickup, config_store=config_store
     )
-    if outstation_min_km and distance >= outstation_min_km:
+    if outstation_min_km and outbound_distance >= outstation_min_km:
         return TripTypeEnum.outstation
 
     return TripTypeEnum.local

@@ -5,7 +5,7 @@ sys.path.insert(0, str(parent_dir))
 from functools import lru_cache
 from typing import List, Optional, Union
 from core.config import settings
-from models.map.location_schema import LocationInfo, LocationProximity
+from models.map.location_schema import LocationInfo, LocationProximity, MobilityHub
 from utils.utility import log_lru_cache, round_value, safe_request
 import logging
 log = logging.getLogger(__name__)
@@ -124,14 +124,70 @@ def get_location_from_place_id(
     location = result["geometry"]["location"]
     address_components = result.get("address_components", [])
     geo = _extract_geo_from_components(address_components)
+    mobility_hub = (
+        _extract_mobility_hub(result.get("types", []))
+        or _infer_mobility_hub_from_name(result.get("name"))
+    )
     return LocationInfo(
         display_name=result.get("name"),
         place_id=place_id,
         lat=location.get("lat"),
         lng=location.get("lng"),
         address=result.get("formatted_address"),
+        mobility_hub=mobility_hub,
         **geo,
     )
+
+
+# Maps Google place types to MobilityHub enum values (priority order — first match wins)
+_GOOGLE_MOBILITY_TYPE_MAP: dict[str, MobilityHub] = {
+    "airport": MobilityHub.airport,
+    "train_station": MobilityHub.railway_station,
+    "bus_station": MobilityHub.bus_station,
+    "taxi_stand": MobilityHub.taxi_stand,
+    "subway_station": MobilityHub.subway_station,
+    "light_rail_station": MobilityHub.transit_station,
+    "transit_station": MobilityHub.transit_station,
+}
+
+
+def _extract_mobility_hub(types: list) -> Optional[MobilityHub]:
+    """Return the first MobilityHub match from a Google place types list."""
+    for t in (types or []):
+        hub = _GOOGLE_MOBILITY_TYPE_MAP.get(t)
+        if hub:
+            return hub
+    return None
+
+
+# Ordered most-specific first so generic "station" never shadows "railway station" etc.
+_MOBILITY_NAME_KEYWORDS: list[tuple[str, MobilityHub]] = [
+    ("airport",          MobilityHub.airport),
+    ("aerodrome",        MobilityHub.airport),
+    ("railway station",  MobilityHub.railway_station),
+    ("train station",    MobilityHub.railway_station),
+    ("metro station",    MobilityHub.subway_station),
+    ("subway station",   MobilityHub.subway_station),
+    ("bus station",      MobilityHub.bus_station),
+    ("bus stand",        MobilityHub.bus_station),
+    ("bus terminus",     MobilityHub.bus_station),
+    ("bus terminal",     MobilityHub.bus_station),
+    ("taxi stand",       MobilityHub.taxi_stand),
+    # broad catch-all — handles "SMVT Bengaluru Station", "Majestic Station" etc.
+    # intentionally last to avoid false positives (police station, petrol station, etc.)
+    ("station",          MobilityHub.transit_station),
+]
+
+
+def _infer_mobility_hub_from_name(name: Optional[str]) -> Optional[MobilityHub]:
+    """Keyword fallback: infer mobility hub from a place name when type-based detection fails."""
+    if not name:
+        return None
+    name_lower = name.lower()
+    for keyword, hub in _MOBILITY_NAME_KEYWORDS:
+        if keyword in name_lower:
+            return hub
+    return None
 
 
 def _extract_geo_from_components(components: list) -> dict:
@@ -166,30 +222,30 @@ def _extract_geo_from_components(components: list) -> dict:
     return geo
 
 def _extract_display_name_from_components(components: list) -> Optional[str]:
-    priority = [
-        "premise",
-        "street_address",
-        "establishment",
-        "sublocality_level_1",
-        "sublocality_level_2",
-        "sublocality_level_3",
-        "sublocality",
-        "locality",
-        "administrative_area_level_2",
-        "administrative_area_level_1",  
-        "political",
-        "country",
-    ]
-    buckets = {p: None for p in priority}
+    # Build a 2-part display name: "<route or sublocality>, <area>"
+    # e.g. "Kodigehalli Rd, Battarahalli" or "Padmeshwari Nagar, Battarahalli"
+    buckets = {}
     for comp in components:
-        types = comp.get("types", [])
-        for p in priority:
-            if p in types and buckets[p] is None:
-                buckets[p] = comp.get("long_name")
-    for p in priority:
-        if buckets[p]:
-            return buckets[p]
-    return components[0].get("long_name") if components else None
+        for t in comp.get("types", []):
+            if t not in buckets:
+                buckets[t] = comp.get("long_name")
+
+    primary = (
+        buckets.get("establishment")
+        or buckets.get("route")
+        or buckets.get("sublocality_level_2")
+        or buckets.get("sublocality_level_1")
+        or buckets.get("sublocality")
+        or buckets.get("locality")
+    )
+    secondary = (
+        buckets.get("sublocality_level_1")
+        or buckets.get("locality")
+    ) if primary != buckets.get("sublocality_level_1") and primary != buckets.get("locality") else None
+
+    if primary and secondary:
+        return f"{primary}, {secondary}"
+    return primary or (components[0].get("long_name") if components else None)
 
 # ----------------------------------------
 # PLACE API - END
@@ -223,12 +279,23 @@ def get_location_from_coordinates(lat: float, lng: float) -> Optional[LocationIn
     address_components = result.get("address_components", [])
     geo = _extract_geo_from_components(address_components)
     display_name = _extract_display_name_from_components(address_components)
+    loc = result.get("geometry", {}).get("location")
+    # Reverse geocode returns multiple results; scan all for a mobility hub match
+    # (the first result is often administrative, the establishment type may appear further down)
+    mobility_hub = (
+        next(
+            (hub for r in results if (hub := _extract_mobility_hub(r.get("types", [])))),
+            None,
+        )
+        or _infer_mobility_hub_from_name(display_name)
+    )
     return LocationInfo(
         place_id=result.get("place_id"),
-        lat=lat,
-        lng=lng,
+        lat=loc.get("lat") if loc else lat,
+        lng=loc.get("lng") if loc else lng,
         address=result.get("formatted_address"),
         display_name=display_name,
+        mobility_hub=mobility_hub,
         **geo,
     )
 

@@ -1078,10 +1078,13 @@ def _seed_outstation_cab_pricing(session: Session):
                 dynamic_platform_fee_percent=1.5,  # 3% platform fee/convenience fee
                 overage_warning_km_threshold=50,  # Warning threshold for overages
                 state_id=state_id,
+                min_included_km=300,   # For outstation trips, we have 300km included kms per day as a standard, but for fare estimation purposes we can keep a reasonable range of included kms based on the package and trip duration
+                max_included_km=2100,  # For outstation trips, we have 300*max_days_allowed range of included kms based on the package and trip duration, but for fare estimation purposes we can keep a reasonable range
                 min_platform_fee=300,  # Minimum platform fee of Rs. 300 for outstation trips
                 max_platform_fee=1200,  # Maximum platform fee of Rs. 1200 for outstation trips
-                min_distance_km=150,  # Minimum distance threshold for fare calculation, e.g., 150 km for outstation trips
+                min_outbound_distance_km=150,  # Minimum distance threshold for fare calculation, e.g., 150 km for outstation trips excluding hops and return distance as these are primarily long distance trips and fare is not very sensitive for short distances, but we can keep some reasonable state wise thresholds to manage outliers and for better fare estimation for users
                 max_distance_km=2100,  # Maximum distance threshold for fare calculation, e.g., 2100 km for outstation trips
+                min_days_allowed=2,  # Minimum days allowed for outstation trips, e.g., 2 days
                 max_days_allowed=7,  # Maximum days allowed for outstation trips, e.g., 7 days
                 max_hops_allowed=3,  # Maximum hops allowed for outstation trips, e.g., 3 hops (to manage complexity of multi-city trips and for better fare estimation for users)
             )
@@ -1144,7 +1147,7 @@ def _seed_airport_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=150,  # Minimum platform fee of Rs. 100 for airport pickup trips
                 max_platform_fee=500,  # Maximum platform fee of Rs. 400 for airport pickup trips
-                min_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
+                min_outbound_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
                 max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g., 42 km for airport trips
             ),
             CommonPricingConfigurationSchema(
@@ -1157,7 +1160,7 @@ def _seed_airport_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=150,  # Minimum platform fee of Rs. 150 for airport drop trips
                 max_platform_fee=500,  # Maximum platform fee of Rs. 500 for airport drop trips
-                min_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
+                min_outbound_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
                 max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g
             ),
         ]

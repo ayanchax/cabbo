@@ -108,11 +108,13 @@ def _track_state_transitions(search_in: TripSearchRequest):
     return is_interstate, total_unique_states, list(unique_states)
 
 
-def _get_trip_origin_destination_distance_outstation(search_in: TripSearchRequest):
+def _get_trip_origin_destination_distance_outstation(search_in: TripSearchRequest, min_distance: Optional[float] = 300.0):
     """
     Validates and retrieves the origin, destination, and estimated distance for outstation trips.
     Args:
         search_in (TripSearchRequest): The trip search request containing origin and destination.
+        min_distance (Optional[float]): The minimum distance required for an outstation trip. Defaults to 300.0 km.
+        
         Returns:
             Tuple[LocationInfo, LocationInfo, float]: A tuple containing the origin, destination, and estimated distance in kilometers.
         Raises:
@@ -148,6 +150,16 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
                 status_code=500,
             )
         outbound_km += leg_km
+
+    min_distance_for_outstation_trip = min_distance  # in km
+    if outbound_km < min_distance_for_outstation_trip:
+        raise CabboException(
+            f"Outstation trips must have a minimum distance of {min_distance_for_outstation_trip} km, "
+            f"the route you have selected is less than {min_distance_for_outstation_trip} km, "
+            f"try with a different route or switch to local trip",
+            status_code=500,
+        )
+    
     
     # Return leg: destination → origin (direct, not retracing hops)
     return_km = get_distance_km(origin=search_in.destination, destination=search_in.origin)
@@ -157,14 +169,6 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
             status_code=500,
         )
     
-    min_distance_for_outstation_trip = 70  # in km
-    if outbound_km < min_distance_for_outstation_trip:
-        raise CabboException(
-            f"Outstation trips must have a minimum distance of {min_distance_for_outstation_trip} km, "
-            f"the route you have selected is less than {min_distance_for_outstation_trip} km, "
-            f"try with a different route or switch to local trip",
-            status_code=500,
-        )
     
     total_est_km = outbound_km + return_km
 
@@ -256,8 +260,8 @@ def get_outstation_trip_options(
         )
 
     currency = config_store.geographies.country_server.currency_symbol
-
-    _, _, total_est_km = _get_trip_origin_destination_distance_outstation(search_in)
+    
+    _, _, total_est_km = _get_trip_origin_destination_distance_outstation(search_in, min_distance=configuration.auxiliary_pricing.common.min_outbound_distance_km)
     total_trip_days = validate_outstation_trip_schedule(search_in)
     
 
@@ -537,12 +541,16 @@ def get_kwargs_for_outstation_trip(
         return {}  # Return empty dict on error to avoid breaking email notifications
 
 
-def get_outstation_min_distance(
-    pickup: LocationInfo, config_store: ConfigStore, session_token: Optional[str] = None
+def get_outstation_min_outbound_distance(
+    pickup: LocationInfo, config_store: ConfigStore
 ) -> Optional[float]:
     """
-    Returns the outstation minimum distance threshold (km) for the pickup state
-    from config. Returns None if state or config entry is unavailable.
+    Returns the outstation minimum outbound distance threshold (km) for the pickup state
+    from config. 
+    The config is picked up from the state of the pickup location and not the drop location because 
+    we want to set the minimum outbound distance based on the state from which the trip is starting, 
+    as that is where most of the cost is incurred 
+    Returns None if state or config entry is unavailable.
     """
     state = get_state_from_location_v2(location=pickup, config_store=config_store)
     if not state:
@@ -551,6 +559,6 @@ def get_outstation_min_distance(
     if not outstation_config:
         return None
     try:
-        return outstation_config.auxiliary_pricing.common.min_distance_km
+        return outstation_config.auxiliary_pricing.common.min_outbound_distance_km
     except AttributeError:
         return None
