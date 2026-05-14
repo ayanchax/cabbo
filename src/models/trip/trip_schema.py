@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Any, Dict, Optional, List, Union
+from typing import Any, Dict, NamedTuple, Optional, List, Union
 from datetime import datetime
 from core.exceptions import CabboException
 from models.common import AmenitiesSchema
@@ -181,8 +181,10 @@ class TripSearchRequest(BaseModel):
     passenger: Optional[Union[str, PassengerRequest]] = None
 
     session_token: Optional[str] = Field(
-        None, description="Session token to be passed to location service for caching related location requests and improving the accuracy of location suggestions and details"
+        None,
+        description="Session token to be passed to location service for caching related location requests and improving the accuracy of location suggestions and details",
     )
+
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
     @classmethod
@@ -703,15 +705,42 @@ class TripUpdateRequestSchema(BaseModel):
         description="Placard name for the trip, only applied if placard_required is already True on the trip",
     )
 
+
 class TripClassificationRequest(BaseModel):
     pickup: LocationInfo = Field(..., description="Origin location details")
-    dropoff: Optional[LocationInfo] = Field(None, description="Destination location details")
+    dropoff: Optional[LocationInfo] = Field(
+        None, description="Destination location details"
+    )
     validate_serviceable_area: Optional[bool] = Field(
         False,
         description="Whether to validate if the pickup and dropoff locations are within serviceable areas. This adds overhead due to additional API calls to location service.",
     )
-    trip_type:Optional[TripTypeEnum] = Field(
+    trip_type: Optional[TripTypeEnum] = Field(
         None,
-        description="Optionally specify the trip type if you want to classify the trip for a specific type, if not provided, the system will classify the trip for all supported types and return the best match"
+        description="Optionally specify the trip type if you want to classify the trip for a specific type, if not provided, the system will classify the trip for all supported types and return the best match",
     )
-     
+    serviceable: Optional[bool] = Field(
+        False,
+        description="Indicates if the pickup and dropoff locations are within serviceable areas",
+    )
+
+
+class TripClassificationResult(NamedTuple):
+    """Result of classify_trip_type.
+
+    Attributes:
+        trip_type: The classified TripTypeEnum value.
+        distance_km: Haversine straight-line distance in km between pickup and dropoff.
+                     None for airport trips (Rule 2 fires before distance is computed)
+                     and when dropoff is absent.
+        has_distance_overage: True when trip_type is local and distance_km exceeds the
+                              region's max included km — signals the UI to show an
+                              overage-warning banner upfront.
+    """
+
+    trip_type: TripTypeEnum
+    distance_km: Optional[float]
+    has_distance_overage: bool
+    distance_diff_km: Optional[float] = (
+        None  # Optional field to indicate how much the distance exceeds the max included km, if applicable
+    )

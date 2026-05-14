@@ -80,8 +80,8 @@ SEED_REGIONS = [
     # Return list of seed regions with (name, code, alt_names, alt_codes, state_code)
     # This is seed data and can be updated later via admin interface
     # Alt region codes are added to support multiple region codes returned by different location service providers, we will use these codes to verify service availability in a region if primary region code is not found in the LocationInfo response.
-    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], ["BEN"], "KA"),
-    ("Mysore", "MYS", ["Mysuru"], [], "KA"),
+    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City", "Bangalore Division"], ["BEN", "BANGALORE DIVISION"], "KA"),
+    ("Mysore", "MYS", ["Mysuru", "Mysore Division"], ["MYSORE DIVISION"], "KA"),
 ]
 
 TRIP_TYPE_SEED_DATA = [
@@ -197,6 +197,7 @@ PLATFORM_FEE_BY_COUNTRY = {
     # SMS / OTP: ₹1–₹2
     # Infra (AWS amortized): ₹10–₹20
     # Misc (email, logging, etc): ₹5
+    # Mapping and location services: ₹5–₹10
     "IN": 65,  # 65 INR for India, sweet spot to cover costs and ensure profitability while remaining competitive.
     # Future countries:
     # "US": 2.5,  # $2.5 for USA

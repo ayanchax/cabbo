@@ -32,6 +32,7 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
+from services.configuration_service import get_region_from_location
 from services.customer_service import a_get_customer_by_id
 from services.passenger_service import get_passenger_by_id
 
@@ -419,3 +420,25 @@ def get_kwargs_for_local_hourly_rental(
     except Exception as e:
         print("Error preparing kwargs for local hourly rental service:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
+
+
+def get_hourly_rental_max_included_km(
+    pickup: LocationInfo, config_store: ConfigStore
+) -> Optional[float]:
+    """
+    Returns the maximum included kilometers for an hourly rental trip based on the pickup location's region configuration. 
+    The config is picked up from the state of the pickup location and not the drop location because 
+    we want to set the maximum included kilometers based on the state from which the trip is starting, 
+    as that is where most of the cost is incurred 
+    Returns None if state or config entry is unavailable.
+    """
+    region = get_region_from_location(location=pickup, config_store=config_store)
+    if not region:
+        return None
+    local_hourly_rental_config = config_store.local.get(region.region_code)
+    if not local_hourly_rental_config:
+        return None
+    try:
+        return float(local_hourly_rental_config.auxiliary_pricing.common.max_included_km)
+    except (AttributeError, TypeError, ValueError):
+        return None

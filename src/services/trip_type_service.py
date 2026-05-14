@@ -2,18 +2,26 @@
 
 from typing import Optional
 
+from core.exceptions import CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from models.map.location_schema import LocationInfo, MobilityHub
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_orm import TripTypeMaster
-from models.trip.trip_schema import TripTypeSchema, TripTypeUpdateSchema
+from models.trip.trip_schema import TripClassificationResult, TripTypeSchema, TripTypeUpdateSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from services.location_service import get_distance_km
+from services.location_service import get_distance_km_haversine
+from services.trips.local_hourly_rental_service import get_hourly_rental_max_included_km
 from services.trips.outstation_service import get_outstation_min_outbound_distance
 from core.config import settings
+
+_MIN_TRIP_DISTANCE_KM = 0.5  # trips shorter than this are rejected as same-location abuse
+
+import logging
+log = logging.getLogger(__name__)
+
 
 async def async_add_trip_type(
     trip_type_data: TripTypeSchema, db: AsyncSession, created_by: RoleEnum= RoleEnum.system
@@ -113,35 +121,69 @@ async def async_get_trip_type_by_name(trip_type_name: TripTypeEnum, db: AsyncSes
 def classify_trip_type(
     pickup: LocationInfo,
     dropoff: Optional[LocationInfo],
-    config_store: ConfigStore=None,
-) -> TripTypeEnum:
+    config_store: ConfigStore = None,
+) -> TripClassificationResult:
+    # Rule 1: No dropoff → local (hourly rental, no fixed destination)
+    if not dropoff:
+        return TripClassificationResult(TripTypeEnum.local, None, False)
+
+    # Guard: reject same-location trips (abuse prevention)
+    # Fast path — same place_id means identical location, no math needed.
+    if pickup.place_id and dropoff.place_id and pickup.place_id == dropoff.place_id:
+        raise CabboException(
+            "Pickup and dropoff cannot be the same location.",
+            status_code=400,
+            error_code="SAME_PICKUP_DROPOFF_LOCATION",
+        )
+    # Slow path — different place_ids but coordinates are effectively the same.
+    outbound_distance = get_distance_km_haversine(origin=pickup, destination=dropoff)
+    log.debug(f"Calculated outbound distance excluding hop legs, return legs and real tortuosity: {outbound_distance} km")
+    
+    if outbound_distance is not None and outbound_distance < _MIN_TRIP_DISTANCE_KM:
+        raise CabboException(
+            "Pickup and dropoff are too close to each other. Please choose locations that are further apart.",
+            status_code=400,
+            error_code="SAME_PICKUP_DROPOFF_LOCATION",
+        )
+
     if not config_store:
         from db.database import get_mysql_local_session
         syncdb = get_mysql_local_session()
         config_store = settings.get_config_store(db=syncdb)
 
-    # Rule 1: No dropoff → local (hourly rental, no fixed destination)
-    if not dropoff:
-        return TripTypeEnum.local
+    # Rule 2: Outstation check takes priority over airport mobility_hub.
+    # A trip from Bangalore to Mysore Airport is outstation, not airport_drop.
+    outstation_min_km = None
+    if outbound_distance is not None:
+        outstation_min_km = get_outstation_min_outbound_distance(
+            pickup=pickup, config_store=config_store
+        )
+        if outstation_min_km and outbound_distance >= outstation_min_km:
+            return TripClassificationResult(TripTypeEnum.outstation, outbound_distance, False)
 
-    # Rule 2: Airport detection via mobility_hub (preferred — set from Google place types)
+    # Rule 3: Airport detection via mobility_hub — only evaluated once outstation is ruled out.
+    # If distance couldn't be calculated we still honour the airport flag (non-blocking fallback).
     if pickup.mobility_hub == MobilityHub.airport:
-        return TripTypeEnum.airport_pickup
+        return TripClassificationResult(TripTypeEnum.airport_pickup, outbound_distance, False)
     if dropoff.mobility_hub == MobilityHub.airport:
-        return TripTypeEnum.airport_drop
+        return TripClassificationResult(TripTypeEnum.airport_drop, outbound_distance, False)
 
-    # Rule 3: Distance-based classification based on outbound distance(excluding hops and return distance) and config store thresholds for outstation trips (e.g., 150 km+ is outstation)
-    outbound_distance = get_distance_km(origin=pickup, destination=dropoff)
+    # Rule 4: Local classification.
     if outbound_distance is None:
-        # Cannot calculate — default to local (non-blocking; /search will validate)
-        return TripTypeEnum.local
+        # Cannot calculate distance and not an airport trip — default to local.
+        return TripClassificationResult(TripTypeEnum.local, None, False)
 
-    outstation_min_km = get_outstation_min_outbound_distance(
-        pickup=pickup, config_store=config_store
-    )
-    if outstation_min_km and outbound_distance >= outstation_min_km:
-        return TripTypeEnum.outstation
+    # Only apply the unclassifiable guard when outstation threshold was unavailable.
+    max_included_km = get_hourly_rental_max_included_km(pickup=pickup, config_store=config_store)
+    if outstation_min_km is None:
+        if not max_included_km or outbound_distance > max_included_km:
+            raise CabboException(
+                "Unable to classify trip type based on the provided pickup and dropoff locations. Please verify the locations or specify the trip type explicitly.",
+                status_code=400,
+            )
 
-    return TripTypeEnum.local
-
-
+    # has_distance_overage: the trip is local but distance exceeds the region's max included km
+    # (e.g. 130 km trip with a 120 km cap — overages will apply; UI should warn the user, this is for cosmetic purposes).
+    has_distance_overage = bool(max_included_km and outbound_distance > max_included_km)
+    distance_diff_km = outbound_distance - max_included_km if has_distance_overage else None
+    return TripClassificationResult(TripTypeEnum.local, outbound_distance, has_distance_overage, distance_diff_km)

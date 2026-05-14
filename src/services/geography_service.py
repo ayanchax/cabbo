@@ -908,18 +908,27 @@ def get_regions_by_state_id(state_id: str, db: Session) -> list["RegionSchema"]:
 def lookup_region_by_code(
     regions: Dict[str, RegionSchema], region_code: str
 ) -> Optional[RegionSchema]:
+    # `region_code` may be a true short code ("BLR"), an alt code ("BEN"),
+    # or a full name string returned by a location provider ("Bengaluru",
+    # "Bangalore Division").  Check in priority order: exact code → alt codes
+    # → primary name → alt names, all case-insensitive.
+    needle = region_code.upper()
     for _, region in regions.items():
         if not region.is_serviceable:
             continue
-        if region.region_code.upper() == region_code:
+        if region.region_code.upper() == needle:
             return region
-        if region.alt_region_codes and region_code in [
+        if region.alt_region_codes and needle in [
             code.upper() for code in region.alt_region_codes
         ]:
             return region
-    return (
-        None  # If we reach here, no matching region found or region is not serviceable
-    )
+        if region.region_name.upper() == needle:
+            return region
+        if region.alt_region_names and needle in [
+            name.upper() for name in region.alt_region_names
+        ]:
+            return region
+    return None  # No matching serviceable region found
 
 
 def lookup_state_by_code(

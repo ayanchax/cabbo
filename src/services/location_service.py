@@ -1,8 +1,41 @@
+import math
 from typing import List, Optional, Union
 from models.map.location_schema import LocationInfo, LocationProximity
 from core.config import settings
 
 provider = settings.LOCATION_SERVICE_PROVIDER
+
+
+_EARTH_RADIUS_KM = 6371  # mean radius of the Earth in kilometres
+_ROAD_TORTUOSITY_FACTOR = 1.2  # straight-line → estimated road distance multiplier, simulates real-world routing without API calls
+
+
+def get_distance_km_haversine(
+    origin: LocationInfo,
+    destination: LocationInfo,
+) -> Optional[float]:
+    """
+    Estimated road distance in km derived from the Haversine straight-line distance
+    scaled by a tortuosity factor (1.2) to approximate real road routing.
+    Free — no external API call.
+    Use for classification thresholds and zero-distance guards where
+    exact road distance is not required.
+    """
+    try:
+        lat1 = math.radians(origin.lat)
+        lon1 = math.radians(origin.lng)
+        lat2 = math.radians(destination.lat)
+        lon2 = math.radians(destination.lng)
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        )
+        straight_line_km = 2 * _EARTH_RADIUS_KM * math.asin(math.sqrt(a))
+        return round(straight_line_km * _ROAD_TORTUOSITY_FACTOR, 2)
+    except Exception:
+        return None
 
 
 def get_distance_km(
