@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from core.exceptions import GENERIC_EXCEPTION, CabboException
+from core.exceptions import FUEL_TYPE_ID_REQUIRED, GENERIC_EXCEPTION, CabboException
 from core.security import RoleEnum
 from models.cab.cab_orm import FuelType
 from models.cab.cab_schema import FuelTypeSchema
@@ -83,7 +83,7 @@ async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSessio
     """Asynchronously update an existing fuel type in the database."""
     try:
         if not fuel_type_data.id:
-            raise CabboException(status_code=400, message="Fuel type ID is required for update", error_code=GENERIC_EXCEPTION) 
+            raise CabboException(status_code=400, message="Fuel type ID is required for update", error_code=FUEL_TYPE_ID_REQUIRED) 
         
         result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_data.id))
         fuel_type = result.scalar_one_or_none()

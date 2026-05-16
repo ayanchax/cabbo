@@ -1,7 +1,7 @@
 
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, model_validator
-from core.exceptions import CabboException, GENERIC_EXCEPTION
+from core.exceptions import BANK_DETAILS_REQUIRED, PAYMENT_PHONE_NUMBER_REQUIRED, CabboException, GENERIC_EXCEPTION
 from models.common import AmenitiesSchema, S3ObjectInfo
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
@@ -54,11 +54,11 @@ class DriverCreateSchema(DriverBaseSchema):
         payment_phone_number = self.payment_phone_number
         bank_details = self.bank_details
         if payment_mode in [PaymentModeEnum.gpay, PaymentModeEnum.phonepe, PaymentModeEnum.paytm] and not payment_phone_number:
-            raise CabboException("payment_phone_number is required for UPI payments.", status_code=422, error_code=GENERIC_EXCEPTION)
+            raise CabboException("payment_phone_number is required for UPI payments.", status_code=422, error_code=PAYMENT_PHONE_NUMBER_REQUIRED)
 
         
         if payment_mode == PaymentModeEnum.bank_transfer and not bank_details:
-            raise CabboException("bank_details is required for bank transfer payments.", status_code=422, error_code=GENERIC_EXCEPTION)
+            raise CabboException("bank_details is required for bank transfer payments.", status_code=422, error_code=BANK_DETAILS_REQUIRED)
 
         return self
 
@@ -86,11 +86,11 @@ class DriverUpdateSchema(DriverBaseSchema):
         payment_phone_number = self.payment_phone_number
         bank_details = self.bank_details
         if payment_mode in [PaymentModeEnum.gpay, PaymentModeEnum.phonepe, PaymentModeEnum.paytm] and not payment_phone_number:
-            raise CabboException("payment_phone_number is required for UPI payments.", status_code=422, error_code=GENERIC_EXCEPTION)
+            raise CabboException("payment_phone_number is required for UPI payments.", status_code=422, error_code=PAYMENT_PHONE_NUMBER_REQUIRED)
 
         
         if payment_mode == PaymentModeEnum.bank_transfer and not bank_details:
-            raise CabboException("bank_details is required for bank transfer payments.", status_code=422, error_code=GENERIC_EXCEPTION)
+            raise CabboException("bank_details is required for bank transfer payments.", status_code=422, error_code=BANK_DETAILS_REQUIRED)
 
         return self
 

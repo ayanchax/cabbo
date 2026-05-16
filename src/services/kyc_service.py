@@ -1,5 +1,5 @@
 from uuid import uuid4
-from core.exceptions import GENERIC_EXCEPTION, CabboException
+from core.exceptions import GENERIC_EXCEPTION, KYC_DOCUMENT_NOT_FOUND, KYC_OPERATION_FAILED, CabboException
 from core.security import RoleEnum
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_orm import KYCDocumentTypes
@@ -98,7 +98,7 @@ def update_driver_kyc_documents(
             f"Error updating KYC documents: {str(e)}",
             status_code=500,
             include_traceback=True,
-            error_code = GENERIC_EXCEPTION
+            error_code=KYC_OPERATION_FAILED
         )
 
 
@@ -206,7 +206,7 @@ def remove_kyc_document_by_id_for_driver(
         db.rollback()
         raise CabboException(
             f"Error removing KYC document: {str(e)}",
-            error_code=GENERIC_EXCEPTION,
+            error_code=KYC_OPERATION_FAILED,
             status_code=500,
             include_traceback=True,
         )
@@ -235,7 +235,7 @@ def mark_kyc_verification_status_for_driver_document(
         kyc_docs = driver.kyc_documents or []
         if len(kyc_docs) == 0:
             raise CabboException(
-                "No KYC documents found for this driver.", error_code=GENERIC_EXCEPTION, status_code=404
+                "No KYC documents found for this driver.", error_code=KYC_DOCUMENT_NOT_FOUND, status_code=404
             )
 
         kyc_docs_dict = {
@@ -266,13 +266,13 @@ def mark_kyc_verification_status_for_driver_document(
 
             return kyc_doc
         else:
-            raise CabboException("KYC document not found.", error_code=GENERIC_EXCEPTION, status_code=404)
+            raise CabboException("KYC document not found.", error_code=KYC_DOCUMENT_NOT_FOUND, status_code=404)
 
     except Exception as e:
         db.rollback()
         raise CabboException(
             f"Error marking KYC document as verified: {str(e)}",
-            error_code=GENERIC_EXCEPTION,
+            error_code=KYC_OPERATION_FAILED,
             status_code=500,
             include_traceback=True,
         )
