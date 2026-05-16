@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from core.exceptions import CabboException
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import S3ObjectInfo
 from models.customer.customer_schema import CustomerBase
@@ -125,7 +125,7 @@ def get_all_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session):
         return get_all_inactive_drivers(db)
     else:
         raise CabboException(
-            "Invalid status. Use 'active' or 'inactive'.", status_code=400
+            "Invalid status. Use 'active' or 'inactive'.", status_code=400, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -138,7 +138,7 @@ def update_driver(driver_id: str, payload: DriverUpdateSchema, db: Session) -> D
     """Update an existing driver's details."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException("Driver not found", status_code=404, error_code=GENERIC_EXCEPTION)
     for field, value in payload.model_dump(exclude_unset=True).items():
         if hasattr(driver, field) and value is not None:
             setattr(driver, field, value)
@@ -152,7 +152,7 @@ def delete_driver(driver_id: str, db: Session) -> bool:
     """Delete a driver by their ID."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException("Driver not found", status_code=404, error_code=GENERIC_EXCEPTION)
     db.delete(driver)
     db.commit()
     return True
@@ -162,7 +162,7 @@ def activate_driver(driver_id: str, db: Session) -> Driver:
     """Activate a driver by their ID."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException("Driver not found", status_code=404, error_code=GENERIC_EXCEPTION)
     driver.is_active = True
     db.commit()
     db.refresh(driver)
@@ -173,7 +173,7 @@ def deactivate_driver(driver_id: str, db: Session) -> Driver:
     """Deactivate a driver by their ID."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException("Driver not found", status_code=404, error_code=GENERIC_EXCEPTION)
     driver.is_active = False
     db.commit()
     db.refresh(driver)
@@ -200,7 +200,7 @@ async def assign_driver_to_trip(
         # Check Trip is in confirmed status
         if trip.status != TripStatusEnum.confirmed.value:
             raise CabboException(
-                "Trip must be in confirmed status to assign a driver.", status_code=400
+                "Trip must be in confirmed status to assign a driver.", status_code=400, error_code=GENERIC_EXCEPTION
             )
         trip_type = (
             trip.trip_type_master.trip_type
@@ -209,7 +209,7 @@ async def assign_driver_to_trip(
         )
         if not trip_type:
             raise CabboException(
-                "Trip type not found for the trip to assign driver.", status_code=400
+                "Trip type not found for the trip to assign driver.", status_code=400, error_code=GENERIC_EXCEPTION
             )
         start_datetime = None
         expected_end_datetime = None
@@ -230,6 +230,7 @@ async def assign_driver_to_trip(
                 raise CabboException(
                     "Cannot assign driver to a trip that is in the past.",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION,
                 )
             # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
             if (
@@ -240,33 +241,37 @@ async def assign_driver_to_trip(
                 raise CabboException(
                     "Cannot assign driver to a trip that is in the past.",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION,
                 )
         # Check Trip has a valid creator_id
         if not trip.creator_id:
             raise CabboException(
                 "Trip does not have a valid creator to assign a driver.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         # Check Trip creator is a customer
         if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
             raise CabboException(
-                "Trip creator must be a customer to assign a driver.", status_code=400
+                "Trip creator must be a customer to assign a driver.", status_code=400, error_code=GENERIC_EXCEPTION
             )
         # Check trip has a non-zero balance_payment, so that customer has paid advance and there is balance to be paid to driver
         if trip.balance_payment <= 0:
             raise CabboException(
                 "Trip must have a non-zero balance payment to assign a driver.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         if trip.advance_payment <= 0:
             raise CabboException(
                 "Trip must have a non-zero advance payment to assign a driver.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         # Check Driver is not already assigned to the trip
         if trip.driver_id == driver.id:
             raise CabboException(
-                "Driver is already assigned to this trip.", status_code=400
+                "Driver is already assigned to this trip.", status_code=400, error_code=GENERIC_EXCEPTION
             )
 
         # Free up the currently assigned driver (if any)
@@ -285,16 +290,16 @@ async def assign_driver_to_trip(
 
         # Check Driver is active
         if not driver.is_active:
-            raise CabboException("Driver is not active.", status_code=400)
+            raise CabboException("Driver is not active.", status_code=400, error_code=GENERIC_EXCEPTION)
 
         # Check Driver is available
         if not driver.is_available:
-            raise CabboException("Driver is not available.", status_code=400)
+            raise CabboException("Driver is not available.", status_code=400, error_code=GENERIC_EXCEPTION)
 
         # Check Driver has a valid phone number
         if not driver.phone or driver.phone.strip() == "":
             raise CabboException(
-                "Driver does not have a valid phone number.", status_code=400
+                "Driver does not have a valid phone number.", status_code=400, error_code=GENERIC_EXCEPTION
             )
 
         # When we have the driver app we will also check if the driver is kyc_verified or not.
@@ -371,6 +376,7 @@ async def _add_driver_earning_record(
             f"Error adding driver earning record: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -380,7 +386,7 @@ async def toggle_availability_of_driver(
     try:
         driver = await a_get_driver_by_id(driver_id, db)
         if not driver:
-            raise CabboException("Driver not found", status_code=404)
+            raise CabboException("Driver not found", status_code=404, error_code=GENERIC_EXCEPTION)
         driver.is_available = make_available
         await db.flush()  # Flush to apply the change before commit
         if commit:
@@ -393,6 +399,7 @@ async def toggle_availability_of_driver(
             f"Error updating driver availability: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 

@@ -10,7 +10,7 @@ from models.driver.driver_schema import DriverReadSchema
 from services.driver_service import a_get_driver_by_id, get_average_rating_by_driver_id
 
 from core.security import validate_customer_token
-from core.exceptions import CabboException
+from core.exceptions import DRIVER_NOT_FOUND, CabboException
 from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter()
 
@@ -28,6 +28,7 @@ async def view_driver_profile(
         raise CabboException(
             f"Driver with id {driver_id} not found.",
             status_code=404,
+            error_code=DRIVER_NOT_FOUND,
         )
     return DriverReadSchema.model_validate(driver)
 

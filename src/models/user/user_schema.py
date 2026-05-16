@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
-from core.exceptions import CabboException
+from core.exceptions import CabboException, USER_PASSWORD_NOT_SET, GENERIC_EXCEPTION
 from core.security import RoleEnum
 from models.user.user_enum import GenderEnum
 from core.config import settings
@@ -28,7 +28,7 @@ class UserCreateSchema(UserBaseSchema):
     @classmethod
     def password_validator(cls, v):
         if not v or len(v) < 8:
-            raise CabboException("Password must be at least 8 characters long", status_code=400)
+            raise CabboException("Password must be at least 8 characters long", status_code=400, error_code=USER_PASSWORD_NOT_SET)
         return v
     
     @field_validator("role", mode="before")
@@ -37,7 +37,8 @@ class UserCreateSchema(UserBaseSchema):
         if v not in [role.value for role in RoleEnum if role.value.endswith("_admin")]:
             raise CabboException(
                 "Invalid role specified. Allowed roles are: " + ", ".join([role.value for role in RoleEnum if role.value.endswith("_admin")]),
-                status_code=400
+                status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         return v
     
@@ -64,21 +65,21 @@ class UserPasswordUpdateSchema(UserBaseSchema):
     @classmethod
     def password_length_validator(cls, v):
         if not v or len(v) < 8:
-            raise CabboException("Password must be at least 8 characters long", status_code=400)
+            raise CabboException("Password must be at least 8 characters long", status_code=400, error_code=USER_PASSWORD_NOT_SET)
         return v
     # Custom validation to ensure old password is not the same as new password
     @field_validator("password", mode="before")
     @classmethod
     def validate_password(cls, v, info):
         if "old_password" in info.data and v == info.data["old_password"]:
-            raise CabboException("New password cannot be the same as old password", status_code=400)
+            raise CabboException("New password cannot be the same as old password", status_code=400, error_code=USER_PASSWORD_NOT_SET)
         return v
 
     @field_validator("confirm_password", mode="before")
     @classmethod
     def validate_confirm_password(cls, v, info):
         if "password" in info.data and v != info.data["password"]:
-            raise CabboException("Passwords do not match", status_code=400)
+            raise CabboException("Passwords do not match", status_code=400, error_code=USER_PASSWORD_NOT_SET)
         return v
 
 class UserPasswordResetSchema(UserBaseSchema):
@@ -88,7 +89,7 @@ class UserPasswordResetSchema(UserBaseSchema):
     @classmethod
     def password_length_validator(cls, v):
         if not v or len(v) < 8:
-            raise CabboException("Password must be at least 8 characters long", status_code=400)
+            raise CabboException("Password must be at least 8 characters long", status_code=400, error_code=USER_PASSWORD_NOT_SET)
         return v
 
 class UserReadSchema(BaseModel):

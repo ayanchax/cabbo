@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, SAME_PICKUP_DROPOFF_LOCATION, CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from models.map.location_schema import LocationInfo, MobilityHub
@@ -125,6 +125,7 @@ def classify_trip_type(
 ) -> TripClassificationResult:
     # Rule 1: No dropoff → local (hourly rental, no fixed destination)
     if not dropoff:
+        # Not checking if airport pickup here, as customer can want a rental without a fixed destination that happens to be at an airport (e.g. "rent a car for the day, I'll decide where to go later"). 
         return TripClassificationResult(TripTypeEnum.local, None, False)
 
     # Guard: reject same-location trips (abuse prevention)
@@ -133,7 +134,7 @@ def classify_trip_type(
         raise CabboException(
             "Pickup and dropoff cannot be the same location.",
             status_code=400,
-            error_code="SAME_PICKUP_DROPOFF_LOCATION",
+            error_code=SAME_PICKUP_DROPOFF_LOCATION,
         )
     # Slow path — different place_ids but coordinates are effectively the same.
     outbound_distance = get_distance_km_haversine(origin=pickup, destination=dropoff)
@@ -143,7 +144,7 @@ def classify_trip_type(
         raise CabboException(
             "Pickup and dropoff are too close to each other. Please choose locations that are further apart.",
             status_code=400,
-            error_code="SAME_PICKUP_DROPOFF_LOCATION",
+            error_code=SAME_PICKUP_DROPOFF_LOCATION,
         )
 
     if not config_store:
@@ -180,6 +181,7 @@ def classify_trip_type(
             raise CabboException(
                 "Unable to classify trip type based on the provided pickup and dropoff locations. Please verify the locations or specify the trip type explicitly.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
     # has_distance_overage: the trip is local but distance exceeds the region's max included km

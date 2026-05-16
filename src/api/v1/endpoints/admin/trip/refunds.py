@@ -1,5 +1,6 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
+from core.exceptions import UNAUTHORIZED
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.policies.refund_enum import RefundStatus
@@ -22,7 +23,7 @@ async def get_refund_details_by_booking_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.finance_admin]:
         raise HTTPException(
-            status_code=403, detail="You do not have permission to access this resource."
+            status_code=403, detail="You do not have permission to access this resource.",
         )
     refund_detail = await fetch_refund_detail_by_booking_id(
         booking_id, db

@@ -1,7 +1,7 @@
 # Service Type: CONFIGURATION | Unique Constraints: "trip_type_id","region_id","package_label",
 # Target table: TripPackageConfig | trip_package_config
 # Service functions for trip package configuration management for local/hourly trip packages in the system configuration. These functions will be called by the API endpoints for local trip package management.
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.store import ConfigStore
 from models.geography.region_orm import RegionModel
 from models.trip.trip_enums import TripTypeEnum
@@ -19,17 +19,18 @@ async def create_trip_package_config(
     try:
         if payload.included_km <= 0:
             raise CabboException(
-                "Included kilometers must be greater than zero", status_code=400
+                "Included kilometers must be greater than zero", status_code=400, error_code=GENERIC_EXCEPTION
             )
         if payload.included_hours <= 0:
             raise CabboException(
-                "Included hours must be greater than zero", status_code=400
+                "Included hours must be greater than zero", status_code=400, error_code=GENERIC_EXCEPTION
             )
         if payload.included_hours >= 12:
             if payload.driver_allowance is None or payload.driver_allowance <= 0:
                 raise CabboException(
                     "Driver allowance must be provided and greater than zero for packages with included hours greater than or equal to 12",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION,
                 )
 
         region_code = payload.region_code
@@ -37,11 +38,12 @@ async def create_trip_package_config(
             raise CabboException(
                 "Region code is required for creating a trip package configuration",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         region = await async_get_region_by_code(region_code, db)
         if not region:
             raise CabboException(
-                f"Region with code {region_code} does not exist", status_code=404
+                f"Region with code {region_code} does not exist", status_code=404, error_code=GENERIC_EXCEPTION
             )
         region_id = region.id
         trip_type = payload.trip_type if payload.trip_type else TripTypeEnum.local
@@ -49,7 +51,7 @@ async def create_trip_package_config(
             trip_type, db
         )  # Validate that the trip type exists
         if not trip_type:
-            raise CabboException(f"Trip type does not exist", status_code=404)
+            raise CabboException(f"Trip type does not exist", status_code=404, error_code=TRIP_TYPE_ID_NOT_FOUND)
 
         trip_type_id = trip_type.id
 
@@ -86,7 +88,7 @@ async def create_trip_package_config(
         raise ce
     except Exception as e:
         await db.rollback()
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def list_trip_package_configs(db: AsyncSession):
@@ -111,7 +113,7 @@ async def list_trip_package_configs(db: AsyncSession):
             for config, region_code in rows
         ]
     except Exception as e:
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def get_trip_package_config_by_id(id: str, db: AsyncSession):
@@ -126,7 +128,7 @@ async def get_trip_package_config_by_id(id: str, db: AsyncSession):
         row = result.one_or_none()
         if not row:
             raise CabboException(
-                f"Trip package config with id {id} does not exist", status_code=404
+                f"Trip package config with id {id} does not exist", status_code=404, error_code=GENERIC_EXCEPTION
             )
         config, region_code = row
         return TripPackageSchema.model_validate(
@@ -140,7 +142,7 @@ async def get_trip_package_config_by_id(id: str, db: AsyncSession):
             }
         )
     except Exception as e:
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def update_trip_package_config(
@@ -150,21 +152,22 @@ async def update_trip_package_config(
 
         if payload.id is None or payload.id.strip() == "":
             raise CabboException(
-                "Trip package config ID is required for update", status_code=400
+                "Trip package config ID is required for update", status_code=400, error_code=GENERIC_EXCEPTION
             )
         if payload.included_km is not None and payload.included_km <= 0:
             raise CabboException(
-                "Included kilometers must be greater than zero", status_code=400
+                "Included kilometers must be greater than zero", status_code=400, error_code=GENERIC_EXCEPTION
             )
         if payload.included_hours is not None and payload.included_hours <= 0:
             raise CabboException(
-                "Included hours must be greater than zero", status_code=400
+                "Included hours must be greater than zero", status_code=400, error_code=GENERIC_EXCEPTION
             )
         if payload.included_hours >= 12:
             if payload.driver_allowance is None or payload.driver_allowance <= 0:
                 raise CabboException(
                     "Driver allowance must be provided and greater than zero for packages with included hours greater than or equal to 12",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION,
                 )
         stmt = (
             select(TripPackageConfig, RegionModel.region_code)
@@ -179,6 +182,7 @@ async def update_trip_package_config(
             raise CabboException(
                 f"Trip package config with id {payload.id} does not exist",
                 status_code=404,
+                error_code=GENERIC_EXCEPTION,
             )
 
         trip_package_config: TripPackageConfig
@@ -210,7 +214,7 @@ async def update_trip_package_config(
         )
     except Exception as e:
         await db.rollback()
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def delete_trip_package_config_by_id(id: str, db: AsyncSession):
@@ -222,7 +226,7 @@ async def delete_trip_package_config_by_id(id: str, db: AsyncSession):
         trip_package_config = result.scalar_one_or_none()
         if not trip_package_config:
             raise CabboException(
-                f"Trip package config with id {id} does not exist", status_code=404
+                f"Trip package config with id {id} does not exist", status_code=404, error_code=GENERIC_EXCEPTION
             )
         trip_package_config.is_active = False
         await db.commit()
@@ -231,7 +235,7 @@ async def delete_trip_package_config_by_id(id: str, db: AsyncSession):
         return True
     except Exception as e:
         await db.rollback()
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def list_trip_package_configs_by_region_code(region_code: str, db: AsyncSession):
@@ -239,13 +243,14 @@ async def list_trip_package_configs_by_region_code(region_code: str, db: AsyncSe
         region = await async_get_region_by_code(region_code, db)
         if not region:
             raise CabboException(
-                f"Region with code {region_code} does not exist", status_code=404
+                f"Region with code {region_code} does not exist", status_code=404, error_code=GENERIC_EXCEPTION
             )
         region_id = region.id
         if not region_id:
             raise CabboException(
                 f"Region with code {region_code} does not have a valid ID",
                 status_code=404,
+                error_code=GENERIC_EXCEPTION,
             )
 
         stmt = select(TripPackageConfig).where(
@@ -270,7 +275,7 @@ async def list_trip_package_configs_by_region_code(region_code: str, db: AsyncSe
     except CabboException as ce:
         raise ce
     except Exception as e:
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def activate_trip_package_config_by_id(id: str, db: AsyncSession):
@@ -284,11 +289,13 @@ async def activate_trip_package_config_by_id(id: str, db: AsyncSession):
             raise CabboException(
                 f"Trip package config with id {id} does not exist",
                 status_code=404,
+                error_code=GENERIC_EXCEPTION,
             )
         if trip_package_config.is_active:
             raise CabboException(
                 f"Trip package config with id {id} is already active",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         trip_package_config.is_active = True
         await db.commit()
@@ -297,4 +304,4 @@ async def activate_trip_package_config_by_id(id: str, db: AsyncSession):
         return True
     except Exception as e:
         await db.rollback()
-        raise CabboException(str(e), status_code=500)
+        raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)

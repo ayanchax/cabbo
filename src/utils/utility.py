@@ -1,5 +1,5 @@
 from typing import Union
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
@@ -18,11 +18,11 @@ def validate_date_time(date_time: Union[str, datetime]):
             try:
                 dt = isoparse(date_time)
             except Exception as e:
-                raise CabboException("Invalid datetime format", status_code=400) from e
+                raise CabboException("Invalid datetime format", status_code=400, error_code=GENERIC_EXCEPTION) from e
         elif isinstance(date_time, datetime):
             dt = date_time
         else:
-            raise CabboException("Invalid datetime type", status_code=400)
+            raise CabboException("Invalid datetime type", status_code=400, error_code=GENERIC_EXCEPTION)
 
         # If naive, attach configured default tz (e.g., "Asia/Kolkata"), then convert to UTC
         if dt.tzinfo is None:
@@ -35,7 +35,7 @@ def validate_date_time(date_time: Union[str, datetime]):
         # Always convert to UTC
         return dt.astimezone(timezone.utc) # Return aware datetime in UTC
     except Exception as e:
-        raise CabboException("Error processing datetime", status_code=400) from e
+        raise CabboException("Error processing datetime", status_code=400, error_code=GENERIC_EXCEPTION) from e
 
 
 def remove_none_recursive(obj):

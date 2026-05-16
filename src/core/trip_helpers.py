@@ -1,6 +1,6 @@
 import json
 from typing import List, Union
-from core.exceptions import CabboException
+from core.exceptions import INVALID_TRIP_TYPE, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.security import RoleEnum, generate_hash
 from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
@@ -32,7 +32,7 @@ def get_trip_type_id_by_trip_type(
         db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
     )
     if not trip_type_obj:
-        raise CabboException(f"Trip type {trip_type} not found", status_code=404)
+        raise CabboException(f"Trip type {trip_type} not found", status_code=404, error_code=INVALID_TRIP_TYPE)
     return (
         trip_type_obj.id
         if include_id_only
@@ -241,7 +241,7 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
     )
     if not trip_type_obj:
         raise CabboException(
-            f"Trip type with ID {trip_type_id} not found", status_code=404
+            f"Trip type with ID {trip_type_id} not found", status_code=404, error_code=TRIP_TYPE_ID_NOT_FOUND
         )
     return TripTypeEnum(trip_type_obj.trip_type)
 

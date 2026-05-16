@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, NamedTuple, Optional, List, Union
 from datetime import datetime
-from core.exceptions import CabboException
+from core.exceptions import INVALID_TRIP_TYPE, CabboException
 from models.common import AmenitiesSchema
 from models.customer.customer_schema import CustomerBase, CustomerRead
 from models.driver.driver_schema import DriverReadSchema
@@ -200,6 +200,7 @@ class TripSearchRequest(BaseModel):
             raise CabboException(
                 f"Invalid trip type. Supported types are: {supported_types}",
                 status_code=400,
+                error_code=INVALID_TRIP_TYPE,
             )
         return v
 
@@ -722,6 +723,11 @@ class TripClassificationRequest(BaseModel):
     serviceable: Optional[bool] = Field(
         False,
         description="Indicates if the pickup and dropoff locations are within serviceable areas",
+    )
+
+    swap_empty_with_non_empty: Optional[bool] = Field(
+        True,
+        description="Whether to swap pickup and dropoff locations if one of them is empty and the other is not. This is to handle cases where the customer provides only one location (either pickup or dropoff) and leaves the other one empty, in such cases we can swap the empty location with the non-empty one and classify the trip based on the provided location. This is especially useful for classifying airport trips where the customer might only provide the airport location without specifying whether it's a pickup or dropoff.",
     )
 
 

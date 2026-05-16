@@ -16,7 +16,11 @@ from services.customer_service import (
 )
 
 from core.security import validate_customer_token
-from core.exceptions import CabboException
+from core.exceptions import (
+    CabboException,
+    USER_NOT_FOUND,
+    GENERIC_EXCEPTION,
+)
 from services.passenger_service import (
     create_passenger,
     delete_passenger,
@@ -43,10 +47,10 @@ def add_passenger(
 
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     passenger = create_passenger(customer_id, payload, db)
     if passenger is None:
-        raise CabboException("Failed to create passenger", status_code=500)
+        raise CabboException("Failed to create passenger", status_code=500, error_code=GENERIC_EXCEPTION)
     return PassengerOut.model_validate(passenger)
 
 
@@ -59,7 +63,7 @@ def remove_passenger(
     customer_id = current_customer.id
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
 
     # ?We do not need this condition check because if a passenger is deleted and they are associated with one or more trip, then in trip.passenger_id it will automatically be nullified because of the foreign key constraint with ondelete set to null
     
@@ -78,11 +82,11 @@ def update_passenger_details(
 
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     passenger = update_passenger(passenger_id, payload, db)
 
     if passenger is None:
-        raise CabboException("Failed to update passenger", status_code=500)
+        raise CabboException("Failed to update passenger", status_code=500, error_code=GENERIC_EXCEPTION)
     return PassengerOut.model_validate(passenger)
 
 
@@ -95,7 +99,7 @@ def list_passengers(
 
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     from services.passenger_service import get_all_passengers_by_customer_id
 
     passengers = get_all_passengers_by_customer_id(customer_id, db)
@@ -111,10 +115,10 @@ def get_passenger(
     customer_id = current_customer.id
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
 
     passenger = is_passenger_belongs_to_customer(passenger_id, customer_id, db)
     if not passenger and isinstance(passenger, bool):
-        raise CabboException("Passenger not found for this customer", status_code=404)
+        raise CabboException("Passenger not found for this customer", status_code=404, error_code=GENERIC_EXCEPTION)
 
     return PassengerOut.model_validate(passenger)

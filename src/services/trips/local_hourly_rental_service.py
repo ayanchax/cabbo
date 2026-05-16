@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 
 from core.constants import APP_NAME
 from core.config import settings
-from core.exceptions import CabboException
+from core.exceptions import CabboException, LOCAL_TRIP_ORIGIN_REQUIRED, GENERIC_EXCEPTION
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import (
@@ -73,7 +73,7 @@ def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
     """
 
     if not search_in.origin:
-        raise CabboException("Origin is required for local trip", status_code=400)
+        raise CabboException("Origin is required for local trip", status_code=400, error_code=LOCAL_TRIP_ORIGIN_REQUIRED)
 
     if not search_in.destination:
         search_in.destination = (
@@ -176,6 +176,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         raise CabboException(
             "No local trip options available for the selected region and criteria.",
             status_code=404,
+            error_code=GENERIC_EXCEPTION,
         )
     currency = config_store.geographies.country_server.currency_symbol
 
@@ -290,6 +291,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         raise CabboException(
             "No local trip options available for the selected region and criteria.",
             status_code=404,
+            error_code=GENERIC_EXCEPTION,
         )
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(

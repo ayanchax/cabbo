@@ -5,7 +5,7 @@ import re
 from typing import Union
 
 from fastapi import UploadFile
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.config import settings
 from models.common import S3ObjectInfo
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
@@ -25,12 +25,13 @@ def save_customer_profile_picture(customer_id: str, file:UploadFile, max_size_mb
         raise CabboException(
             f"Only these image types are allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION
         )
     # Validate file size
     contents = file.file.read()
     if len(contents) > max_size_mb * 1024 * 1024:
         raise CabboException(
-            f"File size exceeds {max_size_mb}MB limit.", status_code=400
+            f"File size exceeds {max_size_mb}MB limit.", status_code=400, error_code=GENERIC_EXCEPTION
         )
     # Save file
 
@@ -67,12 +68,13 @@ def save_driver_profile_picture(driver_id: str, file:UploadFile, max_size_mb: in
         raise CabboException(
             f"Only these image types are allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION
         )
     # Validate file size
     contents = file.file.read()
     if len(contents) > max_size_mb * 1024 * 1024:
         raise CabboException(
-            f"File size exceeds {max_size_mb}MB limit.", status_code=400
+            f"File size exceeds {max_size_mb}MB limit.", status_code=400, error_code=GENERIC_EXCEPTION
         )
    
     #Extract extension

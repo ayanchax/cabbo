@@ -8,7 +8,7 @@ from models.customer.customer_schema import (
     CustomerUpdate,
 )
 from models.customer.customer_orm import Customer
-from core.exceptions import CabboException
+from core.exceptions import CabboException, USER_NOT_FOUND, GENERIC_EXCEPTION
 from datetime import datetime, timezone
 from core.security import (
     generate_jwt_token,
@@ -74,7 +74,7 @@ def get_active_customer_by_id(customer_id: str, db: Session) -> Customer:
         .first()
     )
     if not customer:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     return customer
 
 
@@ -83,21 +83,21 @@ def get_customer_by_phone_number(phone_number: str, db: Session, silently_fail: 
     if not customer:
         if silently_fail:
             return None
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     return customer
 
 
 def get_customer_by_id(customer_id: str, db: Session) -> Customer:
     customer = db.query(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False).first()
     if not customer:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     return customer
 
 async def a_get_customer_by_id(customer_id: str, db: AsyncSession) -> Customer:
     result = await db.execute(select(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False))
     customer = result.scalar_one_or_none()
     if not customer:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     return customer
 
 def update_customer_name(customer_id:str, new_name:str, db:Session):
@@ -171,6 +171,7 @@ def update_customer_profile(
             f"Error updating customer profile: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -199,6 +200,7 @@ def update_email(
             raise CabboException(
                 "Email already in use by some other customer, this update will not happen.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         if customer.email != payload.email:
             customer.email = payload.email
@@ -322,6 +324,7 @@ def persist_bearer_token(customer: Customer, token: str, db: Session) -> str:
             f"Error persisting bearer token: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -337,6 +340,7 @@ def delete_bearer_token(customer: Customer, db: Session) -> bool:
             f"Error deleting bearer token: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -349,6 +353,7 @@ def is_customer_email_verified(customer_id: str, db: Session) -> bool:
             f"Error checking email verification status: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -366,6 +371,7 @@ def mark_customer_email_verified(customer_id: str, db: Session) -> bool:
             f"Error marking email as verified: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 def update_customer_profile_picture(customer:Customer, db:Session, s3_image_info:S3ObjectInfo=None):
@@ -380,6 +386,7 @@ def update_customer_profile_picture(customer:Customer, db:Session, s3_image_info
             f"Error updating customer profile picture info: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 

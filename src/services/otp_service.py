@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from models.customer.customer_orm import PreOnboardingCustomer
-from core.exceptions import CabboException
+from core.exceptions import OTP_ALREADY_SENT, OTP_GENERATION_FAILED, OTP_RESEND_TOO_SOON, CabboException
 OTP_LENGTH = 6
 OTP_EXPIRY_MINUTES = 5
 OTP_RESEND_INTERVAL_SECONDS = 60 # Minimum time between OTP sends to prevent abuse
@@ -21,7 +21,7 @@ def generate_otp(phone_number: str, db: Session) -> tuple[str, datetime, int, da
         PreOnboardingCustomer.attempts < MAX_ATTEMPTS
     ).first()
     if existing:
-        raise CabboException(f"OTP already sent and not expired, or max attempts not reached. Please wait for {OTP_EXPIRY_MINUTES} minutes before requesting a new otp or use the existing OTP.", status_code=400, include_traceback=True, error_code="OTP_ALREADY_SENT")
+        raise CabboException(f"OTP already sent and not expired, or max attempts not reached. Please wait for {OTP_EXPIRY_MINUTES} minutes before requesting a new otp or use the existing OTP.", status_code=400, include_traceback=True, error_code=OTP_ALREADY_SENT)
 
     # Remove any expired OTPs for this phone number
     delete_expired_otp(phone_number, db)
@@ -33,7 +33,7 @@ def generate_otp(phone_number: str, db: Session) -> tuple[str, datetime, int, da
             #no collision found, break
             break
     else:
-         raise CabboException("Unable to generate unique OTP after several attempts", status_code=500, include_traceback=True)
+         raise CabboException("Unable to generate unique OTP after several attempts", status_code=500, include_traceback=True, error_code=OTP_GENERATION_FAILED)
     
 
     record = store_otp(phone_number, otp, db)
@@ -138,6 +138,6 @@ def delete_expired_otp(phone_number: str, db: Session):
     
 def resend_otp(phone_number: str, db: Session) -> tuple[str, datetime, int, datetime]:
     if not can_resend_otp(phone_number, db):
-        raise CabboException(f"OTP was sent recently. Please wait before requesting a new OTP.", status_code=400,error_code="OTP_RESEND_TOO_SOON", include_traceback=True)
+        raise CabboException(f"OTP was sent recently. Please wait before requesting a new OTP.", status_code=400,error_code=OTP_RESEND_TOO_SOON, include_traceback=True)
     delete_otp(phone_number, db) # Delete existing OTP (if any) before generating a new one to ensure only one valid OTP exists at a time
     return generate_otp(phone_number, db)

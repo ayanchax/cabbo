@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from typing import Optional, Union
 
-from core.exceptions import CabboException
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES
@@ -138,7 +138,7 @@ def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEn
     )
     if not trip_type_obj:
         raise CabboException(
-            f"Trip type with ID {trip_type_id} not found", status_code=404
+            f"Trip type with ID {trip_type_id} not found", status_code=404, error_code=GENERIC_EXCEPTION
         )
     return TripTypeEnum(trip_type_obj.trip_type)
 
@@ -231,6 +231,7 @@ def _calculate_expected_trip_end_datetime(
         raise CabboException(
             f"Trip type {trip_type} is not supported for expected end datetime calculation",
             status_code=501,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -264,16 +265,16 @@ def _set_default_preferences(search_in: TripSearchRequest):
 def verify_trip_hash(booking_request: TripBookRequest):
     if not hasattr(booking_request, "option"):
         raise CabboException(
-            "Invalid booking request, option is required", status_code=400
+            "Invalid booking request, option is required", status_code=400, error_code=GENERIC_EXCEPTION
         )
 
     if not booking_request.option or not hasattr(booking_request.option, "hash"):
         raise CabboException(
-            "Invalid booking request, option hash is required", status_code=400
+            "Invalid booking request, option hash is required", status_code=400, error_code=GENERIC_EXCEPTION
         )
     if not booking_request.preferences:
         raise CabboException(
-            "Invalid booking request, preferences are required", status_code=400
+            "Invalid booking request, preferences are required", status_code=400, error_code=GENERIC_EXCEPTION
         )
     # Validate the trip option hash
     option_dict, preference_dict = generate_trip_field_dictionary(
@@ -291,7 +292,7 @@ def verify_trip_hash(booking_request: TripBookRequest):
         client_hash=booking_request.option.hash,
     ):
         raise CabboException(
-            "Invalid booking request, option hash is not valid", status_code=400
+            "Invalid booking request, option hash is not valid", status_code=400, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -329,7 +330,7 @@ def delete_temp_trip(requestor: str, db: Session):
     except Exception as e:
         db.rollback()
         raise CabboException(
-            f"Failed to delete temporary trip details: {str(e)}", status_code=500
+            f"Failed to delete temporary trip details: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -541,7 +542,7 @@ def create_temporary_trip(
     except Exception as e:
         db.rollback()
         raise CabboException(
-            f"Failed to create temporary trip: {str(e)}", status_code=500
+            f"Failed to create temporary trip: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -781,7 +782,7 @@ async def update_trip_status(
 ):
     trip = await async_get_trip_by_id(trip_id, db, expose_customer_details=True)
     if trip is None:
-        raise CabboException("Trip not found", status_code=404)
+        raise CabboException("Trip not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
     allowed_status_transitions = {
         TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
@@ -797,6 +798,7 @@ async def update_trip_status(
         raise CabboException(
             f"Invalid status transition from {trip.status} to {new_status.value}.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
     trip_schema: TripDetailSchema = None
     background_task: Optional[AppBackgroundTask] = None
@@ -814,7 +816,7 @@ async def update_trip_status(
         raise
     except Exception as e:
         await db.rollback()
-        raise CabboException(f"Failed to update trip status: {str(e)}", status_code=500)
+        raise CabboException(f"Failed to update trip status: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION)
 
     return trip_schema, background_task
 
@@ -822,14 +824,14 @@ async def update_trip_status(
 async def delete_trip(trip_id: str, db: AsyncSession):
     trip = await async_get_trip_by_id(trip_id, db)
     if not trip:
-        raise CabboException("Trip not found", status_code=404)
+        raise CabboException("Trip not found", status_code=404, error_code=GENERIC_EXCEPTION)
     try:
         trip.is_active = False  # Soft delete by marking the trip as inactive
         await db.commit()
         return {"message": "Trip deleted successfully"}
     except Exception as e:
         await db.rollback()
-        raise CabboException(f"Failed to delete trip: {str(e)}", status_code=500)
+        raise CabboException(f"Failed to delete trip: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def activate_trip(trip_id: str, db: AsyncSession):
@@ -838,9 +840,9 @@ async def activate_trip(trip_id: str, db: AsyncSession):
         result = await db.execute(query)
         trip = result.scalars().first()
         if not trip:
-            raise CabboException("Trip not found", status_code=404)
+            raise CabboException("Trip not found", status_code=404, error_code=GENERIC_EXCEPTION)
         if trip.is_active:
-            raise CabboException("Trip is already active", status_code=400)
+            raise CabboException("Trip is already active", status_code=400, error_code=GENERIC_EXCEPTION)
 
         trip.is_active = True  # Activate the trip by marking it as active
         await db.commit()
@@ -852,7 +854,7 @@ async def activate_trip(trip_id: str, db: AsyncSession):
         raise
     except Exception as e:
         await db.rollback()
-        raise CabboException(f"Failed to activate trip: {str(e)}", status_code=500)
+        raise CabboException(f"Failed to activate trip: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def update_non_cost_impacting_trip_fields(
@@ -897,5 +899,5 @@ async def update_non_cost_impacting_trip_fields(
     except Exception as e:
         await db.rollback()
         raise CabboException(
-            f"Failed to update trip details: {str(e)}", status_code=500
+            f"Failed to update trip details: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )

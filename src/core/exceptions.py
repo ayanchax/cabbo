@@ -1,13 +1,126 @@
+
+# ===================== USER SERVICE ERROR CODES =====================
+USER_NOT_FOUND = "USER_NOT_FOUND"
+USER_INACTIVE = "USER_INACTIVE"
+NO_USERS_FOUND = "NO_USERS_FOUND"
+NO_ACTIVE_USERS_FOUND = "NO_ACTIVE_USERS_FOUND"
+NO_INACTIVE_USERS_FOUND = "NO_INACTIVE_USERS_FOUND"
+NO_USERS_WITH_ROLE_FOUND = "NO_USERS_WITH_ROLE_FOUND"
+USERNAME_ALREADY_EXISTS = "USERNAME_ALREADY_EXISTS"
+EMAIL_ALREADY_EXISTS = "EMAIL_ALREADY_EXISTS"
+PHONE_ALREADY_EXISTS = "PHONE_ALREADY_EXISTS"
+USER_PASSWORD_NOT_SET = "USER_PASSWORD_NOT_SET"
+
+# ===================== PRICING SERVICE ERROR CODES =====================
+NO_COMMON_PRICING_CONFIG_FOUND = "NO_COMMON_PRICING_CONFIG_FOUND"
+NO_FIXED_PLATFORM_FEE_CONFIG_FOUND = "NO_FIXED_PLATFORM_FEE_CONFIG_FOUND"
+NO_FIXED_NIGHT_PRICING_CONFIG_FOUND = "NO_FIXED_NIGHT_PRICING_CONFIG_FOUND"
+COMMON_PRICING_CONFIG_EMPTY = "COMMON_PRICING_CONFIG_EMPTY"
+TRIP_TYPE_ID_NOT_FOUND = "TRIP_TYPE_ID_NOT_FOUND"
+TRIP_TYPE_NOT_SUPPORTED = "TRIP_TYPE_NOT_SUPPORTED"
+TRIP_TYPE_NOT_CONFIGURED = "TRIP_TYPE_NOT_CONFIGURED"
+TRIP_NOT_FOUND = "TRIP_NOT_FOUND"
+TOLLS_ESTIMATION_UNSUPPORTED_TRIP_TYPE = "TOLLS_ESTIMATION_UNSUPPORTED_TRIP_TYPE"
+
+# ===================== BOOKING/RESERVATION ERROR CODES =====================
+ALREADY_BOOKED_ON_THIS_SLOT = "ALREADY_BOOKED_ON_THIS_SLOT"
+SIMILAR_BOOKING_EXISTS = "SIMILAR_BOOKING_EXISTS"
+
+# ===================== AUTH & ACCOUNT ERROR CODES =====================
+UNAUTHORIZED = "UNAUTHORIZED"
+PHONE_ALREADY_REGISTERED = "PHONE_ALREADY_REGISTERED"
+PHONE_NOT_REGISTERED = "PHONE_NOT_REGISTERED"
+ALREADY_LOGGED_IN = "ALREADY_LOGGED_IN"
+OTP_SEND_FAILED = "OTP_SEND_FAILED"
+INVALID_OTP = "INVALID_OTP"
+OTP_RESEND_TOO_SOON = "OTP_RESEND_TOO_SOON"
+OTP_ALREADY_SENT = "OTP_ALREADY_SENT"
+LOGOUT_FAILED = "LOGOUT_FAILED"
+OTP_RESEND_FAILED = "OTP_RESEND_FAILED"
+OTP_GENERATION_FAILED = "OTP_GENERATION_FAILED"
+
+# ===================== DATABASE ERROR CODES =====================
+DUPLICATE_ENTRY = "DUPLICATE_ENTRY"
+FOREIGN_KEY_VIOLATION = "FOREIGN_KEY_VIOLATION"
+NULL_CONSTRAINT_VIOLATION = "NULL_CONSTRAINT_VIOLATION"
+INTEGRITY_ERROR = "INTEGRITY_ERROR"
+DB_OPERATIONAL_ERROR = "DB_OPERATIONAL_ERROR"
+DB_ERROR = "DB_ERROR"
+
+# ===================== EMAIL/VERIFICATION ERROR CODES =====================
+NO_EMAIL_FOUND = "NO_EMAIL_FOUND"
+EMAIL_VERIFICATION_CREATION_FAILED = "EMAIL_VERIFICATION_CREATION_FAILED"
+EMAIL_VERIFICATION_FAILED = "EMAIL_VERIFICATION_FAILED"
+INVALID_VERIFICATION_LINK = "INVALID_VERIFICATION_LINK"
+
+# ===================== TRIP/REGION/LOCATION ERROR CODES =====================
+SAME_PICKUP_DROPOFF_LOCATION = "SAME_PICKUP_DROPOFF_LOCATION"
+ORIGIN_DESTINATION_REGION_MISMATCH = "ORIGIN_DESTINATION_REGION_MISMATCH"
+NO_AIRPORTS_CONFIGURED = "NO_AIRPORTS_CONFIGURED"
+AIRPORT_PICKUP_DESTINATION_REQUIRED = "AIRPORT_PICKUP_DESTINATION_REQUIRED"
+DESTINATION_REGION_NOT_SERVICEABLE = "DESTINATION_REGION_NOT_SERVICEABLE"
+ORIGIN_REGION_NOT_SERVICEABLE = "ORIGIN_REGION_NOT_SERVICEABLE"
+ORIGIN_STATE_NOT_SERVICEABLE = "ORIGIN_STATE_NOT_SERVICEABLE"
+DESTINATION_STATE_NOT_SERVICEABLE = "DESTINATION_STATE_NOT_SERVICEABLE"
+OUTSTATION_HOP_NOT_SERVICEABLE = "OUTSTATION_HOP_NOT_SERVICEABLE"
+OUTSTATION_CONSECUTIVE_HOPS_ZERO_DISTANCE = "OUTSTATION_CONSECUTIVE_HOPS_ZERO_DISTANCE"
+NO_AIRPORTS_IN_DESTINATION_REGION = "NO_AIRPORTS_IN_DESTINATION_REGION"
+NO_AIRPORTS_IN_ORIGIN_REGION = "NO_AIRPORTS_IN_ORIGIN_REGION"
+ORIGIN_LOCATION_NOT_VALID_AIRPORT = "ORIGIN_LOCATION_NOT_VALID_AIRPORT"
+DESTINATION_LOCATION_NOT_VALID_AIRPORT = "DESTINATION_LOCATION_NOT_VALID_AIRPORT"
+LOCAL_TRIP_ORIGIN_REQUIRED = "LOCAL_TRIP_ORIGIN_REQUIRED"
+OUTSTATION_TRIP_ORIGIN_REQUIRED = "OUTSTATION_TRIP_ORIGIN_REQUIRED"
+OUTSTATION_TRIP_DESTINATION_REQUIRED = "OUTSTATION_TRIP_DESTINATION_REQUIRED"
+OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED = "OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED"
+OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED = "OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED"
+OUTSTATION_HOPS_EXCEEDS_MAX_LIMIT = "OUTSTATION_HOPS_EXCEEDS_MAX_LIMIT"
+OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD = "OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD"
+ORIGIN_REGION_NOT_CONFIGURED = "ORIGIN_REGION_NOT_CONFIGURED"
+DISTANCE_NOT_DETERMINED = "DISTANCE_NOT_DETERMINED"
+DISTANCE_ZERO_OR_NEGATIVE = "DISTANCE_ZERO_OR_NEGATIVE"
+DISTANCE_BELOW_MINIMUM_THRESHOLD = "DISTANCE_BELOW_MINIMUM_THRESHOLD"
+DISTANCE_ABOVE_MAXIMUM_THRESHOLD = "DISTANCE_ABOVE_MAXIMUM_THRESHOLD"
+ORIGIN_REGION_NOT_DETERMINED = "ORIGIN_REGION_NOT_DETERMINED"
+DESTINATION_REGION_NOT_DETERMINED = "DESTINATION_REGION_NOT_DETERMINED"
+
+# ===================== PAYMENT ERROR CODES =====================
+UNSUPPORTED_PAYMENT_PROVIDER = "UNSUPPORTED_PAYMENT_PROVIDER"
+RAZORPAY_PAYMENT_ORDER_CREATION_FAILED = "RAZORPAY_PAYMENT_ORDER_CREATION_FAILED"
+PAYMENT_VERIFICATION_FAILED = "PAYMENT_VERIFICATION_FAILED"
+
+# ===================== TOKEN/JWT ERROR CODES =====================
+TOKEN_MISSING = "TOKEN_MISSING"
+INVALID_TOKEN = "INVALID_TOKEN"
+TOKEN_EXPIRED = "TOKEN_EXPIRED"
+INVALID_TRIP_TYPE = "INVALID_TRIP_TYPE"
+
+# ===================== DRIVER ERROR CODES =====================
+DRIVER_NOT_FOUND = "DRIVER_NOT_FOUND"
+
+# ===================== PLACE/LOCATION ERROR CODES =====================
+PLACE_NOT_FOUND = "PLACE_NOT_FOUND"
+
+# ===================== GENERIC ERROR CODE =====================
+GENERIC_EXCEPTION = "GENERIC_EXCEPTION"
+
 import traceback
 from typing import Any, Optional, Union
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
+
 
 class CabboException(Exception):
     """
     Custom exception for Cabbo application errors.
     Optionally accepts a message, a status code, and a stack trace.
     """
-    def __init__(self, message: Union[str, dict[str, Any]], error_code: Optional[str] = None, status_code: int = 400, include_traceback: bool = False):
+
+    def __init__(
+        self,
+        message: Union[str, dict[str, Any]],
+        error_code: Optional[str] = None,
+        status_code: int = 400,
+        include_traceback: bool = False,
+    ):
         super().__init__(message)
         self.message = message
         self.error_code = error_code
@@ -18,10 +131,9 @@ class CabboException(Exception):
 
     def __str__(self):
         base = f"{self.message} (status_code={self.status_code})"
-        if self.traceback and self.traceback != 'NoneType: None\n':
+        if self.traceback and self.traceback != "NoneType: None\n":
             return f"{base}\nStack trace:\n{self.traceback}"
         return base
-
 
 
 def get_mysql_exception(e: Exception) -> "CabboException":
@@ -31,12 +143,30 @@ def get_mysql_exception(e: Exception) -> "CabboException":
         if mysql_code == 1062:
             msg = str(orig)
             field = msg.split("key '")[-1].rstrip("'") if "key '" in msg else "field"
-            return CabboException(f"Duplicate entry for {field}.", error_code="DUPLICATE_ENTRY", status_code=409)
+            return CabboException(
+                f"Duplicate entry for {field}.",
+                error_code=DUPLICATE_ENTRY,
+                status_code=409,
+            )
         if mysql_code == 1452:
-            return CabboException("Referenced record does not exist.", error_code="FOREIGN_KEY_VIOLATION", status_code=400)
+            return CabboException(
+                "Referenced record does not exist.",
+                error_code=FOREIGN_KEY_VIOLATION,
+                status_code=400,
+            )
         if mysql_code == 1048:
-            return CabboException("A required field cannot be null.", error_code="NULL_CONSTRAINT_VIOLATION", status_code=400)
-        return CabboException(str(orig or e), error_code="INTEGRITY_ERROR", status_code=400)
+            return CabboException(
+                "A required field cannot be null.",
+                error_code=NULL_CONSTRAINT_VIOLATION,
+                status_code=400,
+            )
+        return CabboException(
+            str(orig or e), error_code=INTEGRITY_ERROR, status_code=400
+        )
     if isinstance(e, OperationalError):
-        return CabboException("A database operational error occurred.", error_code="DB_OPERATIONAL_ERROR", status_code=503)
-    return CabboException(str(e), error_code="DB_ERROR", status_code=500)
+        return CabboException(
+            "A database operational error occurred.",
+            error_code=DB_OPERATIONAL_ERROR,
+            status_code=503,
+        )
+    return CabboException(str(e), error_code=DB_ERROR, status_code=500)

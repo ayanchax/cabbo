@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, TRIP_NOT_FOUND, CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from core.trip_helpers import attach_relationships_to_trip
@@ -650,6 +650,7 @@ async def initiate_refund_by_booking_id(
                 raise CabboException(
                     f"No active trip found for booking ID {booking_id}, cannot initiate refund",
                     status_code=404,
+                    error_code=TRIP_NOT_FOUND
                 )
             log.info(
                 f"No active trip found for booking ID {booking_id}, cannot initiate refund"
@@ -661,9 +662,10 @@ async def initiate_refund_by_booking_id(
                 raise CabboException(
                     f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION
                 )
             log.info(
-                f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled"
+                f"Trip with booking ID {booking_id} is  not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled"
             )
             return False
 

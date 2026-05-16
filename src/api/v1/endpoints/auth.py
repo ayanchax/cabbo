@@ -33,7 +33,7 @@ from services.customer_service import (
 from services.message_service import (
     send_otp,
 )
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException, PHONE_ALREADY_REGISTERED, PHONE_NOT_REGISTERED, ALREADY_LOGGED_IN, OTP_SEND_FAILED, INVALID_OTP, LOGOUT_FAILED, OTP_RESEND_FAILED
 from core.constants import APP_NAME
 from services.validation_service import (
     validate_customer_login_payload,
@@ -55,7 +55,7 @@ def initiate_onboarding(
     phone_number = payload.phone_number
     # Check if phone number already exists in permanent users
     if is_existing_customer(phone_number, db):
-        raise CabboException("Phone number already registered.", status_code=400)
+        raise CabboException("Phone number already registered.", status_code=400, error_code=GENERIC_EXCEPTION)
     # Generate OTP and return
     otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
@@ -71,7 +71,7 @@ def initiate_onboarding(
         # If sending OTP fails, delete the OTP record from the database
         delete_otp(phone_number, db)
         raise CabboException(
-            "Failed to send OTP. Please try again later.", status_code=500
+            "Failed to send OTP. Please try again later.", status_code=500, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -85,7 +85,7 @@ def verify_onboarding_otp(
     # Verify OTP
     valid, message = verify_otp(phone_number, otp, db)
     if not valid:
-        raise CabboException(message, status_code=400)
+        raise CabboException(message, status_code=400, error_code=GENERIC_EXCEPTION)
     return {"message": "OTP verified successfully. You can proceed with account setup."}
 
 
@@ -98,7 +98,7 @@ def onboard_customer(
     phone_number = payload.phone_number
     # Check if already registered
     if is_existing_customer(phone_number, db):
-        raise CabboException("Phone number already registered.", status_code=400, error_code="PHONE_ALREADY_REGISTERED")
+        raise CabboException("Phone number already registered.", status_code=400, error_code=PHONE_ALREADY_REGISTERED)
 
     customer = create_customer(data=payload, db=db, phone_verified=True, activate=True)
 
@@ -145,11 +145,11 @@ def initiate_login(
     phone_number = payload.phone_number
     customer = get_customer_by_phone_number(phone_number, db)
     if not customer:
-        raise CabboException("Phone number not registered.", status_code=404, error_code="PHONE_NOT_REGISTERED")
+        raise CabboException("Phone number not registered.", status_code=404, error_code=PHONE_NOT_REGISTERED)
 
     if is_customer_logged_in(customer=customer):
         raise CabboException(
-            "Cannot initiate login. You are already logged in.", status_code=400, error_code="ALREADY_LOGGED_IN"
+            "Cannot initiate login. You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN
         )
 
     otp, _, _, last_sent_at = generate_otp(phone_number, db)
@@ -164,7 +164,7 @@ def initiate_login(
     else:
         delete_otp(phone_number, db)
         raise CabboException(
-            "Failed to send OTP. Please try again later.", status_code=500, error_code="OTP_SEND_FAILED"
+            "Failed to send OTP. Please try again later.", status_code=500, error_code=OTP_SEND_FAILED
         )
 
 
@@ -179,15 +179,15 @@ def login(
     customer = get_customer_by_phone_number(phone_number, db)
     if not customer:
         raise CabboException(
-            "Login failed as phone number not registered.", status_code=404, error_code="PHONE_NOT_REGISTERED"
+            "Login failed as phone number not registered.", status_code=404, error_code=PHONE_NOT_REGISTERED
         )
     # Check if bearer token is still valid in DB
     if is_customer_logged_in(customer=customer):
-        raise CabboException("You are already logged in.", status_code=400, error_code="ALREADY_LOGGED_IN")
+        raise CabboException("You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN)
     # Verify OTP
     valid, message = verify_otp(phone_number, otp, db)
     if not valid:
-        raise CabboException(message, status_code=400, error_code="INVALID_OTP")
+        raise CabboException(message, status_code=400, error_code=INVALID_OTP)
     token = persist_bearer_token(
         customer=customer, token=generate_customer_jwt(customer=customer), db=db
     )
@@ -208,7 +208,7 @@ def logout_customer(
         # If the bearer token is deleted successfully, we can assume the logout was successful
         return {"message": "Logged out successfully"}
 
-    raise CabboException("Logout failed", status_code=500, error_code="LOGOUT_FAILED")
+    raise CabboException("Logout failed", status_code=500, error_code=LOGOUT_FAILED)
 
 
 @router.post("/resend-otp")
@@ -221,7 +221,7 @@ def resend_one_time_password(
     )
     if customer and is_customer_logged_in(customer=customer):
         raise CabboException(
-            "Failed to resend OTP. You are already logged in.", status_code=400, error_code="ALREADY_LOGGED_IN"
+            "Failed to resend OTP. You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN
         )
 
     otp, _, _, last_sent_at = resend_otp(payload.phone_number, db)
@@ -240,7 +240,7 @@ def resend_one_time_password(
         raise CabboException(
             "Failed to resend OTP. Please try again later.",
             status_code=500,
-            error_code="OTP_RESEND_FAILED",
+            error_code=OTP_RESEND_FAILED,
         )
 
 

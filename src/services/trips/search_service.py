@@ -1,4 +1,4 @@
-from core.exceptions import CabboException
+from core.exceptions import TRIP_TYPE_NOT_SUPPORTED, CabboException
 from core.store import ConfigStore
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripSearchRequest, TripSearchResponse
@@ -45,4 +45,4 @@ def search(
         )
 
     else:
-        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)
+        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501, error_code=TRIP_TYPE_NOT_SUPPORTED)

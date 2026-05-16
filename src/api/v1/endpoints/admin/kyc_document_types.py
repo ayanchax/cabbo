@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.v1.endpoints.admin.airport import validate_user_token, a_yield_mysql_session
 from fastapi import APIRouter, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import RoleEnum
 from models.documents.kyc_document_schema import (
     KYCDocumentSchema,
@@ -33,15 +33,15 @@ async def add_kyc_document_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to add KYC document types.", status_code=403
+            "You do not have permission to add KYC document types.", status_code=403, error_code=UNAUTHORIZED
         )
     kyc_document_type, error = await async_add_kyc_document_record(
         payload=payload, db=db, created_by=current_user.id
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not kyc_document_type:
-        raise CabboException("Failed to add new KYC document type", status_code=500)
+        raise CabboException("Failed to add new KYC document type", status_code=500, error_code=GENERIC_EXCEPTION)
     return kyc_document_type
 
 
@@ -55,7 +55,7 @@ async def list_kyc_document_types(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view KYC document types.", status_code=403
+            "You do not have permission to view KYC document types.", status_code=403, error_code=UNAUTHORIZED
         )
     kyc_document_types = await async_get_all_kyc_document_records(db)
     return kyc_document_types
@@ -72,13 +72,13 @@ async def get_kyc_document_type_by_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view KYC document types.", status_code=403
+            "You do not have permission to view KYC document types.", status_code=403, error_code=UNAUTHORIZED
         )
     kyc_document_type = await async_get_kyc_document_record_by_id(
         document_id=document_id, db=db
     )
     if not kyc_document_type:
-        raise CabboException("KYC document type not found", status_code=404)
+        raise CabboException("KYC document type not found", status_code=404, error_code=GENERIC_EXCEPTION)
     return kyc_document_type
 
 
@@ -94,15 +94,15 @@ async def update_kyc_document_type_by_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to update KYC document types.", status_code=403
+            "You do not have permission to update KYC document types.", status_code=403, error_code=UNAUTHORIZED
         )
     updated_kyc_document_type, error = await async_update_kyc_document_record(
         document_id=document_id, payload=payload, db=db
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not updated_kyc_document_type:
-        raise CabboException("Failed to update KYC document type", status_code=500)
+        raise CabboException("Failed to update KYC document type", status_code=500, error_code=GENERIC_EXCEPTION)
     return updated_kyc_document_type
 
 
@@ -117,15 +117,15 @@ async def delete_kyc_document_type_by_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete KYC document types.", status_code=403
+            "You do not have permission to delete KYC document types.", status_code=403, error_code=UNAUTHORIZED
         )
     success, error = await async_delete_kyc_document_record(
         document_id=document_id, db=db
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not success:
-        raise CabboException("Failed to delete KYC document type", status_code=500)
+        raise CabboException("Failed to delete KYC document type", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "KYC document type deleted successfully"}
 
 
@@ -141,13 +141,13 @@ async def activate_kyc_document_type_by_id(
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
             "You do not have permission to activate KYC document types.",
-            status_code=403,
+            status_code=403, error_code=UNAUTHORIZED
         )
     success, error = await async_activate_kyc_document_record(
         document_id=document_id, db=db
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not success:
-        raise CabboException("Failed to activate KYC document type", status_code=500)
+        raise CabboException("Failed to activate KYC document type", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "KYC document type activated successfully"}

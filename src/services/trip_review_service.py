@@ -1,7 +1,7 @@
 from typing import List, Optional, Union
 
 from sqlalchemy import select
-from core.exceptions import CabboException
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum
 from models.common import AppBackgroundTask, FlagsEnum
 from models.customer.customer_schema import CustomerRead
@@ -49,29 +49,32 @@ async def save_trip_review(
     trip = await async_get_trip_by_booking_id(booking_id=booking_id, db=db)
 
     if not trip:
-        raise CabboException("Trip not found for the given booking_id", status_code=404)
+        raise CabboException("Trip not found for the given booking_id", status_code=404, error_code=GENERIC_EXCEPTION)
 
     if trip.creator_type != RoleEnum.customer:
         raise CabboException(
             "Only customers can provide rating for trip",
             status_code=403,
+            error_code=GENERIC_EXCEPTION,
         )
 
     if trip.creator_id != customer_id:
         raise CabboException(
             "Customer is not the creator of the trip and cannot provide rating for the trip",
             status_code=403,
+            error_code=GENERIC_EXCEPTION,
         )
 
     if trip.status != TripStatusEnum.completed:
         raise CabboException(
-            "Trip can be rated only if it is completed", status_code=400
+            "Trip can be rated only if it is completed", status_code=400, error_code=GENERIC_EXCEPTION
         )
 
     if not trip.driver_id:
         raise CabboException(
             "Driver not assigned for the trip yet. Cannot provide rating for the trip.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
 
     if validate_time_window:
@@ -85,6 +88,7 @@ async def save_trip_review(
             raise CabboException(
                 "Trip start datetime not available. Cannot validate time window for providing trip rating.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         current_time = datetime.now(timezone.utc)
 
@@ -92,6 +96,7 @@ async def save_trip_review(
             raise CabboException(
                 "Trip can be rated only if it has started. Cannot provide rating for the trip before it starts.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
     # Check if a rating already exists for the trip by the customer for the driver and update the existing rating and feedback with the new values provided in the payload if it exists, otherwise create a new rating entry for the trip by the customer for the driver with the values provided in the payload and return the saved or updated driver rating details including trip_id, driver_id, customer_id,

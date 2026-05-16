@@ -5,7 +5,19 @@ parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from sqlalchemy import or_
 from core.constants import SUPER_ADMIN
-from core.exceptions import CabboException
+from core.exceptions import (
+    CabboException,
+    USER_NOT_FOUND,
+    USER_INACTIVE,
+    NO_USERS_FOUND,
+    NO_ACTIVE_USERS_FOUND,
+    NO_INACTIVE_USERS_FOUND,
+    NO_USERS_WITH_ROLE_FOUND,
+    USERNAME_ALREADY_EXISTS,
+    EMAIL_ALREADY_EXISTS,
+    PHONE_ALREADY_EXISTS,
+    USER_PASSWORD_NOT_SET,
+)
 from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
@@ -80,30 +92,30 @@ def get_user_by_id(user_id: str, db: Session, active: bool = False) -> User:
     """Get user by ID."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise CabboException("User not found.", status_code=404)
+        raise CabboException("User not found.", status_code=404, error_code=USER_NOT_FOUND)
     if active and not user.is_active:
-        raise CabboException("User is inactive.", status_code=404)
+        raise CabboException("User is inactive.", status_code=404, error_code=USER_INACTIVE)
     return user
 
 def get_user_by_email(email: str, db: Session) -> User:
     """Get user by email."""
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        raise CabboException("User not found.", status_code=404)
+        raise CabboException("User not found.", status_code=404, error_code=USER_NOT_FOUND)
     return user
 
 def get_user_by_phone_number(phone_number: str, db: Session) -> User:
     """Get user by phone number."""
     user = db.query(User).filter(User.phone_number == phone_number).first()
     if not user:
-        raise CabboException("User not found.", status_code=404)
+        raise CabboException("User not found.", status_code=404, error_code=USER_NOT_FOUND)
     return user
 
 def get_user_password_hash_by_username(username: str) -> str:
     """Get user password by username."""
     user = get_user_by_username(username=username)
     if not user or not user.password_hash:
-        raise CabboException("User not found or password not set.", status_code=404)
+        raise CabboException("User not found or password not set.", status_code=404, error_code=USER_PASSWORD_NOT_SET)
     
     return user.password_hash
 
@@ -136,35 +148,35 @@ def get_all_users(db: Session) -> list[User]:
     """Get all users."""
     users = db.query(User).all()
     if not users:
-        raise CabboException("No users found.", status_code=404)
+        raise CabboException("No users found.", status_code=404, error_code=NO_USERS_FOUND)
     return users
 
 def get_all_active_users(db: Session) -> list[User]:
     """Get all active users."""
     users = db.query(User).filter(User.is_active.is_(True)).all()
     if not users:
-        raise CabboException("No active users found.", status_code=404)
+        raise CabboException("No active users found.", status_code=404, error_code=NO_ACTIVE_USERS_FOUND)
     return users
 
 def get_all_inactive_users(db: Session) -> list[User]:
     """Get all inactive users."""
     users = db.query(User).filter(User.is_active.is_(False)).all()
     if not users:
-        raise CabboException("No inactive users found.", status_code=404)
+        raise CabboException("No inactive users found.", status_code=404, error_code=NO_INACTIVE_USERS_FOUND)
     return users
 
 def get_all_users(db: Session) -> list[User]:
     """Get all users."""
     users = db.query(User).all()
     if not users:
-        raise CabboException("No users found.", status_code=404)
+        raise CabboException("No users found.", status_code=404, error_code=NO_USERS_FOUND)
     return users
 
 def get_users_by_role(role: RoleEnum, db: Session) -> list[User]:
     """Get users by role."""
     users = db.query(User).filter(User.role == role).all()
     if not users:
-        raise CabboException(f"No users found with role {role}.", status_code=404)
+        raise CabboException(f"No users found with role {role}.", status_code=404, error_code=NO_USERS_WITH_ROLE_FOUND)
     return users
 
 def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
@@ -182,7 +194,7 @@ def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
                     User.id != user.id
                 ).first()
                 if existing_user:
-                    raise CabboException("Username already exists.", status_code=400)
+                    raise CabboException("Username already exists.", status_code=400, error_code=USERNAME_ALREADY_EXISTS)
                 user.username = data.username.strip()
 
         if data.email is not None:
@@ -192,7 +204,7 @@ def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
                     User.id != user.id
                 ).first()
                 if existing_user:
-                    raise CabboException("Email already exists.", status_code=400)
+                    raise CabboException("Email already exists.", status_code=400, error_code=EMAIL_ALREADY_EXISTS)
                 user.email = data.email.strip()
 
         if data.phone_number is not None:
@@ -202,7 +214,7 @@ def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
                     User.id != user.id
                 ).first()
                 if existing_user:
-                    raise CabboException("Phone number already exists.", status_code=400)
+                    raise CabboException("Phone number already exists.", status_code=400, error_code=PHONE_ALREADY_EXISTS)
                 user.phone_number = data.phone_number.strip()
 
         db.commit()

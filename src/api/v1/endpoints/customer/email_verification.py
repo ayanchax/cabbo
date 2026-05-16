@@ -24,7 +24,7 @@ from models.customer.customer_schema import (
     CustomerRead,
 )
 from core.security import validate_customer_token
-from core.exceptions import CabboException
+from core.exceptions import EMAIL_VERIFICATION_CREATION_FAILED, EMAIL_VERIFICATION_FAILED, INVALID_VERIFICATION_LINK, NO_EMAIL_FOUND, UNAUTHORIZED, CabboException
 from services.notification_service import notify_verification_email_to_customer
 from services.orchestration_service import BackgroundTaskOrchestrator
 router = APIRouter()
@@ -44,7 +44,7 @@ def trigger_email_verification(
         raise CabboException(
             "Cannot send verification email. No email address found for the customer.",
             status_code=400,
-            error_code="NO_EMAIL_FOUND"
+            error_code=NO_EMAIL_FOUND
         ) 
     verification_link = None
     # Check for existing, unexpired verification link
@@ -55,14 +55,14 @@ def trigger_email_verification(
         customer_email_verification = create_customer_email_verification(customer.id, db)
         if not customer_email_verification:
             raise CabboException(
-                "Failed to create email verification link", status_code=500, error_code="EMAIL_VERIFICATION_CREATION_FAILED"
+                "Failed to create email verification link", status_code=500, error_code=EMAIL_VERIFICATION_CREATION_FAILED
             )
         verification_link = customer_email_verification.verification_url if customer_email_verification else None
         
 
     if not verification_link:
         raise CabboException(
-            "Failed to create email verification link", status_code=500, error_code="EMAIL_VERIFICATION_CREATION_FAILED"
+            "Failed to create email verification link", status_code=500, error_code=EMAIL_VERIFICATION_CREATION_FAILED
         )
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
     orchestrator.add_task(
@@ -89,14 +89,14 @@ def verify_email(
     """
     # Only allow self-service
     if str(current_customer.id) != id:
-        raise CabboException("Unauthorized", status_code=403, error_code="UNAUTHORIZED")
+        raise CabboException("Unauthorized", status_code=403, error_code=UNAUTHORIZED)
 
     if is_customer_email_verified(id, db):
         return {"message": "Email already verified."}
 
     valid_email_verification = is_email_verification_link_valid(id, token, db)
     if not valid_email_verification:
-        raise CabboException("Invalid or expired verification link.", status_code=400)
+        raise CabboException("Invalid or expired verification link.", status_code=400, error_code=INVALID_VERIFICATION_LINK)
 
     # Mark email as verified
     if mark_customer_email_verified(valid_email_verification.customer_id, db):
@@ -104,4 +104,4 @@ def verify_email(
             email_verification=valid_email_verification, db=db
         ):
             return {"message": "Email verified successfully."}
-    raise CabboException("Failed to verify email", status_code=500)
+    raise CabboException("Failed to verify email", status_code=500, error_code=EMAIL_VERIFICATION_FAILED)

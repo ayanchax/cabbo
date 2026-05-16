@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_NOT_FOUND, DRIVER_NOT_FOUND
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.trip.trip_enums import TripStatusEnum
@@ -44,11 +44,11 @@ async def view_trip_details(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip details.", status_code=403
+            "You do not have permission to view trip details.", status_code=403, error_code=UNAUTHORIZED
         )
     trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
-        raise CabboException("Trip not found", status_code=404)
+        raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
 
     return serialize_trip(trip)
 
@@ -68,12 +68,12 @@ async def view_trip_details_by_booking_id(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip details.", status_code=403
+            "You do not have permission to view trip details.", status_code=403, error_code=UNAUTHORIZED
         )
     trip = await async_get_trip_by_booking_id(booking_id, db)
 
     if trip is None:
-        raise CabboException("Trip booking not found", status_code=404)
+        raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
     serialized_trip = serialize_trip(trip)
     if "id" in serialized_trip:
         serialized_trip.pop(
@@ -92,11 +92,11 @@ async def list_all_trips(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view all trips.", status_code=403
+            "You do not have permission to view all trips.", status_code=403, error_code=UNAUTHORIZED
         )
     trips = await async_get_all_trips(db)
     if not trips:
-        raise CabboException("No trips found in the system", status_code=404)
+        raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
     return serialize_trips(trips)
 
 
@@ -113,11 +113,11 @@ async def list_trips_by_driver_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view trips by driver.", status_code=403
+            "You do not have permission to view trips by driver.", status_code=403, error_code=UNAUTHORIZED
         )
     trips = await async_get_trips_by_driver_id(driver_id, db)
     if not trips:
-        raise CabboException("No trips found for the driver", status_code=404)
+        raise CabboException("No trips found for the driver", status_code=404, error_code=TRIP_NOT_FOUND)
     # Serialize trips and driver details
     return serialize_trips(trips)
 
@@ -140,7 +140,7 @@ async def list_trips_by_customer_id(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trips by customer.", status_code=403
+            "You do not have permission to view trips by customer.", status_code=403, error_code=UNAUTHORIZED
         )
 
     can_expose_customer_details = current_user_role in [
@@ -152,7 +152,7 @@ async def list_trips_by_customer_id(
         customer_id, db, expose_customer_details=can_expose_customer_details
     )
     if not trips:
-        raise CabboException("No trips found for the customer", status_code=404)
+        raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
     return serialize_trips(trips, expose_customer_details=can_expose_customer_details)
 
@@ -176,7 +176,7 @@ async def list_trips_by_customer_id_and_status(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trips by customer.", status_code=403
+            "You do not have permission to view trips by customer.", status_code=403, error_code=UNAUTHORIZED
         )
 
     can_expose_customer_details = current_user_role in [
@@ -188,7 +188,7 @@ async def list_trips_by_customer_id_and_status(
         customer_id, db, expose_customer_details=can_expose_customer_details
     )
     if not trips:
-        raise CabboException("No trips found for the customer", status_code=404)
+        raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
     serialized_trips = serialize_trips(
         trips, expose_customer_details=can_expose_customer_details
@@ -200,6 +200,7 @@ async def list_trips_by_customer_id_and_status(
         raise CabboException(
             f"No trips found for the customer with status {status.value}",
             status_code=404,
+            error_code=TRIP_NOT_FOUND
         )
 
     return filtered_trips
@@ -218,18 +219,18 @@ async def list_trips_by_status(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.customer_admin]:
         raise CabboException(
-            "You do not have permission to view trips by status.", status_code=403
+            "You do not have permission to view trips by status.", status_code=403, error_code=UNAUTHORIZED
         )
     trips = await async_get_all_trips(db)
     if not trips:
-        raise CabboException("No trips found in the system", status_code=404)
+        raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
     serialized_trips = serialize_trips(trips)
     filtered_trips = [
         trip for trip in serialized_trips if trip.get("status") == status.value
     ]
     if not filtered_trips:
         raise CabboException(
-            f"No trips found with status {status.value}", status_code=404
+            f"No trips found with status {status.value}", status_code=404, error_code=TRIP_NOT_FOUND
         )
     return filtered_trips
 
@@ -250,7 +251,7 @@ async def update_status(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to update trip status.", status_code=403
+            "You do not have permission to update trip status.", status_code=403, error_code=UNAUTHORIZED
         )
 
     trip_schema, background_task = await update_trip_status(
@@ -262,7 +263,7 @@ async def update_status(
         validate_time_window=True,
     )  # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
     if not trip_schema:
-        raise CabboException("Failed to update trip status", status_code=500)
+        raise CabboException("Failed to update trip status", status_code=500, error_code=GENERIC_EXCEPTION)
     if background_task:
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
@@ -286,14 +287,14 @@ async def assign_driver(
     current_user_role = current_user.role
     trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
-        raise CabboException("Trip not found", status_code=404)
+        raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
     driver = await a_get_driver_by_id(driver_id, db)
 
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException("Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND)
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to assign drivers to trips.", status_code=403
+            "You do not have permission to assign drivers to trips.", status_code=403, error_code=UNAUTHORIZED
         )
 
     assigned_trip, assigned_driver = await assign_driver_to_trip(
@@ -332,7 +333,7 @@ async def soft_delete_trip(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete trips.", status_code=403
+            "You do not have permission to delete trips.", status_code=403, error_code=UNAUTHORIZED
         )
     return await delete_trip(trip_id=trip_id, db=db)
 
@@ -348,7 +349,7 @@ async def enable_trip(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to activate trips.", status_code=403
+            "You do not have permission to activate trips.", status_code=403, error_code=UNAUTHORIZED
         )
     return await activate_trip(trip_id=trip_id, db=db)
 
@@ -368,12 +369,13 @@ async def get_price_breakdown(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip price breakdown.",
+            "You do not have permission to view trip price breakdown.", 
             status_code=403,
+            error_code=UNAUTHORIZED
         )
     trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
-        raise CabboException("Trip not found", status_code=404)
+        raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
     return trip.price_breakdown
 
 

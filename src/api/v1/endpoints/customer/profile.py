@@ -30,7 +30,11 @@ from models.customer.customer_schema import (
     CustomerReadAfterUpdate,
 )
 from core.security import validate_customer_token
-from core.exceptions import CabboException
+from core.exceptions import (
+    CabboException,
+    USER_NOT_FOUND,
+    GENERIC_EXCEPTION,
+)
 from services.validation_service import (
     validate_customer_payload,
 )
@@ -79,7 +83,7 @@ def modify_customer_email_field(
     
 ):
     if payload.email is None:
-        raise CabboException("Email field is required.", status_code=400)
+        raise CabboException("Email field is required.", status_code=400, error_code=GENERIC_EXCEPTION)
     updated_email, email_updated = update_customer_email(current_customer.id, payload.email, db)
     if email_updated:
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
@@ -98,7 +102,7 @@ def modify_customer_name_field(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if payload.name is None:
-        raise CabboException("Name field is required.", status_code=400)
+        raise CabboException("Name field is required.", status_code=400, error_code=GENERIC_EXCEPTION)
     updated_name = update_customer_name(current_customer.id, payload.name, db)
     return {"name": updated_name, "message": "Name updated successfully."}
 
@@ -109,7 +113,7 @@ def modify_customer_dob_field(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if payload.dob is None:
-        raise CabboException("DOB field is required.", status_code=400)
+        raise CabboException("DOB field is required.", status_code=400, error_code=GENERIC_EXCEPTION)
     updated_dob = update_customer_dob(current_customer.id, payload.dob, db)
     return {"dob": updated_dob, "message": "Date of Birth updated successfully."}
 
@@ -120,7 +124,7 @@ def modify_customer_gender_field(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if payload.gender is None:
-        raise CabboException("Gender field is required.", status_code=400)
+        raise CabboException("Gender field is required.", status_code=400, error_code=GENERIC_EXCEPTION)
     updated_gender = update_customer_gender(current_customer.id, payload.gender, db)
     return {"gender": updated_gender, "message": "Gender updated successfully."}
 
@@ -132,7 +136,7 @@ def modify_customer_emergency_contact(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     if payload.emergency_contact_number is None:
-        raise CabboException("Emergency contact number is required.", status_code=400)
+        raise CabboException("Emergency contact number is required.", status_code=400, error_code=GENERIC_EXCEPTION)
     
     return update_customer_emergency_contact(current_customer.id, payload, db)
 
@@ -161,7 +165,7 @@ def upload_profile_picture(
         #finally update customer record with new profile picture info
         _ = update_customer_profile_picture(customer, db, new_s3_image_info)
         return new_s3_image_info
-    raise CabboException("Failed to upload profile picture.", status_code=500)
+    raise CabboException("Failed to upload profile picture.", status_code=500, error_code=GENERIC_EXCEPTION)
     
 
 
@@ -175,7 +179,7 @@ def remove_profile_picture(
     customer_id = current_customer.id
     customer = get_active_customer_by_id(customer_id, db)
     if customer is None:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
     # Remove file using service
     existing_s3_image_info=S3ObjectInfo.model_validate(customer.s3_image_info) if customer.s3_image_info else None
     
@@ -186,9 +190,9 @@ def remove_profile_picture(
             _=update_customer_profile_picture(customer, db, None)
             return {"message": "Profile picture removed successfully."}
         else:
-            raise CabboException("Failed to remove profile picture from storage.", status_code=500)
+            raise CabboException("Failed to remove profile picture from storage.", status_code=500, error_code=GENERIC_EXCEPTION)
     else:
-        raise CabboException("No profile picture to remove.", status_code=400)
+        raise CabboException("No profile picture to remove.", status_code=400, error_code=GENERIC_EXCEPTION)
 
 @router.get("/is-logged-in")
 def check_logged_in_status(

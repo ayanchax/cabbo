@@ -28,7 +28,16 @@ from models.pricing.pricing_orm import (
     PermitFeeConfiguration,
 )
 from models.trip.trip_enums import TripTypeEnum
-from core.exceptions import CabboException
+from core.exceptions import (
+    INVALID_TRIP_TYPE,
+    CabboException,
+    NO_COMMON_PRICING_CONFIG_FOUND,
+    NO_FIXED_PLATFORM_FEE_CONFIG_FOUND,
+    NO_FIXED_NIGHT_PRICING_CONFIG_FOUND,
+    COMMON_PRICING_CONFIG_EMPTY,
+    TRIP_TYPE_ID_NOT_FOUND,
+    TOLLS_ESTIMATION_UNSUPPORTED_TRIP_TYPE,
+)
 from models.trip.trip_schema import TripBookRequest, TripSearchOption
 import logging
 
@@ -67,12 +76,12 @@ def retrieve_trip_wise_pricing_config(
     """
     trip_type_object = db.query(TripTypeMaster).filter_by(trip_type=trip_type).first()
     if not trip_type_object:
-        raise CabboException("Invalid trip type", status_code=400)
+        raise CabboException("Invalid trip type", status_code=400, error_code=INVALID_TRIP_TYPE)
 
     trip_type_id = trip_type_object.id
     if not trip_type_id:
         raise CabboException(
-            "Trip type ID not found for the given trip type", status_code=404
+            "Trip type ID not found for the given trip type", status_code=404, error_code=TRIP_TYPE_ID_NOT_FOUND
         )
 
     fixed_platform_fee_config_orm = db.query(FixedPlatformPricingConfiguration).first()
@@ -87,6 +96,7 @@ def retrieve_trip_wise_pricing_config(
         raise CabboException(
             "No fixed platform fee or infrastructure fee configuration found",
             status_code=404,
+            error_code=NO_FIXED_PLATFORM_FEE_CONFIG_FOUND,
         )
 
     fixed_night_pricing_orm = db.query(NightPricingConfiguration).first()
@@ -97,7 +107,7 @@ def retrieve_trip_wise_pricing_config(
     )
     if not fixed_night_pricing:
         raise CabboException(
-            "No fixed night pricing configuration found", status_code=404
+            "No fixed night pricing configuration found", status_code=404, error_code=NO_FIXED_NIGHT_PRICING_CONFIG_FOUND
         )
 
     # Fetch all common pricing configurations for the trip type
@@ -110,6 +120,7 @@ def retrieve_trip_wise_pricing_config(
         raise CabboException(
             "No common pricing configuration found for the given trip type",
             status_code=404,
+            error_code=NO_COMMON_PRICING_CONFIG_FOUND,
         )
     common_pricing_config = CommonPricingConfigurationSchema.model_validate(
         common_pricing_config_orm
@@ -118,6 +129,7 @@ def retrieve_trip_wise_pricing_config(
         raise CabboException(
             "Common pricing configuration is empty for the given trip type",
             status_code=404,
+            error_code=COMMON_PRICING_CONFIG_EMPTY,
         )
 
     # Merge the fixed platform fee/infrastructure fee into the common pricing config
@@ -168,6 +180,7 @@ def get_tolls(booking_request: TripBookRequest) -> float:
         raise CabboException(
             f"Trip type {booking_request.preferences.trip_type} is not supported for tolls estimation",
             status_code=501,
+            error_code=TOLLS_ESTIMATION_UNSUPPORTED_TRIP_TYPE,
         )
 
 

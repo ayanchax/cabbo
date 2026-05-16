@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.security import JWT_EXPIRY_UNIT, RoleEnum, verify_password_hash
 from db.database import yield_mysql_session
 from models.user.user_schema import UserLoginRequest, UserLoginResponse
@@ -18,20 +18,20 @@ def login_admin_user(
     username = payload.username
     password = payload.password
     if not username or not password:
-        raise CabboException("Username and password are required.", status_code=400)
+        raise CabboException("Username and password are required.", status_code=400, error_code=GENERIC_EXCEPTION)
     user = get_user_by_username(username=username.strip(), db=db)
     if not user:
-        raise CabboException("User not found.", status_code=404)
+        raise CabboException("User not found.", status_code=404, error_code=GENERIC_EXCEPTION)
     if is_user_logged_in(user=user):
-        raise CabboException(f"User is already logged in as {user.username}.", status_code=400)
+        raise CabboException(f"User is already logged in as {user.username}.", status_code=400, error_code=GENERIC_EXCEPTION)
     if not user.password_hash:
-        raise CabboException("User does not have a password set.", status_code=400)
+        raise CabboException("User does not have a password set.", status_code=400, error_code=GENERIC_EXCEPTION)
     if not user.is_active:
-        raise CabboException("User is not active.", status_code=403)
+        raise CabboException("User is not active.", status_code=403, error_code=GENERIC_EXCEPTION)
     if not user.role:
-        raise CabboException("User role is not defined.", status_code=400)
+        raise CabboException("User role is not defined.", status_code=400, error_code=GENERIC_EXCEPTION)
     if user.role not in [role.value for role in RoleEnum if role.value.endswith("_admin")]:
-        raise CabboException("Invalid user role.", status_code=400)
+        raise CabboException("Invalid user role.", status_code=400, error_code=GENERIC_EXCEPTION)
 
     is_correct_password = verify_password_hash(
         password=password, hashed_password=user.password_hash

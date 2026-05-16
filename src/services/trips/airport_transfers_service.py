@@ -2,7 +2,12 @@ import math
 from typing import List, Optional, Union
 
 from core.constants import APP_NAME
-from core.exceptions import CabboException
+from core.exceptions import (
+    CabboException,
+    AIRPORT_PICKUP_DESTINATION_REQUIRED,
+    GENERIC_EXCEPTION,
+    DISTANCE_NOT_DETERMINED,
+)
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
@@ -62,20 +67,21 @@ def _get_trip_origin_destination_distance_airport_drop(search_in: TripSearchRequ
     """
 
     if not search_in.origin:
-        raise CabboException("Origin is required for airport drop", status_code=400)
+        raise CabboException("Origin is required for airport drop", status_code=400, error_code=GENERIC_EXCEPTION)
 
     if not search_in.destination:
         search_in.destination = None
 
     if not search_in.destination:
         raise CabboException(
-            "Destination is required for airport drop", status_code=400
+            "Destination is required for airport drop", status_code=400, error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED
         )
     est_km = get_distance_km(origin=search_in.origin, destination=search_in.destination)
     if not est_km or est_km <= 0:
         raise CabboException(
             "Could not estimate distance between origin and destination",
             status_code=400,
+            error_code=DISTANCE_NOT_DETERMINED,
         )
     return search_in.origin, search_in.destination, est_km
 
@@ -94,16 +100,17 @@ def _get_trip_origin_destination_distance_airport_pickup(search_in: TripSearchRe
     if not search_in.origin:
         search_in.origin = None
     if not search_in.origin:
-        raise CabboException("Origin is required", status_code=400)
+        raise CabboException("Origin is required", status_code=400, error_code=GENERIC_EXCEPTION)
 
         # Origin is airport, destination is required
     if not search_in.destination:
-        raise CabboException("Destination is required", status_code=400)
+        raise CabboException("Destination is required", status_code=400, error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED)
     est_km = get_distance_km(origin=search_in.origin, destination=search_in.destination)
     if not est_km or est_km <= 0:
         raise CabboException(
             "Could not estimate distance between origin and destination",
             status_code=400,
+            error_code=DISTANCE_NOT_DETERMINED,
         )
 
     return search_in.origin, search_in.destination, est_km

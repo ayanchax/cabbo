@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 from models.trip.trip_enums import (
     TripStatusEnum,
 )
-from core.exceptions import CabboException
+from core.exceptions import (
+    CabboException,
+    TRIP_TYPE_ID_NOT_FOUND,
+    ALREADY_BOOKED_ON_THIS_SLOT,
+    GENERIC_EXCEPTION,
+    UNAUTHORIZED,
+    PAYMENT_VERIFICATION_FAILED,
+)
 from services.audit_trail_service import log_trip_audit
 from services.payment_service import get_booking_payment_order, verify_payment
 from services.trips.trip_service import (
@@ -93,6 +100,7 @@ def _get_temp_trip_by_trip_id_and_requestor(
         raise CabboException(
             "Trip not found or you are not authorized to access this trip",
             status_code=404,
+            error_code=UNAUTHORIZED,
         )
     return temp_trip
 
@@ -138,13 +146,13 @@ def _create_confirmed_trip_from_temp_trip(
     trip_type = get_trip_type_by_trip_type_id(temp_trip.trip_type_id, db)
     if not trip_type:
         raise CabboException(
-            f"Invalid trip type ID: {temp_trip.trip_type_id}", status_code=400
+            f"Invalid trip type ID: {temp_trip.trip_type_id}", status_code=400, error_code=TRIP_TYPE_ID_NOT_FOUND
         )
     trip_type_name= str(trip_type.name)
     booking_id = _generate_booking_id(trip_type=trip_type_name.lower(), db=db)
     if not booking_id:
         raise CabboException(
-            "Failed to generate booking ID", status_code=500
+            "Failed to generate booking ID", status_code=500, error_code=GENERIC_EXCEPTION
         )
     
     trip = Trip(
@@ -258,7 +266,7 @@ def _create_confirmed_trip_from_temp_trip(
         db.rollback()
         print(e)
         raise CabboException(
-            f"Failed to confirm trip booking: {str(e)}", status_code=500
+            f"Failed to confirm trip booking: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -337,7 +345,7 @@ def initiate_trip_booking(
     except Exception as e:
         db.rollback()
         raise CabboException(
-            f"Failed to initiate trip booking: {str(e)}", status_code=500
+            f"Failed to initiate trip booking: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
 
 
@@ -360,7 +368,7 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
 
     if not booking_request.trip_id:
         raise CabboException(
-            "Booking Trip ID is required to confirm the booking", status_code=400
+            "Booking Trip ID is required to confirm the booking", status_code=400, error_code=GENERIC_EXCEPTION
         )
 
     # Check if the booking request already exists in the main Trip table
@@ -368,7 +376,7 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
         trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
     if existing_trip:
-        raise CabboException("Booking already exists", status_code=400)
+        raise CabboException("Booking already exists", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT)
 
     # Check in database if the booking exists
     temp_trip = _get_temp_trip_by_trip_id_and_requestor(
@@ -378,7 +386,7 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     # Verify the payment details in the booking request
     payment_verified = verify_payment(payment_details=booking_request.payment_info.model_dump())
     if not payment_verified:
-        raise CabboException("Payment verification failed", status_code=400)
+        raise CabboException("Payment verification failed", status_code=400, error_code=GENERIC_EXCEPTION)
 
     # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
     return _create_confirmed_trip_from_temp_trip(
@@ -408,6 +416,7 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
         raise CabboException(
             "Booking not found or you are not authorized to delete this booking",
             status_code=404,
+            error_code=UNAUTHORIZED,
         )
     try:
         db.delete(temp_trip)

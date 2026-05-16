@@ -1,7 +1,7 @@
 import math
 from typing import List, Optional, Union
 from core.constants import APP_NAME
-from core.exceptions import CabboException
+from core.exceptions import CabboException, OUTSTATION_TRIP_ORIGIN_REQUIRED, OUTSTATION_TRIP_DESTINATION_REQUIRED, DISTANCE_NOT_DETERMINED, DISTANCE_BELOW_MINIMUM_THRESHOLD, GENERIC_EXCEPTION
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import (
@@ -125,13 +125,13 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
     if (
         not search_in.origin
     ):  # Initial origin for outstation trip, final origin will be the first hop(origin)
-        raise CabboException("Origin is required for outstation trip", status_code=400)
+        raise CabboException("Origin is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED)
 
     if (
         not search_in.destination
     ):  # Initial destination for outstation trip, final destination will be the first hop(origin)
         raise CabboException(
-            "Destination is required for outstation trip", status_code=400
+            "Destination is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED
         )
     
     # Build ordered waypoints for the outbound route
@@ -148,6 +148,7 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
             raise CabboException(
                 f"Could not estimate distance between waypoints {i} and {i + 1}",
                 status_code=500,
+                error_code=DISTANCE_NOT_DETERMINED,
             )
         outbound_km += leg_km
 
@@ -158,6 +159,7 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
             f"the route you have selected is less than {min_distance_for_outstation_trip} km, "
             f"try with a different route or switch to local trip",
             status_code=500,
+            error_code=DISTANCE_BELOW_MINIMUM_THRESHOLD,
         )
     
     
@@ -167,6 +169,7 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
         raise CabboException(
             "Could not estimate return distance from destination to origin",
             status_code=500,
+            error_code=DISTANCE_NOT_DETERMINED,
         )
     
     
@@ -396,6 +399,7 @@ def get_outstation_trip_options(
         raise CabboException(
             "No outstation trip options available for the selected route and preferences",
             status_code=404,
+            error_code=GENERIC_EXCEPTION,
         )
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(

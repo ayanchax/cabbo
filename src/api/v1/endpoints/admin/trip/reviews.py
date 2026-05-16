@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from core.exceptions import CabboException
+from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.common import AppBackgroundTask, FlagsEnum
@@ -34,7 +34,7 @@ async def view_trip_review_by_trip_id(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip reviews.", status_code=403
+            "You do not have permission to view trip reviews.", status_code=403, error_code=UNAUTHORIZED
         )
     return await fetch_trip_review_by_trip_id(trip_id=trip_id, db=db)
 
@@ -54,7 +54,7 @@ async def view_trip_review_by_review_id(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip reviews.", status_code=403
+            "You do not have permission to view trip reviews.", status_code=403, error_code=UNAUTHORIZED
         )
     return await fetch_trip_review_by_review_id(review_id=review_id, db=db)
 
@@ -77,7 +77,7 @@ async def view_all_trip_reviews(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip reviews.", status_code=403
+            "You do not have permission to view trip reviews.", status_code=403, error_code=UNAUTHORIZED
         )
     return await fetch_all_trip_reviews(flag=flag, db=db)
 
@@ -97,7 +97,7 @@ async def view_trip_reviews_by_customer_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.customer_admin]:
         raise CabboException(
-            "You do not have permission to view trip reviews.", status_code=403
+            "You do not have permission to view trip reviews.", status_code=403, error_code=UNAUTHORIZED
         )
     return await fetch_trip_reviews_by_customer_id(
         customer_id=customer_id, flag=flag, db=db
@@ -119,7 +119,7 @@ async def view_trip_reviews_by_driver_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view trip reviews.", status_code=403
+            "You do not have permission to view trip reviews.", status_code=403, error_code=UNAUTHORIZED
         )
     return await fetch_trip_reviews_by_driver_id(driver_id=driver_id, flag=flag, db=db)
 
@@ -144,13 +144,13 @@ async def update_trip_review_flag_status_by_review_id(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to update trip reviews.", status_code=403
+            "You do not have permission to update trip reviews.", status_code=403, error_code=UNAUTHORIZED
         )
     success, background_task_or_message = await update_trip_review_flag_status(
         review_id=review_id, is_flagged=flagged, db=db
     )
     if not success and isinstance(background_task_or_message, str):
-        raise CabboException(status_code=400, message=background_task_or_message)
+        raise CabboException(status_code=400, message=background_task_or_message, error_code=GENERIC_EXCEPTION)
 
     if isinstance(background_task_or_message, AppBackgroundTask):
         background_task = background_task_or_message

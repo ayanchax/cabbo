@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import ValidationError
 from requests import session
 from sqlalchemy.orm import Session
-from core.exceptions import CabboException
+from core.exceptions import PLACE_NOT_FOUND, CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum
 from db.database import get_mysql_local_session
 from models.geography.country_orm import CountryModel
@@ -1132,7 +1132,7 @@ async def async_add_state(
         country_model = result.scalars().first()
         if not country_model:
             raise CabboException(
-                f"Country with code {payload.country_code} not found.", status_code=404
+                f"Country with code {payload.country_code} not found.", status_code=404, error_code=PLACE_NOT_FOUND
             )
 
         state_model = StateModel(
@@ -1253,7 +1253,7 @@ async def async_add_region(
         country_model = result.scalars().first()
         if not country_model:
             raise CabboException(
-                f"Country with code {payload.country_code} not found.", status_code=404
+                f"Country with code {payload.country_code} not found.", status_code=404, error_code=PLACE_NOT_FOUND
             )
 
         result = await db.execute(
@@ -1271,6 +1271,7 @@ async def async_add_region(
             raise CabboException(
                 f"State with code {payload.state_code or payload.state_id} not found in country {payload.country_code or payload.country_id}.",
                 status_code=404,
+                error_code=PLACE_NOT_FOUND,
             )
 
         region_model = RegionModel(
@@ -1316,7 +1317,7 @@ async def async_add_region(
         return RegionSchema.model_validate(region_model)
     except Exception as e:
         await db.rollback()
-        raise CabboException(f"Failed to add region: {str(e)}", status_code=500)
+        raise CabboException(f"Failed to add region: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION)
 
 
 async def async_get_all_regions(db: AsyncSession) -> list[RegionSchema]:
@@ -1874,7 +1875,7 @@ async def get_geography_data() -> CountryReadSchema:
         config_store = settings.get_config_store(db=db)
     geo_data =  config_store.geographies.country_server
     if not geo_data:
-        raise CabboException("Geography data not found", status_code=404)
+        raise CabboException("Geography data not found", status_code=404, error_code=GENERIC_EXCEPTION)
     return CountryReadSchema.model_validate(geo_data)  # Validate the data against the schema
 
 def get_allowed_countries():

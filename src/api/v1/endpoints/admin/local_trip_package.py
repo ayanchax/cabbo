@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import UNAUTHORIZED, CabboException
 from core.security import RoleEnum, validate_user_token
 from models.trip.trip_schema import (
     TripPackageSchema,
@@ -37,7 +37,7 @@ async def add_local_trip_package(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to add local trip packages.", status_code=403
+            "You do not have permission to add local trip packages.", status_code=403, error_code=UNAUTHORIZED
         )
     return await create_trip_package_config(payload, db, current_user.id)
 
@@ -52,7 +52,7 @@ async def list_local_trip_packages(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to list local trip packages.", status_code=403
+            "You do not have permission to list local trip packages.", status_code=403, error_code=UNAUTHORIZED
         )
     return await list_trip_package_configs(db)
 
@@ -70,6 +70,7 @@ async def list_local_trip_packages_by_region_code(
         raise CabboException(
             "You do not have permission to list local trip packages by region code.",
             status_code=403,
+            error_code=UNAUTHORIZED
         )
     return await list_trip_package_configs_by_region_code(region_code, db)
 
@@ -85,7 +86,7 @@ async def update_local_trip_package(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to update local trip packages.", status_code=403
+            "You do not have permission to update local trip packages.", status_code=403, error_code=UNAUTHORIZED
         )
     return await update_trip_package_config(payload, db)
 
@@ -101,7 +102,7 @@ async def delete_local_trip_package(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete local trip packages.", status_code=403
+            "You do not have permission to delete local trip packages.", status_code=403, error_code=UNAUTHORIZED
         )
     deleted= await delete_trip_package_config_by_id(package_id, db)
     return {"deleted": deleted}
@@ -118,7 +119,7 @@ async def get_local_trip_package_by_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view local trip packages.", status_code=403
+            "You do not have permission to view local trip packages.", status_code=403, error_code=UNAUTHORIZED
         )
     return await get_trip_package_config_by_id(package_id, db)
 
@@ -133,7 +134,7 @@ async def activate_local_trip_package(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to activate local trip packages.", status_code=403
+            "You do not have permission to activate local trip packages.", status_code=403, error_code=UNAUTHORIZED
         )
     activated= await activate_trip_package_config_by_id(package_id, db)
     return {"activated": activated}

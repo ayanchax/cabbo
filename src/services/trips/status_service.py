@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
-from core.exceptions import CabboException
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
@@ -45,6 +45,7 @@ async def change_status(
             raise CabboException(
                 "Invalid trip type associated with the trip. Please ensure the trip has a valid trip type before starting the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
     if not payload:
             payload = AdditionalDetailsOnTripStatusChange()  # Create a new payload if not provided to pass the evaluated start datetime to the background task of logging audit trail for trip status change and also for better consistency in the flow of marking trip as ongoing and logging audit trail with the same payload.
@@ -70,6 +71,7 @@ async def change_status(
                 raise CabboException(
                     f"Cannot start trip after {(now - scheduled_start_time).total_seconds() // 60} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience.",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION,
                 )
 
             #Do not start too early guard
@@ -78,6 +80,7 @@ async def change_status(
                     raise CabboException(
                         f"Cannot start trip before {(scheduled_start_time - now).total_seconds() // 60} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience.",
                         status_code=400,
+                        error_code=GENERIC_EXCEPTION,
                     )
             payload.start_datetime = scheduled_start_time  # Update the start datetime in the payload with the evaluated start datetime which is based on the original start datetime of the trip and any overridden start datetime provided in the payload, so that we can use this start datetime for further processing in the flow of marking trip as ongoing and also to log in the audit trail for trip status change.
         return await _ongoing(
@@ -99,7 +102,7 @@ async def change_status(
             trip=trip, db=db, status=status, requestor=requestor, payload=payload
         )
     else:
-        raise CabboException("Invalid status update requested", status_code=400)
+        raise CabboException("Invalid status update requested", status_code=400, error_code=GENERIC_EXCEPTION)
 
 async def _ongoing(
     trip: Trip,
@@ -113,18 +116,20 @@ async def _ongoing(
             raise CabboException(
                 "Cannot start trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if not trip.balance_payment or trip.balance_payment <= 0:
             raise CabboException(
                 "Cannot start trip without a valid balance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if trip.driver_id is None:
             # Cannot silently assign a random driver, thus we will raise an exception if there is no driver assigned to the trip when we are trying to mark it as ongoing because a trip cannot start without a driver. The driver assignment should have happened at the time of confirming the trip booking and if for some reason the driver assignment did not happen then it should be fixed before starting the trip.
             raise CabboException(
-                "Cannot start trip without an assigned driver", status_code=400
+                "Cannot start trip without an assigned driver", status_code=400, error_code=GENERIC_EXCEPTION
             )
 
         existing_record = await get_trip_earning_for_driver(
@@ -183,17 +188,19 @@ async def _complete(
             raise CabboException(
                 "Cannot complete trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before completing the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if not trip.balance_payment or trip.balance_payment <= 0:
             raise CabboException(
                 "Cannot complete trip without a valid balance payment. Please ensure the customer has made the balance payment and the payment is reflected in the system before completing the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if trip.driver_id is None:
             raise CabboException(
-                "Cannot complete trip without an assigned driver", status_code=400
+                "Cannot complete trip without an assigned driver", status_code=400, error_code=GENERIC_EXCEPTION
             )
 
         # Update end datetime with the actual end datetime when trip is completed. The driver_admin can get the actual end datetime from the driver, if not provided we will set the end datetime as current datetime in UTC timezone.
@@ -276,6 +283,7 @@ async def _cancelled(
             raise CabboException(
                 "Cannot cancel trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before canceling the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # Update status.
@@ -315,6 +323,7 @@ async def _cancelled(
             raise CabboException(
                 "Failed to register trip cancellation details in the system",
                 status_code=500,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # Log audit trail for trip cancellation
@@ -368,6 +377,7 @@ async def _dispute(
             raise CabboException(
                 "Cannot mark trip as dispute without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before marking the trip as dispute.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
@@ -375,6 +385,7 @@ async def _dispute(
             raise CabboException(
                 "Cannot mark trip as dispute without an assigned driver",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # Update status

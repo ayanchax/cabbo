@@ -1,7 +1,7 @@
 from typing import Optional
 import uuid
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from models.policies.dispute_enum import DisputeTypeEnum
 from models.policies.dispute_schema import DisputeUpdateSchema, InitialDisputeSchema
 from models.support.support_schema import CommentSchema
@@ -152,7 +152,7 @@ async def add_comment_to_dispute_by_trip_id(trip_id: str, comment: CommentSchema
             await db.refresh(dispute_record)
 
             return DisputeSchema.model_validate(dispute_record)
-        raise CabboException("Dispute not found for the specified trip.", status_code=404)
+        raise CabboException("Dispute not found for the specified trip.", status_code=404, error_code=GENERIC_EXCEPTION)
     except Exception as e:
         await db.rollback()
         log.error(f"Error adding comment to dispute record for trip {trip_id}: {str(e)}")
@@ -199,7 +199,7 @@ async def update_dispute_by_trip_id(trip_id: str, payload: DisputeUpdateSchema, 
             await db.refresh(dispute_record)
 
             return DisputeSchema.model_validate(dispute_record)
-        raise CabboException("Dispute not found for the specified trip.", status_code=404)
+        raise CabboException("Dispute not found for the specified trip.", status_code=404, error_code=GENERIC_EXCEPTION)
     except Exception as e:
         await db.rollback()
         log.error(f"Error updating dispute record for trip {trip_id}: {str(e)}")

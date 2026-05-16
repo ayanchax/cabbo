@@ -1,5 +1,5 @@
 from typing import Union
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.security import RoleEnum
 from models.customer.passenger_orm import Passenger
 from models.customer.passenger_schema import PassengerCreate, PassengerRead, PassengerRequest, PassengerUpdate
@@ -38,6 +38,7 @@ def create_passenger(
             f"Error creating passenger: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code = GENERIC_EXCEPTION
         )
 
 
@@ -101,7 +102,7 @@ def update_passenger(
     try:
         passenger = get_passenger_by_id(passenger_id, db)
         if not passenger:
-            raise CabboException("Passenger not found", status_code=404)
+            raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
         passenger.name = payload.name
         passenger.phone_number = payload.phone_number
@@ -124,12 +125,12 @@ def delete_passenger(passenger_id: str, db: Session) -> bool:
     try:
         passenger = get_passenger_by_id(passenger_id, db)
         if not passenger:
-            raise CabboException("Passenger not found", status_code=404)
+            raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
         db.delete(passenger)
         db.commit()
     except Exception as e:
         db.rollback()
-        raise CabboException("Failed to delete passenger", status_code=500)
+        raise CabboException("Failed to delete passenger", status_code=500, error_code=GENERIC_EXCEPTION)
     return True
 
 
@@ -143,7 +144,7 @@ def deactivate_passenger(passenger_id: str, db: Session) -> Passenger:
     """
     passenger = get_passenger_by_id(passenger_id, db)
     if not passenger:
-        raise CabboException("Passenger not found", status_code=404)
+        raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
     passenger.is_active = False
     db.commit()
@@ -161,7 +162,7 @@ def activate_passenger(passenger_id: str, db: Session) -> Passenger:
     """
     passenger = get_passenger_by_id(passenger_id, db)
     if not passenger:
-        raise CabboException("Passenger not found", status_code=404)
+        raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
     passenger.is_active = True
     db.commit()
@@ -203,13 +204,13 @@ def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Sess
         search_in.passenger.id = search_in.passenger.id.strip()
         passenger = get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
         if not passenger:
-            raise CabboException("Invalid passenger ID provided", status_code=400)
+            raise CabboException("Invalid passenger ID provided", status_code=400, error_code=GENERIC_EXCEPTION)
         if passenger.customer_id != requestor:
             raise CabboException(
-                "Passenger does not belong to the requesting customer", status_code=403
+                "Passenger does not belong to the requesting customer", status_code=403, error_code=GENERIC_EXCEPTION
             )
         if not passenger.is_active:
-            raise CabboException("Passenger is not active", status_code=403)
+            raise CabboException("Passenger is not active", status_code=403, error_code=GENERIC_EXCEPTION)
         passenger_read = PassengerRead.model_validate(
             passenger
         )  # Validate passenger schema

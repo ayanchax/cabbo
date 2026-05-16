@@ -1,7 +1,7 @@
 #Route for managing user accounts in the admin panel
 from fastapi import APIRouter, BackgroundTasks, Body, Depends
 from sqlalchemy.orm import Session
-from core.exceptions import CabboException
+from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, LOGOUT_FAILED
 from core.security import RoleEnum, validate_user_token, verify_password_hash
 from db.database import yield_mysql_session
 from models.user.user_orm import User
@@ -22,17 +22,17 @@ def create_admin_user(payload: UserCreateSchema = Depends(validate_system_user_p
 
     #If the current user is not a super admin, they can only create users with their own role
     if current_user_role!=RoleEnum.super_admin and requested_role!=current_user_role:
-        raise CabboException("You do not have permission to create users with this role.", status_code=403)
+        raise CabboException("You do not have permission to create users with this role.", status_code=403, error_code=UNAUTHORIZED)
     
     #For similar roles or a super admin, allow creation
     if current_user_role==RoleEnum.super_admin or requested_role==current_user_role:
         if is_user_exists(user=payload, db=db):
-            raise CabboException("User with this username or phone number or email already exists.", status_code=400)
+            raise CabboException("User with this username or phone number or email already exists.", status_code=400, error_code=GENERIC_EXCEPTION)
         user = create_user(data=payload, db=db)
         user_schema =UserReadSchema.model_validate(user)
         #Return the created user schema with 201 status code
         return user_schema
-    raise CabboException("You do not have permission to create users with this role.", status_code=403)
+    raise CabboException("You do not have permission to create users with this role.", status_code=403, error_code=UNAUTHORIZED)
 
 # Get admin user details by id
 @router.get("/{user_id}",response_model=UserReadSchema)
@@ -44,7 +44,7 @@ def get_admin_user(user_id: str, db: Session = Depends(yield_mysql_session),
      
     if current_user_role==RoleEnum.super_admin or user.role==current_user_role:
         return UserReadSchema.model_validate(user)
-    raise CabboException("You do not have permission to view this user.", status_code=403)
+    raise CabboException("You do not have permission to view this user.", status_code=403, error_code=UNAUTHORIZED)
 
 # Update admin user
 @router.put("/{user_id}")
@@ -56,7 +56,7 @@ def update_admin_user(user_id: str, payload: UserUpdateSchema = Depends(validate
     if current_user_role==RoleEnum.super_admin or user.role==current_user_role or user.id==current_user.id:
         user = update_user(user=user, data=payload, db=db)
         return UserReadSchema.model_validate(user)
-    raise CabboException("You do not have permission to update this user.", status_code=403)
+    raise CabboException("You do not have permission to update this user.", status_code=403, error_code=UNAUTHORIZED)
 
 
 # Activate admin user
@@ -68,10 +68,10 @@ def activate_admin_user(user_id: str, db: Session = Depends(yield_mysql_session)
     user = get_user_by_id(user_id=user_id, db=db) 
     if current_user_role==RoleEnum.super_admin or user.role==current_user_role:
         if user.is_active:
-            raise CabboException("User is already active.", status_code=400)
+            raise CabboException("User is already active.", status_code=400, error_code=GENERIC_EXCEPTION)
         _ = activate_user(user=user, db=db)
         return {"message": f"User {user_id} activated"}
-    raise CabboException("You do not have permission to activate this user.", status_code=403)
+    raise CabboException("You do not have permission to activate this user.", status_code=403, error_code=UNAUTHORIZED)
 
 # Deactivate admin user
 @router.patch("/{user_id}/deactivate")
@@ -83,14 +83,14 @@ def deactivate_admin_user(user_id: str, db: Session = Depends(yield_mysql_sessio
     if current_user_role==RoleEnum.super_admin or  user.role==current_user_role:
         
         if user.role==RoleEnum.super_admin and user.id == current_user.id:
-            raise CabboException("Super admin user cannot be self deactivated", status_code=403)
+            raise CabboException("Super admin user cannot be self deactivated", status_code=403, error_code=GENERIC_EXCEPTION)
         
         if not user.is_active:
-            raise CabboException("User is already inactive.", status_code=400)
+            raise CabboException("User is already inactive.", status_code=400, error_code=GENERIC_EXCEPTION)
         _ = deactivate_user(user=user, db=db)
 
         return {"message": f"User {user_id} deactivated"}
-    raise CabboException("You do not have permission to deactivate this user.", status_code=403)
+    raise CabboException("You do not have permission to deactivate this user.", status_code=403, error_code=UNAUTHORIZED)
 
 # List all admin users
 @router.get("/list/all", response_model=list[UserReadSchema])
@@ -99,7 +99,7 @@ def list_admin_users(db: Session = Depends(yield_mysql_session),
     """List all administrative users."""
     current_user_role = current_user.role
     if current_user_role != RoleEnum.super_admin:
-        raise CabboException("You do not have permission to view all users.", status_code=403)
+        raise CabboException("You do not have permission to view all users.", status_code=403, error_code=UNAUTHORIZED)
     users = get_all_users(db=db)
     users = [UserReadSchema.model_validate(user) for user in users]
     return users
@@ -114,11 +114,12 @@ def list_admin_users_by_role(role: RoleEnum,db: Session = Depends(yield_mysql_se
     if role.value not in [_role.value for _role in RoleEnum if _role.value.endswith("_admin")]:
             raise CabboException(
                 "Invalid role specified. Allowed roles are: " + ", ".join([__role.value for __role in RoleEnum]),
-                status_code=400
+                status_code=400,
+                error_code=GENERIC_EXCEPTION
             )
     current_user_role = current_user.role
     if current_user_role != RoleEnum.super_admin and role != current_user_role:
-        raise CabboException("You do not have permission to view users with this role.", status_code=403)
+        raise CabboException("You do not have permission to view users with this role.", status_code=403, error_code=UNAUTHORIZED)
     users = get_users_by_role(role=role, db=db)
     users = [UserReadSchema.model_validate(user) for user in users]
     return users
@@ -133,14 +134,14 @@ def change_admin_user_password(background_tasks: BackgroundTasks,user_id: str, p
     
     if current_user_role == RoleEnum.super_admin or user.id == current_user.id:
         if not verify_password_hash(payload.old_password, user.password_hash):  # Verify old password
-            raise CabboException("Old password is incorrect", status_code=400)
+            raise CabboException("Old password is incorrect", status_code=400, error_code=GENERIC_EXCEPTION)
         _ = change_user_password(user=user, new_password=payload.password, db=db)
         # Delete the bearer token to force re-authentication
         # after password change
         background_tasks.add_task(auto_logoff_user_after_password_change, user, db)
         return {"message": f"Password changed for admin user {user_id}"}
     
-    raise CabboException("You do not have permission to change this user's password.", status_code=403)
+    raise CabboException("You do not have permission to change this user's password.", status_code=403, error_code=UNAUTHORIZED)
 
 # Reset password for admin user
 @router.patch("/{user_id}/reset-password")
@@ -156,7 +157,7 @@ def reset_admin_user_password(background_tasks: BackgroundTasks,user_id: str, pa
         background_tasks.add_task(auto_logoff_user_after_password_change, user, db)
         return {"message": f"Password reset for admin user {user_id}"}
     
-    raise CabboException("You do not have permission to reset this user's password.", status_code=403)
+    raise CabboException("You do not have permission to reset this user's password.", status_code=403, error_code=UNAUTHORIZED)
 
 # Logout admin user
 @router.post("/logout")
@@ -167,7 +168,7 @@ def logout_admin_user(db: Session = Depends(yield_mysql_session),
         # If the bearer token is deleted successfully, we can assume the logout was successful
         return {"message": "Logged out successfully"}
 
-    raise CabboException("Logout failed", status_code=500)
+    raise CabboException("Logout failed", status_code=500, error_code=LOGOUT_FAILED)
 
 
 

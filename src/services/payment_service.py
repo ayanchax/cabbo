@@ -1,4 +1,4 @@
-from core.exceptions import CabboException
+from core.exceptions import UNSUPPORTED_PAYMENT_PROVIDER, CabboException
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import PaymentNotesSchema
 from models.policies.refund_enum import PaymentProvider
@@ -36,6 +36,7 @@ def get_booking_payment_order(
     raise CabboException(
         "Payment processing is not supported for the configured payment provider",
         status_code=400,
+        error_code=UNSUPPORTED_PAYMENT_PROVIDER
     )
 
 
@@ -48,6 +49,7 @@ def verify_payment(payment_details: dict, silently_fail: bool = False):
     raise CabboException(
         "Payment verification is not supported for the configured payment provider",
         status_code=400,
+        error_code=UNSUPPORTED_PAYMENT_PROVIDER
     )
 
 
@@ -63,7 +65,7 @@ def initiate_refund(
     if silently_fail:
         return None
     raise CabboException(
-        "Refunds are not supported for the configured payment provider", status_code=400
+        "Refunds are not supported for the configured payment provider", status_code=400, error_code=UNSUPPORTED_PAYMENT_PROVIDER
     )
 
 
@@ -76,6 +78,7 @@ def get_refund_status(refund_id: str, silently_fail: bool = False):
     raise CabboException(
         "Refund status retrieval is not supported for the configured payment provider",
         status_code=400,
+        error_code=UNSUPPORTED_PAYMENT_PROVIDER
     )
 
 
@@ -88,6 +91,7 @@ def is_payment_settled(payment_id: str, silently_fail: bool = False):
     raise CabboException(
         "Payment settlement status retrieval is not supported for the configured payment provider",
         status_code=400,
+        error_code=UNSUPPORTED_PAYMENT_PROVIDER
     )
 
 
@@ -107,6 +111,7 @@ def get_initial_refund_response(
     raise CabboException(
         "Refund initialization is not supported for the configured payment provider",
         status_code=400,
+        error_code=UNSUPPORTED_PAYMENT_PROVIDER
     )
 
 

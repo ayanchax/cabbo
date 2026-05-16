@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.exceptions import CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
@@ -33,11 +33,11 @@ async def add_state(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to add states.", status_code=403
+            "You do not have permission to add states.", status_code=403, error_code=UNAUTHORIZED
         )
     result = await async_add_state(payload=state, db=db, created_by=current_user_role)
     if not result:
-        raise CabboException(status_code=500, message="Failed to add new state")
+        raise CabboException(status_code=500, message="Failed to add new state", error_code=GENERIC_EXCEPTION)
     return result
 
 
@@ -57,7 +57,7 @@ def list_states(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view states.", status_code=403
+            "You do not have permission to view states.", status_code=403, error_code=UNAUTHORIZED
         )
     # Implementation to fetch and return list of states goes here
     return async_get_all_states(db=db)
@@ -74,11 +74,11 @@ async def get_state(state_id: str, db: AsyncSession = Depends(a_yield_mysql_sess
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view states.", status_code=403
+            "You do not have permission to view states.", status_code=403, error_code=UNAUTHORIZED
         )
     state = await async_get_state_by_id(state_id=state_id, db=db)
     if not state:
-        raise CabboException(status_code=404, message="State not found")
+        raise CabboException(status_code=404, message="State not found", error_code=GENERIC_EXCEPTION)
     return state
 
 @router.put(
@@ -95,12 +95,12 @@ async def update_state(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to update states.", status_code=403
+            "You do not have permission to update states.", status_code=403, error_code=UNAUTHORIZED
         )
     payload.id = state_id  # Ensure the payload includes the state ID for update
     result, error = await async_update_state(payload=payload, db=db)
     if error:
-        raise CabboException(status_code=500, message=error or "Failed to update state")
+        raise CabboException(status_code=500, message=error or "Failed to update state", error_code=GENERIC_EXCEPTION)
     return result
 
 #Activate a state
@@ -109,10 +109,10 @@ async def activate_state(state_id: str, db: AsyncSession = Depends(a_yield_mysql
     """Activate a state in the system configuration.""" 
     current_user_role = current_user.role 
     if current_user_role not in [RoleEnum.super_admin]: 
-        raise CabboException( "You do not have permission to activate states.", status_code=403 ) 
+        raise CabboException( "You do not have permission to activate states.", status_code=403, error_code=UNAUTHORIZED ) 
     result, error = await async_activate_state(state_id=state_id, db=db)
     if error: 
-        raise CabboException(status_code=500, message=error or "Failed to activate state") 
+        raise CabboException(status_code=500, message=error or "Failed to activate state", error_code=GENERIC_EXCEPTION) 
     return {"detail": f"State {state_id} activated successfully."}
 
 @router.delete("/{state_id}")
@@ -125,10 +125,10 @@ def delete_state(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete states.", status_code=403
+            "You do not have permission to delete states.", status_code=403, error_code=UNAUTHORIZED
         )
     # Implementation to delete state goes here
     is_deleted, error = async_delete_state(state_id=state_id, db=db)
     if not is_deleted:
-        raise CabboException(f"Failed to delete state: {error}", status_code=500)
+        raise CabboException(f"Failed to delete state: {error}", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"detail": f"State {state_id} deleted successfully."}

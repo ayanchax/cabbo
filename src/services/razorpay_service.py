@@ -11,7 +11,7 @@ import logging
 
 import razorpay.errors
 from core.constants import APP_NAME, APP_VERSION
-from core.exceptions import CabboException
+from core.exceptions import RAZORPAY_PAYMENT_ORDER_CREATION_FAILED, CabboException
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerPayment
 from models.financial.payments_schema import (
@@ -116,7 +116,7 @@ def _create_razorpay_order(
         client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
         order = client.order.create(data=order_data)
         if not order or "id" not in order:
-            raise CabboException("Failed to create Razorpay order.", status_code=500)
+            raise CabboException("Failed to create Razorpay order.", status_code=500, error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED)
         _formatted_order = _format_razorpay_order(
             order, razorpay_order.currency_conversion_factor
         )
@@ -127,13 +127,14 @@ def _create_razorpay_order(
     except razorpay.errors.BadRequestError as e:
         log.error(f"Razorpay order creation failed: {str(e)}")
         raise CabboException(
-            f"Razorpay order creation failed: {str(e)}", status_code=500
+            f"Razorpay order creation failed: {str(e)}", status_code=500, error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED
         )
     except Exception as e:
         log.error(f"Unexpected error during Razorpay order creation: {str(e)}")
         raise CabboException(
             f"Unexpected error during Razorpay order creation: {str(e)}",
             status_code=500,
+            error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED
         )
 
 

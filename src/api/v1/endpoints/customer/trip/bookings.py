@@ -1,7 +1,11 @@
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends
-from core.exceptions import CabboException
+from core.exceptions import (
+    CabboException,
+    TRIP_NOT_FOUND,
+    GENERIC_EXCEPTION,
+)
 from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
@@ -38,7 +42,7 @@ async def view_trip_details_by_booking_id_and_customer_id(
     )
 
     if trip is None:
-        raise CabboException("Trip booking not found", status_code=404)
+        raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
     serialized_trip = serialize_trip(trip)
     if "id" in serialized_trip:
         serialized_trip.pop(
@@ -64,11 +68,11 @@ async def get_price_breakdown_by_booking_id(
     )
 
     if trip is None:
-        raise CabboException("Trip booking not found", status_code=404)
+        raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
 
     price_breakdown = trip.price_breakdown
     if price_breakdown is None:
-        raise CabboException("Price breakdown not found for the trip", status_code=404)
+        raise CabboException("Price breakdown not found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
 
     return price_breakdown
 
@@ -91,14 +95,14 @@ async def update_trip_details_by_booking_id_and_customer_id(
     )
 
     if trip is None:
-        raise CabboException("Trip booking not found", status_code=404)
+        raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
 
     # Update the trip details based on the fields provided in the request
     updated = await update_non_cost_impacting_trip_fields(
         trip=trip, payload=payload, db=db, validate_status=True
     )
     if not updated:
-        raise CabboException("Failed to update trip details", status_code=500)
+        raise CabboException("Failed to update trip details", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "Trip details updated successfully"}
 
 
@@ -114,7 +118,7 @@ async def list_trips_by_customer_id(
         customer_id=customer.id, db=db, expose_customer_details=True
     )
     if not trips:
-        raise CabboException("No trips found for the customer", status_code=404)
+        raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
     serialized_trips = serialize_trips(trips, expose_customer_details=True)
 
@@ -139,7 +143,7 @@ async def list_trips_by_customer_id_and_status(
         customer.id, db, expose_customer_details=True
     )
     if not trips:
-        raise CabboException("No trips found for the customer", status_code=404)
+        raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
     serialized_trips = serialize_trips(trips, expose_customer_details=True)
 
@@ -153,7 +157,7 @@ async def list_trips_by_customer_id_and_status(
 
     if not filtered_trips:
         raise CabboException(
-            f"No trips found for status: {status.value}", status_code=404
+            f"No trips found for status: {status.value}", status_code=404, error_code=TRIP_NOT_FOUND
         )
 
     return group_by_trip_status(trips=filtered_trips, validate_by_tz=True)
@@ -172,7 +176,7 @@ async def list_trips_by_customer_id_and_trip_type(
         customer.id, db, expose_customer_details=True
     )
     if not trips:
-        raise CabboException("No trips found for the customer", status_code=404)
+        raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
     serialized_trips = serialize_trips(trips, expose_customer_details=True)
     # Remove id from each trip in the serialized_trips for security reasons
@@ -187,7 +191,7 @@ async def list_trips_by_customer_id_and_trip_type(
 
     if not filtered_trips:
         raise CabboException(
-            f"No trips found for trip type: {trip_type.value}", status_code=404
+            f"No trips found for trip type: {trip_type.value}", status_code=404, error_code=TRIP_NOT_FOUND
         )
     return group_by_trip_status(trips=filtered_trips, validate_by_tz=True)
 
@@ -201,9 +205,10 @@ async def cancel_trip_by_booking_id_and_customer_id(
     current_customer: Customer = Depends(validate_customer_token),
 ):
      
-     trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_customer.id, db)
-     trip_schema, background_task = await update_trip_status(
+    trip = await async_get_trip_by_booking_id_customer_id(
+        booking_id, current_customer.id, db
+    )
+    trip_schema, background_task = await update_trip_status(
         trip_id=trip.id,
         new_status=TripStatusEnum.cancelled,
         payload=payload,
@@ -211,16 +216,16 @@ async def cancel_trip_by_booking_id_and_customer_id(
         requestor=current_customer,
         validate_time_window=True,
     )  # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
-     if not trip_schema:
-        raise CabboException("Failed to cancel trip", status_code=500)
-     if background_task:
+    if not trip_schema:
+        raise CabboException("Failed to cancel trip", status_code=500, error_code=GENERIC_EXCEPTION)
+    if background_task:
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
             task_name=f"BackgroundTaskForTrip{trip.id}StatusUpdateTo{TripStatusEnum.cancelled.value}",
             **background_task.kwargs,
         )
-     return {"message": f"Trip status updated to {TripStatusEnum.cancelled.value} successfully."}
+    return {"message": f"Trip status updated to {TripStatusEnum.cancelled.value} successfully."}
 
     
 
@@ -236,19 +241,16 @@ async def get_dispute_details_by_booking_id_and_customer_id(
     trip = await async_get_trip_by_booking_id_customer_id(
         booking_id, current_user.id, db, expose_dispute_details=True
     )
-
     if trip is None:
-        raise CabboException("Trip booking not found", status_code=404)
+        raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
     if trip.dispute is None:
-        raise CabboException("No active dispute found for the trip", status_code=404)
+        raise CabboException("No active dispute found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
     if trip.dispute.is_active == False:
-        raise CabboException("No active dispute found for the trip", status_code=404)
-
+        raise CabboException("No active dispute found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
     serialized_trip = serialize_trip(trip, expose_dispute_details=True)
     dispute_details = serialized_trip.get("dispute", None)
-
     if dispute_details is None:
-        raise CabboException("Dispute details not found for the trip", status_code=404)
+        raise CabboException("Dispute details not found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
     return dispute_details
 
 
@@ -265,20 +267,16 @@ async def add_comment_to_dispute_thread_by_booking_id_and_customer_id(
     trip = await async_get_trip_by_booking_id_customer_id(
         booking_id, current_user.id, db, expose_dispute_details=True
     )
-
     if trip is None:
-        raise CabboException("Trip booking not found", status_code=404)
-
+        raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
     if trip.dispute is None:
-        raise CabboException("No active dispute found for the trip", status_code=404)
-
+        raise CabboException("No active dispute found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
     if trip.dispute.is_active == False:
-        raise CabboException("No active dispute found for the trip", status_code=404)
-
+        raise CabboException("No active dispute found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
     # Update the dispute details by adding the new comment to the comments thread in the dispute record
     added_comment = await add_comment_to_dispute_by_trip_id(
         trip_id=trip.id, comment=payload, db=db, requestor=current_user.id
     )
     if not added_comment:
-        raise CabboException("Failed to add comment to dispute thread", status_code=500)
+        raise CabboException("Failed to add comment to dispute thread", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "Comment added to dispute thread successfully"}

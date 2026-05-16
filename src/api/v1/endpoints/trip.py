@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from core.config import settings
 from db.database import yield_mysql_session
+from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripClassificationRequest
 from services.trip_type_service import classify_trip_type
 from services.validation_service import validate_initial_serviceable_area
@@ -22,6 +23,8 @@ def classify(
         config_store=config_store,
     )
     payload.trip_type = result.trip_type
+    # Only swap pickup and dropoff if the trip is classified as non-local and one of the locations is empty while the other is not. For local trips, we allow one location to be empty without swapping, as local trips can be classified based on a single location.
+    payload.swap_empty_with_non_empty = False if payload.trip_type == TripTypeEnum.local and not payload.dropoff else True # Only swap for non-local trips, as local trips can have one location and still be classified as local. For non-local trips, if one location is empty and the other is not, we can swap them to increase chances of successful classification.
 
     if payload.validate_serviceable_area:
         payload = validate_initial_serviceable_area(
