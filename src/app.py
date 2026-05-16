@@ -164,9 +164,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def cabbo_exception_handler(request: Request, exc: CabboException):
     logger.error(f"CabboException: {exc}", exc_info=True)
     diagnostics = get_diagnostics(request)
+    kwargs = exc.extra if hasattr(exc, "extra") else {}
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.message, "error": str(exc), **diagnostics, "error_code": exc.error_code or "UNKNOWN_ERROR"},
+        content={"detail": exc.message, "error": str(exc), **diagnostics, "error_code": exc.error_code or "UNKNOWN_ERROR", **kwargs},
     )
 
 @app.exception_handler(SQLAlchemyError)

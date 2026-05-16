@@ -146,12 +146,14 @@ class CabboException(Exception):
         error_code: Optional[str] = None,
         status_code: int = 400,
         include_traceback: bool = False,
+        **kwargs,
     ):
         super().__init__(message)
         self.message = message
         self.error_code = error_code
         self.status_code = status_code
         self.traceback = None
+        self.extra = kwargs
         if include_traceback:
             self.traceback = traceback.format_exc()
 

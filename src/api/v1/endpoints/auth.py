@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
-from core.security import JWT_EXPIRES_IN, validate_customer_token
+from core.security import JWT_EXPIRES_IN
 from db.database import yield_mysql_session
-from models.customer.customer_orm import Customer
-from services.customer_service import create_customer, delete_bearer_token
+from services.customer_service import create_customer
 from services.notification_service import notify_customer_onboarded
 from services.customer_email_verification_service import send_email_verification
 from services.orchestration_service import BackgroundTaskOrchestrator
@@ -33,7 +32,7 @@ from services.customer_service import (
 from services.message_service import (
     send_otp,
 )
-from core.exceptions import GENERIC_EXCEPTION, CabboException, PHONE_ALREADY_REGISTERED, PHONE_NOT_REGISTERED, ALREADY_LOGGED_IN, OTP_SEND_FAILED, INVALID_OTP, LOGOUT_FAILED, OTP_RESEND_FAILED
+from core.exceptions import GENERIC_EXCEPTION, CabboException, PHONE_ALREADY_REGISTERED, PHONE_NOT_REGISTERED, ALREADY_LOGGED_IN, OTP_SEND_FAILED, INVALID_OTP, OTP_RESEND_FAILED
 from core.constants import APP_NAME
 from services.validation_service import (
     validate_customer_login_payload,
@@ -199,16 +198,6 @@ def login(
     )
 
 
-@router.post("/customer/logout")
-def logout_customer(
-    db: Session = Depends(yield_mysql_session),
-    current_customer: Customer = Depends(validate_customer_token),
-):
-    if delete_bearer_token(customer=current_customer, db=db):
-        # If the bearer token is deleted successfully, we can assume the logout was successful
-        return {"message": "Logged out successfully"}
-
-    raise CabboException("Logout failed", status_code=500, error_code=LOGOUT_FAILED)
 
 
 @router.post("/resend-otp")
