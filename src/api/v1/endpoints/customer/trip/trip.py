@@ -22,6 +22,7 @@ from utils.utility import remove_none_recursive
 from .reviews import router as trip_reviews
 from .refunds import router as trip_refunds
 from .bookings import router as trip_bookings
+from .classifier import router as trip_type_classifier
 
 router = APIRouter()
 
@@ -112,4 +113,9 @@ router.include_router(
 # Trip retrieval endpoints for customers to view their trip details and list their trips. These endpoints will validate the JWT token to ensure that only authenticated customers can access their trip information securely. The view trip details endpoint will allow customers to view the details of a specific trip by providing the booking ID, while the list trips endpoint will enable customers to view a list of all their trips, enhancing the overall user experience and allowing customers to manage their trips effectively.
 router.include_router(
     trip_bookings, prefix="/bookings", tags=["customer-trip-retrieval-management"]
+)
+
+#Trip type classification endpoint for customers to classify their trips as local or outstation or airport transfer based on the pickup and dropoff locations. This endpoint will validate the JWT token to ensure that only authenticated customers can access this functionality securely. The classification endpoint will allow customers to input their pickup and dropoff locations, and the system will classify the trip type based on predefined criteria, providing customers with insights into their trip classifications and enabling better trip management and planning.
+router.include_router(
+    trip_type_classifier, prefix="/trip-type-classification", tags=["customer-trip-type-classification"]
 )

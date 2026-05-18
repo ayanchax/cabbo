@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from core.config import settings
+from core.security import validate_customer_token
 from db.database import yield_mysql_session
+from models.customer.customer_orm import Customer
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripClassificationRequest
 from services.trip_type_service import classify_trip_type
@@ -15,6 +17,8 @@ router = APIRouter()
 def classify(
     payload: TripClassificationRequest,
     db: Session = Depends(yield_mysql_session),
+    _: Customer = Depends(validate_customer_token),
+
 ):
     config_store = settings.get_config_store(db)
     result = classify_trip_type(
