@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends
 from core.security import validate_customer_token
+from core.trip_helpers import get_prior_booking_window_hours
 from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
-from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import (
     TripBookRequest,
     TripOut,
@@ -10,7 +11,6 @@ from models.trip.trip_schema import (
 )
 
 from sqlalchemy.orm import Session
-
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import (
     confirm_trip_booking,
@@ -23,6 +23,7 @@ from .reviews import router as trip_reviews
 from .refunds import router as trip_refunds
 from .bookings import router as trip_bookings
 from .classifier import router as trip_type_classifier
+from .package import router as trip_packages
 
 router = APIRouter()
 
@@ -81,7 +82,9 @@ def confirm_booking(
     }
 
 
-@router.delete("/cleanup/{booking_id}", response_model=dict, tags=["customer-trip-booking"])
+@router.delete(
+    "/cleanup/{booking_id}", response_model=dict, tags=["customer-trip-booking"]
+)
 def cleanup_temp_trip_booking(
     booking_id: str,
     db: Session = Depends(yield_mysql_session),
@@ -99,6 +102,24 @@ def cleanup_temp_trip_booking(
     return {"message": "Failed to clean up trip data."}
 
 
+@router.get(
+    "/prior-booking-window/{trip_type}/{jurisdiction_code}",
+    response_model=int,
+    tags=["customer-trip-booking"],
+)
+def get_prior_booking_window(
+    trip_type: TripTypeEnum,
+    jurisdiction_code: str,
+    _: Customer = Depends(validate_customer_token),
+):
+    """
+    Get the prior booking window hours for a given trip type and jurisdiction code (region or state).
+    This endpoint will help customers understand how far in advance they need to book their trips based on the trip type and location.
+    """
+    return get_prior_booking_window_hours(
+        trip_type=trip_type, jurisdiction_code=jurisdiction_code
+    )
+
 
 # Trip review endpoints for customers to provide ratings and feedback for their trips and view their reviews. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trip reviews securely. The review endpoint will allow customers to submit their ratings and feedback for their completed trips, while the view reviews endpoint will enable customers to view their submitted reviews, enhancing the overall user experience and enabling better service quality through customer feedback.
 router.include_router(
@@ -115,7 +136,14 @@ router.include_router(
     trip_bookings, prefix="/bookings", tags=["customer-trip-retrieval-management"]
 )
 
-#Trip type classification endpoint for customers to classify their trips as local or outstation or airport transfer based on the pickup and dropoff locations. This endpoint will validate the JWT token to ensure that only authenticated customers can access this functionality securely. The classification endpoint will allow customers to input their pickup and dropoff locations, and the system will classify the trip type based on predefined criteria, providing customers with insights into their trip classifications and enabling better trip management and planning.
+# Trip type classification endpoint for customers to classify their trips as local or outstation or airport transfer based on the pickup and dropoff locations. This endpoint will validate the JWT token to ensure that only authenticated customers can access this functionality securely. The classification endpoint will allow customers to input their pickup and dropoff locations, and the system will classify the trip type based on predefined criteria, providing customers with insights into their trip classifications and enabling better trip management and planning.
 router.include_router(
-    trip_type_classifier, prefix="/trip-type-classification", tags=["customer-trip-type-classification"]
+    trip_type_classifier,
+    prefix="/trip-type-classification",
+    tags=["customer-trip-type-classification"],
+)
+
+# Trip package retrieval endpoints for customers to view available trip packages based on their trip type and region. These endpoints will validate the JWT token to ensure that only authenticated customers can access this information securely. The trip package retrieval endpoint will allow customers to input their trip type and region code, and the system will return a list of available trip packages that match their criteria, enhancing the overall user experience and enabling customers to make informed decisions about their trip options.
+router.include_router(
+    trip_packages, prefix="/trip-packages", tags=["customer-trip-package-retrieval"]
 )

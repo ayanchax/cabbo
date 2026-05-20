@@ -1,7 +1,8 @@
 import json
-from typing import List, Union
+from typing import List, Optional, Union
 from core.exceptions import INVALID_TRIP_TYPE, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.security import RoleEnum, generate_hash
+from db.database import get_mysql_local_session
 from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
@@ -13,7 +14,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.passenger_service import get_passenger_id_from_preferences
-
+import logging
+log = logging.getLogger(__name__)
 
 def get_trip_type_id_by_trip_type(
     trip_type: TripTypeEnum, db: Session, include_id_only=True
@@ -54,6 +56,7 @@ def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
         ]
         return trip_type_schemas
     except Exception as e:
+        log.error(f"Error fetching trip types: {e}")
         return []
 
 
@@ -275,3 +278,33 @@ def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
         exclude_none=True
     )  # Update the order with the notes containing trip details
 
+
+def get_prior_booking_window_hours(
+    trip_type: TripTypeEnum, jurisdiction_code: Optional[str]
+) -> Optional[int]:
+    try:
+        from core.config import settings
+        config_store = settings.get_config_store(get_mysql_local_session())
+        if trip_type == TripTypeEnum.airport_pickup:
+            if jurisdiction_code and config_store.airport_pickup.get(jurisdiction_code):
+                return config_store.airport_pickup.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.airport_drop:
+            if jurisdiction_code and config_store.airport_drop.get(jurisdiction_code):
+                return config_store.airport_drop.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.outstation:
+            if jurisdiction_code and config_store.outstation.get(jurisdiction_code):
+                return config_store.outstation.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.local:
+            if jurisdiction_code and config_store.local.get(jurisdiction_code):
+                return config_store.local.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+    except Exception as e:
+        log.error(f"Error fetching prior booking window hours from config: {e}")
+    return None

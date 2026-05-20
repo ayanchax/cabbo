@@ -55,6 +55,7 @@ from core.config import settings
 # from models.geography.service_area_orm import ServiceableGeographyOrm
 from core.store import ConfigStore
 from core.trip_constants import DEFAULT_PRIOR_BOOKING_WINDOW_HOURS, OUTSTATION_DEFAULTS
+from core.trip_helpers import get_prior_booking_window_hours
 from db.database import get_mysql_local_session
 from models.airport.airport_schema import AirportSchema
 from models.customer.customer_schema import (
@@ -1345,8 +1346,8 @@ def validate_local_trip_schedule(search_in: TripSearchRequest):
 
     region_code = getattr(search_in.origin, "region_code", None)
     prior_booking_window_hours = (
-        _get_prior_booking_window_hours(
-            trip_type=search_in.trip_type, region_code=region_code
+        get_prior_booking_window_hours(
+            trip_type=search_in.trip_type, jurisdiction_code=region_code
         )
     ) or DEFAULT_PRIOR_BOOKING_WINDOW_HOURS[
         TripTypeEnum.local
@@ -1401,8 +1402,8 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
 
     state_code = getattr(search_in.origin, "state_code", None)
     prior_booking_window_hours = (
-        _get_prior_booking_window_hours(
-            trip_type=search_in.trip_type, state_code=state_code
+        get_prior_booking_window_hours(
+            trip_type=search_in.trip_type, jurisdiction_code=state_code
         )
     ) or DEFAULT_PRIOR_BOOKING_WINDOW_HOURS[
         TripTypeEnum.outstation
@@ -1478,8 +1479,8 @@ def validate_airport_schedule(search_in: TripSearchRequest):
         else getattr(search_in.destination, "region_code", None)
     )
     prior_booking_window_hours = (
-        _get_prior_booking_window_hours(
-            trip_type=search_in.trip_type, region_code=region_code
+        get_prior_booking_window_hours(
+            trip_type=search_in.trip_type, jurisdiction_code=region_code
         )
     ) or DEFAULT_PRIOR_BOOKING_WINDOW_HOURS[
         TripTypeEnum.airport_general
@@ -1801,31 +1802,3 @@ def _get_total_trip_days(start_date: datetime, end_date: datetime) -> int:
     return total_days
 
 
-def _get_prior_booking_window_hours(
-    trip_type: TripTypeEnum, region_code: Optional[str], state_code: Optional[str]
-) -> Optional[int]:
-    try:
-        config_store = settings.get_config_store(get_mysql_local_session())
-        if trip_type == TripTypeEnum.airport_pickup:
-            if region_code and config_store.airport_pickup.get(region_code):
-                return config_store.airport_pickup.get(
-                    region_code
-                ).auxiliary_pricing.common.prior_booking_window_hours
-        elif trip_type == TripTypeEnum.airport_drop:
-            if region_code and config_store.airport_drop.get(region_code):
-                return config_store.airport_drop.get(
-                    region_code
-                ).auxiliary_pricing.common.prior_booking_window_hours
-        elif trip_type == TripTypeEnum.outstation:
-            if state_code and config_store.outstation.get(state_code):
-                return config_store.outstation.get(
-                    state_code
-                ).auxiliary_pricing.common.prior_booking_window_hours
-        elif trip_type == TripTypeEnum.local:
-            if region_code and config_store.local.get(region_code):
-                return config_store.local.get(
-                    region_code
-                ).auxiliary_pricing.common.prior_booking_window_hours
-    except Exception as e:
-        log.error(f"Error fetching prior booking window hours from config: {e}")
-    return None
