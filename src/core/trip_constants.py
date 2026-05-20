@@ -1,5 +1,5 @@
 from core.constants import APP_NAME
-from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 
 
 TRIP_MESSAGES = {
@@ -84,3 +84,19 @@ COMMON_EXCLUSIONS = [
     "Tolls(if applicable)",
     "Paid parking(if applicable)",
 ]
+
+DEFAULT_PRIOR_BOOKING_WINDOW_HOURS={
+    TripTypeEnum.local:6,
+    TripTypeEnum.airport_general:3,
+    TripTypeEnum.outstation:48
+}
+
+OUTSTATION_DEFAULTS={
+    "max_hops":3,
+    "min_hops":15,
+    "min_days_allowed":2,
+    "max_days_allowed":7,
+}
+
+
+

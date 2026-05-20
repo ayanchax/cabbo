@@ -1,8 +1,8 @@
 # Add trip type
 
 from typing import Optional
-
-from core.exceptions import GENERIC_EXCEPTION, SAME_PICKUP_DROPOFF_LOCATION, CabboException
+from sqlalchemy.orm import Session
+from core.exceptions import GENERIC_EXCEPTION, SAME_PICKUP_DROPOFF_LOCATION, TRIP_PACKAGE_FETCH_FAILED, CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from models.map.location_schema import LocationInfo, MobilityHub
@@ -189,3 +189,25 @@ def classify_trip_type(
     has_distance_overage = bool(max_included_km and outbound_distance > max_included_km)
     distance_diff_km = outbound_distance - max_included_km if has_distance_overage else None
     return TripClassificationResult(TripTypeEnum.local, outbound_distance, has_distance_overage, distance_diff_km)
+
+def get_packages_by_region_code(trip_type: TripTypeEnum, region_code: str, db: Session):
+    try:
+        if trip_type == TripTypeEnum.local:
+            # For local trips, we can have region-specific packages based on the region code, which can be a city or district code. This allows us to offer tailored packages for different localities, taking into account factors like traffic patterns, demand, and customer preferences in those areas.
+            config_store = settings.get_config_store(db)
+            trip_packages = config_store.local.get(
+                region_code
+            ).auxiliary_pricing.trip_packages
+            return trip_packages if trip_packages else []
+        else:
+            raise CabboException(
+                f"Trip packages are only available for local trips. Trip type {trip_type} is not supported for trip packages.",
+                status_code=400,
+                error_code=TRIP_PACKAGE_FETCH_FAILED,
+            )
+    except Exception as e:
+        raise CabboException(
+            f"Error fetching trip packages for region code {region_code}",
+            status_code=500,
+            error_code=TRIP_PACKAGE_FETCH_FAILED,
+        )

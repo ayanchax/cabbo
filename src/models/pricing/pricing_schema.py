@@ -165,6 +165,7 @@ class CommonPricingConfigurationSchema(BaseModel):
     )
     toll: Optional[float] = None  # For airport pickup and drop, if applicable
     parking: Optional[float] = None  # For airport pickup
+    prior_booking_window_hours: Optional[float] = None  # The prior booking window in hours for this trip type in this region or state. This helps ensure that customers book their trips in advance to help us manage our fleet and operations better, especially for outstation trips which require more planning and resources.
     state_id: Optional[str] = None  # FK to State.id
     region_id: Optional[str] = None  # FK to GeoRegion.id
     created_by: Optional[str] = None

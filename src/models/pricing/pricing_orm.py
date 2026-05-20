@@ -245,7 +245,7 @@ class CommonPricingConfiguration(Base):
     )  # For airport pickup/drop and outstation
     toll = Column(Float, nullable=True)  # For airport pickup and drop
     parking = Column(Float, nullable=True)  # For airport pickup
-
+    prior_booking_window_hours = Column(Float, nullable=True, comment="The prior booking window in hours for this trip type in this region or state. This helps ensure that customers book their trips in advance to help us manage our fleet and operations better, especially for outstation trips which require more planning and resources.")
     region_id = Column(MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True)
     state_id = Column(MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)

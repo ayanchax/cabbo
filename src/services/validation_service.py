@@ -5,11 +5,56 @@ import re
 from typing import List, Optional, Union
 
 from fastapi import Body
-from core.exceptions import AIRPORT_PICKUP_DESTINATION_REQUIRED, ALREADY_BOOKED_ON_THIS_SLOT, DESTINATION_LOCATION_NOT_VALID_AIRPORT, DESTINATION_REGION_NOT_SERVICEABLE, DESTINATION_STATE_NOT_SERVICEABLE, DISTANCE_ABOVE_MAXIMUM_THRESHOLD, DISTANCE_BELOW_MINIMUM_THRESHOLD, DISTANCE_NOT_DETERMINED, DISTANCE_ZERO_OR_NEGATIVE, GENERIC_EXCEPTION, LOCAL_TRIP_ORIGIN_REQUIRED, NO_AIRPORTS_CONFIGURED, NO_AIRPORTS_IN_DESTINATION_REGION, NO_AIRPORTS_IN_ORIGIN_REGION, ORIGIN_DESTINATION_REGION_MISMATCH, ORIGIN_LOCATION_NOT_VALID_AIRPORT, ORIGIN_REGION_NOT_CONFIGURED, ORIGIN_REGION_NOT_DETERMINED, ORIGIN_REGION_NOT_SERVICEABLE, ORIGIN_STATE_NOT_SERVICEABLE, OUTSTATION_CONSECUTIVE_HOPS_ZERO_DISTANCE, OUTSTATION_HOP_NOT_SERVICEABLE, OUTSTATION_HOPS_EXCEEDS_MAX_LIMIT, OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD, OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED, OUTSTATION_TRIP_DESTINATION_REQUIRED, OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED, OUTSTATION_TRIP_ORIGIN_REQUIRED, SIMILAR_BOOKING_EXISTS, TRIP_TYPE_NOT_CONFIGURED, TRIP_TYPE_NOT_SUPPORTED, CabboException
+from core.exceptions import (
+    AIRPORT_PICKUP_DESTINATION_REQUIRED,
+    AIRPORT_TRIP_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
+    AIRPORT_TRIP_START_DATE_IN_PAST,
+    ALREADY_BOOKED_ON_THIS_SLOT,
+    DESTINATION_LOCATION_NOT_VALID_AIRPORT,
+    DESTINATION_REGION_NOT_SERVICEABLE,
+    DESTINATION_STATE_NOT_SERVICEABLE,
+    DISTANCE_ABOVE_MAXIMUM_THRESHOLD,
+    DISTANCE_BELOW_MINIMUM_THRESHOLD,
+    DISTANCE_NOT_DETERMINED,
+    DISTANCE_ZERO_OR_NEGATIVE,
+    GENERIC_EXCEPTION,
+    LOCAL_TRIP_ORIGIN_REQUIRED,
+    LOCAL_TRIP_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
+    LOCAL_TRIP_START_DATE_IN_PAST,
+    NO_AIRPORTS_CONFIGURED,
+    NO_AIRPORTS_IN_DESTINATION_REGION,
+    NO_AIRPORTS_IN_ORIGIN_REGION,
+    ORIGIN_DESTINATION_REGION_MISMATCH,
+    ORIGIN_LOCATION_NOT_VALID_AIRPORT,
+    ORIGIN_REGION_NOT_CONFIGURED,
+    ORIGIN_REGION_NOT_DETERMINED,
+    ORIGIN_REGION_NOT_SERVICEABLE,
+    ORIGIN_STATE_NOT_SERVICEABLE,
+    OUTSTATION_CONSECUTIVE_HOPS_ZERO_DISTANCE,
+    OUTSTATION_DATES_IN_PAST,
+    OUTSTATION_HOP_NOT_SERVICEABLE,
+    OUTSTATION_HOPS_EXCEEDS_MAX_LIMIT,
+    OUTSTATION_START_DATE_AFTER_END_DATE,
+    OUTSTATION_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
+    OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD,
+    OUTSTATION_TOTAL_DAYS_BELOW_MINIMUM_THRESHOLD,
+    OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED,
+    OUTSTATION_TRIP_DESTINATION_REQUIRED,
+    OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED,
+    OUTSTATION_TRIP_ORIGIN_REQUIRED,
+    OUTSTATION_TRIP_SCHEDULE_REQUIRED,
+    SIMILAR_BOOKING_EXISTS,
+    TRIP_TYPE_NOT_CONFIGURED,
+    TRIP_TYPE_NOT_SUPPORTED,
+    AIRPORT_TRIP_START_DATE_REQUIRED,
+    LOCAL_TRIP_START_DATE_REQUIRED,
+    CabboException,
+)
 from core.config import settings
 
 # from models.geography.service_area_orm import ServiceableGeographyOrm
 from core.store import ConfigStore
+from core.trip_constants import DEFAULT_PRIOR_BOOKING_WINDOW_HOURS, OUTSTATION_DEFAULTS
 from db.database import get_mysql_local_session
 from models.airport.airport_schema import AirportSchema
 from models.customer.customer_schema import (
@@ -27,9 +72,18 @@ from models.map.location_schema import LocationInfo
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip, TripTypeMaster
-from models.trip.trip_schema import TripBookRequest, TripClassificationRequest, TripDetails, TripSearchRequest
+from models.trip.trip_schema import (
+    TripBookRequest,
+    TripClassificationRequest,
+    TripDetails,
+    TripSearchRequest,
+)
 from models.user.user_schema import UserCreateSchema, UserUpdateSchema
-from services.airport_service import get_airport_by_region_code, get_airports_in_region, match_location_to_airport
+from services.airport_service import (
+    get_airport_by_region_code,
+    get_airports_in_region,
+    match_location_to_airport,
+)
 from services.configuration_service import (
     get_region_from_location,
     get_state_from_location_v2,
@@ -43,7 +97,9 @@ from utils.utility import (
 )
 from sqlalchemy.orm import Session
 import logging
+
 log = logging.getLogger(__name__)
+
 
 def _validate_duplicate_local_bookings(
     booking_request: TripBookRequest,
@@ -70,7 +126,9 @@ def _validate_duplicate_local_bookings(
     )
     if existing_bookings:
         raise CabboException(
-            "You already have a booking for this time slot", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT
+            "You already have a booking for this time slot",
+            status_code=400,
+            error_code=ALREADY_BOOKED_ON_THIS_SLOT,
         )
 
 
@@ -95,7 +153,9 @@ def _validate_duplicate_outstation_bookings(
     )
     if existing_bookings:
         raise CabboException(
-            "You already have a booking for this time slot", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT
+            "You already have a booking for this time slot",
+            status_code=400,
+            error_code=ALREADY_BOOKED_ON_THIS_SLOT,
         )
 
 
@@ -124,7 +184,9 @@ def _validate_airport_bookings(
     )
     if existing_bookings:
         raise CabboException(
-            "You already have a booking for this time slot", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT
+            "You already have a booking for this time slot",
+            status_code=400,
+            error_code=ALREADY_BOOKED_ON_THIS_SLOT,
         )
 
 
@@ -132,7 +194,11 @@ def _validate_booking_request_hash(
     booking_request: TripBookRequest, requestor: str, db: Session
 ):
     if not booking_request.option.hash:
-        raise CabboException("Booking request must have a unique hash", status_code=400, error_code=GENERIC_EXCEPTION)
+        raise CabboException(
+            "Booking request must have a unique hash",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
+        )
 
     if booking_request.option.hash:
         existing_temp_trip = (
@@ -154,10 +220,9 @@ def _validate_booking_request_hash(
                 {
                     "message": "You already have made a similar booking which is incomplete. Please complete the previous booking to continue",
                     "booking_id": existing_temp_trip.id,
-
                 },
                 status_code=400,
-                error_code=SIMILAR_BOOKING_EXISTS
+                error_code=SIMILAR_BOOKING_EXISTS,
             )
 
 
@@ -198,10 +263,8 @@ def validate_booking_request(
         raise CabboException(
             f"Trip type {booking_request.preferences.trip_type} is not supported for booking",
             status_code=501,
-            error_code=TRIP_TYPE_NOT_SUPPORTED
+            error_code=TRIP_TYPE_NOT_SUPPORTED,
         )
-
-
 
 
 def validate_serviceable_area(
@@ -216,332 +279,6 @@ def validate_serviceable_area(
     pickup = search_in.origin
     drop = search_in.destination
 
-    # Airport trips and local trips
-    if trip_type in [
-        TripTypeEnum.airport_pickup,
-        TripTypeEnum.airport_drop,
-        TripTypeEnum.local,
-    ]:
-        if trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-            if (
-                not config_store.airport_locations
-                or len(config_store.airport_locations) == 0
-            ):
-                raise CabboException(
-                    "No airport locations are configured in the system, Airport trips cannot be processed",
-                    status_code=500,
-                    error_code=NO_AIRPORTS_CONFIGURED
-                )
-        # Region specific trip types
-        if trip_type == TripTypeEnum.airport_pickup:
-            if not drop:
-                raise CabboException(
-                    "Destination location is required for airport pickup",
-                    status_code=400,
-                    error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED
-                )
-            dest_region = get_region_from_location(
-                location=drop, config_store=config_store
-            )
-
-            if not dest_region:
-                raise CabboException(
-                    "Destination region is not serviceable", status_code=400, error_code=DESTINATION_REGION_NOT_SERVICEABLE
-                )
-
-            drop.region = dest_region.region_name
-            drop.region_code = dest_region.region_code
-            drop.state = dest_region.state_name
-            drop.state_code = dest_region.state_code
-            drop.country_code = dest_region.country_code
-            drop.country = dest_region.country_name
-
-            if not pickup:
-                dest_region_airport_locations = (
-                    dest_region.airport_locations or []
-                )  # list of JSON Ids from master airports in this region
-
-                if (
-                    not dest_region_airport_locations
-                    or len(dest_region_airport_locations) == 0
-                ):
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
-
-                # Accumulate the AirportSchema objects from the config_store.airport_locations based on the Ids in dest_region_airport_locations
-                airports_in_dest_region: List[AirportSchema] = get_airports_in_region(
-                    dest_region_airport_locations, config_store
-                )
-
-                if not airports_in_dest_region or len(airports_in_dest_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
-
-                airport_in_dest_region = get_airport_by_region_code(
-                    region_code=dest_region.region_code,
-                    airports=airports_in_dest_region,
-                )
-
-                if not airport_in_dest_region:
-                    raise CabboException("No airport found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
-
-                pickup = LocationInfo.model_validate(
-                    json.loads(
-                        airport_in_dest_region.model_dump_json(exclude_none=True)
-                    )
-                )
-                search_in.origin = pickup
-            else:
-                # Validate that we support this pickup location and it is an airport
-                origin_region = get_region_from_location(
-                    location=pickup, config_store=config_store
-                )
-                if not origin_region:
-                    raise CabboException(
-                        "Origin region is not serviceable", status_code=400,
-                        error_code=ORIGIN_REGION_NOT_SERVICEABLE
-                    )
-                airport_locations = (
-                    origin_region.airport_locations or []
-                )  # List of JSON Ids from master airports in this region
-
-                if not airport_locations or len(airport_locations) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
-
-                airports_in_origin_region: List[AirportSchema] = get_airports_in_region(
-                    airport_locations, config_store
-                )
-
-                if not airports_in_origin_region or len(airports_in_origin_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
-
-                # Check if the pickup location matches at least one known airport in the region
-                if not match_location_to_airport(pickup, airports_in_origin_region):
-                    raise CabboException(
-                        "Origin location is not a valid airport in the region",
-                        status_code=400,
-                        error_code=ORIGIN_LOCATION_NOT_VALID_AIRPORT,
-                    )
-                pickup.region = origin_region.region_name
-                pickup.region_code = origin_region.region_code
-                pickup.state = origin_region.state_name
-                pickup.state_code = origin_region.state_code
-                pickup.country_code = origin_region.country_code
-                pickup.country = origin_region.country_name
-
-        elif trip_type == TripTypeEnum.airport_drop:
-            if not pickup:
-                raise CabboException(
-                    "Origin location is required for airport drop", status_code=400, error_code=ORIGIN_LOCATION_NOT_VALID_AIRPORT
-                )
-            origin_region = get_region_from_location(
-                location=pickup, config_store=config_store
-            )
-            if not origin_region:
-                raise CabboException(
-                    "Origin region is not serviceable", status_code=400, error_code=ORIGIN_REGION_NOT_SERVICEABLE
-                )
-
-            pickup.region = origin_region.region_name
-            pickup.region_code = origin_region.region_code
-            pickup.state = origin_region.state_name
-            pickup.state_code = origin_region.state_code
-            pickup.country_code = origin_region.country_code
-            pickup.country = origin_region.country_name
-
-            if not drop:
-                # Set drop as first airport location of origin region
-                airport_locations = (
-                    origin_region.airport_locations or []
-                )  # List of JSON Ids from master airports in this region
-                if not airport_locations:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
-
-                airports_in_origin_region: List[AirportSchema] = get_airports_in_region(
-                    airport_locations, config_store
-                )
-                if not airports_in_origin_region or len(airports_in_origin_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
-
-                airport_in_origin_region = get_airport_by_region_code(
-                    region_code=origin_region.region_code,
-                    airports=airports_in_origin_region,
-                )
-                if not airport_in_origin_region:
-                    raise CabboException("No airport found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
-
-                drop = LocationInfo.model_validate(
-                    json.loads(airport_in_origin_region.model_dump_json())
-                )
-                search_in.destination = drop
-            else:
-                # Validate that we support this drop location and it is an airport
-                dest_region = get_region_from_location(
-                    location=drop, config_store=config_store
-                )
-                if not dest_region:
-                    raise CabboException(
-                        "Destination region is not serviceable", status_code=400, error_code=DESTINATION_REGION_NOT_SERVICEABLE
-                    )
-
-                airport_locations = dest_region.airport_locations or []
-                if not airport_locations or len(airport_locations) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
-
-                airports_in_dest_region: List[AirportSchema] = get_airports_in_region(
-                    airport_locations, config_store
-                )
-                if not airports_in_dest_region or len(airports_in_dest_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
-
-                # Check if the drop location matches at least one known airport in the region
-                if not match_location_to_airport(drop, airports_in_dest_region):
-                    raise CabboException(
-                        "Destination location is not a valid airport in the region",
-                        status_code=400,
-                        error_code=DESTINATION_LOCATION_NOT_VALID_AIRPORT,
-                    )
-                drop.region = dest_region.region_name
-                drop.region_code = dest_region.region_code
-                drop.state = dest_region.state_name
-                drop.state_code = dest_region.state_code
-                drop.country_code = dest_region.country_code
-                drop.country = dest_region.country_name
-
-        elif trip_type == TripTypeEnum.local:
-            if not pickup:
-                raise CabboException(
-                    "Origin location is required for local trip", status_code=400, error_code=LOCAL_TRIP_ORIGIN_REQUIRED
-                )
-            origin_region = get_region_from_location(
-                location=pickup, config_store=config_store
-            )
-            if not origin_region:
-                raise CabboException(
-                    "Origin region is not serviceable", status_code=400, error_code=ORIGIN_REGION_NOT_SERVICEABLE
-                )
-            pickup.region = origin_region.region_name
-            pickup.region_code = origin_region.region_code
-            pickup.state = origin_region.state_name
-            pickup.state_code = origin_region.state_code
-            pickup.country_code = origin_region.country_code
-            pickup.country = origin_region.country_name
-            if not drop:
-                drop = pickup  # For local trips, set drop as same as pickup if not provided
-                search_in.destination = drop
-            else:
-                dest_region = get_region_from_location(
-                    location=drop, config_store=config_store
-                )
-                if not dest_region:
-                    raise CabboException(
-                        "Destination region is not serviceable", status_code=400, error_code=DESTINATION_REGION_NOT_SERVICEABLE
-                    )
-                drop.region = dest_region.region_name
-                drop.region_code = dest_region.region_code
-                drop.state = dest_region.state_name
-                drop.state_code = dest_region.state_code
-                drop.country_code = dest_region.country_code
-                drop.country = dest_region.country_name
-        # Final check: Ensure both pickup and drop are in the same region
-        if pickup.region_code != drop.region_code:
-            raise CabboException(
-                "Both origin and destination must be in the same region",
-                status_code=400,
-                error_code=ORIGIN_DESTINATION_REGION_MISMATCH,
-            )
-
-    # Outstation trips
-    # For outstation trips, both pickup and drop must be in serviceable states
-    elif trip_type == TripTypeEnum.outstation:
-        from services.trips.outstation_service import get_allowed_outstation_states
-
-        allowed_states = get_allowed_outstation_states(config_store=config_store)
-        if not allowed_states:
-            raise CabboException(
-                "No states are configured for outstation trips", status_code=500, error_code=GENERIC_EXCEPTION
-            )
-
-        if not pickup:
-            raise CabboException(
-                "Origin location is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED
-            )
-        if not drop:
-            raise CabboException(
-                "Destination location is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED
-            )
-
-        origin_state = get_state_from_location_v2(
-            location=pickup, config_store=config_store
-        )
-        if not origin_state:
-            raise CabboException("Origin state is not serviceable", status_code=400, error_code=ORIGIN_STATE_NOT_SERVICEABLE)
-
-        if origin_state.state_code not in allowed_states:
-            raise CabboException(
-                f"Outstation trips are only serviceable from: {', '.join(allowed_states)}.",
-                status_code=400,
-                error_code=OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED,
-            )
-        # At this point as we have the state_code, we will enrich origin_state pick up with
-
-        pickup.state = origin_state.state_name
-        pickup.country_code = origin_state.country_code
-        pickup.country = origin_state.country_name
-
-        dest_state = get_state_from_location_v2(
-            location=drop, config_store=config_store
-        )
-        if not dest_state:
-            raise CabboException(
-                "Destination state is not serviceable", status_code=400, error_code=DESTINATION_STATE_NOT_SERVICEABLE
-            )
-
-        if dest_state.state_code not in allowed_states:
-            raise CabboException(
-                f"Outstation trips are only serviceable to: {', '.join(allowed_states)}.",
-                status_code=400,
-                error_code=OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED,
-            )
-        
-        drop.state = dest_state.state_name
-        drop.country_code = dest_state.country_code
-        drop.country = dest_state.country_name
-        # There is no need of having region or postal code for outstation trips since we are validating at state level and have all state level and higher level info
-        # Also since outstation trips can happen within same or different region and/or state, there is no need to validate
-        # both pickup and drop are in the same region or state.
-
-        if search_in.hops:
-            search_in.hops = validate_hops(
-                hops=search_in.hops,
-                config_store=config_store,
-                dest_state=dest_state,
-                allowed_states=allowed_states,
-                drop=drop,
-            
-            )
-        
-    else:
-        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501, error_code=TRIP_TYPE_NOT_SUPPORTED)
-
-    validate_distance_and_time_constraints(
-        pickup=pickup, drop=drop, config_store=config_store, trip_type=trip_type, start_date=search_in.start_date, end_date=search_in.end_date
-    )
-    log.info("Serviceable area validation passed")
-    return search_in
-
-
-def validate_initial_serviceable_area(
-    classification_request: TripClassificationRequest, config_store: ConfigStore
-):
-    """
-    Validates if the initial classification request is within the serviceable area for the given trip type.
-    Raises CabboException if the request is outside the serviceable area.
-    """
-
-    trip_type = classification_request.trip_type
-    pickup = classification_request.pickup
-    drop = classification_request.dropoff
-
-    
     # Airport trips and local trips
     if trip_type in [
         TripTypeEnum.airport_pickup,
@@ -572,7 +309,9 @@ def validate_initial_serviceable_area(
 
             if not dest_region:
                 raise CabboException(
-                    "Destination region is not serviceable", status_code=400, error_code=DESTINATION_REGION_NOT_SERVICEABLE
+                    "Destination region is not serviceable",
+                    status_code=400,
+                    error_code=DESTINATION_REGION_NOT_SERVICEABLE,
                 )
 
             drop.region = dest_region.region_name
@@ -591,7 +330,11 @@ def validate_initial_serviceable_area(
                     not dest_region_airport_locations
                     or len(dest_region_airport_locations) == 0
                 ):
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
 
                 # Accumulate the AirportSchema objects from the config_store.airport_locations based on the Ids in dest_region_airport_locations
                 airports_in_dest_region: List[AirportSchema] = get_airports_in_region(
@@ -599,7 +342,11 @@ def validate_initial_serviceable_area(
                 )
 
                 if not airports_in_dest_region or len(airports_in_dest_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
 
                 airport_in_dest_region = get_airport_by_region_code(
                     region_code=dest_region.region_code,
@@ -607,14 +354,18 @@ def validate_initial_serviceable_area(
                 )
 
                 if not airport_in_dest_region:
-                    raise CabboException("No airport found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
+                    raise CabboException(
+                        "No airport found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
 
                 pickup = LocationInfo.model_validate(
                     json.loads(
                         airport_in_dest_region.model_dump_json(exclude_none=True)
                     )
                 )
-                classification_request.pickup = pickup
+                search_in.origin = pickup
             else:
                 # Validate that we support this pickup location and it is an airport
                 origin_region = get_region_from_location(
@@ -622,21 +373,31 @@ def validate_initial_serviceable_area(
                 )
                 if not origin_region:
                     raise CabboException(
-                        "Origin region is not serviceable", status_code=400, error_code=ORIGIN_REGION_NOT_SERVICEABLE
+                        "Origin region is not serviceable",
+                        status_code=400,
+                        error_code=ORIGIN_REGION_NOT_SERVICEABLE,
                     )
                 airport_locations = (
                     origin_region.airport_locations or []
                 )  # List of JSON Ids from master airports in this region
 
                 if not airport_locations or len(airport_locations) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
 
                 airports_in_origin_region: List[AirportSchema] = get_airports_in_region(
                     airport_locations, config_store
                 )
 
                 if not airports_in_origin_region or len(airports_in_origin_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
 
                 # Check if the pickup location matches at least one known airport in the region
                 if not match_location_to_airport(pickup, airports_in_origin_region):
@@ -655,15 +416,18 @@ def validate_initial_serviceable_area(
         elif trip_type == TripTypeEnum.airport_drop:
             if not pickup:
                 raise CabboException(
-                    "Origin location is required for airport drop", status_code=400, error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED
+                    "Origin location is required for airport drop",
+                    status_code=400,
+                    error_code=ORIGIN_LOCATION_NOT_VALID_AIRPORT,
                 )
             origin_region = get_region_from_location(
                 location=pickup, config_store=config_store
             )
             if not origin_region:
                 raise CabboException(
-                    "Origin region is not serviceable", status_code=400,
-                    error_code=ORIGIN_REGION_NOT_SERVICEABLE
+                    "Origin region is not serviceable",
+                    status_code=400,
+                    error_code=ORIGIN_REGION_NOT_SERVICEABLE,
                 )
 
             pickup.region = origin_region.region_name
@@ -679,25 +443,37 @@ def validate_initial_serviceable_area(
                     origin_region.airport_locations or []
                 )  # List of JSON Ids from master airports in this region
                 if not airport_locations:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
 
                 airports_in_origin_region: List[AirportSchema] = get_airports_in_region(
                     airport_locations, config_store
                 )
                 if not airports_in_origin_region or len(airports_in_origin_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
 
                 airport_in_origin_region = get_airport_by_region_code(
                     region_code=origin_region.region_code,
                     airports=airports_in_origin_region,
                 )
                 if not airport_in_origin_region:
-                    raise CabboException("No airport found in region", status_code=400, error_code=NO_AIRPORTS_IN_ORIGIN_REGION)
+                    raise CabboException(
+                        "No airport found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
 
                 drop = LocationInfo.model_validate(
                     json.loads(airport_in_origin_region.model_dump_json())
                 )
-                classification_request.dropoff = drop
+                search_in.destination = drop
             else:
                 # Validate that we support this drop location and it is an airport
                 dest_region = get_region_from_location(
@@ -705,18 +481,28 @@ def validate_initial_serviceable_area(
                 )
                 if not dest_region:
                     raise CabboException(
-                        "Destination region is not serviceable", status_code=400, error_code=DESTINATION_REGION_NOT_SERVICEABLE
+                        "Destination region is not serviceable",
+                        status_code=400,
+                        error_code=DESTINATION_REGION_NOT_SERVICEABLE,
                     )
 
                 airport_locations = dest_region.airport_locations or []
                 if not airport_locations or len(airport_locations) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
 
                 airports_in_dest_region: List[AirportSchema] = get_airports_in_region(
                     airport_locations, config_store
                 )
                 if not airports_in_dest_region or len(airports_in_dest_region) == 0:
-                    raise CabboException("No airports found in region", status_code=400, error_code=NO_AIRPORTS_IN_DESTINATION_REGION)
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
 
                 # Check if the drop location matches at least one known airport in the region
                 if not match_location_to_airport(drop, airports_in_dest_region):
@@ -735,14 +521,418 @@ def validate_initial_serviceable_area(
         elif trip_type == TripTypeEnum.local:
             if not pickup:
                 raise CabboException(
-                    "Origin location is required for local trip", status_code=400, error_code=LOCAL_TRIP_ORIGIN_REQUIRED
+                    "Origin location is required for local trip",
+                    status_code=400,
+                    error_code=LOCAL_TRIP_ORIGIN_REQUIRED,
                 )
             origin_region = get_region_from_location(
                 location=pickup, config_store=config_store
             )
             if not origin_region:
                 raise CabboException(
-                    "Origin region is not serviceable", status_code=400, error_code=ORIGIN_REGION_NOT_SERVICEABLE
+                    "Origin region is not serviceable",
+                    status_code=400,
+                    error_code=ORIGIN_REGION_NOT_SERVICEABLE,
+                )
+            pickup.region = origin_region.region_name
+            pickup.region_code = origin_region.region_code
+            pickup.state = origin_region.state_name
+            pickup.state_code = origin_region.state_code
+            pickup.country_code = origin_region.country_code
+            pickup.country = origin_region.country_name
+            if not drop:
+                drop = pickup  # For local trips, set drop as same as pickup if not provided
+                search_in.destination = drop
+            else:
+                dest_region = get_region_from_location(
+                    location=drop, config_store=config_store
+                )
+                if not dest_region:
+                    raise CabboException(
+                        "Destination region is not serviceable",
+                        status_code=400,
+                        error_code=DESTINATION_REGION_NOT_SERVICEABLE,
+                    )
+                drop.region = dest_region.region_name
+                drop.region_code = dest_region.region_code
+                drop.state = dest_region.state_name
+                drop.state_code = dest_region.state_code
+                drop.country_code = dest_region.country_code
+                drop.country = dest_region.country_name
+        # Final check: Ensure both pickup and drop are in the same region
+        if pickup.region_code != drop.region_code:
+            raise CabboException(
+                "Both origin and destination must be in the same region",
+                status_code=400,
+                error_code=ORIGIN_DESTINATION_REGION_MISMATCH,
+            )
+
+    # Outstation trips
+    # For outstation trips, both pickup and drop must be in serviceable states
+    elif trip_type == TripTypeEnum.outstation:
+        from services.trips.outstation_service import get_allowed_outstation_states
+
+        allowed_states = get_allowed_outstation_states(config_store=config_store)
+        if not allowed_states:
+            raise CabboException(
+                "No states are configured for outstation trips",
+                status_code=500,
+                error_code=GENERIC_EXCEPTION,
+            )
+
+        if not pickup:
+            raise CabboException(
+                "Origin location is required for outstation trip",
+                status_code=400,
+                error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED,
+            )
+        if not drop:
+            raise CabboException(
+                "Destination location is required for outstation trip",
+                status_code=400,
+                error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED,
+            )
+
+        origin_state = get_state_from_location_v2(
+            location=pickup, config_store=config_store
+        )
+        if not origin_state:
+            raise CabboException(
+                "Origin state is not serviceable",
+                status_code=400,
+                error_code=ORIGIN_STATE_NOT_SERVICEABLE,
+            )
+
+        if origin_state.state_code not in allowed_states:
+            raise CabboException(
+                f"Outstation trips are only serviceable from: {', '.join(allowed_states)}.",
+                status_code=400,
+                error_code=OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED,
+            )
+        # At this point as we have the state_code, we will enrich origin_state pick up with
+
+        pickup.state = origin_state.state_name
+        pickup.country_code = origin_state.country_code
+        pickup.country = origin_state.country_name
+
+        dest_state = get_state_from_location_v2(
+            location=drop, config_store=config_store
+        )
+        if not dest_state:
+            raise CabboException(
+                "Destination state is not serviceable",
+                status_code=400,
+                error_code=DESTINATION_STATE_NOT_SERVICEABLE,
+            )
+
+        if dest_state.state_code not in allowed_states:
+            raise CabboException(
+                f"Outstation trips are only serviceable to: {', '.join(allowed_states)}.",
+                status_code=400,
+                error_code=OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED,
+            )
+
+        drop.state = dest_state.state_name
+        drop.country_code = dest_state.country_code
+        drop.country = dest_state.country_name
+        # There is no need of having region or postal code for outstation trips since we are validating at state level and have all state level and higher level info
+        # Also since outstation trips can happen within same or different region and/or state, there is no need to validate
+        # both pickup and drop are in the same region or state.
+
+        if search_in.hops:
+            search_in.hops = validate_hops(
+                hops=search_in.hops,
+                config_store=config_store,
+                dest_state=dest_state,
+                allowed_states=allowed_states,
+                drop=drop,
+            )
+
+    else:
+        raise CabboException(
+            f"Trip type {trip_type} is not supported",
+            status_code=501,
+            error_code=TRIP_TYPE_NOT_SUPPORTED,
+        )
+
+    validate_distance_and_time_constraints(
+        pickup=pickup,
+        drop=drop,
+        config_store=config_store,
+        trip_type=trip_type,
+        start_date=search_in.start_date,
+        end_date=search_in.end_date,
+    )
+    log.info("Serviceable area validation passed")
+    return search_in
+
+
+def validate_initial_serviceable_area(
+    classification_request: TripClassificationRequest, config_store: ConfigStore
+):
+    """
+    Validates if the initial classification request is within the serviceable area for the given trip type.
+    Raises CabboException if the request is outside the serviceable area.
+    """
+
+    trip_type = classification_request.trip_type
+    pickup = classification_request.pickup
+    drop = classification_request.dropoff
+
+    # Airport trips and local trips
+    if trip_type in [
+        TripTypeEnum.airport_pickup,
+        TripTypeEnum.airport_drop,
+        TripTypeEnum.local,
+    ]:
+        if trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+            if (
+                not config_store.airport_locations
+                or len(config_store.airport_locations) == 0
+            ):
+                raise CabboException(
+                    "No airport locations are configured in the system, Airport trips cannot be processed",
+                    status_code=500,
+                    error_code=NO_AIRPORTS_CONFIGURED,
+                )
+        # Region specific trip types
+        if trip_type == TripTypeEnum.airport_pickup:
+            if not drop:
+                raise CabboException(
+                    "Destination location is required for airport pickup",
+                    status_code=400,
+                    error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED,
+                )
+            dest_region = get_region_from_location(
+                location=drop, config_store=config_store
+            )
+
+            if not dest_region:
+                raise CabboException(
+                    "Destination region is not serviceable",
+                    status_code=400,
+                    error_code=DESTINATION_REGION_NOT_SERVICEABLE,
+                )
+
+            drop.region = dest_region.region_name
+            drop.region_code = dest_region.region_code
+            drop.state = dest_region.state_name
+            drop.state_code = dest_region.state_code
+            drop.country_code = dest_region.country_code
+            drop.country = dest_region.country_name
+
+            if not pickup:
+                dest_region_airport_locations = (
+                    dest_region.airport_locations or []
+                )  # list of JSON Ids from master airports in this region
+
+                if (
+                    not dest_region_airport_locations
+                    or len(dest_region_airport_locations) == 0
+                ):
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
+
+                # Accumulate the AirportSchema objects from the config_store.airport_locations based on the Ids in dest_region_airport_locations
+                airports_in_dest_region: List[AirportSchema] = get_airports_in_region(
+                    dest_region_airport_locations, config_store
+                )
+
+                if not airports_in_dest_region or len(airports_in_dest_region) == 0:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
+
+                airport_in_dest_region = get_airport_by_region_code(
+                    region_code=dest_region.region_code,
+                    airports=airports_in_dest_region,
+                )
+
+                if not airport_in_dest_region:
+                    raise CabboException(
+                        "No airport found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
+
+                pickup = LocationInfo.model_validate(
+                    json.loads(
+                        airport_in_dest_region.model_dump_json(exclude_none=True)
+                    )
+                )
+                classification_request.pickup = pickup
+            else:
+                # Validate that we support this pickup location and it is an airport
+                origin_region = get_region_from_location(
+                    location=pickup, config_store=config_store
+                )
+                if not origin_region:
+                    raise CabboException(
+                        "Origin region is not serviceable",
+                        status_code=400,
+                        error_code=ORIGIN_REGION_NOT_SERVICEABLE,
+                    )
+                airport_locations = (
+                    origin_region.airport_locations or []
+                )  # List of JSON Ids from master airports in this region
+
+                if not airport_locations or len(airport_locations) == 0:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
+
+                airports_in_origin_region: List[AirportSchema] = get_airports_in_region(
+                    airport_locations, config_store
+                )
+
+                if not airports_in_origin_region or len(airports_in_origin_region) == 0:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
+
+                # Check if the pickup location matches at least one known airport in the region
+                if not match_location_to_airport(pickup, airports_in_origin_region):
+                    raise CabboException(
+                        "Origin location is not a valid airport in the region",
+                        status_code=400,
+                        error_code=ORIGIN_LOCATION_NOT_VALID_AIRPORT,
+                    )
+                pickup.region = origin_region.region_name
+                pickup.region_code = origin_region.region_code
+                pickup.state = origin_region.state_name
+                pickup.state_code = origin_region.state_code
+                pickup.country_code = origin_region.country_code
+                pickup.country = origin_region.country_name
+
+        elif trip_type == TripTypeEnum.airport_drop:
+            if not pickup:
+                raise CabboException(
+                    "Origin location is required for airport drop",
+                    status_code=400,
+                    error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED,
+                )
+            origin_region = get_region_from_location(
+                location=pickup, config_store=config_store
+            )
+            if not origin_region:
+                raise CabboException(
+                    "Origin region is not serviceable",
+                    status_code=400,
+                    error_code=ORIGIN_REGION_NOT_SERVICEABLE,
+                )
+
+            pickup.region = origin_region.region_name
+            pickup.region_code = origin_region.region_code
+            pickup.state = origin_region.state_name
+            pickup.state_code = origin_region.state_code
+            pickup.country_code = origin_region.country_code
+            pickup.country = origin_region.country_name
+
+            if not drop:
+                # Set drop as first airport location of origin region
+                airport_locations = (
+                    origin_region.airport_locations or []
+                )  # List of JSON Ids from master airports in this region
+                if not airport_locations:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
+
+                airports_in_origin_region: List[AirportSchema] = get_airports_in_region(
+                    airport_locations, config_store
+                )
+                if not airports_in_origin_region or len(airports_in_origin_region) == 0:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
+
+                airport_in_origin_region = get_airport_by_region_code(
+                    region_code=origin_region.region_code,
+                    airports=airports_in_origin_region,
+                )
+                if not airport_in_origin_region:
+                    raise CabboException(
+                        "No airport found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_ORIGIN_REGION,
+                    )
+
+                drop = LocationInfo.model_validate(
+                    json.loads(airport_in_origin_region.model_dump_json())
+                )
+                classification_request.dropoff = drop
+            else:
+                # Validate that we support this drop location and it is an airport
+                dest_region = get_region_from_location(
+                    location=drop, config_store=config_store
+                )
+                if not dest_region:
+                    raise CabboException(
+                        "Destination region is not serviceable",
+                        status_code=400,
+                        error_code=DESTINATION_REGION_NOT_SERVICEABLE,
+                    )
+
+                airport_locations = dest_region.airport_locations or []
+                if not airport_locations or len(airport_locations) == 0:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
+
+                airports_in_dest_region: List[AirportSchema] = get_airports_in_region(
+                    airport_locations, config_store
+                )
+                if not airports_in_dest_region or len(airports_in_dest_region) == 0:
+                    raise CabboException(
+                        "No airports found in region",
+                        status_code=400,
+                        error_code=NO_AIRPORTS_IN_DESTINATION_REGION,
+                    )
+
+                # Check if the drop location matches at least one known airport in the region
+                if not match_location_to_airport(drop, airports_in_dest_region):
+                    raise CabboException(
+                        "Destination location is not a valid airport in the region",
+                        status_code=400,
+                        error_code=DESTINATION_LOCATION_NOT_VALID_AIRPORT,
+                    )
+                drop.region = dest_region.region_name
+                drop.region_code = dest_region.region_code
+                drop.state = dest_region.state_name
+                drop.state_code = dest_region.state_code
+                drop.country_code = dest_region.country_code
+                drop.country = dest_region.country_name
+
+        elif trip_type == TripTypeEnum.local:
+            if not pickup:
+                raise CabboException(
+                    "Origin location is required for local trip",
+                    status_code=400,
+                    error_code=LOCAL_TRIP_ORIGIN_REQUIRED,
+                )
+            origin_region = get_region_from_location(
+                location=pickup, config_store=config_store
+            )
+            if not origin_region:
+                raise CabboException(
+                    "Origin region is not serviceable",
+                    status_code=400,
+                    error_code=ORIGIN_REGION_NOT_SERVICEABLE,
                 )
             pickup.region = origin_region.region_name
             pickup.region_code = origin_region.region_code
@@ -760,7 +950,9 @@ def validate_initial_serviceable_area(
                 )
                 if not dest_region:
                     raise CabboException(
-                        "Destination region is not serviceable", status_code=400, error_code=DESTINATION_REGION_NOT_SERVICEABLE
+                        "Destination region is not serviceable",
+                        status_code=400,
+                        error_code=DESTINATION_REGION_NOT_SERVICEABLE,
                     )
                 drop.region = dest_region.region_name
                 drop.region_code = dest_region.region_code
@@ -789,25 +981,32 @@ def validate_initial_serviceable_area(
 
         if not pickup:
             raise CabboException(
-                "Origin location is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED
+                "Origin location is required for outstation trip",
+                status_code=400,
+                error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED,
             )
         if not drop:
             raise CabboException(
-                "Destination location is required for outstation trip", status_code=400,
-                error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED
+                "Destination location is required for outstation trip",
+                status_code=400,
+                error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED,
             )
 
         origin_state = get_state_from_location_v2(
             location=pickup, config_store=config_store
         )
         if not origin_state:
-            raise CabboException("Origin state is not serviceable", status_code=400, error_code=ORIGIN_STATE_NOT_SERVICEABLE)
+            raise CabboException(
+                "Origin state is not serviceable",
+                status_code=400,
+                error_code=ORIGIN_STATE_NOT_SERVICEABLE,
+            )
 
         if origin_state.state_code not in allowed_states:
             raise CabboException(
                 f"Outstation trips are only serviceable from: {', '.join(allowed_states)}.",
                 status_code=400,
-                error_code=OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED
+                error_code=OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED,
             )
         # At this point as we have the state_code, we will enrich origin_state pick up with
 
@@ -820,17 +1019,18 @@ def validate_initial_serviceable_area(
         )
         if not dest_state:
             raise CabboException(
-                "Destination state is not serviceable", status_code=400,
-                error_code=DESTINATION_STATE_NOT_SERVICEABLE
+                "Destination state is not serviceable",
+                status_code=400,
+                error_code=DESTINATION_STATE_NOT_SERVICEABLE,
             )
 
         if dest_state.state_code not in allowed_states:
             raise CabboException(
                 f"Outstation trips are only serviceable to: {', '.join(allowed_states)}.",
                 status_code=400,
-                error_code=OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED
+                error_code=OUTSTATION_TRIP_DESTINATION_NOT_ALLOWED,
             )
-        
+
         drop.state = dest_state.state_name
         drop.country_code = dest_state.country_code
         drop.country = dest_state.country_name
@@ -838,13 +1038,15 @@ def validate_initial_serviceable_area(
         # Also since outstation trips can happen within same or different region and/or state, there is no need to validate
         # both pickup and drop are in the same region or state.
 
-        
     else:
-        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501, error_code=TRIP_TYPE_NOT_SUPPORTED)
+        raise CabboException(
+            f"Trip type {trip_type} is not supported",
+            status_code=501,
+            error_code=TRIP_TYPE_NOT_SUPPORTED,
+        )
 
-    
     log.info("Initial Serviceable area validation passed")
-    classification_request.serviceable = True   
+    classification_request.serviceable = True
     return classification_request
 
 
@@ -917,7 +1119,9 @@ def validate_hops(
             unique_hops.append(hop)
 
         if duplicate_hops:
-            log.info(f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}")
+            log.info(
+                f"Note: Duplicate hops detected and ignored: {len(duplicate_hops)}"
+            )
         if same_as_drop_hops:
             log.info(
                 f"Note: The following hops are same as destination and will be ignored: {', '.join(same_as_drop_hops)}"
@@ -1026,7 +1230,7 @@ def validate_distance_and_time_constraints(
         min_distance_km = target_config_dict.get(
             origin_code
         ).auxiliary_pricing.common.min_outbound_distance_km
-        
+
         # Min and max distance constraint validation.
         if min_distance_km and distance < min_distance_km:
             raise CabboException(
@@ -1037,37 +1241,47 @@ def validate_distance_and_time_constraints(
         max_distance_km = target_config_dict.get(
             origin_code
         ).auxiliary_pricing.common.max_distance_km
-        
+
         if max_distance_km and distance > max_distance_km:
             raise CabboException(
                 f"Distance between origin and destination exceeds the maximum threshold of {max_distance_km} km for airport trips in this region, please check the locations and try again",
                 status_code=400,
                 error_code=DISTANCE_ABOVE_MAXIMUM_THRESHOLD,
             )
-        
+
         # Time constraints validation for outstation trips
         if trip_type == TripTypeEnum.outstation:
             if start_date is None or end_date is None:
-                    raise CabboException(
-                    "Start date and end date are required for outstation trip", status_code=400
+                raise CabboException(
+                    "Start date and end date are required for outstation trip",
+                    status_code=400,
                 )
-            
-            
+
             total_trip_days = _get_total_trip_days(
                 start_date=validate_date_time(start_date),
                 end_date=validate_date_time(end_date),
             )
-            total_allowed_days = target_config_dict.get(
-                origin_code).auxiliary_pricing.common.max_days_allowed 
-            
+            max_allowed_days = target_config_dict.get(
+                origin_code
+            ).auxiliary_pricing.common.max_days_allowed
 
-            if total_allowed_days and total_trip_days > total_allowed_days:
+            if max_allowed_days and total_trip_days > max_allowed_days:
                 raise CabboException(
-                    f"Total trip days for outstation trip exceeds the maximum threshold of {total_allowed_days} days for this state, please check the dates and try again",
+                    f"Total trip days for outstation trip exceeds the maximum threshold of {max_allowed_days} days for this state, please check the dates and try again",
                     status_code=400,
                     error_code=OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD,
                 )
-            
+
+            min_allowed_days = target_config_dict.get(
+                origin_code
+            ).auxiliary_pricing.common.min_days_allowed
+            if min_allowed_days and total_trip_days < min_allowed_days:
+                raise CabboException(
+                    f"Total trip days for outstation trip is below the minimum threshold of {min_allowed_days} days for this state, please check the dates and try again",
+                    status_code=400,
+                    error_code=OUTSTATION_TOTAL_DAYS_BELOW_MINIMUM_THRESHOLD,
+                )
+
         log.info("Distance and time constraints validation passed")
         return distance
     except CabboException as e:
@@ -1111,7 +1325,11 @@ def validate_local_trip_schedule(search_in: TripSearchRequest):
         CabboException: If any validation fails, with appropriate error messages.
     """
     if search_in.start_date is None:
-        raise CabboException("Start date is required for local trip", status_code=400)
+        raise CabboException(
+            "Start date is required for local trip",
+            status_code=400,
+            error_code=LOCAL_TRIP_START_DATE_REQUIRED,
+        )
     # Parse and validate start_date
     start_date = validate_date_time(date_time=search_in.start_date)
 
@@ -1120,14 +1338,27 @@ def validate_local_trip_schedule(search_in: TripSearchRequest):
     # Check for past dates
     if start_date < now:
         raise CabboException(
-            "Start date for local trip cannot be in the past.", status_code=400
+            "Start date for local trip cannot be in the past.",
+            status_code=400,
+            error_code=LOCAL_TRIP_START_DATE_IN_PAST,
         )
-    # Start date must be at least 6 hours after now
-    min_start = now + timedelta(hours=6)
+
+    region_code = getattr(search_in.origin, "region_code", None)
+    prior_booking_window_hours = (
+        _get_prior_booking_window_hours(
+            trip_type=search_in.trip_type, region_code=region_code
+        )
+    ) or DEFAULT_PRIOR_BOOKING_WINDOW_HOURS[
+        TripTypeEnum.local
+    ]  # Default to 3 hours if not configured
+
+    # Start date must be at least {prior_booking_window_hours} hours after now
+    min_start = now + timedelta(hours=prior_booking_window_hours)
     if start_date < min_start:
         raise CabboException(
-            "Start date for local trip must be at least 6 hours from now.",
+            f"Start date for local trip must be at least {prior_booking_window_hours} hours from now.",
             status_code=400,
+            error_code=LOCAL_TRIP_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
         )
 
 
@@ -1149,7 +1380,9 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
     """
     if search_in.start_date is None or search_in.end_date is None:
         raise CabboException(
-            "Start date and end date are required for outstation trip", status_code=400
+            "Start date and end date are required for outstation trip",
+            status_code=400,
+            error_code=OUTSTATION_TRIP_SCHEDULE_REQUIRED,
         )
     # Parse and validate start_date
     start_date = validate_date_time(date_time=search_in.start_date)
@@ -1163,26 +1396,55 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
         raise CabboException(
             "Start date and end date for outstation trip cannot be in the past.",
             status_code=400,
+            error_code=OUTSTATION_DATES_IN_PAST,
         )
-    # Start date must be at least 2 days after now
-    min_start = now + timedelta(days=2)
+
+    state_code = getattr(search_in.origin, "state_code", None)
+    prior_booking_window_hours = (
+        _get_prior_booking_window_hours(
+            trip_type=search_in.trip_type, state_code=state_code
+        )
+    ) or DEFAULT_PRIOR_BOOKING_WINDOW_HOURS[
+        TripTypeEnum.outstation
+    ]  # Default to 48 hours if not configured
+    # Start date must be at least {prior_booking_window_hours} hours after now
+    min_start = now + timedelta(hours=prior_booking_window_hours)
     if start_date < min_start:
         raise CabboException(
-            "Start date for outstation trip must be at least 2 days from now.",
+            f"Start date for outstation trip must be at least {prior_booking_window_hours//24} days from now.",
             status_code=400,
+            error_code=OUTSTATION_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
         )
     if start_date > end_date:
         raise CabboException(
-            "Start date cannot be after end date for outstation trip", status_code=400
+            "Start date cannot be after end date for outstation trip",
+            status_code=400,
+            error_code=OUTSTATION_START_DATE_AFTER_END_DATE,
         )
     # Calculate total number of trip days (inclusive, ceil if fractional)
+    config_store = settings.get_config_store(get_mysql_local_session())
+    outstation_config = config_store.outstation.get(state_code, None)  # This is just to check if the state_code is configured for outstation trips, it will raise an exception if not configured
+    min_allowed_days = OUTSTATION_DEFAULTS["min_days_allowed"]
+    max_allowed_days = OUTSTATION_DEFAULTS["max_days_allowed"]
+    if outstation_config:
+        min_allowed_days = outstation_config.auxiliary_pricing.common.min_days_allowed or min_allowed_days
+        max_allowed_days = outstation_config.auxiliary_pricing.common.max_days_allowed or max_allowed_days
+
     total_days = _get_total_trip_days(start_date=start_date, end_date=end_date)
-    if total_days <= 1:
-        raise CabboException(
-            "Total trip days must be greater than 1 for outstation trips",
-            status_code=400,
-        )
     
+    if total_days < min_allowed_days:
+        raise CabboException(
+            f"Total trip days must be at least {min_allowed_days} for outstation trips",
+            status_code=400,
+            error_code=OUTSTATION_TOTAL_DAYS_BELOW_MINIMUM_THRESHOLD,
+        )
+    if total_days > max_allowed_days:
+        raise CabboException(
+            f"Total trip days cannot exceed {max_allowed_days} for outstation trips",
+            status_code=400,
+            error_code=OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD,
+        )
+
     return total_days
 
 
@@ -1190,7 +1452,9 @@ def validate_airport_schedule(search_in: TripSearchRequest):
 
     if search_in.start_date is None:
         raise CabboException(
-            "Start date is required for airport transfer", status_code=400
+            "Start date is required for airport transfer",
+            status_code=400,
+            error_code=AIRPORT_TRIP_START_DATE_REQUIRED,
         )
     # Parse and validate start_date
     start_date = validate_date_time(date_time=search_in.start_date)
@@ -1205,13 +1469,28 @@ def validate_airport_schedule(search_in: TripSearchRequest):
         raise CabboException(
             "Start date for airport transfer cannot be in the past.",
             status_code=400,
+            error_code=AIRPORT_TRIP_START_DATE_IN_PAST,
         )
-    # Start date must be at least 3 hours after now
-    min_start = now + timedelta(hours=3)
+    # Start date must be at least {prior_booking_window_hours} hours after now
+    region_code = (
+        getattr(search_in.origin, "region_code", None)
+        if search_in.trip_type == TripTypeEnum.airport_pickup
+        else getattr(search_in.destination, "region_code", None)
+    )
+    prior_booking_window_hours = (
+        _get_prior_booking_window_hours(
+            trip_type=search_in.trip_type, region_code=region_code
+        )
+    ) or DEFAULT_PRIOR_BOOKING_WINDOW_HOURS[
+        TripTypeEnum.airport_general
+    ]  # Default to 3 hours if not configured
+    min_start = now + timedelta(hours=prior_booking_window_hours)
+
     if start_date < min_start:
         raise CabboException(
-            "Start date for airport trip must be at least 3 hours from now.",
+            f"Start date for airport trip must be at least {prior_booking_window_hours} hours from now.",
             status_code=400,
+            error_code=AIRPORT_TRIP_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
         )
 
 
@@ -1515,7 +1794,38 @@ def validate_system_user_payload(
 
     return payload
 
+
 def _get_total_trip_days(start_date: datetime, end_date: datetime) -> int:
     total_seconds = (end_date - start_date).total_seconds()
     total_days = math.ceil(total_seconds / 86400)
     return total_days
+
+
+def _get_prior_booking_window_hours(
+    trip_type: TripTypeEnum, region_code: Optional[str], state_code: Optional[str]
+) -> Optional[int]:
+    try:
+        config_store = settings.get_config_store(get_mysql_local_session())
+        if trip_type == TripTypeEnum.airport_pickup:
+            if region_code and config_store.airport_pickup.get(region_code):
+                return config_store.airport_pickup.get(
+                    region_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.airport_drop:
+            if region_code and config_store.airport_drop.get(region_code):
+                return config_store.airport_drop.get(
+                    region_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.outstation:
+            if state_code and config_store.outstation.get(state_code):
+                return config_store.outstation.get(
+                    state_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.local:
+            if region_code and config_store.local.get(region_code):
+                return config_store.local.get(
+                    region_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+    except Exception as e:
+        log.error(f"Error fetching prior booking window hours from config: {e}")
+    return None
