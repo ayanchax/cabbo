@@ -215,14 +215,27 @@ class TripPackageConfigSchema(BaseModel):
     region_id: Optional[str] = None  # FK to RegionsMaster.id
     included_hours: Optional[int]  # e.g., 4, 6, 8, 10, 12
     included_km: Optional[int]  # e.g., 40, 60, 80, 100, 120
-    package_label: Optional[str]  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    package_label: Optional[str]=None  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
     driver_allowance: Optional[float] = (
         None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
     )
+    best_intended_for: Optional[str] = None  # Optional description for the package, e.g., "This package includes 4 hours and 40 km. Additional hours will be charged at ₹X per hour and additional km will be charged at ₹Y per km."
+
+
 
     class Config:
         from_attributes = True
         extra = "allow"
+
+class TripPackageConfigRead(BaseModel):
+    id: Optional[str] = None  # Optional ID for existing packages
+    included_hours: Optional[int] = None  # e.g., 4, 6, 8, 10, 12
+    included_km: Optional[int] = None  # e.g., 40, 60, 80, 100, 120
+    description: Optional[str] = None  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    best_intended_for: Optional[str] = None  # Optional description for the package, e.g., "This package includes 4 hours and 40 km. Additional hours will be charged at ₹X per hour and additional km will be charged at ₹Y per km."
+    class Config:
+        extra = "ignore"
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 class AuxiliaryPricingConfiguration(BaseModel):
 

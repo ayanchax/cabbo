@@ -24,6 +24,7 @@ from core.exceptions import (
     NO_AIRPORTS_CONFIGURED,
     NO_AIRPORTS_IN_DESTINATION_REGION,
     NO_AIRPORTS_IN_ORIGIN_REGION,
+    NO_LOCAL_TRIP_PACKAGES_IN_ORIGIN_REGION,
     ORIGIN_DESTINATION_REGION_MISMATCH,
     ORIGIN_LOCATION_NOT_VALID_AIRPORT,
     ORIGIN_REGION_NOT_CONFIGURED,
@@ -535,6 +536,17 @@ def validate_serviceable_area(
                     status_code=400,
                     error_code=ORIGIN_REGION_NOT_SERVICEABLE,
                 )
+            # Check if trip package is configured for this region.
+            # For local trips, we need to have the trip package configured at region level since we
+            # are not allowing cross region local trips and we are validating at region level, so if the region is serviceable, we can be assured that the trip package is also configured for that region. Otherwise, we do not allow local trips if package is not configured at origin region level.
+            # This is a critical check to prevent abuse of the local trip type for long distance trips in cases where the pickup location is serviceable but there are no local trip packages configured, which would indicate that local trips are not actually supported in that region.
+            trip_packages_by_region = config_store.local.get(origin_region.region_code).auxiliary_pricing.trip_packages or []
+            if not trip_packages_by_region or len(trip_packages_by_region) == 0:
+                raise CabboException(
+                    "No trip packages configured for local trips in the origin region, local trips cannot be processed",
+                    status_code=400,
+                    error_code=NO_LOCAL_TRIP_PACKAGES_IN_ORIGIN_REGION,
+                )
             pickup.region = origin_region.region_name
             pickup.region_code = origin_region.region_code
             pickup.state = origin_region.state_name
@@ -554,6 +566,7 @@ def validate_serviceable_area(
                         status_code=400,
                         error_code=DESTINATION_REGION_NOT_SERVICEABLE,
                     )
+                # We do not care about local trip packages in destination region because for local trips, we need to have the trip package configured at origin region level since we are not allowing cross region local trips and we are validating at region level, so if the region is serviceable, we can be assured that the trip package is also configured for that region. Otherwise, we do not allow local trips if package is not configured at origin region level.
                 drop.region = dest_region.region_name
                 drop.region_code = dest_region.region_code
                 drop.state = dest_region.state_name
@@ -935,6 +948,16 @@ def validate_initial_serviceable_area(
                     status_code=400,
                     error_code=ORIGIN_REGION_NOT_SERVICEABLE,
                 )
+            # Check if trip package is configured for this region.
+            # For local trips, we need to have the trip package configured at region level since we are not allowing cross region local trips and we are validating at region level, so if the region is serviceable, we can be assured that the trip package is also configured for that region.
+            # otherwise, we do not allow local trips if package is not configured at origin region level.
+            trip_packages_by_region = config_store.local.get(origin_region.region_code).auxiliary_pricing.trip_packages or []
+            if not trip_packages_by_region or len(trip_packages_by_region) == 0:
+                raise CabboException(
+                    "No trip packages configured for local trips in the origin region, local trips cannot be processed",
+                    status_code=400,
+                    error_code=NO_LOCAL_TRIP_PACKAGES_IN_ORIGIN_REGION,
+                )
             pickup.region = origin_region.region_name
             pickup.region_code = origin_region.region_code
             pickup.state = origin_region.state_name
@@ -955,6 +978,7 @@ def validate_initial_serviceable_area(
                         status_code=400,
                         error_code=DESTINATION_REGION_NOT_SERVICEABLE,
                     )
+                #We do not care about local trip packages in destination region because for local trips, we need to have the trip package configured at origin region level since we are not allowing cross region local trips and we are validating at region level, so if the region is serviceable, we can be assured that the trip package is also configured for that region. Otherwise, we do not allow local trips if package is not configured at origin region level.
                 drop.region = dest_region.region_name
                 drop.region_code = dest_region.region_code
                 drop.state = dest_region.state_name

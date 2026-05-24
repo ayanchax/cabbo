@@ -364,6 +364,9 @@ class TripPackageConfig(Base):
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation/local trips
     package_label = Column(String(64), nullable=False)
+    best_intended_for = Column(
+        Text, nullable=True
+    )  # Brief user centric description/usage of the package, like "Best for short trips within the city"
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(

@@ -2,7 +2,7 @@
 
 from typing import Optional
 from sqlalchemy.orm import Session
-from core.exceptions import GENERIC_EXCEPTION, SAME_PICKUP_DROPOFF_LOCATION, TRIP_PACKAGE_FETCH_FAILED, CabboException
+from core.exceptions import GENERIC_EXCEPTION, ORIGIN_REGION_NOT_SERVICEABLE, SAME_PICKUP_DROPOFF_LOCATION, TRIP_PACKAGE_FETCH_FAILED, CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from models.map.location_schema import LocationInfo, MobilityHub

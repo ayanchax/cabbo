@@ -163,27 +163,32 @@ HOURLY_RENTAL_PACKAGES_SEED_DATA = {
             included_hours=4,
             included_km=40,
             package_label="4Hours / 40KM",
+            best_intended_for="Perfect for short city trips, errands, or quick meetings."
         ),
         TripPackageConfigSchema(
             included_hours=6,
             included_km=60,
             package_label="6Hours / 60KM",
+            best_intended_for="Great for half-day outings or city sightseeing."
         ),
         TripPackageConfigSchema(
             included_hours=8,
             included_km=80,
             package_label="8Hours / 80KM",
+            best_intended_for="Best for full-day city travel, business or leisure."
         ),
         TripPackageConfigSchema(
             included_hours=10,
             included_km=100,
             package_label="10Hours / 100KM",
+            best_intended_for="Ideal for long city days, family outings, or multiple stops."
         ),
         TripPackageConfigSchema(
             included_hours=12,
             included_km=120,
             package_label="12Hours / 120KM",
             driver_allowance=400.0,  # Driver allowance applies for 12 hours
+            best_intended_for="Perfect for full-day city trips with driver allowance."
         ),
     ]
 }
@@ -1197,6 +1202,7 @@ def _seed_local_trip_packages(session: Session):
                 included_km=package_data.included_km,
                 driver_allowance=package_data.driver_allowance,
                 package_label=package_data.package_label,
+                best_intended_for=package_data.best_intended_for,
             )
             create_trip_package_pricing_configuration(payload, session)
 
