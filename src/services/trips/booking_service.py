@@ -232,6 +232,8 @@ def _create_confirmed_trip_from_temp_trip(
         payment_provider_metadata=(
             payment_info.model_dump(exclude_none=True) if payment_info else None
         ),
+        timezone=temp_trip.timezone if temp_trip.timezone else settings.CABBO_DEFAULT_TIMEZONE,
+        utc_offset=temp_trip.utc_offset if temp_trip.utc_offset else settings.CABBO_DEFAULT_UTC_OFFSET
     )
 
     try:

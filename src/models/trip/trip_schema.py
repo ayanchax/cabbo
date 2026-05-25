@@ -24,7 +24,7 @@ from models.trip.trip_enums import (
     CarTypeEnum,
 )
 from models.map.location_schema import LocationInfo
-
+from core.config import settings
 
 class TripTypeSchema(BaseModel):
     id: Optional[str]
@@ -117,6 +117,12 @@ class TripDetails(BaseModel):
     indicative_overage_warning: Optional[bool] = None
     alternate_customer_phone: Optional[str] = None
     passenger: Optional[PassengerRequest] = None  # Passenger details
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+    utc_offset: Optional[int] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
+    )
 
     class Config:
         from_attributes = True
@@ -183,6 +189,13 @@ class TripSearchRequest(BaseModel):
     session_token: Optional[str] = Field(
         None,
         description="Session token to be passed to location service for caching related location requests and improving the accuracy of location suggestions and details",
+    )
+
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+    utc_offset: Optional[float] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset of the trip based on the origin location, e.g., 5.5 for IST"
     )
 
     # Validate trip type and ensure it is one of the supported types
@@ -268,6 +281,13 @@ class TripSearchAdditionalData(BaseModel):
 
     is_round_trip: Optional[bool] = (
         False  # Indicates if the trip is a round trip, mainly applicable for outstation trips and local trips  # This is used to calculate the total price for outstation trips which are round trips
+    )
+
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+    utc_offset: Optional[int] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
     )
 
     class Config:

@@ -109,7 +109,7 @@ def _validate_duplicate_local_bookings(
     db: Session,
     overlap_hours: int = 12,
 ):
-    start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+    start_date = validate_date_time(date_time=booking_request.preferences.start_date, timezone_str=booking_request.metadata.timezone)
 
     end_date = start_date + timedelta(
         hours=overlap_hours
@@ -137,9 +137,10 @@ def _validate_duplicate_local_bookings(
 def _validate_duplicate_outstation_bookings(
     booking_request: TripBookRequest, requestor: str, db: Session
 ):
-    start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+    timezone = booking_request.metadata.timezone if booking_request.metadata and booking_request.metadata.timezone else settings.CABBO_DEFAULT_TIMEZONE
+    start_date = validate_date_time(date_time=booking_request.preferences.start_date, timezone_str=timezone)
 
-    end_date = validate_date_time(date_time=booking_request.preferences.end_date)
+    end_date = validate_date_time(date_time=booking_request.preferences.end_date, timezone_str=timezone)
 
     existing_bookings = (
         db.query(Trip)
@@ -167,7 +168,8 @@ def _validate_airport_bookings(
     db: Session,
     overlap_hours: int = 4,
 ):
-    start_date = validate_date_time(date_time=booking_request.preferences.start_date)
+    timezone = booking_request.metadata.timezone if booking_request.metadata and booking_request.metadata.timezone else settings.CABBO_DEFAULT_TIMEZONE
+    start_date = validate_date_time(date_time=booking_request.preferences.start_date, timezone_str=timezone)
 
     end_date = start_date + timedelta(
         hours=overlap_hours
@@ -1203,6 +1205,7 @@ def validate_distance_and_time_constraints(
     trip_type: TripTypeEnum,
     start_date: Union[str, datetime] = None,
     end_date: Union[str, datetime] = None,
+    timezone_str: str = None,
 ):
     try:
         if trip_type == TripTypeEnum.local:
@@ -1282,9 +1285,10 @@ def validate_distance_and_time_constraints(
                     status_code=400,
                 )
 
+             
             total_trip_days = _get_total_trip_days(
-                start_date=validate_date_time(start_date),
-                end_date=validate_date_time(end_date),
+                start_date=validate_date_time(start_date, timezone_str=timezone_str),
+                end_date=validate_date_time(end_date, timezone_str=timezone_str),
             )
             max_allowed_days = target_config_dict.get(
                 origin_code
@@ -1356,7 +1360,7 @@ def validate_local_trip_schedule(search_in: TripSearchRequest):
             error_code=LOCAL_TRIP_START_DATE_REQUIRED,
         )
     # Parse and validate start_date
-    start_date = validate_date_time(date_time=search_in.start_date)
+    start_date = validate_date_time(date_time=search_in.start_date, timezone_str=search_in.timezone)
 
     now = datetime.now(timezone.utc)
 
@@ -1410,9 +1414,9 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
             error_code=OUTSTATION_TRIP_SCHEDULE_REQUIRED,
         )
     # Parse and validate start_date
-    start_date = validate_date_time(date_time=search_in.start_date)
+    start_date = validate_date_time(date_time=search_in.start_date, timezone_str=search_in.timezone)
 
-    end_date = validate_date_time(date_time=search_in.end_date)
+    end_date = validate_date_time(date_time=search_in.end_date, timezone_str=search_in.timezone)
 
     now = datetime.now(timezone.utc)
 
@@ -1482,7 +1486,7 @@ def validate_airport_schedule(search_in: TripSearchRequest):
             error_code=AIRPORT_TRIP_START_DATE_REQUIRED,
         )
     # Parse and validate start_date
-    start_date = validate_date_time(date_time=search_in.start_date)
+    start_date = validate_date_time(date_time=search_in.start_date, timezone_str=search_in.timezone)
 
     now = datetime.now(timezone.utc)
 

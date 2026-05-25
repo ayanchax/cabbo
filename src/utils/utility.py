@@ -1,6 +1,6 @@
 from typing import Union
 from core.exceptions import DATETIME_PROCESSING_ERROR, GENERIC_EXCEPTION, INVALID_DATETIME_INPUT, CabboException
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
 from core.config import settings
@@ -8,7 +8,7 @@ import requests
 import re
 
 
-def validate_date_time(date_time: Union[str, datetime]):
+def validate_date_time(date_time: Union[str, datetime], timezone_str: str = None, utc_offset: int = None) -> datetime:
     """
     Parse input (str or datetime). If naive, assume settings.CABBO_DEFAULT_TIMEZONE
     (fallback to UTC). Always return an aware datetime in UTC.
@@ -24,15 +24,24 @@ def validate_date_time(date_time: Union[str, datetime]):
         else:
             raise CabboException("Invalid datetime type", status_code=400, error_code=INVALID_DATETIME_INPUT)
 
-        # If naive, attach configured default tz (e.g., "Asia/Kolkata"), then convert to UTC
+        # If naive, attach tzinfo using utc_offset if provided, else use timezone_str/default
         if dt.tzinfo is None:
-            tz_name = getattr(settings, "CABBO_DEFAULT_TIMEZONE", "UTC")
-            try:
-                local_tz = ZoneInfo(tz_name)
-            except Exception:
-                local_tz = timezone.utc
-            dt = dt.replace(tzinfo=local_tz)
-        # Always convert to UTC
+            if utc_offset is not None:
+                # utc_offset is in minutes (preferred), fallback to hours if large
+                if abs(utc_offset) > 24:
+                    offset = timezone(timedelta(minutes=utc_offset))
+                else:
+                    offset = timezone(timedelta(hours=utc_offset))
+                dt = dt.replace(tzinfo=offset)
+            else:
+                #Always prefer timezone_str if provided, else fallback to settings.CABBO_DEFAULT_TIMEZONE, and if that is not set then fallback to UTC
+                tz_name = timezone_str or settings.CABBO_DEFAULT_TIMEZONE or "UTC"
+                try:
+                    local_tz = ZoneInfo(tz_name)
+                except Exception:
+                    local_tz = timezone.utc
+                dt = dt.replace(tzinfo=local_tz)
+        # Always convert to UTC after enriching with timezone info
         return dt.astimezone(timezone.utc) # Return aware datetime in UTC
     except Exception as e:
         raise CabboException("Error processing datetime", status_code=400, error_code=DATETIME_PROCESSING_ERROR) from e

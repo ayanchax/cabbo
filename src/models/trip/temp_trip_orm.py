@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.sql import func
 from db.database import Base
 from datetime import datetime, timezone
+from core.config import settings
 class TempTrip(Base):
     __tablename__ = "temp_trips"
 
@@ -193,6 +194,9 @@ class TempTrip(Base):
     hash= Column(
         String(255), nullable=True, unique=True
     )  # Hash for trip details to prevent duplicate bookings initiated by same user
+    timezone= Column(String(64), nullable=True, default=settings.CABBO_DEFAULT_TIMEZONE)  # Timezone of the trip based on the origin location, e.g., "Asia/Kolkata". This is used to display the trip start and end datetime in the local timezone of the trip origin for better user experience, while all datetimes are stored in UTC in the database for consistency using the method validate_date_time() in utility.py
+    utc_offset = Column(Integer, nullable=True, default=settings.CABBO_DEFAULT_UTC_OFFSET)  # UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30). This is used to convert the stored UTC datetimes to local time for display purposes and also to validate that the start_datetime provided by the customer falls within the allowed booking window based on the trip type and jurisdiction using the method validate_date_time() in utility.py
+   
     # Additional metadata - END
  
  

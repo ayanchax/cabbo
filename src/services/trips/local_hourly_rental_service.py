@@ -33,13 +33,10 @@ from models.trip.trip_schema import (
     TripSearchResponse,
 )
 from services.configuration_service import get_region_from_location
-from services.customer_service import a_get_customer_by_id
-from services.passenger_service import get_passenger_by_id
 
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import validate_date_time
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _get_inclusions_exclusions_for_local_trip():
@@ -201,7 +198,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     package_included_hours = package.included_hours
     package_included_km = package.included_km
 
-    expected_end_date = validate_date_time(search_in.start_date) + timedelta(
+    expected_end_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone) + timedelta(
         hours=package_included_hours
     )
     search_in.expected_end_date = str(

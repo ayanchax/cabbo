@@ -56,6 +56,7 @@ from services.validation_service import validate_serviceable_area, validate_trip
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from core.config import settings
 
 
 def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False) -> dict:
@@ -354,13 +355,13 @@ def create_temporary_trip(
         booking_request.preferences.trip_type, db=db
     )
     validated_start_date = validate_date_time(
-        date_time=booking_request.preferences.start_date
+        date_time=booking_request.preferences.start_date, timezone_str=booking_request.metadata.timezone if booking_request.metadata and booking_request.metadata.timezone else settings.CABBO_DEFAULT_TIMEZONE
     )
 
     validated_end_date = None
     if booking_request.preferences.end_date:
         validated_end_date = validate_date_time(
-            date_time=booking_request.preferences.end_date
+            date_time=booking_request.preferences.end_date, timezone_str=booking_request.metadata.timezone if booking_request.metadata and booking_request.metadata.timezone else settings.CABBO_DEFAULT_TIMEZONE
         )
 
     json_hops = (
@@ -532,6 +533,8 @@ def create_temporary_trip(
             if hasattr(booking_request.option, "hash")
             else None
         ),
+        timezone=booking_request.metadata.timezone if hasattr(booking_request.metadata, "timezone") else settings.CABBO_DEFAULT_TIMEZONE,
+        utc_offset=booking_request.metadata.utc_offset if hasattr(booking_request.metadata, "utc_offset") else settings.CABBO_DEFAULT_UTC_OFFSET
     )
     try:
         db.add(temp_trip)

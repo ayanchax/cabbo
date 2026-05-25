@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     CABBO_SUPER_ADMIN_SECRET: str
     CABBO_USER_DEFAULT_PASSWORD: str
     CABBO_DEFAULT_TIMEZONE: str
+    CABBO_DEFAULT_UTC_OFFSET: int  = 330# in minutes, e.g., 330 for IST (UTC+5:30)
     CONFIG_STORE: Any = None
 
     #AWS S3 Settings
