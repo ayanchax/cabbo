@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from core.exceptions import CabboException
 from core.security import validate_customer_token
 from core.trip_helpers import get_prior_booking_window_hours
 from db.database import yield_mysql_session
@@ -37,7 +38,6 @@ def search_trip(
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-
     result = search(search_in=search_in, requestor=current_customer.id, db=db)
     return remove_none_recursive(result.model_dump())
 

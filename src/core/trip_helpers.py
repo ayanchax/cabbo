@@ -148,6 +148,24 @@ def derive_trip_sort_priority(search_in: TripSearchRequest, option: TripSearchOp
     return (pref_score, option.total_price)
 
 
+def derive_trip_sort_priority_local_rental(search_in: TripSearchRequest, option: TripSearchOption):
+    pref_score = 0
+    # 1. Passenger count logic
+    total_pax = search_in.num_adults + search_in.num_children
+    if total_pax > 4:  # More than 4 passengers, prefer larger vehicles
+        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
+            pref_score -= 200
+    elif total_pax <= 4:  # 4 or fewer passengers, prefer smaller vehicles
+        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
+            pref_score -= 100
+    if total_pax <= 3:  #
+        if option.car_type == CarTypeEnum.hatchback:
+            pref_score -= 50
+    
+    # 2. Price as a tiebreaker
+    return (pref_score, option.total_price)
+
+
 def generate_trip_field_dictionary(
     search_in: TripSearchRequest,
     car_type: str,

@@ -9,6 +9,7 @@ from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import (
     derive_trip_sort_priority,
+    derive_trip_sort_priority_local_rental,
     generate_trip_field_dictionary,
     generate_trip_hash,
     get_default_trip_amenities,
@@ -20,6 +21,7 @@ from models.customer.passenger_schema import PassengerRequest
 from models.driver.driver_schema import DriverReadSchema
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
+    Currency,
     LocalCabPricingSchema,
     LocalPricingBreakdownSchema,
     OveragesSchema,
@@ -250,9 +252,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             currency=currency,
         )
 
-        disclaimer_message = (
-            "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
-        )
+        
         package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
         option = TripSearchOption(
             car_type=cab_type_schema.name,  # Use display name from schema
@@ -268,11 +268,11 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             overages=(
                 OveragesSchema(
                     disclaimer=disclaimer_lines,
-                    extra_charges_disclaimers=disclaimer_message,
                     overage_amount_per_hour=overage_amount_per_hour,
                     overage_amount_per_km=overage_amount_per_km,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
+            currency=Currency(symbol=currency) if currency else Currency(),
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
             search_in, cab_type_schema.name, fuel_type_schema.name, option
@@ -292,7 +292,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         )
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(
-        options, key=lambda option: derive_trip_sort_priority(search_in, option)
+        options, key=lambda option: derive_trip_sort_priority_local_rental(search_in, option)
     )[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context

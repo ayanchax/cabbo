@@ -9,6 +9,7 @@ from models.policies.cancelation_schema import CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
+    Currency,
     ExtraPayments,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
@@ -234,6 +235,7 @@ class TripSearchOption(BaseModel):
     )
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
+    currency:Optional[Currency]=None
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model

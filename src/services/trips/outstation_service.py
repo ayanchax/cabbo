@@ -18,6 +18,7 @@ from models.customer.passenger_schema import PassengerRequest
 from models.driver.driver_schema import DriverReadSchema
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
+    Currency,
     OutstationCabPricingSchema,
     OutstationPricingBreakdownSchema,
     OveragesSchema,
@@ -360,9 +361,7 @@ def get_outstation_trip_options(
             extra_day_rate=extra_day_rate,
             total_trip_days=total_trip_days
         )
-        disclaimer_message = "Extra charges may apply:\n - " + "\n - ".join(
-            disclaimer_lines
-        )
+       
         option = TripSearchOption(
             car_type=cab_type_schema.name,
             fuel_type=fuel_type_schema.name,
@@ -381,9 +380,10 @@ def get_outstation_trip_options(
                         math.ceil(overage_amount) if indicative_overage_warning else 0.0
                     ),
                     disclaimer=disclaimer_lines,
-                    extra_charges_disclaimers=disclaimer_message,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
+            currency=Currency(symbol=currency) if currency else Currency()
+
         )
 
         option_dict, preference_dict = generate_trip_field_dictionary(
