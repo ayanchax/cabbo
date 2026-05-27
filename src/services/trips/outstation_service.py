@@ -1,7 +1,14 @@
 import math
 from typing import List, Optional, Union
 from core.constants import APP_NAME
-from core.exceptions import CabboException, OUTSTATION_TRIP_ORIGIN_REQUIRED, OUTSTATION_TRIP_DESTINATION_REQUIRED, DISTANCE_NOT_DETERMINED, DISTANCE_BELOW_MINIMUM_THRESHOLD, GENERIC_EXCEPTION
+from core.exceptions import (
+    CabboException,
+    OUTSTATION_TRIP_ORIGIN_REQUIRED,
+    OUTSTATION_TRIP_DESTINATION_REQUIRED,
+    DISTANCE_NOT_DETERMINED,
+    DISTANCE_BELOW_MINIMUM_THRESHOLD,
+    GENERIC_EXCEPTION,
+)
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import (
@@ -65,7 +72,7 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
     if is_interstate:
         inclusions.extend(
             [
-                "State entry taxes", # Applicable state entry taxes for interstate trips, we maintain a configuration for state entry taxes per state, and hence it is included here
+                "State entry taxes",  # Applicable state entry taxes for interstate trips, we maintain a configuration for state entry taxes per state, and hence it is included here
             ]
         )
     return inclusions, exclusions
@@ -109,13 +116,15 @@ def _track_state_transitions(search_in: TripSearchRequest):
     return is_interstate, total_unique_states, list(unique_states)
 
 
-def _get_trip_origin_destination_distance_outstation(search_in: TripSearchRequest, min_distance: Optional[float] = 300.0):
+def _get_trip_origin_destination_distance_outstation(
+    search_in: TripSearchRequest, min_distance: Optional[float] = 300.0
+):
     """
     Validates and retrieves the origin, destination, and estimated distance for outstation trips.
     Args:
         search_in (TripSearchRequest): The trip search request containing origin and destination.
         min_distance (Optional[float]): The minimum distance required for an outstation trip. Defaults to 300.0 km.
-        
+
         Returns:
             Tuple[LocationInfo, LocationInfo, float]: A tuple containing the origin, destination, and estimated distance in kilometers.
         Raises:
@@ -126,15 +135,21 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
     if (
         not search_in.origin
     ):  # Initial origin for outstation trip, final origin will be the first hop(origin)
-        raise CabboException("Origin is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED)
+        raise CabboException(
+            "Origin is required for outstation trip",
+            status_code=400,
+            error_code=OUTSTATION_TRIP_ORIGIN_REQUIRED,
+        )
 
     if (
         not search_in.destination
     ):  # Initial destination for outstation trip, final destination will be the first hop(origin)
         raise CabboException(
-            "Destination is required for outstation trip", status_code=400, error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED
+            "Destination is required for outstation trip",
+            status_code=400,
+            error_code=OUTSTATION_TRIP_DESTINATION_REQUIRED,
         )
-    
+
     # Build ordered waypoints for the outbound route
     waypoints = [search_in.origin]
     if search_in.hops:
@@ -162,30 +177,41 @@ def _get_trip_origin_destination_distance_outstation(search_in: TripSearchReques
             status_code=500,
             error_code=DISTANCE_BELOW_MINIMUM_THRESHOLD,
         )
-    
-    
+
     # Return leg: destination → origin (direct, not retracing hops)
-    return_km = get_distance_km(origin=search_in.destination, destination=search_in.origin)
+    return_km = get_distance_km(
+        origin=search_in.destination, destination=search_in.origin
+    )
     if not return_km or return_km <= 0:
         raise CabboException(
             "Could not estimate return distance from destination to origin",
             status_code=500,
             error_code=DISTANCE_NOT_DETERMINED,
         )
-    
-    
+
     total_est_km = outbound_km + return_km
 
     return search_in.origin, search_in.destination, total_est_km
 
 
+def _get_outstation_common_disclaimer_lines():
+    non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
+
+    return [
+        non_refund_line,
+        "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
+        "If the trip includes hill climbs, the cab AC may be switched off during such climbs.",
+    ]
+
+
 def _get_outstation_trips_disclaimer_lines(
-    night_hours_display_label: str, night_surcharge_per_hour: float, 
+    night_hours_display_label: str,
+    night_surcharge_per_hour: float,
     included_mileage_km: int,
     overage_amount_per_km: float,
     currency: str,
     extra_day_rate: float,
-    total_trip_days: int
+    total_trip_days: int,
 ):
     """
     Returns the disclaimer lines for outstation trips, including overage charges and parking fees.
@@ -197,18 +223,18 @@ def _get_outstation_trips_disclaimer_lines(
         List[str]: A list of disclaimer lines for outstation trips.
     """
     non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
-    
+
     extra_day_line = (
-    f"If you extend the trip beyond the booked {total_trip_days} day(s), "
-    f"an additional {currency}{extra_day_rate} per extra day applies — pay the driver directly."
-)
+        f"If you extend the trip beyond the booked {total_trip_days} day(s), "
+        f"an additional {currency}{extra_day_rate} per extra day applies — pay the driver directly."
+    )
     return [
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
         non_refund_line,
         extra_day_line,
         f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{overage_amount_per_km} per km will be applied on the final fare - pay the driver directly.",
         "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
-        "If the trip includes hill climbs, the cab AC may be switched off during such climbs."
+        "If the trip includes hill climbs, the cab AC may be switched off during such climbs.",
     ]
 
 
@@ -264,10 +290,12 @@ def get_outstation_trip_options(
         )
 
     currency = config_store.geographies.country_server.currency_symbol
-    
-    _, _, total_est_km = _get_trip_origin_destination_distance_outstation(search_in, min_distance=configuration.auxiliary_pricing.common.min_outbound_distance_km)
+
+    _, _, total_est_km = _get_trip_origin_destination_distance_outstation(
+        search_in,
+        min_distance=configuration.auxiliary_pricing.common.min_outbound_distance_km,
+    )
     total_trip_days = validate_outstation_trip_schedule(search_in)
-    
 
     # Identify unique state borders crossed (including between hops)
     is_interstate, total_unique_states, unique_states = _track_state_transitions(
@@ -302,7 +330,9 @@ def get_outstation_trip_options(
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
         # Calculate interstate permit fee if applicable per cab type and fuel type for the unique states crossed
         if is_interstate and unique_states:
-            if total_trip_days<=7: #If the trip is less than or equal to 7 days, charge permit fee once as permit fee is configured per week basis
+            if (
+                total_trip_days <= 7
+            ):  # If the trip is less than or equal to 7 days, charge permit fee once as permit fee is configured per week basis
                 permit_fee = configuration.auxiliary_pricing.permit.permit_fee
             else:
                 weekly_fee = configuration.auxiliary_pricing.permit.permit_fee
@@ -351,7 +381,9 @@ def get_outstation_trip_options(
             permit_fee=math.ceil(permit_fee),
             platform_fee=platform_fee_amount,
         )
-        extra_day_rate = math.ceil(base_fare_per_km * min_included_km_per_day + driver_allowance_per_day)
+        extra_day_rate = math.ceil(
+            base_fare_per_km * min_included_km_per_day + driver_allowance_per_day
+        )
         disclaimer_lines = _get_outstation_trips_disclaimer_lines(
             night_hours_display_label=night_hours_display_label,
             night_surcharge_per_hour=night_surcharge_per_hour,
@@ -359,9 +391,9 @@ def get_outstation_trip_options(
             overage_amount_per_km=overage_amount_per_km,
             currency=currency,
             extra_day_rate=extra_day_rate,
-            total_trip_days=total_trip_days
+            total_trip_days=total_trip_days,
         )
-       
+
         option = TripSearchOption(
             car_type=cab_type_schema.name,
             fuel_type=fuel_type_schema.name,
@@ -382,8 +414,7 @@ def get_outstation_trip_options(
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency()
-
+            currency=Currency(symbol=currency) if currency else Currency(),
         )
 
         option_dict, preference_dict = generate_trip_field_dictionary(
@@ -430,13 +461,12 @@ def get_outstation_trip_options(
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        disclaimers=_get_outstation_common_disclaimer_lines(),
     )
 
 
 def get_kwargs_for_outstation_trip(
-    trip: Trip,
-    currency: str,
-    customer:Optional[Union[Customer, CustomerRead]]=None
+    trip: Trip, currency: str, customer: Optional[Union[Customer, CustomerRead]] = None
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
@@ -462,7 +492,11 @@ def get_kwargs_for_outstation_trip(
                 return {}  # Do not proceed if customer info is invalid
 
             # Get customer from customer_id
-            customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
+            customer = (
+                trip.customer
+                if trip.creator_id and trip.creator_type == "customer"
+                else None
+            )
             customer = CustomerRead.model_validate(customer) if customer else None
 
             if not customer:
@@ -476,7 +510,7 @@ def get_kwargs_for_outstation_trip(
             customer_email = customer.email or None
 
         driver = trip.driver if trip.driver_id else None
-        driver = DriverReadSchema.model_validate(driver) if driver else None  
+        driver = DriverReadSchema.model_validate(driver) if driver else None
 
         passenger = trip.passenger if trip.passenger_id else None
         passenger = PassengerRequest.model_validate(passenger) if passenger else None
@@ -490,17 +524,25 @@ def get_kwargs_for_outstation_trip(
         # Prepare in-car amenities
         in_car_amenities = None
         if driver and driver.cab_amenities:
-            in_car_amenities = driver.cab_amenities.model_dump(exclude_none=True, exclude_unset=True)
+            in_car_amenities = driver.cab_amenities.model_dump(
+                exclude_none=True, exclude_unset=True
+            )
         else:
             # Fallback to trip's in-car amenities itself, if driver's cab amenities are not available
             in_car_amenities = trip.in_car_amenities or {}
 
-        in_car_amenities = {key: value for key, value in in_car_amenities.items() if value}
+        in_car_amenities = {
+            key: value for key, value in in_car_amenities.items() if value
+        }
 
         # Prepare overages disclaimer
         overages = trip.overages or {}
-        overages_disclaimer: Optional[List[str]] = overages.get("disclaimer", []) if overages else None
-        extra_charges_disclaimers :Optional[str] = overages.get("extra_charges_disclaimers") if overages else None
+        overages_disclaimer: Optional[List[str]] = (
+            overages.get("disclaimer", []) if overages else None
+        )
+        extra_charges_disclaimers: Optional[str] = (
+            overages.get("extra_charges_disclaimers") if overages else None
+        )
 
         # Prepare kwargs for the Jinja template
         kwargs = {
@@ -512,7 +554,11 @@ def get_kwargs_for_outstation_trip(
             "hops": trip.hops,
             "drop_location": destination.address,
             "start_date": trip.start_datetime.strftime("%d %b %Y, %I:%M %p"),
-            "end_date": trip.end_datetime.strftime("%d %b %Y, %I:%M %p") if trip.end_datetime else None,
+            "end_date": (
+                trip.end_datetime.strftime("%d %b %Y, %I:%M %p")
+                if trip.end_datetime
+                else None
+            ),
             "total_trip_days": trip.total_days or "-",
             "estimated_km": trip.estimated_km,
             "included_km": trip.included_kms,
@@ -536,7 +582,6 @@ def get_kwargs_for_outstation_trip(
                 "disclaimer": overages_disclaimer,
                 "extra_charges_disclaimers": extra_charges_disclaimers,
             },
-           
         }
 
         return kwargs
@@ -550,10 +595,10 @@ def get_outstation_min_outbound_distance(
 ) -> Optional[float]:
     """
     Returns the outstation minimum outbound distance threshold (km) for the pickup state
-    from config. 
-    The config is picked up from the state of the pickup location and not the drop location because 
-    we want to set the minimum outbound distance based on the state from which the trip is starting, 
-    as that is where most of the cost is incurred 
+    from config.
+    The config is picked up from the state of the pickup location and not the drop location because
+    we want to set the minimum outbound distance based on the state from which the trip is starting,
+    as that is where most of the cost is incurred
     Returns None if state or config entry is unavailable.
     """
     state = get_state_from_location_v2(location=pickup, config_store=config_store)

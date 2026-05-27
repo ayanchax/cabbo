@@ -303,6 +303,7 @@ class TripSearchResponse(BaseModel):
     metadata: Optional[Union[dict, TripSearchAdditionalData]] = (
         None  # Metadata about the trip search, like total options found, etc.
     )
+    disclaimers: Optional[List[str]] = None  # Any common disclaimer to be shown to the user based on the search results, e.g., "Prices are estimates and may vary based on traffic conditions, tolls, etc."
 
 
 class TripBookRequest(BaseModel):

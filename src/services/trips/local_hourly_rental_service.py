@@ -85,6 +85,20 @@ def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
         0.0,
     )  # Local trips don't require distance estimation as they are hourly based, can be 0 or any default value
 
+def _get_local_trips_common_disclaimer_lines(currency:str, applicable_driver_allowance: float = 0.0):
+    non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
+
+    disclaimer_lines = [
+        non_refund_line,
+
+        "Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.",
+    ]
+    if applicable_driver_allowance > 0.0:
+        disclaimer_lines.insert(
+            1,
+            f"An additional driver allowance of {currency}{applicable_driver_allowance} will be charged if you exceed the included hours.",
+        )
+    return disclaimer_lines
 
 def _get_local_trips_disclaimer_lines(
     package_label: str,
@@ -319,6 +333,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        disclaimers=_get_local_trips_common_disclaimer_lines(currency, applicable_driver_allowance=math.ceil(package.driver_allowance) if package and package.driver_allowance else 0.0)
     )
 
 
