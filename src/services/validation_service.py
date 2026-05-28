@@ -195,7 +195,7 @@ def _validate_airport_bookings(
 
 
 def _validate_booking_request_hash(
-    booking_request: TripBookRequest, requestor: str, db: Session
+    booking_request: TripBookRequest, requestor: str, db: Session, allow_removal_of_existing: bool = True
 ):
     if not booking_request.option.hash:
         raise CabboException(
@@ -214,6 +214,11 @@ def _validate_booking_request_hash(
             .first()
         )
         if existing_temp_trip:
+            if allow_removal_of_existing:
+                db.delete(existing_temp_trip)  # Delete the existing temp trip to prevent clutter, as we will be creating a new temp trip for the new booking request. This also allows the user to reuse the same hash if they want to retry the booking after fixing any issues with the previous booking attempt.
+                db.commit()
+                return
+
             trip_schema = TripDetails.model_validate(existing_temp_trip)
             result = trip_schema.model_dump(
                 exclude_none=True
