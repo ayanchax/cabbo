@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from models.policies.refund_enum import RefundType
@@ -66,6 +65,9 @@ def _format_razorpay_order(order: dict, conversion_factor: int) -> dict:
                 order.get("amount", 0), conversion_factor, convert_to_lowest=False
             )
         ),  # Convert paise to rupees as we want to work in standard currency units in UI
+        "amount_in_lowest_unit": order.get(
+            "amount", 0
+        ),  # Also return amount in lowest unit (paise) as some Razorpay APIs require amount in paise for refunds, this saves the need for reconversion
         "amount_due": float(
             convert_based_on_currency(
                 order.get("amount_due", 0), conversion_factor, convert_to_lowest=False
@@ -111,12 +113,40 @@ def _create_razorpay_order(
                     if razorpay_order.notes.customer
                     else ""
                 ),
+                "customer": {
+                    "id": str(
+                        razorpay_order.notes.customer.id
+                        if razorpay_order.notes.customer
+                        else ""
+                    ),
+                    "name": str(
+                        razorpay_order.notes.customer.name
+                        if razorpay_order.notes.customer
+                        else ""
+                    ),
+                    "email": str(
+                        razorpay_order.notes.customer.email
+                        if razorpay_order.notes.customer
+                        and razorpay_order.notes.customer.email
+                        else ""
+                    ),
+                    "contact": str(
+                        razorpay_order.notes.customer.contact
+                        if razorpay_order.notes.customer
+                        and razorpay_order.notes.customer.contact
+                        else ""
+                    ),
+                },
             },
         }
         client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
         order = client.order.create(data=order_data)
         if not order or "id" not in order:
-            raise CabboException("Failed to create Razorpay order.", status_code=500, error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED)
+            raise CabboException(
+                "Failed to create Razorpay order.",
+                status_code=500,
+                error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED,
+            )
         _formatted_order = _format_razorpay_order(
             order, razorpay_order.currency_conversion_factor
         )
@@ -127,14 +157,16 @@ def _create_razorpay_order(
     except razorpay.errors.BadRequestError as e:
         log.error(f"Razorpay order creation failed: {str(e)}")
         raise CabboException(
-            f"Razorpay order creation failed: {str(e)}", status_code=500, error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED
+            f"Razorpay order creation failed: {str(e)}",
+            status_code=500,
+            error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED,
         )
     except Exception as e:
         log.error(f"Unexpected error during Razorpay order creation: {str(e)}")
         raise CabboException(
             f"Unexpected error during Razorpay order creation: {str(e)}",
             status_code=500,
-            error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED
+            error_code=RAZORPAY_PAYMENT_ORDER_CREATION_FAILED,
         )
 
 
@@ -311,7 +343,7 @@ def initiate_razorpay_refund(
             log.info(
                 f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one"
             )
-             
+
             return {
                 **existing_refund,
                 "amount": float(
@@ -408,9 +440,7 @@ def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
             log.error(f"Unknown refund status received from Razorpay: {status}")
             return RazorPayRefundStatusEnum.FAILED  # Treat unknown status as failed
     except razorpay.errors.BadRequestError as e:
-        log.error(
-            f"Failed to fetch Razorpay refund status for {refund_id}: {str(e)}"
-        )
+        log.error(f"Failed to fetch Razorpay refund status for {refund_id}: {str(e)}")
         return RazorPayRefundStatusEnum.FAILED  # Treat errors as failed status
     except Exception as e:
         log.error(
@@ -443,9 +473,7 @@ def is_razorpay_payment_settled(payment_id: str) -> bool:
             or refund_status in (RefundType.full.value, RefundType.partial.value)
         )  # If settlement_id is present or payment is refunded, payment is settled
     except razorpay.errors.BadRequestError as e:
-        log.error(
-            f"Failed to fetch Razorpay payment status for {payment_id}: {str(e)}"
-        )
+        log.error(f"Failed to fetch Razorpay payment status for {payment_id}: {str(e)}")
         return False  # Treat errors as not settled
     except Exception as e:
         log.error(

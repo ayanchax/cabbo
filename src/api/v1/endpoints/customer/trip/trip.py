@@ -56,7 +56,9 @@ def init_booking(
         "trip_id": trip_id,  # This is the temp trip id created for the booking
         "order_id": order.get("id"),
         "amount": order.get("amount"),
+        "amount_in_lowest_unit": order.get("amount_in_lowest_unit"),
         "currency": order.get("currency"),
+        "currency_symbol": order.get("currency_symbol"),
         "description": order.get("description"),
         "customer": order.get("notes", {}).get("customer", {}),
         "status": order.get("status"),
