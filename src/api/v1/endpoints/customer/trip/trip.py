@@ -25,6 +25,7 @@ from .refunds import router as trip_refunds
 from .bookings import router as trip_bookings
 from .classifier import router as trip_type_classifier
 from .package import router as trip_packages
+from .fleet import router as fleet_router
 
 router = APIRouter()
 
@@ -148,4 +149,9 @@ router.include_router(
 # Trip package retrieval endpoints for customers to view available trip packages based on their trip type and region. These endpoints will validate the JWT token to ensure that only authenticated customers can access this information securely. The trip package retrieval endpoint will allow customers to input their trip type and region code, and the system will return a list of available trip packages that match their criteria, enhancing the overall user experience and enabling customers to make informed decisions about their trip options.
 router.include_router(
     trip_packages, prefix="/trip-packages", tags=["customer-trip-package-retrieval"]
+)
+
+# Fleet browsing endpoint for customers to view the different fleets available in the system which they can then choose from when booking a trip. This endpoint will validate the JWT token to ensure that only authenticated customers can view the available fleets for security reasons.
+router.include_router(
+    fleet_router, prefix="/fleet", tags=["customer-fleet-browsing"]
 )
