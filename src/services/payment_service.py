@@ -1,3 +1,5 @@
+from typing import Optional
+
 from core.exceptions import UNSUPPORTED_PAYMENT_PROVIDER, CabboException
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import PaymentNotesSchema
@@ -26,10 +28,11 @@ def get_booking_payment_order(
     temp_trip: TempTrip,
     currency: Currency,
     silently_fail: bool = False,
+    existing_order_id: Optional[str] = None
 ):
     if PAYMENT_PROVIDER == PaymentProvider.razorpay.value:
         return get_razorpay_payment_order(
-            booking_request, customer, temp_trip, currency
+            booking_request, customer, temp_trip, currency, existing_order_id=existing_order_id
         )
     if silently_fail:
         return None

@@ -288,22 +288,6 @@ def initiate_trip_booking(
 
     """
     try:
-        # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
-        verify_trip_hash(booking_request=booking_request)
-
-        # Check for duplicate or conflicting bookings for the same customer.
-        validate_booking_request(
-            booking_request=booking_request, requestor=customer.id, db=db
-        )
-
-        # Delete all previous temporary trip details for the customer
-        delete_temp_trip(requestor=customer.id, db=db)
-
-        # Create a new Temp Trip object from the booking request
-        temp_trip = create_temporary_trip(
-            booking_request=booking_request, requestor=customer.id, db=db
-        )
-
         config_store: ConfigStore = settings.get_config_store(db)
         currency:Currency = Currency(
             code=config_store.geographies.country_server.currency or "INR",
@@ -318,10 +302,45 @@ def initiate_trip_booking(
             lowest_unit_name=config_store.geographies.country_server.currency_lowest_unit_name or "Paise",
             lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor or 100,
         )
+        
+        # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
+        verify_trip_hash(booking_request=booking_request)
+
+        # Check for duplicate or conflicting bookings for the same customer.
+        existing_valid_temp_trip_details, order_id = validate_booking_request(
+            booking_request=booking_request, requestor=customer.id, db=db
+        )
+
+        if existing_valid_temp_trip_details:
+            #Early return the existing valid temp trip details and payment order to avoid creating multiple temp trips and payment orders for the same booking request, which can lead to confusion and potential issues with payment reconciliation and trip management. This also optimizes the booking flow by reusing existing valid data instead of creating new records unnecessarily.
+            trip_id, order = get_booking_payment_order(
+            booking_request=booking_request, customer=customer, temp_trip=existing_valid_temp_trip_details, currency=currency, existing_order_id=order_id
+        )
+            if order is None:
+                #Silently delete the existing temp trip details if the associated payment order is not valid or cannot be retrieved, to allow the booking process to start fresh and avoid potential issues with stale or orphaned temp trip records that are not linked to valid payment orders. This ensures data integrity and a smoother booking experience for the customer.
+                delete_temp_trip_by_booking_id(booking_id=existing_valid_temp_trip_details.id, requestor=customer.id, db=db)
+            else:
+                return trip_id, order
+
+        # Sanity Hygiene: Delete all previous temporary trip details for the customer
+        delete_temp_trip(requestor=customer.id, db=db)
+
+        # Create a new Temp Trip object from the booking request
+        temp_trip = create_temporary_trip(
+            booking_request=booking_request, requestor=customer.id, db=db
+        )
+
+        
         # Create razor pay order for the trip
         trip_id, order = get_booking_payment_order(
             booking_request=booking_request, customer=customer, temp_trip=temp_trip, currency=currency
         )
+        if order is None:
+            delete_temp_trip_by_booking_id(booking_id=trip_id, requestor=customer.id, db=db)
+            raise CabboException(
+                "Failed to create payment order for the trip booking", status_code=500, error_code=GENERIC_EXCEPTION
+            )
+
         payment_provider_metadata= {
             "razorpay_order_id": order.get("id"),
             "amount": order.get("amount"),

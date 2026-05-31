@@ -52,7 +52,6 @@ def init_booking(
     trip_id, order = initiate_trip_booking(
         booking_request=trip_in, customer=current_customer, db=db
     )
-
     return {
         "trip_id": trip_id,  # This is the temp trip id created for the booking
         "order_id": order.get("id"),

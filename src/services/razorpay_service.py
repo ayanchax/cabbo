@@ -1,5 +1,7 @@
+
 import sys
 from pathlib import Path
+from typing import Optional
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
@@ -74,6 +76,34 @@ def _format_razorpay_order(order: dict, conversion_factor: int) -> dict:
             )
         ),
     }
+
+def _get_razorpay_existing_order(
+    razorpay_order: RazorpayOrderSchema, order_id: Optional[str] = None
+) -> dict:
+    """Fetch an existing Razorpay order for the trip booking if it exists and is valid.
+    Args:
+        razorpay_order (RazorpayOrderSchema): The Razorpay order schema containing order details.
+        order_id (Optional[str]): The existing Razorpay order ID, if available.
+    Returns:
+        dict: A dictionary containing the Razorpay order details if a valid existing order is found, None otherwise.
+    """
+    try:
+        existing_order = RAZOR_PAY_CLIENT.order.fetch(order_id or razorpay_order.receipt)
+        if existing_order and existing_order.get('status') == RazorPayOrderStatusEnum.CREATED.value:
+            log.info(f"Found existing valid Razorpay order for receipt {razorpay_order.receipt}: {existing_order}")
+            _formatted_order =  _format_razorpay_order(existing_order, razorpay_order.currency_conversion_factor)
+            _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
+            return _formatted_order
+
+        else:
+            log.info(f"No valid existing Razorpay order found for receipt {razorpay_order.receipt}")
+            return None
+    except razorpay.errors.BadRequestError as e:
+        log.error(f"Error fetching existing Razorpay order for receipt {razorpay_order.receipt}: {str(e)}")
+        return None
+    except Exception as e:
+        log.error(f"Unexpected error fetching existing Razorpay order for receipt {razorpay_order.receipt}: {str(e)}")
+        return None
 
 
 def _create_razorpay_order(
@@ -235,6 +265,7 @@ def get_razorpay_payment_order(
     customer: Customer,
     temp_trip: TempTrip,
     currency: Currency,
+    existing_order_id: Optional[str] = None,
 ) -> tuple:
 
     razorpay_schema = RazorpayOrderSchema(
@@ -256,7 +287,10 @@ def get_razorpay_payment_order(
         ),
     )
     trip_id = temp_trip.id  # Use the temporary trip ID as the booking ID
-    return trip_id, _create_razorpay_order(razorpay_order=razorpay_schema)
+    if not existing_order_id:
+        return trip_id, _create_razorpay_order(razorpay_order=razorpay_schema)
+    else:
+        return trip_id, _get_razorpay_existing_order(razorpay_order=razorpay_schema, order_id=existing_order_id)
 
 
 def verify_razorpay_payment(payment_detail: dict):
@@ -507,6 +541,7 @@ def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str):
     return payment_id and payment_id.startswith("pay_")
 
 
+   
 if __name__ == "__main__":
     # Quick test to verify Razorpay integration is working
     test_payment_id = (

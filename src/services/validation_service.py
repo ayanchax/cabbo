@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import math
 import re
-from typing import List, Optional, Union
+from typing import List, Union
 
 from fastapi import Body
 from core.exceptions import (
@@ -44,7 +44,6 @@ from core.exceptions import (
     OUTSTATION_TRIP_ORIGIN_NOT_ALLOWED,
     OUTSTATION_TRIP_ORIGIN_REQUIRED,
     OUTSTATION_TRIP_SCHEDULE_REQUIRED,
-    SIMILAR_BOOKING_EXISTS,
     TRIP_TYPE_NOT_CONFIGURED,
     TRIP_TYPE_NOT_SUPPORTED,
     AIRPORT_TRIP_START_DATE_REQUIRED,
@@ -77,7 +76,6 @@ from models.trip.trip_orm import Trip, TripTypeMaster
 from models.trip.trip_schema import (
     TripBookRequest,
     TripClassificationRequest,
-    TripDetails,
     TripSearchRequest,
 )
 from models.user.user_schema import UserCreateSchema, UserUpdateSchema
@@ -93,8 +91,6 @@ from services.configuration_service import (
 from services.location_service import get_distance_km, get_distance_km_haversine
 from utils.utility import (
     calculate_age_from_dob,
-    remove_none_recursive,
-    transform_datetime_to_str,
     validate_date_time,
 )
 from sqlalchemy.orm import Session
@@ -195,7 +191,7 @@ def _validate_airport_bookings(
 
 
 def _validate_booking_request_hash(
-    booking_request: TripBookRequest, requestor: str, db: Session, allow_removal_of_existing: bool = True
+    booking_request: TripBookRequest, requestor: str, db: Session, allow_removal_of_existing: bool = False
 ):
     if not booking_request.option.hash:
         raise CabboException(
@@ -214,32 +210,46 @@ def _validate_booking_request_hash(
             .first()
         )
         if existing_temp_trip:
-            if allow_removal_of_existing:
-                db.delete(existing_temp_trip)  # Delete the existing temp trip to prevent clutter, as we will be creating a new temp trip for the new booking request. This also allows the user to reuse the same hash if they want to retry the booking after fixing any issues with the previous booking attempt.
-                db.commit()
-                return
+            # Ensure both datetimes are timezone-aware (UTC)
+            created_at = existing_temp_trip.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            
 
-            trip_schema = TripDetails.model_validate(existing_temp_trip)
-            result = trip_schema.model_dump(
-                exclude_none=True
-            )  # Return the trip schema as a dictionary excluding None values
-            trip_details = remove_none_recursive(result)
-            trip_details = transform_datetime_to_str(trip_details)
-            raise CabboException(
-                {
-                    "message": "You already have made a similar booking which is incomplete. Please complete the previous booking to continue",
-                    "booking_id": existing_temp_trip.id,
-                },
-                status_code=400,
-                error_code=SIMILAR_BOOKING_EXISTS,
-            )
+            if created_at < datetime.now(timezone.utc) - timedelta(minutes=29):
+                # If the temp trip is older than 29 minutes, we consider it expired and remove it to allow fresh booking attempts, since Razorpay orders typically expire after 30 minutes, so a temp trip older than 29 minutes is unlikely to be valid.
+                db.delete(existing_temp_trip)
+                db.commit()
+                return None, None
+
+            # Check if the existing temp trip has payment provider metadata and a valid Razorpay order id, if not, we consider it invalid and remove it to allow fresh booking attempts, since without a valid Razorpay order id, there is no way to validate the temp trip and it could be a stale entry from an abandoned booking attempt. This is an important check to prevent blocking users from making new booking attempts due to stale temp trip entries that do not have valid payment provider metadata and order ids, which can happen if there were issues during temp trip creation or if the user abandoned the booking process before completing payment.
+            ppm = existing_temp_trip.payment_provider_metadata
+            order_id = None
+            if ppm:
+                order_id = ppm.get('razorpay_order_id') if isinstance(ppm, dict) else getattr(ppm, 'razorpay_order_id', None)
+            if not order_id:
+                # If there is no payment provider metadata or order id, we consider this temp trip as invalid and remove it to allow fresh booking attempts, since without payment provider metadata and order id, there is no way to validate the temp trip and it could be a stale entry from an abandoned booking attempt.
+                db.delete(existing_temp_trip)
+                db.commit()
+                return None, None
+
+            
+
+            
+            if allow_removal_of_existing:
+                db.delete(existing_temp_trip)
+                db.commit()
+                return None, None
+
+            return existing_temp_trip, order_id
+        return None, None
 
 
 def validate_booking_request(
     booking_request: TripBookRequest, requestor: str, db: Session
 ):
     # case 0: Check if the booking request is a valid request with an unique hash
-    _validate_booking_request_hash(
+    existing_trip_details, order_id = _validate_booking_request_hash(
         booking_request=booking_request, requestor=requestor, db=db
     )
 
@@ -274,7 +284,7 @@ def validate_booking_request(
             status_code=501,
             error_code=TRIP_TYPE_NOT_SUPPORTED,
         )
-
+    return existing_trip_details, order_id
 
 def validate_serviceable_area(
     search_in: TripSearchRequest, config_store: ConfigStore, db: Session
