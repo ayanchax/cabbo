@@ -5,7 +5,7 @@ from core.exceptions import INVALID_TRIP_TYPE, CabboException
 from models.common import AmenitiesSchema
 from models.customer.customer_schema import CustomerBase, CustomerRead
 from models.driver.driver_schema import DriverReadSchema
-from models.policies.cancelation_schema import CancelationSchema
+from models.policies.cancelation_schema import CancelationPolicySchema, CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
@@ -230,6 +230,8 @@ class TripSearchOption(BaseModel):
     ]  # Trip type specific pricing breakdown
     included_kms: Optional[float] = None
     included_hours: Optional[int] = None  # For local trips
+    rate_per_min: Optional[float] = None  # For local trips
+    rate_per_km: Optional[float] = None  # For outstation , airport and local trips
     package_short_label: Optional[str] = (
         None  # Short label for the package, e.g., "4 Hours / 40 KM"
     )
@@ -304,7 +306,7 @@ class TripSearchResponse(BaseModel):
         None  # Metadata about the trip search, like total options found, etc.
     )
     disclaimers: Optional[List[str]] = None  # Any common disclaimer to be shown to the user based on the search results, e.g., "Prices are estimates and may vary based on traffic conditions, tolls, etc."
-
+    refund_and_cancellation_policy: Optional[Union[List[str], CancelationPolicySchema]] = None  # Refund and cancellation policy for the trip based on the trip type and origin location jurisdiction
 
 class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book

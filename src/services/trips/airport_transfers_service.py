@@ -33,6 +33,7 @@ from models.trip.trip_schema import (
 )
 from services.location_service import get_distance_km
 from core.config import settings
+from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import (
     validate_airport_schedule,
@@ -172,8 +173,10 @@ def _get_airport_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for airport trips.
     """
+    rounded_overage_amount_per_km = int(math.ceil(overage_amount_per_km)) if overage_amount_per_km is not None else 0
+
     return [
-        f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{overage_amount_per_km} per kilometre will apply.",
+        f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{rounded_overage_amount_per_km} per kilometre will apply.",
     ]
 
 
@@ -291,13 +294,18 @@ def get_airport_pickup_trip_options(
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
             overage_amount_per_km, currency, max_included_km
         )
+
+        total_price=math.ceil(
+                total_price_before_platform_fee + price_breakdown.platform_fee
+            )
+
+        rate_per_km = round(total_price / max_included_km, 2)
+
         
         option = TripSearchOption(
             car_type=cab_type_schema.name,  # Use display name from schema
             fuel_type=fuel_type_schema.name,  # Use display name from schema
-            total_price=math.ceil(
-                total_price_before_platform_fee + price_breakdown.platform_fee
-            ),
+            total_price=total_price,
             included_kms=max_included_km,
             price_breakdown=price_breakdown,
             package=package_label,  # Use package string for display
@@ -312,7 +320,8 @@ def get_airport_pickup_trip_options(
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency()
+            currency=Currency(symbol=currency) if currency else Currency(),
+            rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
             search_in, cab_type_schema.name, fuel_type_schema.name, option
@@ -329,6 +338,8 @@ def get_airport_pickup_trip_options(
             "No airport pickup trip options available for the given configuration",
             status_code=404,
         )
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.region_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
+    
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(
         options, key=lambda option: derive_trip_sort_priority(search_in, option)
@@ -353,7 +364,8 @@ def get_airport_pickup_trip_options(
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
     )
 
 
@@ -433,12 +445,15 @@ def get_airport_dropoff_trip_options(
             overage_amount_per_km, currency, max_included_km
         )
         
+        total_price=math.ceil(
+                total_price_before_platform_fee + price_breakdown.platform_fee
+            )
+        rate_per_km = round(total_price / max_included_km, 2)
+        
         option = TripSearchOption(
             car_type=cab_type_schema.name,  # Use display name
             fuel_type=fuel_type_schema.name,  # Use display name
-            total_price=math.ceil(
-                total_price_before_platform_fee + price_breakdown.platform_fee
-            ),
+            total_price=total_price,
             price_breakdown=price_breakdown,
             included_kms=max_included_km,
             package=package_label,
@@ -453,7 +468,8 @@ def get_airport_dropoff_trip_options(
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency()
+            currency=Currency(symbol=currency) if currency else Currency(),
+            rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
             search_in, cab_type_schema.name, fuel_type_schema.name, option
@@ -470,6 +486,8 @@ def get_airport_dropoff_trip_options(
             "No airport dropoff trip options available for the given configuration",
             status_code=404,
         )
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.region_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
+    
 
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(
@@ -495,7 +513,9 @@ def get_airport_dropoff_trip_options(
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
-        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True)
+        metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
+
     )
 
 def get_kwargs_for_airport_transfer(

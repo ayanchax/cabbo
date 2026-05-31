@@ -36,6 +36,7 @@ from models.trip.trip_schema import (
 )
 from services.configuration_service import get_region_from_location
 
+from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import validate_date_time
@@ -117,12 +118,18 @@ def _get_local_trips_disclaimer_lines(
         List[str]: A list of disclaimer lines for local trips.
     """
     non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
+    
+    # Always ceil per minute and per km overage amounts for display
+    #Converting per hour overage to per minute for better customer understanding and transparency, as local trips are primarily charged based on time. This allows customers to understand how much they will be charged for each additional minute if they exceed the included hours in their package, which can help them manage their trip duration effectively to avoid overage charges. The per km overage is also rounded up to ensure that customers are aware of the maximum potential charge for exceeding the included kilometers.
+    # Plus no surprise numbers for customers.
+    rounded_overage_amount_per_minute = int(math.ceil(overage_amount_per_hour/60)) if overage_amount_per_hour is not None else 0
+    rounded_overage_amount_per_km = int(math.ceil(overage_amount_per_km)) if overage_amount_per_km is not None else 0
 
     disclaimer_lines = [
-        f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{overage_amount_per_hour} per hour and/or {currency}{overage_amount_per_km} per km will apply.",
-        non_refund_line,
-        "Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.",
-    ]
+            f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{rounded_overage_amount_per_minute} per minute and/or {currency}{rounded_overage_amount_per_km} per km will apply.",
+            non_refund_line,
+            "Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.",
+        ]
 
     if applicable_driver_allowance > 0.0:
         disclaimer_lines.insert(
@@ -213,6 +220,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     package_short_label = package.package_label
     package_included_hours = package.included_hours
     package_included_km = package.included_km
+    total_included_minutes = package_included_hours * 60
+
 
     expected_end_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone) + timedelta(
         hours=package_included_hours
@@ -226,6 +235,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     )
     local_pricings = configuration.base_pricing
     options: List[TripSearchOption] = []
+
 
     for pricing, cab_type, fuel_type in local_pricings:
         pricing_schema = LocalCabPricingSchema.model_validate(pricing)
@@ -268,12 +278,17 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
 
         
         package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
+        total_price=math.ceil(
+                total_price_before_platform_fee + price_breakdown.platform_fee
+            )
+        #We are also calculating the rate per minute for local trips to provide better price transparency to customers, as local trips are primarily charged based on time rather than distance. This allows customers to understand how much they are paying for each minute of their trip, which can help them make more informed decisions about their booking and manage their trip duration effectively to avoid overage charges. The rate per minute is calculated by dividing the total price (including platform fee and driver allowance) by the total included minutes in the selected package.
+        rate_per_minute = round(total_price / total_included_minutes, 2)
+        rate_per_km = round(total_price / package.included_km, 2) 
+        
         option = TripSearchOption(
             car_type=cab_type_schema.name,  # Use display name from schema
             fuel_type=fuel_type_schema.name,  # Use display name from schema
-            total_price=math.ceil(
-                total_price_before_platform_fee + price_breakdown.platform_fee
-            ),
+            total_price=total_price,
             price_breakdown=price_breakdown,
             included_hours=package_included_hours,
             included_kms=package_included_km,
@@ -287,6 +302,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
             currency=Currency(symbol=currency) if currency else Currency(),
+            rate_per_min=rate_per_minute,
+            rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
             search_in, cab_type_schema.name, fuel_type_schema.name, option
@@ -304,6 +321,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             status_code=404,
             error_code=GENERIC_EXCEPTION,
         )
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.region_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
+    
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(
         options, key=lambda option: derive_trip_sort_priority_local_rental(search_in, option)
@@ -333,7 +352,9 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
-        disclaimers=_get_local_trips_common_disclaimer_lines(currency, applicable_driver_allowance=math.ceil(package.driver_allowance) if package and package.driver_allowance else 0.0)
+        disclaimers=_get_local_trips_common_disclaimer_lines(currency, applicable_driver_allowance=math.ceil(package.driver_allowance) if package and package.driver_allowance else 0.0),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
+
     )
 
 

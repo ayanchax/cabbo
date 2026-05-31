@@ -779,3 +779,4 @@ async def inactivate_refund(refund: RefundORM, db: AsyncSession):
     await db.commit()
     await db.refresh(refund)
     log.info(f"Refund {refund.id} has been inactivated")
+

@@ -40,6 +40,7 @@ from models.trip.trip_schema import (
 from services.configuration_service import get_state_from_location_v2
 from services.location_service import get_distance_km
 
+from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_outstation_trip_schedule
 
@@ -199,7 +200,7 @@ def _get_outstation_common_disclaimer_lines():
 
     return [
         non_refund_line,
-        "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
+        "Extra charges apply for tolls, paid parking, night driving surcharges and exceeding included days or mileage (if applicable) - pay the driver directly.",
         "If the trip includes hill climbs, the cab AC may be switched off during such climbs.",
     ]
 
@@ -224,16 +225,20 @@ def _get_outstation_trips_disclaimer_lines(
     """
     non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
 
+    rounded_overage_amount_per_km = int(math.ceil(overage_amount_per_km)) if overage_amount_per_km is not None else 0
+
+    rounded_extra_day_rate = int(math.ceil(extra_day_rate)) if extra_day_rate is not None else 0
+
     extra_day_line = (
         f"If you extend the trip beyond the booked {total_trip_days} day(s), "
-        f"an additional {currency}{extra_day_rate} per extra day applies — pay the driver directly."
+        f"an additional {currency}{rounded_extra_day_rate} per extra day will apply."
     )
     return [
-        f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will be applied on the final fare.",
+        f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will apply.",
         non_refund_line,
         extra_day_line,
-        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{overage_amount_per_km} per km will be applied on the final fare - pay the driver directly.",
-        "Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.",
+        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{rounded_overage_amount_per_km} per km will apply.",
+        "Extra charges apply for tolls, paid parking, night driving surcharges and exceeding included days or mileage (if applicable) - pay the driver directly.",
         "If the trip includes hill climbs, the cab AC may be switched off during such climbs.",
     ]
 
@@ -394,12 +399,15 @@ def get_outstation_trip_options(
             total_trip_days=total_trip_days,
         )
 
+        total_price = math.ceil(
+                total_price_before_platform_fee + platform_fee_amount
+            )
+        rate_per_km = round(total_price / included_km, 2)
+
         option = TripSearchOption(
             car_type=cab_type_schema.name,
             fuel_type=fuel_type_schema.name,
-            total_price=math.ceil(
-                total_price_before_platform_fee + platform_fee_amount
-            ),
+            total_price=total_price,
             price_breakdown=price_breakdown,
             included_kms=included_km,
             package=package_label,
@@ -415,6 +423,7 @@ def get_outstation_trip_options(
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
             currency=Currency(symbol=currency) if currency else Currency(),
+            rate_per_km=rate_per_km,
         )
 
         option_dict, preference_dict = generate_trip_field_dictionary(
@@ -432,6 +441,8 @@ def get_outstation_trip_options(
             status_code=404,
             error_code=GENERIC_EXCEPTION,
         )
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.state_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
+    
     # Intelligent sorting based on user preferences and trip context
     _options = sorted(
         options, key=lambda option: derive_trip_sort_priority(search_in, option)
@@ -462,6 +473,7 @@ def get_outstation_trip_options(
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_outstation_common_disclaimer_lines(),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
     )
 
 
