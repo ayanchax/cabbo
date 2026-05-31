@@ -226,7 +226,8 @@ def _validate_booking_request_hash(
             ppm = existing_temp_trip.payment_provider_metadata
             order_id = None
             if ppm:
-                order_id = ppm.get('razorpay_order_id') if isinstance(ppm, dict) else getattr(ppm, 'razorpay_order_id', None)
+                key = f"{settings.PAYMENT_PROVIDER}_order_id"
+                order_id = ppm.get(key) if isinstance(ppm, dict) else getattr(ppm, key, None)
             if not order_id:
                 # If there is no payment provider metadata or order id, we consider this temp trip as invalid and remove it to allow fresh booking attempts, since without payment provider metadata and order id, there is no way to validate the temp trip and it could be a stale entry from an abandoned booking attempt.
                 db.delete(existing_temp_trip)

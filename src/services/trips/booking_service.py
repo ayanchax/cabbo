@@ -22,7 +22,6 @@ from core.exceptions import (
     ALREADY_BOOKED_ON_THIS_SLOT,
     GENERIC_EXCEPTION,
     UNAUTHORIZED,
-    PAYMENT_VERIFICATION_FAILED,
 )
 from services.audit_trail_service import log_trip_audit
 from services.payment_service import get_booking_payment_order, verify_payment
@@ -37,6 +36,8 @@ from services.validation_service import (
 )
 from core.config import settings
 
+import logging
+log = logging.getLogger(__name__)
 
 def _generate_booking_id(trip_type: str, db: Session, length: int = 16, attempts: int = 5) -> str:
     """
@@ -320,6 +321,7 @@ def initiate_trip_booking(
                 #Silently delete the existing temp trip details if the associated payment order is not valid or cannot be retrieved, to allow the booking process to start fresh and avoid potential issues with stale or orphaned temp trip records that are not linked to valid payment orders. This ensures data integrity and a smoother booking experience for the customer.
                 delete_temp_trip_by_booking_id(booking_id=existing_valid_temp_trip_details.id, requestor=customer.id, db=db)
             else:
+                log.info(f"Existing valid temp trip and payment order found for customer {customer.id}, reusing the existing records for the booking process.")
                 return trip_id, order
 
         # Sanity Hygiene: Delete all previous temporary trip details for the customer
@@ -341,8 +343,9 @@ def initiate_trip_booking(
                 "Failed to create payment order for the trip booking", status_code=500, error_code=GENERIC_EXCEPTION
             )
 
+        key = f"{settings.PAYMENT_PROVIDER}_order_id"
         payment_provider_metadata= {
-            "razorpay_order_id": order.get("id"),
+            key: order.get("id"),
             "amount": order.get("amount"),
             "currency": order.get("currency"),
             "receipt": order.get("receipt"),
