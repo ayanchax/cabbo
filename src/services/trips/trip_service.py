@@ -82,6 +82,11 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
     if trip.package:  # Serialize the package if it exists
         package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
         trip_dict["package"] = package_data
+        total_included_minutes = package_data.get("included_hours") * 60
+
+        total_price=trip.final_price if trip.final_price else 0.0
+        rate_per_minute = round(total_price / total_included_minutes, 2)
+        trip_dict["rate_per_minute"] = rate_per_minute
         trip_dict.pop("package_id", None)
     else:
         trip_dict["package"] = None
@@ -127,14 +132,16 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
             all_cabs = get_all_cabs(db)
 
             # Find the cab that matches the preferred car type
-            preferred_cab = next((cab for cab in all_cabs if cab.name == trip.preferred_car_type), None)
-
+            preferred_cab = next((cab for cab in all_cabs if cab.name.lower() == trip.preferred_car_type.value.lower()), None)
             trip_dict["fleet"] = {
                 "car_type": trip.preferred_car_type if trip.preferred_car_type else None,
-                "fuel_type": trip.preferred_fuel_type if trip.preferred_fuel_type else None
-                ** preferred_cab.model_dump() if preferred_cab else {}
+                "fuel_type": trip.preferred_fuel_type if trip.preferred_fuel_type else None,
+                **(preferred_cab.model_dump() if preferred_cab else {})
             }
-            
+
+    
+    
+
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
@@ -924,3 +931,5 @@ async def update_non_cost_impacting_trip_fields(
         raise CabboException(
             f"Failed to update trip details: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
+
+
