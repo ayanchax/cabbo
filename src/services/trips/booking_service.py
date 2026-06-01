@@ -24,6 +24,7 @@ from core.exceptions import (
     UNAUTHORIZED,
 )
 from services.audit_trail_service import log_trip_audit
+from services.configuration_service import get_currency
 from services.payment_service import get_booking_payment_order, verify_payment
 from services.trips.trip_service import (
     create_temporary_trip,
@@ -289,20 +290,8 @@ def initiate_trip_booking(
 
     """
     try:
-        config_store: ConfigStore = settings.get_config_store(db)
-        currency:Currency = Currency(
-            code=config_store.geographies.country_server.currency or "INR",
-            symbol=config_store.geographies.country_server.currency_symbol or "₹",
-            decimal_places=config_store.geographies.country_server.currency_decimal_places or 2,
-            in_words=config_store.geographies.country_server.currency_in_words or "Rupees",
-            international_name=config_store.geographies.country_server.currency_international_name or "Indian Rupee",
-            symbol_position=config_store.geographies.country_server.currency_symbol_position or "before",
-            code_position=config_store.geographies.country_server.currency_code_position or "after",    
-            thousand_separator=config_store.geographies.country_server.currency_thousand_separator or ",",
-            decimal_separator=config_store.geographies.country_server.currency_decimal_separator or ".",
-            lowest_unit_name=config_store.geographies.country_server.currency_lowest_unit_name or "Paise",
-            lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor or 100,
-        )
+        currency= get_currency(db=db)  # Ensure that currency information is loaded from the configuration store before proceeding with the booking process, as it may be required for payment processing and order creation. This also helps to catch any issues with currency configuration early in the booking flow, allowing for a smoother user experience and better error handling in case of misconfiguration.
+        
         
         # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
         verify_trip_hash(booking_request=booking_request)

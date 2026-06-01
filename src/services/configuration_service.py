@@ -3,12 +3,15 @@ from core.store import ConfigStore
 from models.geography.region_schema import RegionSchema
 from models.geography.state_schema import StateSchema
 from models.map.location_schema import LocationInfo
+from models.pricing.pricing_schema import Currency
 from services.geography_service import (
     lookup_country_by_country_id,
     lookup_region_by_code,
     lookup_state_by_code,
     look_up_state_by_id,
 )
+from sqlalchemy.orm import Session
+from core.config import settings
 
 
 def get_region_from_location(
@@ -28,7 +31,6 @@ def get_region_from_location(
     if region:
         _enrich_region_with_state_and_country(region, config_store)
 
-    
     return region
 
 
@@ -62,7 +64,6 @@ def _enrich_state_with_country(state: StateSchema, config_store: ConfigStore):
         if country_info:
             state.country_code = country_info.country_code
             state.country_name = country_info.country_name
-           
 
 
 def get_state_from_location_v2(
@@ -85,3 +86,33 @@ def get_state_from_location_v2(
         _enrich_state_with_country(state, config_store)
 
     return state
+
+def get_all_cabs(db: Session):
+    config_store: ConfigStore = settings.get_config_store(db)
+    cabs = config_store.cabs
+    return cabs
+
+def get_currency(db: Session):
+    config_store: ConfigStore = settings.get_config_store(db)
+    currency: Currency = Currency(
+        code=config_store.geographies.country_server.currency or "INR",
+        symbol=config_store.geographies.country_server.currency_symbol or "₹",
+        decimal_places=config_store.geographies.country_server.currency_decimal_places
+        or 2,
+        in_words=config_store.geographies.country_server.currency_in_words or "Rupees",
+        international_name=config_store.geographies.country_server.currency_international_name
+        or "Indian Rupee",
+        symbol_position=config_store.geographies.country_server.currency_symbol_position
+        or "before",
+        code_position=config_store.geographies.country_server.currency_code_position
+        or "after",
+        thousand_separator=config_store.geographies.country_server.currency_thousand_separator
+        or ",",
+        decimal_separator=config_store.geographies.country_server.currency_decimal_separator
+        or ".",
+        lowest_unit_name=config_store.geographies.country_server.currency_lowest_unit_name
+        or "Paise",
+        lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor
+        or 100,
+    )
+    return currency

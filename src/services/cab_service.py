@@ -121,4 +121,4 @@ async def async_activate_cab(cab_type_id:str, db:AsyncSession):
         await db.rollback()
         log.error(f"Error activating cab type: {e}")
         return False, str(e)
-   
+

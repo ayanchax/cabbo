@@ -11,6 +11,7 @@ from core.trip_helpers import (
     generate_trip_field_dictionary,
     get_trip_type_id_by_trip_type,
 )
+from db.database import get_mysql_local_session
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerBase, CustomerRead
@@ -41,6 +42,7 @@ from models.trip.trip_schema import (
 from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
+from services.configuration_service import get_all_cabs, get_currency
 from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
@@ -59,7 +61,7 @@ from sqlalchemy import select
 from core.config import settings
 
 
-def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False) -> dict:
+def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False, expose_currency_detail: bool = False, expose_fleet_detail: bool = False) -> dict:
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     if trip.driver:  # Serialize the driver if it exists
         driver= DriverReadSchema.model_validate(trip.driver)
@@ -113,8 +115,26 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
             trip_dict["dispute"].pop("id", None)
             trip_dict["dispute"].pop("entity_id", None)
 
+    db=None
+    if expose_currency_detail:
+        db = get_mysql_local_session()
+        currency= get_currency(db)
+        trip_dict["currency"] = currency.model_dump() if currency else None
 
+    if expose_fleet_detail:
+            if not db:
+                db = get_mysql_local_session()
+            all_cabs = get_all_cabs(db)
 
+            # Find the cab that matches the preferred car type
+            preferred_cab = next((cab for cab in all_cabs if cab.name == trip.preferred_car_type), None)
+
+            trip_dict["fleet"] = {
+                "car_type": trip.preferred_car_type if trip.preferred_car_type else None,
+                "fuel_type": trip.preferred_fuel_type if trip.preferred_fuel_type else None
+                ** preferred_cab.model_dump() if preferred_cab else {}
+            }
+            
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(

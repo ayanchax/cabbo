@@ -43,11 +43,13 @@ async def view_trip_details_by_booking_id_and_customer_id(
 
     if trip is None:
         raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
-    serialized_trip = serialize_trip(trip)
+    serialized_trip = serialize_trip(trip=trip, expose_currency_detail=True, expose_fleet_detail=True)
     if "id" in serialized_trip:
         serialized_trip.pop(
             "id"
         )  # Remove internal trip ID from the response for security reasons
+    
+
     return serialized_trip
 
 
