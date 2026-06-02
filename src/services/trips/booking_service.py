@@ -195,6 +195,8 @@ def _create_confirmed_trip_from_temp_trip(
             temp_trip.price_breakdown if temp_trip.price_breakdown else None
         ),
         overages=temp_trip.overages if temp_trip.overages else None,
+        rate_per_min=temp_trip.rate_per_min if temp_trip.rate_per_min else 0.0,
+        rate_per_km=temp_trip.rate_per_km if temp_trip.rate_per_km else 0.0,
         base_fare=temp_trip.base_fare,
         driver_allowance=temp_trip.driver_allowance,
         tolls=temp_trip.tolls,
@@ -377,7 +379,6 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     """
     # Logic to confirm the booking based on booking_id
     # This would typically involve checking payment status and updating trip status
-    # For now, we will just return a success message
 
     if not booking_request.trip_id:
         raise CabboException(

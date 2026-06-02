@@ -86,7 +86,10 @@ class Trip(Base):
     )  # Short label for the package, e.g., "4H/40KM"
     # FK to trip package config table for hourly rental trips
     # Package information selected by customer - END
-
+    rate_per_min= Column(
+        Float, nullable=True, default=0.0, comment="Applicable for hourly rental trips, this is the rate per minute for the trip which is used to calculate the final price for hourly rental trips based on the total duration of the trip. This field is populated based on the package chosen by the customer and the region-specific pricing configured in the system for that package and trip type."
+    )
+    rate_per_km = Column(Float, default=0.0, nullable=True, comment="Applicable for outstation trips, airport transfers, and hourly rental trips, this is the rate per km for the trip which is used to calculate the final price based on the total distance of the trip. This field is populated based on the package chosen by the customer and the region/state-specific pricing configured in the system for that package and trip type.")
     # Date and time information
     start_datetime = Column(DateTime, nullable=False) #This field is always converted to UTC, refer validate_date_time() method in utility.py for details
     expected_end_datetime = Column(

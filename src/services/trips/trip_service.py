@@ -62,6 +62,15 @@ from core.config import settings
 
 
 def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False, expose_currency_detail: bool = False, expose_fleet_detail: bool = False) -> dict:
+    
+    def _get_rate_per_minute_fallback():
+        if trip.package:
+            package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
+            total_included_minutes = package_data.get("included_hours") * 60
+            total_price=trip.final_price if trip.final_price else 0.0
+            return round(total_price / total_included_minutes, 2)
+        return 0.0
+        
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     if trip.driver:  # Serialize the driver if it exists
         driver= DriverReadSchema.model_validate(trip.driver)
@@ -82,11 +91,7 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
     if trip.package:  # Serialize the package if it exists
         package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
         trip_dict["package"] = package_data
-        total_included_minutes = package_data.get("included_hours") * 60
-
-        total_price=trip.final_price if trip.final_price else 0.0
-        rate_per_minute = round(total_price / total_included_minutes, 2)
-        trip_dict["rate_per_minute"] = rate_per_minute
+        trip_dict["rate_per_min"] = trip.rate_per_min if trip.rate_per_min else _get_rate_per_minute_fallback()
         trip_dict.pop("package_id", None)
     else:
         trip_dict["package"] = None
@@ -139,7 +144,7 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
                 **(preferred_cab.model_dump() if preferred_cab else {})
             }
 
-    
+    trip_dict["rate_per_km"]= trip.rate_per_km if trip.rate_per_km else 0.0
     
 
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
@@ -481,6 +486,8 @@ def create_temporary_trip(
             if booking_request.option.overages
             else None
         ),
+        rate_per_min=booking_request.option.rate_per_min if booking_request.option.rate_per_min else 0.0,
+        rate_per_km=booking_request.option.rate_per_km if booking_request.option.rate_per_km else 0.0,
         base_fare=booking_request.option.price_breakdown.base_fare,
         driver_allowance=(
             get_driver_allowance(option=booking_request.option)

@@ -199,6 +199,11 @@ class TripSearchRequest(BaseModel):
         settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset of the trip based on the origin location, e.g., 5.5 for IST"
     )
 
+    retrieve_fleet: Optional[bool] = Field(
+        False, description="Indicates if the trip is requesting for retrieving fleet data"
+    )
+
+
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
     @classmethod
@@ -294,6 +299,7 @@ class TripSearchAdditionalData(BaseModel):
         settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
     )
 
+    
     class Config:
         extra = "forbid"  # Allow extra fields not defined in the model
         exclude_none = True

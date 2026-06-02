@@ -84,7 +84,11 @@ class TempTrip(Base):
     included_kms = Column(
         Float, nullable=True, default=0.0
     )  # Included km for hourly rental trips and outstation trips
-     
+    rate_per_min= Column(
+        Float, nullable=True, default=0.0, comment="Applicable for hourly rental trips, this is the rate per minute for the trip which is used to calculate the final price for hourly rental trips based on the total duration of the trip. This field is populated based on the package chosen by the customer and the region-specific pricing configured in the system for that package and trip type."
+    )
+    rate_per_km = Column(Float, default=0.0, nullable=True, comment="Applicable for outstation trips, airport transfers, and hourly rental trips, this is the rate per km for the trip which is used to calculate the final price based on the total distance of the trip. This field is populated based on the package chosen by the customer and the region/state-specific pricing configured in the system for that package and trip type.")
+    
     # Date and time information - END
 
     # Passenger and luggage information

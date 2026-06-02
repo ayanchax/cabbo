@@ -12,6 +12,7 @@ from models.trip.trip_schema import (
 )
 
 from sqlalchemy.orm import Session
+from services.configuration_service import get_all_cabs
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import (
     confirm_trip_booking,
@@ -52,7 +53,9 @@ def init_booking(
     trip_id, order = initiate_trip_booking(
         booking_request=trip_in, customer=current_customer, db=db
     )
-    return {
+
+    
+    response =  {
         "trip_id": trip_id,  # This is the temp trip id created for the booking
         "order_id": order.get("id"),
         "amount": order.get("amount"),
@@ -63,7 +66,17 @@ def init_booking(
         "customer": order.get("notes", {}).get("customer", {}),
         "status": order.get("status"),
         **get_trip_messages(status=TripStatusEnum.created),
+        
     }
+    fleet= None
+    if trip_in.preferences.retrieve_fleet:
+        #If the request includes a flag to retrieve fleet information, fetch the fleet details based on the car type preference specified in the trip booking request and include it in the response. This allows customers to view the available fleet options that match their preferences when initiating a trip booking, enhancing their booking experience and enabling them to make informed decisions about their trip options.
+        all_cabs = get_all_cabs(db)
+        preferred_cab = next((cab for cab in all_cabs if cab.name.lower() == trip_in.option.car_type.value.lower()), None)
+        fleet = preferred_cab.model_dump() if preferred_cab else None
+        response["fleet"] = fleet
+    return response
+
 
 
 @router.post("/confirm-booking", response_model=dict, tags=["customer-trip-booking"])
