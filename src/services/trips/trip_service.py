@@ -17,6 +17,7 @@ from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerBase, CustomerRead
 from models.customer.passenger_schema import PassengerRequest
 from models.driver.driver_schema import DriverReadSchema
+from models.map.location_schema import LocationInfo
 from models.policies.cancelation_schema import CancelationSchema
 from models.policies.dispute_schema import DisputeSchema
 from models.pricing.pricing_schema import (
@@ -48,6 +49,7 @@ from services.passenger_service import (
     populate_passenger_details,
     validate_passenger_id,
 )
+from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import (
     get_driver_allowance,
     get_parking,
@@ -143,9 +145,19 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
                 "fuel_type": trip.preferred_fuel_type if trip.preferred_fuel_type else None,
                 **(preferred_cab.model_dump() if preferred_cab else {})
             }
-
-    trip_dict["rate_per_km"]= trip.rate_per_km if trip.rate_per_km else 0.0
-    
+    trip_type = trip_dict.get("trip_type", {}).get("trip_type") if trip_dict.get("trip_type") else None
+    if trip_type:
+        trip_type= TripTypeEnum(trip_type)
+        if not db:
+            db = get_mysql_local_session()
+        config_store = settings.get_config_store(db)
+        origin = LocationInfo.model_validate(trip.origin) if trip.origin else None
+        if origin:
+            jurisdiction_code = origin.region_code if trip_type in [TripTypeEnum.local, TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop] else origin.state_code  # For local trips, cancellation policy is based on region code, for outstation and airport trips, it's based on state code    
+            cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=trip_type, jurisdiction_code=jurisdiction_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
+            refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy)
+            trip_dict["refund_and_cancellation_policy"] = refund_and_cancellation_policy
+    trip_dict["rate_per_km"] = trip.rate_per_km if trip.rate_per_km else 0.0
 
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)

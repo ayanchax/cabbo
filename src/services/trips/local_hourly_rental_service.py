@@ -222,13 +222,12 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     package_included_km = package.included_km
     total_included_minutes = package_included_hours * 60
 
+    search_in.start_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone).strftime("%Y-%m-%dT%H:%M:%SZ")  # Ensure start date is in correct format and timezone-aware for local trips
 
     expected_end_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone) + timedelta(
         hours=package_included_hours
     )
-    search_in.expected_end_date = str(
-        expected_end_date
-    )  # Ensure expected end date is set for local trips
+    search_in.expected_end_date = expected_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")  # Ensure expected end date is set for local trips
 
     platform_fee_percent = (
         configuration.auxiliary_pricing.common.dynamic_platform_fee_percent
@@ -347,7 +346,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         choices=len(_options),  # Total number of options returned
         is_round_trip=True,
     )
-
+    
     return TripSearchResponse(
         options=_options,
         preferences=search_in,
