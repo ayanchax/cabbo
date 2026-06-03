@@ -61,9 +61,10 @@ from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from core.config import settings
+import logging
+log = logging.getLogger(__name__)
 
-
-def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False, expose_currency_detail: bool = False, expose_fleet_detail: bool = False) -> dict:
+def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dispute_details: bool = False, expose_cancellation_detail: bool = False, expose_currency_detail: bool = False, expose_fleet_detail: bool = False, expose_trip_label: bool = False, optimize_response: bool = False) -> dict:
     
     def _get_rate_per_minute_fallback():
         if trip.package:
@@ -102,7 +103,7 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
         trip_dict["passenger"] = passenger_data
         trip_dict.pop("passenger_id", None)
     else:
-        trip_dict["passenger"] = None
+        trip_dict["passenger"] = None #means passenger is itself the customer, so we can populate customer details in the response if expose_customer_details is True
 
     if expose_customer_details:
         if trip.customer:
@@ -159,11 +160,64 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
             trip_dict["refund_and_cancellation_policy"] = refund_and_cancellation_policy
     trip_dict["rate_per_km"] = trip.rate_per_km if trip.rate_per_km else 0.0
 
+    if expose_trip_label:
+        trip_dict["label"] = get_trip_label(trip_dict)
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
         exclude_none=True
     )
+
+    if optimize_response:
+        if trip_type:
+            keys_to_remove=[]
+            trip_type = TripTypeEnum(trip_type)
+            currency = trip_dict.get("currency",{})
+            if currency:
+                keys_to_remove = ["code_position", "decimal_places", "decimal_separator", "in_words","international_name","symbol_position","thousand_separator"]
+                for key in keys_to_remove:
+                    trip_details["currency"].pop(key, None)
+                keys_to_remove = []
+            origin = trip_dict.get("origin",{})
+            if origin:
+                keys_to_remove = ["country", "region", "state", "postal_code"]
+                for key in keys_to_remove:
+                    trip_details["origin"].pop(key, None)
+                keys_to_remove = []
+            destination = trip_dict.get("destination",{})
+            if destination:
+                keys_to_remove = ["country", "region", "state", "postal_code"]
+                for key in keys_to_remove:
+                    trip_details["destination"].pop(key, None)
+                keys_to_remove = []
+            
+            fleet = trip_dict.get("fleet",{})
+            if fleet:
+                keys_to_remove = ["id", "is_active", "created_by"]
+                for key in keys_to_remove:
+                    trip_details["fleet"].pop(key, None)
+                keys_to_remove = []
+            package = trip_dict.get("package",{})
+            if package:
+                keys_to_remove = ["id", "region_id", "trip_type_id", "package_label"]
+                for key in keys_to_remove:
+                    trip_details["package"].pop(key, None)
+                keys_to_remove = []
+            trip_type_data = trip_dict.get("trip_type",{})
+            if trip_type_data:
+                keys_to_remove = ["id"]
+                for key in keys_to_remove:
+                    trip_details["trip_type"].pop(key, None)
+                keys_to_remove = []
+            
+            if trip_type == TripTypeEnum.local:
+                keys_to_remove = ["created_at", "creator_id", "creator_type", "estimated_km","final_display_price","indicative_overage_warning", "is_active", "is_interstate", "is_round_trip", "num_backpacks","num_carryons", "num_large_suitcases","num_luggages", "num_other_bags","package_label","package_label_short","parking", "permit_fee","payment_provider_metadata","placard_required","platform_fee","preferred_car_type","preferred_fuel_type", "total_unique_states", "unique_states", "flight_number", "terminal_number","rate_per_km","toll_road_preferred","tolls","total_days","updated_at","utc_offset", "driver_allowance"]
+            elif trip_type == TripTypeEnum.outstation:  
+                pass # We will do as we proceed further with our frontend flows
+            elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+                pass # We will do as we proceed further with our frontend flows
+            for key in keys_to_remove:
+                trip_details.pop(key, None)
     return remove_none_recursive(trip_details)
 
 
@@ -750,74 +804,96 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
 
+def get_trip_label(trip:dict):
+        try:
+            current_datetime = datetime.now(timezone.utc)
+            
+            trip_status = trip.get("status")
+            trip_type = (
+                trip.get("trip_type").get("trip_type") if trip.get("trip_type") else None
+            )
+
+            trip_type = TripTypeEnum(trip_type) if trip_type else None
+            trip_status = TripStatusEnum(trip_status) if trip_status else None
+            if not trip_type or not trip_status:
+                return "unknown"
+            start_datetime = trip.get("start_datetime")
+            expected_end_datetime = trip.get("expected_end_datetime")
+
+            # Ensure start_datetime and expected_end_datetime are timezone-aware
+            start_datetime = validate_date_time(start_datetime, timezone_str=trip.get("timezone")) if start_datetime else None
+            expected_end_datetime = validate_date_time(expected_end_datetime, timezone_str=trip.get("timezone")) if expected_end_datetime else None
+            
+            # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
+            if trip_type in [
+                TripTypeEnum.airport_pickup,
+                TripTypeEnum.airport_drop,
+                TripTypeEnum.local,
+            ]:
+                if (
+                    trip_status
+                    in [TripStatusEnum.confirmed, TripStatusEnum.created]
+                    and start_datetime > current_datetime
+                ):
+                    return "upcoming"
+                elif (
+                    trip_status == TripStatusEnum.ongoing
+                    and start_datetime <= current_datetime
+                    and start_datetime >= (current_datetime - timedelta(hours=24))
+                ):
+                    return "ongoing"
+                elif (
+                    trip_status
+                    in [TripStatusEnum.completed, TripStatusEnum.cancelled, TripStatusEnum.confirmed, TripStatusEnum.created]
+                    and start_datetime <= current_datetime
+                ): # All trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+                    return "past"
+
+            # Outstation Logic(strictly based on start and expected end datetime to account for real-world conditions like delays, early arrivals, etc.)
+            elif trip_type == TripTypeEnum.outstation:
+                if (
+                    trip_status
+                    in [TripStatusEnum.confirmed, TripStatusEnum.created]
+                    and start_datetime > current_datetime
+                    and expected_end_datetime > current_datetime
+                ):
+                    return "upcoming"
+                elif (
+                    trip_status == TripStatusEnum.ongoing
+                    and start_datetime <= current_datetime
+                    and expected_end_datetime >= current_datetime
+                ):
+                    return "ongoing"
+                elif (
+                    trip_status
+                    in [TripStatusEnum.completed, TripStatusEnum.cancelled, TripStatusEnum.confirmed, TripStatusEnum.created]
+                    and start_datetime <= current_datetime
+                    and expected_end_datetime <= current_datetime
+                ): # All outstation trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+                    return "past"
+            
+            return "unknown"
+        except Exception as e:
+            log.error(f"Error determining trip label for trip ID {trip.get('id')}: {str(e)}")
+            return "unknown"
+
+
+
 def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
-    current_datetime = datetime.now(timezone.utc)
     upcoming_trips = []
     ongoing_trips = []
     past_trips = []
-
-    for trip in trips:
-        trip_status = trip.get("status")
-        trip_type = (
-            trip.get("trip_type").get("trip_type") if trip.get("trip_type") else None
-        )
-        start_datetime = trip.get("start_datetime")
-        expected_end_datetime = trip.get("expected_end_datetime")
-
-        # Ensure start_datetime and expected_end_datetime are timezone-aware
-        if start_datetime and start_datetime.tzinfo is None:
-            start_datetime = start_datetime.replace(tzinfo=timezone.utc)
-        if expected_end_datetime and expected_end_datetime.tzinfo is None:
-            expected_end_datetime = expected_end_datetime.replace(tzinfo=timezone.utc)
-
-        # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
-        if trip_type in [
-            TripTypeEnum.airport_pickup.value,
-            TripTypeEnum.airport_drop.value,
-            TripTypeEnum.local.value,
-        ]:
-            if (
-                trip_status
-                in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value]
-                and start_datetime > current_datetime
-            ):
+    try:
+        for trip in trips:
+            label = get_trip_label(trip)
+            if label == "upcoming":
                 upcoming_trips.append(trip)
-            elif (
-                trip_status == TripStatusEnum.ongoing.value
-                and start_datetime <= current_datetime
-                and start_datetime >= (current_datetime - timedelta(hours=24))
-            ):
+            elif label == "ongoing":
                 ongoing_trips.append(trip)
-            elif (
-                trip_status
-                in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value]
-                and start_datetime <= current_datetime
-            ):
+            elif label == "past":
                 past_trips.append(trip)
-
-        # Outstation Logic(strictly based on start and expected end datetime to account for real-world conditions like delays, early arrivals, etc.)
-        elif trip_type == TripTypeEnum.outstation.value:
-            if (
-                trip_status
-                in [TripStatusEnum.confirmed.value, TripStatusEnum.created.value]
-                and start_datetime > current_datetime
-                and expected_end_datetime > current_datetime
-            ):
-                upcoming_trips.append(trip)
-            elif (
-                trip_status == TripStatusEnum.ongoing.value
-                and start_datetime <= current_datetime
-                and expected_end_datetime >= current_datetime
-            ):
-                ongoing_trips.append(trip)
-            elif (
-                trip_status
-                in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value]
-                and start_datetime <= current_datetime
-                and expected_end_datetime <= current_datetime
-            ):
-                past_trips.append(trip)
-
+    except Exception as e:
+        log.error(f"Error grouping trips by status with timezone validation: {str(e)}")
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
 

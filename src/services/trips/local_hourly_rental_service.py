@@ -227,7 +227,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     expected_end_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone) + timedelta(
         hours=package_included_hours
     )
-    search_in.expected_end_date = expected_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")  # Ensure expected end date is set for local trips
+    search_in.expected_end_date = expected_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")  # Ensure expected end date is set for local trips and timezone-aware
 
     platform_fee_percent = (
         configuration.auxiliary_pricing.common.dynamic_platform_fee_percent

@@ -455,6 +455,9 @@ class TripDetailSchema(BaseModel):
     overages: Optional[Dict] = Field(
         None, description="Details of overages (e.g., extra km charges)"
     )
+    rate_per_min: Optional[float] = None  # For local trips
+    rate_per_km: Optional[float] = None  # For outstation , airport and local trips
+    
 
     # Inclusions and exclusions
     inclusions: Optional[List[str]] = Field(
@@ -504,6 +507,14 @@ class TripDetailSchema(BaseModel):
     )
     updated_at: Optional[datetime] = Field(
         None, description="Timestamp when the trip was last updated"
+    )
+
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+
+    utc_offset: Optional[int] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
     )
 
     class Config:
