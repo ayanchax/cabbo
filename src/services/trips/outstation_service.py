@@ -12,7 +12,6 @@ from core.exceptions import (
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
 from core.trip_helpers import (
-    derive_trip_sort_priority,
     generate_trip_field_dictionary,
     generate_trip_hash,
     get_default_trip_amenities,
@@ -37,6 +36,8 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
+from models.trip.trip_enums import CarTypeEnum
+from services.cab_service import get_car_type_rank, get_recommended_car_type
 from services.configuration_service import get_state_from_location_v2
 from services.location_service import get_distance_km
 
@@ -444,8 +445,9 @@ def get_outstation_trip_options(
     cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.state_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
     
     # Intelligent sorting based on user preferences and trip context
+    recommended_car_type = get_car_type(search_in)
     _options = sorted(
-        options, key=lambda option: derive_trip_sort_priority(search_in, option)
+        options, key=lambda option: derive_trip_sort_priority(recommended_car_type, option)
     )[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
@@ -623,3 +625,26 @@ def get_outstation_min_outbound_distance(
         return outstation_config.auxiliary_pricing.common.min_outbound_distance_km
     except AttributeError:
         return None
+
+
+def get_car_type(search_in: TripSearchRequest) -> CarTypeEnum:
+    total_pax = search_in.total_passengers
+    return get_recommended_car_type(
+        total_num_people=total_pax,
+        total_num_luggages=search_in.total_luggages,
+    )
+
+
+def derive_trip_sort_priority(
+    recommended_car_type: CarTypeEnum,
+    option: TripSearchOption,
+):
+    minimum_rank = get_car_type_rank(recommended_car_type)
+    option_rank = get_car_type_rank(option.car_type)
+
+    if option_rank < minimum_rank:
+        capacity_score = 1000 + ((minimum_rank - option_rank) * 100)
+    else:
+        capacity_score = (option_rank - minimum_rank) * 100
+
+    return (capacity_score, option.total_price)

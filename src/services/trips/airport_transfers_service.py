@@ -10,7 +10,11 @@ from core.exceptions import (
 )
 from core.store import ConfigStore
 from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
-from core.trip_helpers import derive_trip_sort_priority, generate_trip_field_dictionary, generate_trip_hash, get_default_trip_amenities
+from core.trip_helpers import (
+    generate_trip_field_dictionary,
+    generate_trip_hash,
+    get_default_trip_amenities,
+)
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerRead
@@ -23,7 +27,7 @@ from models.pricing.pricing_schema import (
     Currency,
     OveragesSchema,
 )
-from models.trip.trip_enums import TripTypeEnum
+from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
@@ -31,9 +35,13 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
+from services.cab_service import get_car_type_rank, get_recommended_car_type
 from services.location_service import get_distance_km
 from core.config import settings
-from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
+from services.policy_service import (
+    get_refund_and_cancellation_policy_by_jurisdiction_code,
+    get_refund_and_cancellation_policy_lines,
+)
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import (
     validate_airport_schedule,
@@ -69,14 +77,20 @@ def _get_trip_origin_destination_distance_airport_drop(search_in: TripSearchRequ
     """
 
     if not search_in.origin:
-        raise CabboException("Origin is required for airport drop", status_code=400, error_code=GENERIC_EXCEPTION)
+        raise CabboException(
+            "Origin is required for airport drop",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
+        )
 
     if not search_in.destination:
         search_in.destination = None
 
     if not search_in.destination:
         raise CabboException(
-            "Destination is required for airport drop", status_code=400, error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED
+            "Destination is required for airport drop",
+            status_code=400,
+            error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED,
         )
     est_km = get_distance_km(origin=search_in.origin, destination=search_in.destination)
     if not est_km or est_km <= 0:
@@ -102,11 +116,17 @@ def _get_trip_origin_destination_distance_airport_pickup(search_in: TripSearchRe
     if not search_in.origin:
         search_in.origin = None
     if not search_in.origin:
-        raise CabboException("Origin is required", status_code=400, error_code=GENERIC_EXCEPTION)
+        raise CabboException(
+            "Origin is required", status_code=400, error_code=GENERIC_EXCEPTION
+        )
 
         # Origin is airport, destination is required
     if not search_in.destination:
-        raise CabboException("Destination is required", status_code=400, error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED)
+        raise CabboException(
+            "Destination is required",
+            status_code=400,
+            error_code=AIRPORT_PICKUP_DESTINATION_REQUIRED,
+        )
     est_km = get_distance_km(origin=search_in.origin, destination=search_in.destination)
     if not est_km or est_km <= 0:
         raise CabboException(
@@ -173,7 +193,11 @@ def _get_airport_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for airport trips.
     """
-    rounded_overage_amount_per_km = int(math.ceil(overage_amount_per_km)) if overage_amount_per_km is not None else 0
+    rounded_overage_amount_per_km = (
+        int(math.ceil(overage_amount_per_km))
+        if overage_amount_per_km is not None
+        else 0
+    )
 
     return [
         f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{rounded_overage_amount_per_km} per kilometre will apply.",
@@ -270,7 +294,6 @@ def get_airport_pickup_trip_options(
             base_price + toll + parking + placard_charge
         )
 
-        
         margin = max_included_km - est_km  # Allow negative values for overage
         indicative_overage_warning = margin <= warning_km_threshold
         # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
@@ -295,13 +318,12 @@ def get_airport_pickup_trip_options(
             overage_amount_per_km, currency, max_included_km
         )
 
-        total_price=math.ceil(
-                total_price_before_platform_fee + price_breakdown.platform_fee
-            )
+        total_price = math.ceil(
+            total_price_before_platform_fee + price_breakdown.platform_fee
+        )
 
         rate_per_km = round(total_price / max_included_km, 2)
 
-        
         option = TripSearchOption(
             car_type=cab_type_schema.name,  # Use display name from schema
             fuel_type=fuel_type_schema.name,  # Use display name from schema
@@ -338,11 +360,17 @@ def get_airport_pickup_trip_options(
             "No airport pickup trip options available for the given configuration",
             status_code=404,
         )
-    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.region_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
-    
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(
+        trip_type=search_in.trip_type,
+        jurisdiction_code=search_in.origin.region_code,
+        config_store=config_store,
+    )  # Ensure refund policy exists for local trips in the region
+
     # Intelligent sorting based on user preferences and trip context
+    recommended_car_type = get_car_type(search_in)
     _options = sorted(
-        options, key=lambda option: derive_trip_sort_priority(search_in, option)
+        options,
+        key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
     )[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
@@ -365,7 +393,9 @@ def get_airport_pickup_trip_options(
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
-        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(
+            policy=cancelation_refund_policy
+        ),
     )
 
 
@@ -434,7 +464,7 @@ def get_airport_dropoff_trip_options(
             min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
             max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
-        
+
         package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
         price_breakdown = AirportPricingBreakdownSchema(
             base_fare=math.ceil(base_price),
@@ -444,12 +474,12 @@ def get_airport_dropoff_trip_options(
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
             overage_amount_per_km, currency, max_included_km
         )
-        
-        total_price=math.ceil(
-                total_price_before_platform_fee + price_breakdown.platform_fee
-            )
+
+        total_price = math.ceil(
+            total_price_before_platform_fee + price_breakdown.platform_fee
+        )
         rate_per_km = round(total_price / max_included_km, 2)
-        
+
         option = TripSearchOption(
             car_type=cab_type_schema.name,  # Use display name
             fuel_type=fuel_type_schema.name,  # Use display name
@@ -486,12 +516,17 @@ def get_airport_dropoff_trip_options(
             "No airport dropoff trip options available for the given configuration",
             status_code=404,
         )
-    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.region_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
-    
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(
+        trip_type=search_in.trip_type,
+        jurisdiction_code=search_in.origin.region_code,
+        config_store=config_store,
+    )  # Ensure refund policy exists for local trips in the region
 
     # Intelligent sorting based on user preferences and trip context
+    recommended_car_type = get_car_type(search_in)
     _options = sorted(
-        options, key=lambda option: derive_trip_sort_priority(search_in, option)
+        options,
+        key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
     )[
         : len(options)
     ]  #  Limit to top n options based on user preferences and trip context
@@ -514,21 +549,25 @@ def get_airport_dropoff_trip_options(
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
-        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
-
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(
+            policy=cancelation_refund_policy
+        ),
     )
 
+
 def get_kwargs_for_airport_transfer(
-    trip_type: TripTypeEnum, 
-    trip: Trip, 
+    trip_type: TripTypeEnum,
+    trip: Trip,
     currency: str,
-    customer:Optional[Union[Customer, CustomerRead]]=None
+    customer: Optional[Union[Customer, CustomerRead]] = None,
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
             print("Invalid trip information.")
-            return {} # Do not proceed if trip info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
-        
+            return (
+                {}
+            )  # Do not proceed if trip info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+
         app_name = APP_NAME.capitalize()
         app_url = settings.APP_URL
 
@@ -538,37 +577,48 @@ def get_kwargs_for_airport_transfer(
 
         if not origin or not destination:
             print("Invalid origin or destination for trip:", trip.booking_id)
-            return {} # Do not proceed if origin or destination is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+            return (
+                {}
+            )  # Do not proceed if origin or destination is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
 
         if not customer:
-            customer_id = trip.creator_id 
-            
+            customer_id = trip.creator_id
+
             if not customer_id:
                 print("Invalid customer information for trip:", trip.booking_id)
-                return {} # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
-            
-            #Get customer from customer_id
-            customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
+                return (
+                    {}
+                )  # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
+
+            # Get customer from customer_id
+            customer = (
+                trip.customer
+                if trip.creator_id and trip.creator_type == "customer"
+                else None
+            )
             customer = CustomerRead.model_validate(customer) if customer else None
 
-            
             if not customer:
                 print("Customer not found for trip:", trip.booking_id)
-                return {} # Do not proceed if customer not found, do not raise exception here as this is used for email notifications that will mostly fail silently
-            
+                return (
+                    {}
+                )  # Do not proceed if customer not found, do not raise exception here as this is used for email notifications that will mostly fail silently
+
             customer_name = customer.name or "Valued Customer"
-            
+
             customer_email = customer.email or None
         else:
             customer_name = customer.name or "Valued Customer"
             customer_email = customer.email or None
-            
-        driver= trip.driver if trip.driver_id else None
+
+        driver = trip.driver if trip.driver_id else None
         driver = DriverReadSchema.model_validate(driver) if driver else None
 
         # Prepare luggage information
         luggage_info = None
-        if trip.num_luggages and trip.num_luggages > 0:  # Only include luggage info if num_luggages > 0
+        if (
+            trip.num_luggages and trip.num_luggages > 0
+        ):  # Only include luggage info if num_luggages > 0
             luggage_parts = []
             if trip.num_large_suitcases and trip.num_large_suitcases > 0:
                 luggage_parts.append(f"{trip.num_large_suitcases} large suitcases")
@@ -579,7 +629,9 @@ def get_kwargs_for_airport_transfer(
             luggage_info = ", ".join(luggage_parts) if luggage_parts else None
 
         # Prepare special requests
-        special_requests = trip.special_needs_requests if trip.special_needs_requests else None
+        special_requests = (
+            trip.special_needs_requests if trip.special_needs_requests else None
+        )
         passenger = trip.passenger if trip.passenger_id else None
         passenger = PassengerRequest.model_validate(passenger) if passenger else None
         passenger_name = passenger.name if passenger else None
@@ -596,7 +648,11 @@ def get_kwargs_for_airport_transfer(
             "trip_date": trip.start_datetime.strftime("%d %b %Y"),  # Format date
             "trip_time": trip.start_datetime.strftime("%I:%M %p"),  # Format time
             "luggage_info": luggage_info,
-            "placard_name": trip.placard_name if trip.placard_required and trip.placard_name else None,
+            "placard_name": (
+                trip.placard_name
+                if trip.placard_required and trip.placard_name
+                else None
+            ),
             "flight_number": trip.flight_number if trip.flight_number else None,
             "special_requests": special_requests,
             "cab_type": driver.cab_type if driver else None,
@@ -616,3 +672,26 @@ def get_kwargs_for_airport_transfer(
     except Exception as e:
         print("Error preparing kwargs for airport transfer:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
+
+
+def get_car_type(search_in: TripSearchRequest) -> CarTypeEnum:
+    total_pax = search_in.total_passengers
+
+    return get_recommended_car_type(
+        total_num_people=total_pax, total_num_luggages=search_in.total_luggages
+    )
+
+
+def derive_trip_sort_priority(
+    recommended_car_type: CarTypeEnum, option: TripSearchOption
+):
+    minimum_car_type = recommended_car_type
+    minimum_rank = get_car_type_rank(minimum_car_type)
+    option_rank = get_car_type_rank(option.car_type)
+
+    if option_rank < minimum_rank:
+        capacity_score = 1000 + ((minimum_rank - option_rank) * 100)
+    else:
+        capacity_score = (option_rank - minimum_rank) * 100
+
+    return (capacity_score, option.total_price)

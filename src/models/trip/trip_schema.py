@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 from typing import Any, Dict, NamedTuple, Optional, List, Union
 from datetime import datetime
 from core.exceptions import INVALID_TRIP_TYPE, CabboException
@@ -171,8 +171,8 @@ class TripSearchRequest(BaseModel):
     num_carryons: Optional[int] = 0
     num_backpacks: Optional[int] = 0
     num_other_bags: Optional[int] = 0
-    preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
-    preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
+    preferred_car_type: Optional[CarTypeEnum] = None
+    preferred_fuel_type: Optional[FuelTypeEnum] = None
     package_id: Optional[str] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
@@ -203,6 +203,21 @@ class TripSearchRequest(BaseModel):
         False, description="Indicates if the trip is requesting for retrieving fleet data"
     )
 
+    @computed_field
+    @property
+    def total_passengers(self) -> int:
+        return (self.num_adults or 0) + (self.num_children or 0)
+
+    @computed_field
+    @property
+    def total_luggages(self) -> int:
+        return (
+            (self.num_large_suitcases or 0)
+            + (self.num_carryons or 0)
+            + (self.num_backpacks or 0)
+            + (self.num_other_bags or 0)
+        )
+
 
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
@@ -222,6 +237,7 @@ class TripSearchRequest(BaseModel):
                 error_code=INVALID_TRIP_TYPE,
             )
         return v
+    
 
 
 class TripSearchOption(BaseModel):

@@ -7,6 +7,9 @@ from core.security import RoleEnum
 from models.cab.cab_orm import CabType
 from models.cab.cab_schema import CabTypeSchema, CabTypeUpdateSchema
 import logging
+
+from models.trip.trip_enums import CarTypeEnum
+from models.trip.trip_schema import TripSearchRequest
 log = logging.getLogger(__name__)
 def get_all_cabs(db: Session)-> list[CabTypeSchema]:
     """Retrieve all cabs from the database."""
@@ -122,3 +125,45 @@ async def async_activate_cab(cab_type_id:str, db:AsyncSession):
         log.error(f"Error activating cab type: {e}")
         return False, str(e)
 
+def get_car_type_rank(car_type: CarTypeEnum) -> int:
+    car_type_rank = {
+        CarTypeEnum.hatchback: 0,
+        CarTypeEnum.sedan: 1,
+        CarTypeEnum.sedan_plus: 2,
+        CarTypeEnum.suv: 3,
+        CarTypeEnum.suv_plus: 4,
+    }
+    return car_type_rank.get(car_type, -1)  # Return -1 for unknown car types
+ 
+def get_recommended_car_type(
+    total_num_people: int,
+    total_num_luggages: int,
+) -> CarTypeEnum:
+    """
+    Selects the smallest car type that can comfortably support passenger and luggage totals.
+    """
+    if total_num_people > 6:
+        passenger_car_type = CarTypeEnum.suv_plus
+    elif total_num_people >= 5:
+        passenger_car_type = CarTypeEnum.suv
+    elif total_num_people >= 4:
+        passenger_car_type = CarTypeEnum.sedan_plus
+    elif total_num_people >= 2:
+        passenger_car_type = CarTypeEnum.sedan
+    else:
+        passenger_car_type = CarTypeEnum.hatchback
+
+    if total_num_luggages > 4:
+        luggage_car_type = CarTypeEnum.suv_plus
+    elif total_num_luggages >= 4:
+        luggage_car_type = CarTypeEnum.suv
+    elif total_num_luggages >= 3:
+        luggage_car_type = CarTypeEnum.sedan_plus
+    elif total_num_luggages >= 2:
+        luggage_car_type = CarTypeEnum.sedan
+    else:
+        luggage_car_type = CarTypeEnum.hatchback
+
+    if get_car_type_rank(luggage_car_type) > get_car_type_rank(passenger_car_type):
+        return luggage_car_type
+    return passenger_car_type

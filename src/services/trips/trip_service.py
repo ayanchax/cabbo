@@ -43,6 +43,7 @@ from models.trip.trip_schema import (
 from sqlalchemy.orm import Session
 
 from models.user.user_orm import User
+from services.cab_service import get_recommended_car_type
 from services.configuration_service import get_all_cabs, get_currency
 from services.passenger_service import (
     get_passenger_id_from_preferences,
@@ -242,22 +243,6 @@ def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEn
     return TripTypeEnum(trip_type_obj.trip_type)
 
 
-def _get_total_num_luggages(booking_request: TripBookRequest) -> int:
-    """
-    Calculates the total number of luggages based on the booking request.
-    Args:
-        booking_request (TripBookRequest): The trip booking request containing luggage details.
-    Returns:
-        int: The total number of luggages.
-    """
-    return (
-        booking_request.preferences.num_large_suitcases
-        + booking_request.preferences.num_carryons
-        + booking_request.preferences.num_backpacks
-        + booking_request.preferences.num_other_bags
-    )
-
-
 def _retrieve_trip_package_by_id(
     package_id: str,
     db: Session,
@@ -343,7 +328,7 @@ def _set_default_preferences(search_in: TripSearchRequest):
     """
     Ensures all required trip search preferences have sensible defaults.
 
-    - Sets 'preferred_car_type' to CarTypeEnum.sedan if not provided.
+    - Sets 'preferred_car_type' based on passenger and luggage totals.
     - Sets 'preferred_fuel_type' to FuelTypeEnum.diesel if not provided.
     - Ensures at least one adult is present (defaults to 1 if missing or < 1).
     - Ensures number of children is not negative (defaults to 0 if missing or < 0).
@@ -351,14 +336,21 @@ def _set_default_preferences(search_in: TripSearchRequest):
     Args:
         search_in (TripSearchRequest): The trip search request object to populate defaults for.
     """
-    if not search_in.preferred_car_type:
-        search_in.preferred_car_type = CarTypeEnum.sedan
+    
+    if search_in.num_adults is None or search_in.num_adults < 1:
+        search_in.num_adults = 1  # Ensure at least one adult is present
+    if search_in.num_children is None or search_in.num_children < 0:
+        search_in.num_children = 0
+        
     if not search_in.preferred_fuel_type:
         search_in.preferred_fuel_type = FuelTypeEnum.diesel
-    if search_in.num_adults < 1 or search_in.num_adults is None:
-        search_in.num_adults = 1  # Ensure at least one adult is present
-    if search_in.num_children < 0 or search_in.num_children is None:
-        search_in.num_children = 0
+    total_num_people = search_in.total_passengers
+    total_num_luggages = search_in.total_luggages
+    search_in.preferred_car_type = get_recommended_car_type(
+        total_num_people=total_num_people,
+        total_num_luggages=total_num_luggages,
+    )
+
 
 
 def verify_trip_hash(booking_request: TripBookRequest):
@@ -528,13 +520,12 @@ def create_temporary_trip(
         ),
         num_adults=booking_request.preferences.num_adults,
         num_children=booking_request.preferences.num_children,
-        num_passengers=booking_request.preferences.num_adults
-        + booking_request.preferences.num_children,
+        num_passengers=booking_request.preferences.total_passengers,
         num_large_suitcases=booking_request.preferences.num_large_suitcases,
         num_carryons=booking_request.preferences.num_carryons,
         num_backpacks=booking_request.preferences.num_backpacks,
         num_other_bags=booking_request.preferences.num_other_bags,
-        num_luggages=_get_total_num_luggages(booking_request=booking_request),
+        num_luggages=booking_request.preferences.total_luggages,
         preferred_car_type=booking_request.preferences.preferred_car_type,
         preferred_fuel_type=booking_request.preferences.preferred_fuel_type,
         in_car_amenities=(
@@ -591,32 +582,32 @@ def create_temporary_trip(
         ),
         flight_number=(
             booking_request.preferences.flight_number
-            if booking_request.preferences.flight_number
+            if booking_request.preferences and booking_request.preferences.flight_number
             else None
         ),
         terminal_number=(
             booking_request.preferences.terminal_number
-            if booking_request.preferences.terminal_number
+            if booking_request.preferences and booking_request.preferences.terminal_number
             else None
         ),
         toll_road_preferred=(
             booking_request.preferences.toll_road_preferred
-            if booking_request.preferences.toll_road_preferred
+            if booking_request.preferences and booking_request.preferences.toll_road_preferred
             else False
         ),
         placard_required=(
             booking_request.preferences.placard_required
-            if booking_request.preferences.placard_required
+            if booking_request.preferences and booking_request.preferences.placard_required
             else False
         ),
         placard_name=(
             booking_request.preferences.placard_name
-            if booking_request.preferences.placard_name
+            if booking_request.preferences and booking_request.preferences.placard_required and booking_request.preferences.placard_name
             else None
         ),
         estimated_km=(
             booking_request.metadata.estimated_km
-            if booking_request.metadata.estimated_km
+            if booking_request.metadata and booking_request.metadata.estimated_km
             else 0.0
         ),
         indicative_overage_warning=(

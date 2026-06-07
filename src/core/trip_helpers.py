@@ -7,7 +7,7 @@ from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
-from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
+from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import  TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
 from sqlalchemy.orm import Session
@@ -90,81 +90,6 @@ def create_trip_types(trip_types: list, db: Session):
     ]
     db.add_all(trip_type_master_objs)
     db.flush()  # Flush to get IDs assigned
-
-
-def derive_trip_sort_priority(search_in: TripSearchRequest, option: TripSearchOption):
-    # 1. User preferred car type/fuel type always first
-    pref_score = 0
-    if search_in.preferred_car_type and option.car_type == search_in.preferred_car_type:
-        pref_score -= 1000  # Strong preference
-    if (
-        search_in.preferred_fuel_type
-        and option.fuel_type == search_in.preferred_fuel_type
-    ):
-        pref_score -= 500
-    # 2. Passenger count logic
-    total_pax = search_in.num_adults + search_in.num_children
-    if total_pax > 4:  # More than 4 passengers, prefer larger vehicles
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 200
-    elif total_pax <= 4:  # 4 or fewer passengers, prefer smaller vehicles
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-    if total_pax <= 3:  #
-        if option.car_type == CarTypeEnum.hatchback:
-            pref_score -= 50
-    # 3. Luggage logic (fine-grained)
-    num_large_suitcases = search_in.num_large_suitcases or 0
-    num_carryons = search_in.num_carryons or 0
-    num_backpacks = search_in.num_backpacks or 0
-    num_other_bags = search_in.num_other_bags or 0
-    # Strongly prefer SUV/SUV+ only if large suitcases/trolley bags are 3 or more
-    if num_large_suitcases >= 3:
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 300  # Strong preference for SUV/SUV+
-        else:
-            pref_score += 200  # Penalize smaller cars
-    # Strongly prefer sedan/premium sedan if large suitcases/trolley bags are exactly 2
-    elif num_large_suitcases == 2:
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 200  # Strong preference for sedan/sedan+
-        elif option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score += 50  # Slightly penalize SUV/SUV+ (overkill for 2 bags)
-        elif option.car_type == CarTypeEnum.hatchback:
-            pref_score += 200  # Penalize hatchback
-
-    # Moderate preference for SUV/SUV+ for other bag types
-    elif num_carryons > 2 or num_backpacks > 1 or num_other_bags > 1:
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 150
-        else:
-            pref_score += 100
-    elif num_carryons <= 2 or num_backpacks == 1 or num_other_bags == 1:
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-        elif option.car_type == CarTypeEnum.hatchback:
-            pref_score += 100
-    # 4. Price as a tiebreaker
-    return (pref_score, option.total_price)
-
-
-def derive_trip_sort_priority_local_rental(search_in: TripSearchRequest, option: TripSearchOption):
-    pref_score = 0
-    # 1. Passenger count logic
-    total_pax = search_in.num_adults + search_in.num_children
-    if total_pax > 4:  # More than 4 passengers, prefer larger vehicles
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 200
-    elif total_pax <= 4:  # 4 or fewer passengers, prefer smaller vehicles
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-    if total_pax <= 3:  #
-        if option.car_type == CarTypeEnum.hatchback:
-            pref_score -= 50
-    
-    # 2. Price as a tiebreaker
-    return (pref_score, option.total_price)
-
 
 def generate_trip_field_dictionary(
     search_in: TripSearchRequest,
