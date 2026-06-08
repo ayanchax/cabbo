@@ -57,7 +57,7 @@ def get_refund_and_cancellation_policy_lines(policy:CancelationPolicySchema):
     # 1. Full refund if cancelled before cutoff
     if policy.free_cutoff_minutes and policy.free_cutoff_time_label:
         lines.append(
-            f"Full refund if you cancel {policy.free_cutoff_time_label}."
+            f"Full refund if you cancel atleast {policy.free_cutoff_time_label}."
         )
     # 2. Partial refund if cancelled after cutoff
     if policy.refund_percentage is not None and policy.refund_percentage < 100:

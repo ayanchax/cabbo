@@ -182,7 +182,13 @@ def _get_airport_pickup_pricing_configuration_by_region(
 
 
 def _get_airport_trips_disclaimer_lines(
-    overage_amount_per_km: float, currency: str, included_kms: Union[int, float] = 0
+    overage_amount_per_km: float,
+    currency: str,
+    included_kms: Union[int, float] = 0,
+    indicative_overage_warning: bool = False,
+    includes_placard: bool = False,
+    includes_parking: bool = False,
+    includes_tolls: bool = False,
 ):
     """
     Returns the disclaimer lines for airport trips, including overage charges and placard fees.
@@ -193,14 +199,67 @@ def _get_airport_trips_disclaimer_lines(
     Returns:
         List[str]: A list of disclaimer lines for airport trips.
     """
-    rounded_overage_amount_per_km = (
-        int(math.ceil(overage_amount_per_km))
-        if overage_amount_per_km is not None
-        else 0
+    lines = []
+
+    if indicative_overage_warning:
+        rounded_overage_amount_per_km = (
+            int(math.ceil(overage_amount_per_km))
+            if overage_amount_per_km is not None
+            else 0
+        )
+        if rounded_overage_amount_per_km > 0:
+            lines.append(
+                f"This route is close to or may exceed the {included_kms} km included with this airport transfer. If the final trip distance exceeds {included_kms} km, an additional charge of {currency}{rounded_overage_amount_per_km} per km will apply."
+            )
+
+    lines.extend(
+        _get_airport_trips_common_disclaimer_lines(
+            includes_tolls=includes_tolls,
+            includes_parking=includes_parking,
+            includes_placard=includes_placard,
+        )
     )
 
+    return lines
+
+
+def _get_airport_trips_common_disclaimer_lines(
+    includes_tolls: bool = False,
+    includes_parking: bool = False,
+    includes_placard: bool = False,
+) -> List[str]:
+    """
+    Returns the common disclaimer lines for airport trips.
+
+    The caller passes in fare inclusions so the customer-facing copy stays definite:
+    pickup parking is included for airport pickup, and tolls are included only when the
+    customer selected the toll-road route.
+
+    Returns:
+        List[str]: A list of common disclaimer lines for airport trips.
+    """
+    included_charges = []
+    if includes_tolls:
+        included_charges.append("selected toll-road tolls")
+    if includes_parking:
+        included_charges.append("airport parking")
+    if includes_placard:
+        included_charges.append("placard charges")
+
+    included_charges_text = ""
+    if included_charges:
+        if len(included_charges) == 1:
+            included_charges_label = included_charges[0]
+        elif len(included_charges) == 2:
+            included_charges_label = " and ".join(included_charges)
+        else:
+            included_charges_label = (
+                f"{', '.join(included_charges[:-1])} and {included_charges[-1]}"
+            )
+        included_charges_text = f" This fare includes {included_charges_label}."
+
     return [
-        f"If you exceed the included kilometres ({included_kms}) for this airport transfer, an additional charge of {currency}{rounded_overage_amount_per_km} per kilometre will apply.",
+        f"Fare applies to the selected airport transfer route.{included_charges_text} Extra charges may apply for customer-requested route changes, detours, additional stops, waiting, or charges outside the selected fare."
     ]
 
 
@@ -315,7 +374,13 @@ def get_airport_pickup_trip_options(
             platform_fee=platform_fee_amount,
         )
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
-            overage_amount_per_km, currency, max_included_km
+            overage_amount_per_km,
+            currency,
+            max_included_km,
+            indicative_overage_warning=indicative_overage_warning,
+            includes_placard=search_in.placard_required,
+            includes_parking=True,
+            includes_tolls=search_in.toll_road_preferred,
         )
 
         total_price = math.ceil(
@@ -393,6 +458,11 @@ def get_airport_pickup_trip_options(
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        disclaimers=_get_airport_trips_common_disclaimer_lines(
+            includes_tolls=search_in.toll_road_preferred,
+            includes_parking=True,
+            includes_placard=search_in.placard_required,
+        ),
         refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(
             policy=cancelation_refund_policy
         ),
@@ -422,6 +492,7 @@ def get_airport_dropoff_trip_options(
     currency = config_store.geographies.country_server.currency_symbol
 
     validate_airport_schedule(search_in)  # Validate airport drop schedule
+
     _, _, est_km = _get_trip_origin_destination_distance_airport_drop(search_in)
     toll = _get_airport_toll(
         configuration.auxiliary_pricing.common.toll, search_in.toll_road_preferred
@@ -472,7 +543,11 @@ def get_airport_dropoff_trip_options(
             platform_fee=platform_fee_amount,
         )
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
-            overage_amount_per_km, currency, max_included_km
+            overage_amount_per_km,
+            currency,
+            max_included_km,
+            indicative_overage_warning=indicative_overage_warning,
+            includes_tolls=search_in.toll_road_preferred,
         )
 
         total_price = math.ceil(
@@ -549,6 +624,9 @@ def get_airport_dropoff_trip_options(
         options=_options,
         preferences=search_in,
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        disclaimers=_get_airport_trips_common_disclaimer_lines(
+            includes_tolls=search_in.toll_road_preferred,
+        ),
         refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(
             policy=cancelation_refund_policy
         ),
