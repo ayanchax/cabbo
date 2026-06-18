@@ -123,6 +123,7 @@ def tokenize(text: str):
 def round_value(val: float, precision: int = 4):
     return round(val, precision) if val is not None else None
 
-    
+def to_timezone_aware_datetime(dt:datetime):
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

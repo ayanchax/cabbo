@@ -39,7 +39,7 @@ from services.configuration_service import get_region_from_location
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
-from utils.utility import validate_date_time
+from utils.utility import to_timezone_aware_datetime, validate_date_time
 
 
 def _get_inclusions_exclusions_for_local_trip():
@@ -222,13 +222,17 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     package_included_km = package.included_km
     total_included_minutes = package_included_hours * 60
 
-    search_in.start_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone).strftime("%Y-%m-%dT%H:%M:%SZ")  # Ensure start date is in correct format and timezone-aware for local trips
-
+    search_in.start_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone)
+    # Ensure start date is in correct format and timezone-aware for local trips
+    search_in.start_date =to_timezone_aware_datetime(search_in.start_date)
+    
     expected_end_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone) + timedelta(
         hours=package_included_hours
     )
-    search_in.expected_end_date = expected_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")  # Ensure expected end date is set for local trips and timezone-aware
-
+    search_in.expected_end_date = expected_end_date
+     # Ensure expected end date is set for local trips and timezone-aware
+    search_in.expected_end_date = to_timezone_aware_datetime(search_in.expected_end_date)
+    
     platform_fee_percent = (
         configuration.auxiliary_pricing.common.dynamic_platform_fee_percent
     )

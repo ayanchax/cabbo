@@ -71,7 +71,7 @@ def get_refund_and_cancellation_policy_lines(policy:CancelationPolicySchema):
     )
     # 4. Instant refund processing
     lines.append(
-        "Refunds are processed instantly upon cancellation confirmation. Depending on your payment method, it may take 1-3 business days for the amount to reflect in your account."
+        "Refunds are processed instantly upon cancellation confirmation. Depending on your payment method, it may take 1-3 business days for the amount to reflect in your source account."
     )
     # 5. Transparency and support
     lines.append(

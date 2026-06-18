@@ -91,6 +91,7 @@ from services.configuration_service import (
 from services.location_service import get_distance_km, get_distance_km_haversine
 from utils.utility import (
     calculate_age_from_dob,
+    to_timezone_aware_datetime,
     validate_date_time,
 )
 from sqlalchemy.orm import Session
@@ -1537,7 +1538,8 @@ def validate_airport_schedule(search_in: TripSearchRequest):
             status_code=400,
             error_code=AIRPORT_TRIP_START_DATE_BELOW_PRIOR_BOOKING_WINDOW,
         )
-    search_in.start_date = start_date.strftime("%Y-%m-%dT%H:%M:%SZ") # Format start date with timezone info for consistency, so that client can rely on the format in the response and does not have to do additional parsing to get timezone info if needed, plus can convert to local timezone if needed based on the timezone info in the string
+    
+    search_in.start_date = to_timezone_aware_datetime(start_date) # Format start date with timezone info for consistency, so that client can rely on the format in the response and does not have to do additional parsing to get timezone info if needed, plus can convert to local timezone if needed based on the timezone info in the string
     
 
 
