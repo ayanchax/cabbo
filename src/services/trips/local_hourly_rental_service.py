@@ -452,6 +452,7 @@ def get_kwargs_for_local_hourly_rental(
                 "disclaimer": overages_disclaimer,
                 "extra_charges_disclaimers": extra_charges_disclaimers,
             },
+            "timezone": trip.timezone,
         }
 
        

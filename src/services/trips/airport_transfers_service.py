@@ -745,6 +745,7 @@ def get_kwargs_for_airport_transfer(
             "total_fare": trip.final_price,
             "amount_paid": trip.advance_payment,
             "amount_due": trip.balance_payment,
+            "timezone": trip.timezone,
         }
 
         return kwargs

@@ -597,6 +597,7 @@ def get_kwargs_for_outstation_trip(
                 "disclaimer": overages_disclaimer,
                 "extra_charges_disclaimers": extra_charges_disclaimers,
             },
+            "timezone": trip.timezone,
         }
 
         return kwargs

@@ -12,7 +12,7 @@ from core.trip_helpers import (
     get_trip_type_id_by_trip_type,
 )
 from db.database import get_mysql_local_session
-from models.common import AppBackgroundTask
+from models.common import AppBackgroundTask, S3ObjectInfo
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerBase, CustomerRead
 from models.customer.passenger_schema import PassengerRequest
@@ -171,6 +171,7 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
         exclude_none=True
     )
+    
 
     if optimize_response:
         if trip_type:
@@ -222,6 +223,32 @@ def serialize_trip(trip: Trip, expose_customer_details: bool = False, expose_dis
                 pass # We will do as we proceed further with our frontend flows
             for key in keys_to_remove:
                 trip_details.pop(key, None)
+        if trip_details.get("driver"):
+            driver_details = trip_details["driver"]
+
+            driver_profile_picture_info = driver_details.get("s3_image_info", None)
+            if driver_profile_picture_info:
+                image_info = S3ObjectInfo.model_validate(driver_profile_picture_info)
+                driver_details["profile_picture_url"] = image_info.url
+
+            keys_to_remove = {
+                "id",
+                "cab_amenities",
+                "payment_mode",
+                "payment_phone_number",
+                "bank_details",
+                "dob",
+                "emergency_contact_name",
+                "emergency_contact_number",
+                "nationality",
+                "religion",
+                "address",
+                "is_active",
+                "s3_image_info",
+            }
+
+            for key in keys_to_remove:
+                driver_details.pop(key, None)
     return remove_none_recursive(trip_details)
 
 
