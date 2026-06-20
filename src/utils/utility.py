@@ -127,3 +127,18 @@ def to_timezone_aware_datetime(dt:datetime):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+
+
+
+def format_trip_datetime(dt:datetime, timezone:str):
+    trip_tz = ZoneInfo(timezone or "UTC")
+    if not dt:
+        return None
+
+    # Database values represent UTC, even if MySQL returns them as naive.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(trip_tz)
+
+

@@ -44,6 +44,7 @@ from services.location_service import get_distance_km
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_outstation_trip_schedule
+from utils.utility import format_trip_datetime
 
 
 def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
@@ -567,9 +568,9 @@ def get_kwargs_for_outstation_trip(
             "pickup_location": origin.address,
             "hops": trip.hops,
             "drop_location": destination.address,
-            "start_date": trip.start_datetime.strftime("%d %b %Y, %I:%M %p"),
+            "start_date": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%d %b %Y, %I:%M %p"),
             "end_date": (
-                trip.end_datetime.strftime("%d %b %Y, %I:%M %p")
+                format_trip_datetime(trip.end_datetime, trip.timezone).strftime("%d %b %Y, %I:%M %p")
                 if trip.end_datetime
                 else None
             ),
@@ -581,9 +582,9 @@ def get_kwargs_for_outstation_trip(
             "driver_name": driver.name if driver else None,
             "driver_contact": driver.phone if driver else None,
             "cab_number": driver.cab_registration_number if driver else None,
-            "cab_type": driver.cab_type if driver else None,
+            "cab_type": driver.cab_type.value if driver else None,
             "model": driver.cab_model_and_make if driver else None,
-            "fuel_type": driver.fuel_type if driver else None,
+            "fuel_type": driver.fuel_type.value if driver else None,
             "passenger_name": passenger_name,
             "currency": currency,
             "total_fare": trip.final_price,

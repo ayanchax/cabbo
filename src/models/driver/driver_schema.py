@@ -105,7 +105,7 @@ class DriverUpdateSchema(DriverBaseSchema):
 
 
 class DriverReadSchema(DriverCreateSchema):
-    pass
+    avg_rating:Optional[float]=Field(0.0, description="Average rating of the driver based on customer feedback")
 
 
 class DriverEarningSchema(BaseModel):

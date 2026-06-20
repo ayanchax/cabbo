@@ -239,6 +239,12 @@
             <div class="detail-row"><span class="label">Date & Time</span><span class="value">{{ trip_date }} at {{
                     trip_time }}</span></div>
 
+            {% if timezone %}
+<div style="margin-top:4px; text-align:right; font-size:0.7rem; color:#6b7280;">
+    Timezone: {{ timezone }}
+</div>
+{% endif %}
+
 
             {% if luggage_info %}
             <div class="detail-row"><span class="label">Luggage</span><span class="value">{{ luggage_info }}</span>

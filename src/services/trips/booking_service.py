@@ -389,7 +389,7 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     existing_trip = _is_existing_trip_booking(
         trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
-    if existing_trip:
+    if existing_trip: # Idempotency check: If the trip booking already exists, raise an exception to prevent duplicate bookings and ensure that the booking process is idempotent, allowing clients to safely retry requests without creating multiple bookings for the same trip.
         raise CabboException("Booking already exists", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT)
 
     # Check in database if the booking exists

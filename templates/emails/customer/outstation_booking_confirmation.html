@@ -511,6 +511,11 @@
             </div>
             <div class="detail-row"><span class="label">Start — End</span><span class="value">{{ start_date }}{% if
                     end_date %} — {{ end_date }}{% endif %}</span></div>
+                    {% if timezone %}
+<div style="margin-top:4px; text-align:right; font-size:0.7rem; color:#6b7280;">
+    Timezone: {{ timezone }}
+</div>
+{% endif %}
             <!-- Example 1200 km | Round trip | (4 days) - AC Sedan(4+1) - (petrol) -->
             <div class="detail-row"><span class="label">Package</span><span class="value">{{ package_label }}</span>
             </div>

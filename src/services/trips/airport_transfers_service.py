@@ -47,6 +47,7 @@ from services.validation_service import (
     validate_airport_schedule,
     validate_placard_requirements,
 )
+from utils.utility import format_trip_datetime
 
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
@@ -723,8 +724,8 @@ def get_kwargs_for_airport_transfer(
             "pickup_location": origin.address,
             "drop_location": destination.address,
             "booking_id": trip.booking_id,
-            "trip_date": trip.start_datetime.strftime("%d %b %Y"),  # Format date
-            "trip_time": trip.start_datetime.strftime("%I:%M %p"),  # Format time
+            "trip_date": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%d %b %Y"),  # Format date
+            "trip_time": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%I:%M %p"),  # Format time
             "luggage_info": luggage_info,
             "placard_name": (
                 trip.placard_name
@@ -733,8 +734,8 @@ def get_kwargs_for_airport_transfer(
             ),
             "flight_number": trip.flight_number if trip.flight_number else None,
             "special_requests": special_requests,
-            "cab_type": driver.cab_type if driver else None,
-            "fuel_type": driver.fuel_type if driver else None,
+            "cab_type": driver.cab_type.value if driver else None,
+            "fuel_type": driver.fuel_type.value if driver else None,
             "model": driver.cab_model_and_make if driver else None,
             "driver_name": driver.name if driver else None,
             "driver_contact": driver.phone if driver else None,

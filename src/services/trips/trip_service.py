@@ -864,7 +864,12 @@ def get_trip_label(trip:dict):
                     and start_datetime <= current_datetime
                     and expected_end_datetime <= current_datetime
                 ): # All outstation trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
-                    return "past"
+                    if trip_status ==TripStatusEnum.completed:
+                        return "completed"
+                    elif trip_status == TripStatusEnum.cancelled:
+                        return "cancelled"
+                    else:
+                        return "past"
             
             return "unknown"
         except Exception as e:

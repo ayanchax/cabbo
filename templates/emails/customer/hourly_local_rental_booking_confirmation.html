@@ -230,6 +230,12 @@
             <div class="detail-row"><span class="label">Expected end</span><span class="value">{{ expected_end_date or
                     end_date or '-' }}</span></div>
 
+            {% if timezone %}
+<div style="margin-top:4px; text-align:right; font-size:0.7rem; color:#6b7280;">
+    Timezone: {{ timezone }}
+</div>
+{% endif %}
+
         </div>
 
         <!-- Package Details -->

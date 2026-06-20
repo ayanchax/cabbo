@@ -39,7 +39,7 @@ from services.configuration_service import get_region_from_location
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
-from utils.utility import to_timezone_aware_datetime, validate_date_time
+from utils.utility import format_trip_datetime, to_timezone_aware_datetime, validate_date_time
 
 
 def _get_inclusions_exclusions_for_local_trip():
@@ -430,12 +430,12 @@ def get_kwargs_for_local_hourly_rental(
             "app_name": app_name,
             "app_url": app_url,
             "pickup_location": origin.address,
-            "start_date": trip.start_datetime.strftime("%d %b %Y, %I:%M %p"),
-            "expected_end_date": trip.expected_end_datetime.strftime("%d %b %Y, %I:%M %p") if trip.expected_end_datetime else None,
+            "start_date": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%d %b %Y, %I:%M %p"),
+            "expected_end_date": format_trip_datetime(trip.expected_end_datetime, trip.timezone).strftime("%d %b %Y, %I:%M %p") if trip.expected_end_datetime else None,
             "booking_id": trip.booking_id,
             "package_label": trip.package_label,
-            "cab_type": driver.cab_type if driver else None,
-            "fuel_type": driver.fuel_type if driver else None,
+            "cab_type": driver.cab_type.value if driver else None,
+            "fuel_type": driver.fuel_type.value if driver else None,
             "model": driver.cab_model_and_make if driver else None,
             "driver_name": driver.name if driver else None,
             "driver_contact": driver.phone if driver else None,
