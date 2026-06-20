@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/kyc-document-types/06946eec-5df1-4020-9d1d-8c04c94609bb"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"document_alias\":\"Passport\",\r
+
+    \  \"document_description\": \"A government-issued passport used for identity verification\"\r
+
+    \  \r
+
+    }"
+order: 2000

@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/regions/{{example-region-id}}/remove-car-type/{{example-cab-type-id}}"
+method: DELETE
+body:
+  type: json
+  content: ""
+order: 4000

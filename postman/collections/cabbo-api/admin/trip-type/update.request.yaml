@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/trip-types/{{example-trip-type-id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"trip_type\": \"local\",\r
+
+    \  \"display_name\": \"Local Trip\",\r
+
+    \  \"description\": \"Trips within the city or a specific local area.\"\r
+
+    }"
+order: 2000

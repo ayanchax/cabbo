@@ -1,0 +1,28 @@
+$kind: http-request
+name: update-completed-with-extra-payment-overages-toll-parking-and-tips
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/completed"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"end_datetime\": \"2026-03-10T14:35:00Z\",\r
+
+    \    \"reason\": \"Trip completed. Driver incurred toll and parking charges, customer paid tips.\",\r
+
+    \    \"extra_payment_to_driver\": {\r
+
+    \        \"toll_charges\": 120.00,\r
+
+    \        \"parking_charges\": 80.00,\r
+
+    \        \"overage_payment\": 250.00,\r
+
+    \        \"tips\": 100.00,\r
+
+    \        \"comments\": \"Two toll plazas on NH-48, paid parking at destination mall. Customer added extra 15km detour to market.\"\r
+
+    \    }\r
+
+    }"
+order: 8000

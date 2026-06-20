@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/users/{{example-admin-user-id}}/activate"
+method: PATCH
+body:
+  type: text
+  content: "{}"
+order: 7000

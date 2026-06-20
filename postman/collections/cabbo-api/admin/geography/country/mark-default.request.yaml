@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/countries/{{example-country-id}}/default"
+method: PATCH
+order: 6000

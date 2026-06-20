@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/regions/{{example-region-id}}/add-trip-type/{{example-trip-type-id}}"
+method: POST
+body:
+  type: json
+  content: ""
+order: 7000

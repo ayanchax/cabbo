@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/regions/{{example-region-id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"region_name\": \"Bangalore\",\r
+
+    \  \"region_code\": \"BLR\",\r
+
+    \  \"alt_region_names\": [\"Bengaluru\", \"Bangalore City\"],\r
+
+    \  \"alt_region_codes\": [\"BNG\", \"BANG\", \"BENG\"]\r
+
+    }"
+order: 10000

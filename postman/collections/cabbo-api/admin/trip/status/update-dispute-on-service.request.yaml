@@ -1,0 +1,29 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/dispute"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Customer complaint about driver behavior. Left without paying remaining balance.\",\r
+
+    \    \"dispute_detail\": {\r
+
+    \        \"reason\": \"Customer alleged driver was rude and drove rashly. Customer left the vehicle before destination without paying. Driver denies the allegations.\",\r
+
+    \        \"dispute_type\": \"service\",\r
+
+    \        \"details\": {\r
+
+    \            \"incident_location\": \"NH-48, near Hoskote Toll, Bengaluru\",\r
+
+    \            \"customer_complaint\": \"Driver was rude and refused to follow route instructions.\",\r
+
+    \            \"driver_version\": \"Customer demanded multiple route changes and then refused to pay.\"\r
+
+    \        }\r
+
+    \    }\r
+
+    }"
+order: 12000

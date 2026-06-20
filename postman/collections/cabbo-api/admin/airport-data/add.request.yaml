@@ -1,0 +1,49 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/airport/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"display_name\": \"Los Angeles International Airport\",\r
+
+    \  \"iata_code\": \"LAX\",\r
+
+    \  \"icao_code\": \"KLAX\",\r
+
+    \  \"elevation_ft\": 125,\r
+
+    \  \"timezone\": \"America/Los_Angeles\",\r
+
+    \  \"dst\": \"A\",\r
+
+    \  \"tz_database_time_zone\": \"America/Los_Angeles\",\r
+
+    \  \"type\": \"large_airport\",\r
+
+    \  \"source\": \"OurAirports\",\r
+
+    \  \"lat\": 33.942791,\r
+
+    \  \"lng\": -118.410042,\r
+
+    \  \"place_id\": \"ChIJVTPokywQ3YAR0e8K8O1Gz1w\",\r
+
+    \  \"address\": \"1 World Way, Los Angeles, CA 90045, USA\",\r
+
+    \  \"country\": \"United States\",\r
+
+    \  \"country_code\": \"US\",\r
+
+    \  \"state\": \"California\",\r
+
+    \  \"state_code\": \"CA\",\r
+
+    \  \"region\": \"Los Angeles County\",\r
+
+    \  \"region_code\": \"LA\",\r
+
+    \  \"postal_code\": \"90045\",\r
+
+    }"
+order: 1000

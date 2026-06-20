@@ -1,0 +1,95 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"outstation\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9716,\r
+
+    \        \"lng\": 77.6412,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\",\r
+
+    \        \"state_code\":\"KA\"\r
+
+    \    },\r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Chennai, TN\",\r
+
+    \        \"lat\": 13.0827,\r
+
+    \        \"lng\": 80.2707,\r
+
+    \        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r
+
+    \        \"address\": \"Chennai, Tamil Nadu, India\",\r
+
+    \        \"state_code\":\"TN\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-07-23T07:00:00\",\r
+
+    \    \"end_date\": \"2026-07-24T20:00:00\",\r
+
+    \    \"num_adults\": 4,\r
+
+    \    \"num_children\": 1,\r
+
+    \    \"num_large_suitcases\": 3,\r
+
+    \    \"num_carryons\": 2,\r
+
+    \    \"preferred_car_type\": \"SUV\",\r
+
+    \    \"preferred_fuel_type\": \"diesel\",\r
+
+    \    \"hops\": [\r
+
+    \        {\r
+
+    \            \"display_name\": \"Pune, MH\",\r
+
+    \            \"lat\": 18.5204,\r
+
+    \            \"lng\": 73.8567,\r
+
+    \            \"place_id\": \"ChIJARFGZy6_wjsR6h8lh0U7b3w\",\r
+
+    \            \"address\": \"Pune, Maharashtra, India\",\r
+
+    \            \"state_code\":\"MH\"\r
+
+    \        },\r
+
+    \        {\r
+
+    \            \"display_name\": \"Vellore, TN\",\r
+
+    \            \"lat\": 12.9165,\r
+
+    \            \"lng\": 79.1325,\r
+
+    \            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r
+
+    \            \"address\": \"Vellore, Tamil Nadu, India\",\r
+
+    \            \"state_code\":\"TN\"\r
+
+    \        }\r
+
+    \    ]\r
+
+    }\r\n"
+order: 5000

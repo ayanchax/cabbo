@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/regions/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"region_name\": \"Bangalore\",\r
+
+    \  \"region_code\": \"BLR\",\r
+
+    \  \"alt_region_codes\": [\"BNG\", \"BANG\", \"BENG\"],\r
+
+    \  \"alt_region_names\": [\"Bengaluru\", \"Bangalore City\"],\r
+
+    \  \"country_code\": \"IN\",\r
+
+    \  \"state_code\": \"KA\"\r
+
+    }"
+order: 1000

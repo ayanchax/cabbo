@@ -79,18 +79,18 @@ async def get_price_breakdown_by_booking_id(
     return price_breakdown
 
 
-# Update trip details by booking_id and customer_id - this will be used by frontend to update the trip details for a trip after the booking is confirmed, so that we can allow customers to update their trip details which are non-cost impacting. This endpoint will validate the JWT token to ensure that only authenticated customers can update their trip details securely.
+# Update non-cost impacting trip details by booking_id and customer_id - this will be used by frontend to update the trip details for a trip after the booking is confirmed, so that we can allow customers to update their trip details which are non-cost impacting. This endpoint will validate the JWT token to ensure that only authenticated customers can update their trip details securely.
 @router.patch(
     "/{booking_id}",
     response_model=dict,
 )
-async def update_trip_details_by_booking_id_and_customer_id(
+async def update_non_cost_impacting_trip_details_by_booking_id_and_customer_id(
     booking_id: str,
     payload: TripUpdateRequestSchema,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: Customer = Depends(validate_customer_token),
 ):
-    """Update trip details by booking_id and customer_id."""
+    """Update non-cost impacting trip details by booking_id and customer_id."""
 
     trip = await async_get_trip_by_booking_id_customer_id(
         booking_id, current_user.id, db

@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers"
+method: GET
+order: 12000

@@ -815,8 +815,8 @@ def get_trip_label(trip:dict):
             expected_end_datetime = trip.get("expected_end_datetime")
 
             # Ensure start_datetime and expected_end_datetime are timezone-aware
-            start_datetime = validate_date_time(start_datetime, timezone_str=trip.get("timezone")) if start_datetime else None
-            expected_end_datetime = validate_date_time(expected_end_datetime, timezone_str=trip.get("timezone")) if expected_end_datetime else None
+            start_datetime = validate_date_time(start_datetime, timezone_str="UTC") if start_datetime else None
+            expected_end_datetime = validate_date_time(expected_end_datetime, timezone_str="UTC") if expected_end_datetime else None
             
             # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
             if trip_type in [

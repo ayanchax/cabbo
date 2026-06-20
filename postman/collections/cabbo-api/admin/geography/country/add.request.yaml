@@ -1,0 +1,55 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/countries/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"country_name\": \"India\",\r
+
+    \  \"country_code\": \"IN\",\r
+
+    \  \"phone_code\": \"+91\",\r
+
+    \  \"phone_min_length\": 10,\r
+
+    \  \"phone_max_length\": 10,\r
+
+    \  \"phone_regex\": \"^[6-9]\\\\d{9}$\",\r
+
+    \  \"phone_example\": \"9876543210\",\r
+
+    \  \"postal_code_regex\": \"^\\\\d{6}$\",\r
+
+    \  \"distance_unit\": \"km\",\r
+
+    \  \"currency\": \"INR\",\r
+
+    \  \"currency_symbol\": \"₹\",\r
+
+    \  \"flag\": \"🇮🇳\",\r
+
+    \  \"time_zone\": \"Asia/Kolkata\",\r
+
+    \  \"locale\": \"en_IN\",\r
+
+    \  \"states\": [],\r
+
+    \  \"regions\": [],\r
+
+    \  \"is_serviceable\": true,\r
+
+    \  \"min_age_for_drivers\": 18,\r
+
+    \  \"min_age_for_customers\": 13,\r
+
+    \  \"max_age_for_drivers\": 90,\r
+
+    \  \"max_age_for_customers\": 90,\r
+
+    \  \"min_age_for_system_users\": 18,\r
+
+    \  \"max_age_for_system_users\": 90\r
+
+    }"
+order: 1000

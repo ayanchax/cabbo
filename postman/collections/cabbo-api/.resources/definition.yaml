@@ -1,0 +1,724 @@
+$kind: collection
+description: |-
+  # cabbo-api
+
+  Cabbo API is a backend service for a cab booking platform. This collection groups the core capabilities for customer onboarding, authentication, trip search and booking, airport and outstation rides, driver and user administration, seeding sample data, and KYC/document management.
+
+  ---
+
+  ## Base URL and Variables
+
+  This collection is parameterized using environment variables from the **cabbo** environment.
+
+  **Base URL**
+
+  ```text
+  {{host}}:{{port}}/api/{{api_version}}
+  ```
+
+  Where the variables come from the active environment:
+
+  - `{{host}}` – API host (e.g., `http://localhost` or service hostname)
+  - `{{port}}` – API port (e.g., `8080`)
+  - `{{api_version}}` – API version segment (e.g., `v1`)
+
+  Other commonly used environment variables:
+
+  - `{{bearer-token}}` – Customer access token (Bearer)
+  - `{{super-admin-bearer-token}}` – Super admin access token (Bearer)
+  - `{{driver-admin-bearer-token}}` – Driver admin access token (Bearer)
+  - `{{customer_id}}` – Example customer identifier
+  - `{{passenger_id}}` – Example passenger identifier
+  - `{{hourly_package_id}}` – Example hourly rental package identifier
+  - `{{example-admin-user-id}}` – Example admin user identifier
+  - `{{example-driver-id}}` – Example driver identifier
+  - `{{super-admin-secret}}` – Secret used for seeding admin data
+
+  Use the **cabbo** environment when working with this collection: [cabbo](environment/4729541-0aff2b0d-fcad-4fb5-9a2f-190af365b305)
+
+  Collection: [cabbo-api](collection/4729541-ac763d24-9c80-4da7-93b8-14759d0af430)
+
+  ---
+
+  ## Authentication
+
+  All protected endpoints use **Bearer Token** authentication via the `Authorization` header. Tokens are stored in environment variables.
+
+  ### Customer-facing APIs
+
+  Use `{{bearer-token}}`:
+
+  ```http
+  Authorization: Bearer {{bearer-token}}
+  ```
+
+  Typical flow:
+  1. Register / onboard the customer (OTP or email based).
+  2. Log in using `/auth/login` or `/auth/login/initiate`.
+  3. Store the returned JWT or access token in the `bearer-token` environment variable.
+
+  ### Admin / Super Admin APIs
+
+  Admin and driver management endpoints typically require one of:
+
+  - `{{super-admin-bearer-token}}` – for super admin actions (e.g., seeding data, creating admins)
+  - `{{driver-admin-bearer-token}}` – for driver admin actions (e.g., managing drivers and KYC docs)
+
+  Header:
+
+  ```http
+  Authorization: Bearer {{super-admin-bearer-token}}   # or
+  Authorization: Bearer {{driver-admin-bearer-token}}
+  ```
+
+  ### Notes
+
+  - Set the correct token according to the endpoint you are calling.
+  - Token variables are defined in the **cabbo** environment and can be updated after login responses.
+
+  ---
+
+  ## Folder Overview
+
+  The collection is logically grouped into folders by domain.
+
+  ### 1. customer
+
+  Folder: **customer** – Customer self-service, onboarding, registration, profile management, and authentication flows.
+
+  Key capabilities:
+  - Onboard and register customers with OTP/email verification.
+  - Customer login/logout.
+  - View and update customer profile and profile pictures.
+  - Email verification initiation and confirmation.
+  - Manage nested `passenger` resources.
+
+  Subfolder: **passenger** – CRUD operations on passengers linked to a customer.
+
+  References:
+  - [customer](folder/4729541-0f33649b-1060-4546-b318-18133555f2fd)
+  - [passenger](folder/4729541-57abcc69-d74e-488d-a90a-2975dabaad44)
+
+  ### 2. trip
+
+  Folder: **trip** – High-level trip workflows.
+
+  Subfolders:
+  - **search** – Search for available cabs and packages:
+    - **outstation** – Outstation searches (one-way, multi-hop, SUV/sedan variants).
+    - **hourly-local-rental** – Local hourly rentals and packages.
+    - **airport** – Airport pickup and drop searches.
+  - **book** – Booking flows for different trip types:
+    - **hourly-local-rental** – Initiate and confirm bookings for hourly rentals.
+    - **outstation** – Initiate and confirm outstation bookings.
+    - **airport** – Initiate and confirm airport pickup/drop bookings.
+
+  References:
+  - [trip](folder/4729541-60c4db9f-b1a5-469e-84ec-0cc2e5b63660)
+  - [search](folder/4729541-fb7dc007-f215-4de2-95e5-2f2ab3172198)
+  - [outstation (search)](folder/4729541-09d58eb3-8ccd-487b-8a8a-0814b3f20ce6)
+  - [hourly-local-rental (search)](folder/4729541-5f4d443d-46a5-470f-afb5-6fcf0831a52f)
+  - [airport (search)](folder/4729541-8545f9c2-2daf-4d9a-8e55-83655353a6eb)
+  - [book](folder/4729541-d79b999d-c543-4916-9afa-8f403f9c9f94)
+  - [hourly-local-rental (book)](folder/4729541-3c0c2ae8-5bb5-4ce2-a8b2-6d83e3c944c2)
+  - [outstation (book)](folder/4729541-3b112b25-2a97-4e3c-893c-54b2f3bc310f)
+  - [airport (book)](folder/4729541-ba4be7a1-938e-4618-906a-e444f9427835)
+  - [trips (assign)](folder/4729541-2c5d64c3-c016-4d80-aa44-e63dcbda67f1)
+
+  ### 3. admin
+
+  Folder: **admin** – Administrative endpoints for authentication, user management, driver management, and system seeding.
+
+  Subfolders:
+  - **auth** – Admin authentication/login.
+  - **user** – Admin user CRUD, activation/deactivation, listing by role.
+  - **driver** – Driver profile CRUD, activation/deactivation, KYC docs, listing by status and availability.
+    - **kyc-docs** – Manage driver documents (upload, view, verify, delete).
+  - **seeding** – Generate seed data for development.
+
+  References:
+  - [admin](folder/4729541-c669a2cf-2980-4227-b75e-ac6ae669fa55)
+  - [auth](folder/4729541-409fca5c-f4f6-484e-b698-b00256c0efc3)
+  - [user](folder/4729541-2c5d64c3-c016-4d80-aa44-e63dcbda67f1)
+  - [driver](folder/4729541-c79dc03c-1912-4ad2-89c3-0c235db8d5b6)
+  - [kyc-docs](folder/4729541-eb3f35d6-a81d-402a-ac70-ffe8f71e3795)
+  - [seeding](folder/4729541-985d7341-cf51-4b5d-b83c-fa7e74114e31)
+
+  ---
+
+  ## Requests
+
+  Below is a concise reference for each request. Paths are relative to the base URL `{{host}}:{{port}}/api/{{api_version}}`.
+
+  > **Note**: Request and response bodies shown are representative examples to help you get started. Adjust fields according to your actual API implementation.
+
+  ### Trip Search – Hourly Local Rental
+
+  Folder: [hourly-local-rental (search)](folder/4729541-5f4d443d-46a5-470f-afb5-6fcf0831a52f)
+
+  1. **local-sedan-petrol** – Search local hourly rental for sedan petrol
+     - **Method**: `POST`
+     - **Path**: `/trips/search`
+     - **Description**: Search for available *sedan petrol* cabs for hourly local rental.
+     - **Body (JSON)** (example):
+       ```json
+       {
+         "tripType": "LOCAL_HOURLY",
+         "packageId": "{{hourly_package_id}}",
+         "vehicleType": "SEDAN",
+         "fuelType": "PETROL",
+         "pickupLocation": {
+           "lat": 12.9716,
+           "lng": 77.5946
+         },
+         "startTime": "2024-01-01T10:00:00Z"
+       }
+       ```
+     - **Response schema (example)**:
+       ```json
+       {
+         "options": [
+           {
+             "vehicleType": "SEDAN",
+             "fuelType": "PETROL",
+             "baseFare": 500,
+             "hourlyRate": 200,
+             "estimatedTotal": 900,
+             "currency": "INR",
+             "available": true
+           }
+         ]
+       }
+       ```
+
+  2. **local-sedan-petrol-no-package-specified** – Search local sedan without explicit package
+     - **Method**: `POST`
+     - **Path**: `/trips/search`
+     - **Description**: Same as above but without specifying an hourly package; server infers default.
+     - **Body (JSON)** (example):
+       ```json
+       {
+         "tripType": "LOCAL_HOURLY",
+         "vehicleType": "SEDAN",
+         "fuelType": "PETROL",
+         "pickupLocation": {
+           "lat": 12.9716,
+           "lng": 77.5946
+         },
+         "durationHours": 4
+       }
+       ```
+
+  3. **local-sedan-petrol-unserviceable** – Search scenario expected to be unserviceable
+     - **Method**: `POST`
+     - **Path**: `/trips/search`
+     - **Description**: Negative test where no service is available for given location or time.
+     - **Body (JSON)** (example):
+       ```json
+       {
+         "tripType": "LOCAL_HOURLY",
+         "vehicleType": "SEDAN",
+         "fuelType": "PETROL",
+         "pickupLocation": {
+           "lat": 0,
+           "lng": 0
+         },
+         "durationHours": 2
+       }
+       ```
+     - **Expected response (example)**:
+       ```json
+       {
+         "options": [],
+         "message": "Service not available in the selected area"
+       }
+       ```
+
+  4. **local-hatchback-petrol** – Search local hatchback petrol
+     - **Method**: `POST`
+     - **Path**: `/trips/search`
+     - **Description**: Search for *hatchback petrol* hourly rental packages.
+     - **Body (JSON)** (example):
+       ```json
+       {
+         "tripType": "LOCAL_HOURLY",
+         "packageId": "{{hourly_package_id}}",
+         "vehicleType": "HATCHBACK",
+         "fuelType": "PETROL",
+         "pickupLocation": {
+           "lat": 12.9716,
+           "lng": 77.5946
+         }
+       }
+       ```
+
+  5. **local-suv-plus-diesel** – Search premium SUV+ diesel local rental
+     - **Method**: `POST`
+     - **Path**: `/trips/search`
+     - **Description**: Search for *SUV Plus diesel* category for local hourly rentals.
+     - **Body (JSON)** (example):
+       ```json
+       {
+         "tripType": "LOCAL_HOURLY",
+         "packageId": "{{hourly_package_id}}",
+         "vehicleType": "SUV_PLUS",
+         "fuelType": "DIESEL",
+         "pickupLocation": {
+           "lat": 12.9716,
+           "lng": 77.5946
+         }
+       }
+       ```
+
+  ### Trip Search – Outstation
+
+  Folder: [outstation (search)](folder/4729541-09d58eb3-8ccd-487b-8a8a-0814b3f20ce6)
+
+  All outstation searches use `POST /trips/search` with variations in body.
+
+  Common body fields:
+
+  ```json
+  {
+    "tripType": "OUTSTATION",
+    "route": {
+      "origin": { "lat": 12.9716, "lng": 77.5946 },
+      "destination": { "lat": 13.0827, "lng": 80.2707 },
+      "stops": []
+    },
+    "startTime": "2024-01-01T06:00:00Z",
+    "vehicleType": "SEDAN",
+    "fuelType": "PETROL"
+  }
+  ```
+
+  Representative requests:
+
+  1. **outstation-suv-diesel-with-single-hop**
+     - **Description**: Search outstation SUV diesel with a single intermediate stop.
+     - **Body** (key differences):
+       ```json
+       {
+         "tripType": "OUTSTATION",
+         "route": {
+           "origin": { "lat": 12.9716, "lng": 77.5946 },
+           "destination": { "lat": 13.0827, "lng": 80.2707 },
+           "stops": [
+             { "lat": 12.5, "lng": 78.5 }
+           ]
+         },
+         "vehicleType": "SUV",
+         "fuelType": "DIESEL"
+       }
+       ```
+
+  2. **outstation-suv-diesel-unserviceable**
+     - **Description**: Negative test for SUV diesel route not serviceable.
+
+  3. **outstation-sedan-petrol-with-multi-hop**
+     - **Description**: Outstation sedan petrol with multiple hops/stops.
+
+  4. **outstation-sedan-petrol-with-multi-hop-unserviceable**
+     - **Description**: Negative variant for multi-hop sedan petrol route.
+
+  5. **outstation-suv-plus-diesel** / **outstation-suv-plus-diesel-with-passenger**
+     - **Description**: SUV Plus diesel searches, optionally including passenger details.
+     - **Additional body (example)**:
+       ```json
+       {
+         "passengers": [
+           {
+             "id": "{{passenger_id}}",
+             "name": "John Doe"
+           }
+         ]
+       }
+       ```
+
+  6. **outstation-sedan-petrol-past-date**
+     - **Description**: Negative test where `startTime` is in the past.
+
+  ### Trip Search – Airport
+
+  Parent folder: [airport (search)](folder/4729541-8545f9c2-2daf-4d9a-8e55-83655353a6eb)
+
+  #### Airport Pickup Searches
+
+  Folder: [airport-pickup (search)](folder/4729541-e62db912-b826-4b95-836f-02bda5672f09)
+
+  Representative requests (`POST /trips/search`):
+
+  - **search_airport_pickup_sedan_diesel** – Sedan, diesel, pickup from airport.
+  - **search_airport_pickup_hatchback_petrol** – Hatchback petrol, pickup.
+  - **search_airport_pickup_premium_sedan_petrol** – Premium sedan, petrol, pickup.
+  - **search_airport_pickup_premium_sedan_petrol_unserviceable** – Negative case.
+
+  Example body:
+
+  ```json
+  {
+    "tripType": "AIRPORT_PICKUP",
+    "airportCode": "BLR",
+    "pickupLocation": {
+      "lat": 12.9716,
+      "lng": 77.5946
+    },
+    "vehicleType": "SEDAN",
+    "fuelType": "DIESEL",
+    "pickupTime": "2024-01-01T08:30:00Z"
+  }
+  ```
+
+  #### Airport Drop Searches
+
+  Folder: [airport-drop (search)](folder/4729541-c3c3bd84-664e-4757-a39b-b94b027767e2)
+
+  Representative requests (`POST /trips/search`):
+
+  - **search_airport_drop_sedan_petrol**
+  - **search_airport_drop_suv_diesel**
+  - **search_airport_drop_suv_diesel** (duplicate with different scenarios)
+  - **search_airport_drop_premium_sedan_petrol-unserviceable**
+
+  Example body:
+
+  ```json
+  {
+    "tripType": "AIRPORT_DROP",
+    "airportCode": "BLR",
+    "dropLocation": {
+      "lat": 12.9716,
+      "lng": 77.5946
+    },
+    "vehicleType": "SUV",
+    "fuelType": "DIESEL",
+    "pickupTime": "2024-01-01T05:30:00Z"
+  }
+  ```
+
+  ### Trip Booking – Hourly Local Rental
+
+  Folder: [hourly-local-rental (book)](folder/4729541-3c0c2ae8-5bb5-4ce2-a8b2-6d83e3c944c2)
+
+  1. **initiate** – `POST /trips/initiate-booking`
+     - **Description**: Initiate a new hourly local rental booking based on a prior search result.
+     - **Body (example)**:
+       ```json
+       {
+         "searchId": "SEARCH_REF_123",
+         "selectedOptionId": "OPTION_1",
+         "customerId": "{{customer_id}}",
+         "pickupTime": "2024-01-01T10:00:00Z"
+       }
+       ```
+     - **Response schema (example)**:
+       ```json
+       {
+         "bookingId": "BOOKING_123",
+         "status": "PENDING_PAYMENT"
+       }
+       ```
+
+  2. **confirm** – `POST /trips/confirm-booking`
+     - **Description**: Confirm a previously initiated hourly local rental booking.
+     - **Body (example)**:
+       ```json
+       {
+         "bookingId": "BOOKING_123",
+         "paymentReference": "PAY_456",
+         "confirm": true
+       }
+       ```
+
+  ### Trip Booking – Outstation
+
+  Folder: [outstation (book)](folder/4729541-3b112b25-2a97-4e3c-893c-54b2f3bc310f)
+
+  - **initiate** – `POST /trips/initiate-booking`
+  - **confirm** – `POST /trips/confirm-booking`
+
+  Both follow the same pattern as hourly locals, but with outstation-specific search IDs and route details.
+
+  ### Trip Booking – Airport
+
+  Folder: [airport (book)](folder/4729541-ba4be7a1-938e-4618-906a-e444f9427835)
+
+  - **airport-pickup/initiate** and **confirm** – for pickup bookings.
+  - **airport-drop/initiate** and **confirm** – for drop bookings.
+
+  ### Trip Assignment (Admin)
+
+  Folder: [trips (assign)](folder/4729541-2c5d64c3-c016-4d80-aa44-e63dcbda67f1)
+
+  - **assign_driver** – `POST /admin/drivers/{{example-driver-id}}/trips/{tripId}/assign`
+    - **Method**: `POST`
+    - **Path**: `/admin/drivers/{{example-driver-id}}/trips/5d341fcc-cc87-4348-a622-4e9d51dc7aa3/assign`
+    - **Path params**:
+      - `example-driver-id` – from environment.
+      - `tripId` – trip UUID (example in request path).
+    - **Body (example)**:
+      ```json
+      {
+        "forceAssign": true
+      }
+      ```
+
+  ---
+
+  ## Customer & Passenger APIs
+
+  Folder: [customer](folder/4729541-0f33649b-1060-4546-b318-18133555f2fd)
+
+  ### Onboarding & Auth
+
+  - **onboard-initiate** – `POST /auth/onboard/initiate`
+    - **Description**: Initiate onboarding (e.g., send OTP/email link).
+    - **Body (example)**:
+      ```json
+      {
+        "email": "user@example.com",
+        "phone": "+911234567890"
+      }
+      ```
+
+  - **register-with-otp** – `POST /auth/register`
+    - **Description**: Complete registration with OTP.
+    - **Body (example)**:
+      ```json
+      {
+        "email": "user@example.com",
+        "phone": "+911234567890",
+        "otp": "123456",
+        "name": "John Doe"
+      }
+      ```
+
+  - **login-initiate** – `POST /auth/login/initiate`
+    - **Description**: Initiate login (OTP-based).
+
+  - **login** – `POST /auth/login`
+    - **Description**: Complete login and obtain `{{bearer-token}}`.
+    - **Response schema (example)**:
+      ```json
+      {
+        "accessToken": "<jwt>",
+        "expiresIn": 3600,
+        "tokenType": "Bearer"
+      }
+      ```
+
+  - **logout** – `POST /customers/logout`
+    - **Description**: Logout current customer; invalidates `{{bearer-token}}`.
+
+  ### Customer Profile
+
+  - **get_customer_by_id** – `GET /customers/{{customer_id}}`
+    - **Path params**:
+      - `customer_id` – from environment.
+
+  - **update_customer** – `PUT /customers/{{customer_id}}`
+    - **Body (example)**:
+      ```json
+      {
+        "name": "John Doe",
+        "phone": "+911234567890",
+        "email": "user@example.com"
+      }
+      ```
+
+  - **upload-profile-picture** – `POST /customers/{{customer_id}}/upload/profile-picture`
+    - **Body**: `multipart/form-data` with file field, e.g. `profilePicture`.
+
+  - **remove-profile-picture** – `DELETE /customers/{{customer_id}}/remove/profile-picture`
+
+  ### Email Verification
+
+  - **email-verification-initiate** – `POST /customers/{{customer_id}}/self-service/initiate-email-verification`
+
+  - **verify-email** – `GET /customers/self-service/verify-email`
+    - **Query params**:
+      - `id` – `{{customer_id}}`
+      - `token` – verification token string.
+
+  ### Passenger Management
+
+  Folder: [passenger](folder/4729541-57abcc69-d74e-488d-a90a-2975dabaad44)
+
+  Base path: `/customers/{{customer_id}}/passenger` or `/customers/{{customer_id}}/passengers`.
+
+  - **create-passenger** – `POST /customers/{{customer_id}}/passenger/add`
+    - **Body (example)**:
+      ```json
+      {
+        "name": "Jane Doe",
+        "age": 30,
+        "phone": "+911234567891"
+      }
+      ```
+
+  - **update-passenger** – `PUT /customers/{{customer_id}}/passenger/{{passenger_id}}/update`
+
+  - **remove-passenger** – `DELETE /customers/{{customer_id}}/passenger/{{passenger_id}}/remove`
+
+  - **list-passengers** – `GET /customers/{{customer_id}}/passengers`
+
+  - **get-passenger** – `GET /customers/{{customer_id}}/passengers/{{passenger_id}}`
+
+  All passenger endpoints use `{{customer_id}}` and `{{passenger_id}}` from the **cabbo** environment.
+
+  ---
+
+  ## Admin APIs
+
+  Folder: [admin](folder/4729541-c669a2cf-2980-4227-b75e-ac6ae669fa55)
+
+  ### Admin Auth
+
+  Folder: [auth](folder/4729541-409fca5c-f4f6-484e-b698-b00256c0efc3)
+
+  - **login-super-admin** – `POST /admin/auth/login`
+  - **login-for-non-super-admins Copy** – `POST /admin/auth/login`
+
+  These return admin tokens stored in `{{super-admin-bearer-token}}` or `{{driver-admin-bearer-token}}`.
+
+  ### Admin Users
+
+  Folder: [user](folder/4729541-2bbb2a39-11ab-4e7a-8467-102f061869f9)
+
+  Base path: `/admin/users`.
+
+  Representative endpoints:
+
+  - **create** – `POST /admin/users/create`
+  - **update-by-id** – `PUT /admin/users/{{example-admin-user-id}}`
+  - **view-by-id** – `GET /admin/users/{{example-admin-user-id}}`
+  - **list-all-users** – `GET /admin/users/list/all`
+  - **list-users-by-role** – `GET /admin/users/role/{role}` (e.g., `driver_admin`)
+  - **activate-by-id** – `PATCH /admin/users/{{example-admin-user-id}}/activate`
+  - **deactivate-by-id** – `PATCH /admin/users/{{example-admin-user-id}}/deactivate`
+  - **change-password** – `PATCH /admin/users/{{example-admin-user-id}}/change-password`
+  - **logout** – `POST /admin/users/logout`
+
+  Typical request body for create/update:
+
+  ```json
+  {
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "role": "driver_admin",
+    "password": "<secure-password>"
+  }
+  ```
+
+  ### Drivers & KYC Docs
+
+  Folder: [driver](folder/4729541-c79dc03c-1912-4ad2-89c3-0c235db8d5b6)
+
+  Base path: `/admin/drivers`.
+
+  Representative endpoints:
+
+  - **create** – `POST /admin/drivers/create`
+  - **edit** – `PUT /admin/drivers/{{example-driver-id}}`
+  - **view-driver-profile** – `GET /admin/drivers/{{example-driver-id}}`
+  - **delete-driver** – `POST /admin/drivers/{{example-driver-id}}` (soft-delete or status change)
+  - **activate-driver** – `POST /admin/drivers/{{example-driver-id}}/activate`
+  - **deactivate-driver** – `POST /admin/drivers/{{example-driver-id}}/deactivate`
+  - **all-drivers** – `GET /admin/drivers`
+  - **all-drivers-by-activation-status** – `GET /admin/drivers/all/active`
+  - **all-drivers-by-availability** – `GET /admin/drivers/all/availability/true`
+  - **upload-profile-picture** – `POST /admin/drivers/{{example-driver-id}}/profile-picture` (multipart)
+  - **delete-profile-picture** – `DELETE /admin/drivers/{{example-driver-id}}/profile-picture`
+
+  Subfolder: [kyc-docs](folder/4729541-eb3f35d6-a81d-402a-ac70-ffe8f71e3795)
+
+  - **upload-docs** – `POST /admin/drivers/{{example-driver-id}}/documents`
+  - **view-docs** – `GET /admin/drivers/{{example-driver-id}}/documents`
+  - **remove-doc** – `DELETE /admin/drivers/{{example-driver-id}}/documents/{documentId}`
+  - **verify-doc** – `POST /admin/drivers/{{example-driver-id}}/documents/{documentId}/verify/{isVerified}`
+
+  Example document verification path:
+
+  ```text
+  /admin/drivers/{{example-driver-id}}/documents/05f5f6d0c84a42588f3fda21109dfee9/verify/false
+  ```
+
+  ### Seeding
+
+  Folder: [seeding](folder/4729541-985d7341-cf51-4b5d-b83c-fa7e74114e31)
+
+  - **generate-seed-data** – `GET /admin/seed/data`
+    - **Query params**:
+      - `secret` – `{{super-admin-secret}}`
+
+  Example:
+
+  ```text
+  /admin/seed/data?secret={{super-admin-secret}}
+  ```
+
+  ---
+
+  ## Getting Started
+
+  ### 1. Select the Environment
+
+  1. In Postman, open the workspace **Chax-Space**.
+  2. From the environment dropdown, select **cabbo**: [cabbo](environment/4729541-0aff2b0d-fcad-4fb5-9a2f-190af365b305).
+  3. Open the collection [cabbo-api](collection/4729541-ac763d24-9c80-4da7-93b8-14759d0af430).
+
+  ### 2. Configure Environment Variables
+
+  Update the following variables in the **cabbo** environment to match your deployment:
+
+  - `host` – e.g., `http://localhost`
+  - `port` – e.g., `8080`
+  - `api_version` – e.g., `v1`
+  - Authentication-related variables:
+    - `bearer-token`
+    - `super-admin-bearer-token`
+    - `driver-admin-bearer-token`
+  - Sample entity identifiers:
+    - `customer_id`
+    - `passenger_id`
+    - `hourly_package_id`
+    - `example-admin-user-id`
+    - `example-driver-id`
+    - `super-admin-secret`
+
+  Tokens can be set manually or programmatically after login responses by copying the token from the response into the appropriate environment variable.
+
+  ### 3. Run Individual Requests
+
+  1. Start with auth flows:
+     - Customer: `/auth/onboard/initiate`, `/auth/register`, `/auth/login`.
+     - Admin: `/admin/auth/login`.
+  2. Set the returned token into the respective environment variable.
+  3. Invoke customer, trip, and admin APIs as needed.
+
+  ### 4. Use Collection Runner for Workflows & Data-Driven Tests
+
+  To run end-to-end scenarios and data-driven tests:
+
+  1. Open [cabbo-api](collection/4729541-ac763d24-9c80-4da7-93b8-14759d0af430).
+  2. Click **Run Collection** to open the **Collection Runner**.
+  3. Choose the **cabbo** environment.
+  4. (Optional) Attach a **data file** (CSV or JSON) for data-driven testing, e.g.:
+     - Different combinations of `tripType`, `vehicleType`, `fuelType`, and times for `/trips/search`.
+     - Multiple passengers or customer IDs to validate edge cases.
+  5. Configure the number of iterations, delay between requests, and error handling.
+  6. Run the collection or specific folders (e.g., **trip/search/outstation**) to validate flows under varying inputs.
+
+  Data-driven testing ideas:
+
+  - Use a CSV with columns like `tripType,vehicleType,fuelType,airportCode,startTime` to stress test search endpoints.
+  - Use different `customer_id`/`passenger_id` combinations to validate passenger management.
+  - Vary `super-admin-secret` and driver statuses to test admin-only behavior.
+
+  This documentation is designed as a team reference for working with **cabbo-api** within the **Chax-Space** workspace, leveraging the shared **cabbo** environment and Bearer-token based authentication.
+auth:
+  - id: 664be475-05d0-477b-8a16-44ca28cafea1
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{bearer-token}}"

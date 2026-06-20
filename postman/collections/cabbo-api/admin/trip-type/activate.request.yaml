@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/trip-types/{{example-trip-type-id}}/activate"
+method: PATCH
+order: 5000

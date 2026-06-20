@@ -1,0 +1,29 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/{{example-driver-id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Ravi by mar\",\r
+
+    \  \"email\": \"ravi.kumar.5updated@example.com\",\r
+
+    \  \"phone\": \"9812345678\",\r
+
+    \  \"address\":{\r
+
+    \    \"address_line1\":\"St Louis suite\",\r
+
+    \    \"address_line2\":\"Govindgiri road\",\r
+
+    \    \"state\":\"KA\",\r
+
+    \    \"country\":\"India\",\r
+
+    \    \"landmark\":\"something\"\r
+
+    \  }\r
+
+    }\r\n"
+order: 7000

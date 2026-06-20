@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/{{example-driver-id}}"
+method: GET
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Ravi Kumar Updateds\",\r
+
+    \  \"email\": \"ravi.kumar.2updated@example.com\",\r
+
+    \  \"phone\": \"+919812345678\"\r
+
+    }\r\n"
+order: 8000

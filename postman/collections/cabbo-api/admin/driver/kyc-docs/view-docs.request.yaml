@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/{{example-driver-id}}/documents"
+method: GET
+body:
+  type: formdata
+  content:
+    - type: file
+      key: files
+      src: /C:/Users/ayanc/Downloads/XYZ11124712641.pdf
+    - type: text
+      key: document_types
+      value: vehicle_registration_certificate
+order: 2000

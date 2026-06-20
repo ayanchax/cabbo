@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/ongoing"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"start_datetime\": \"2026-03-10T08:45:00Z\",\r
+
+    \    \"reason\": \"Driver arrived early and customer was ready to depart. Actual trip start recorded.\"\r
+
+    }"
+order: 14000

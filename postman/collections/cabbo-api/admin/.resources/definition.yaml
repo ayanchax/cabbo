@@ -1,0 +1,7 @@
+$kind: collection
+name: admin
+auth:
+  type: bearer
+  credentials:
+    token: "{{super-admin-bearer-token}}"
+order: 2000

@@ -1,0 +1,29 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/auth/register"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Ayan Chax\",\r
+
+    \  \"email\": \"ayanchax9088@gmail.com\",\r
+
+    \  \"phone_number\": \"+91 9831305667\",\r
+
+    \  \"otp\": \"9120\",\r
+
+    \  \"dob\": \"1988-08-03T00:00:00Z\",\r
+
+    \  \"gender\": \"male\",\r
+
+    \  \"emergency_contact_name\": \"Oyendrila Majumdar\",\r
+
+    \  \"emergency_contact_number\": \"+91 8017084241\",\r
+
+    \  \"opt_in_updates\": true\r
+
+    }"
+auth:
+  type: noauth
+order: 4000

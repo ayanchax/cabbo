@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/list/by/driver/{{example-driver-id}}"
+method: GET
+order: 6000

@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/{{example-driver-id}}/profile-picture"
+method: DELETE
+body:
+  type: json
+  content: ""
+order: 5000

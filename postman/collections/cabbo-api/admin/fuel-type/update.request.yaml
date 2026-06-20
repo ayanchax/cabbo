@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/fuel/{{example-fuel-type-id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \r
+
+    \"name\": \"Diesel\"\r
+
+    \  \r
+
+    }"
+order: 2000

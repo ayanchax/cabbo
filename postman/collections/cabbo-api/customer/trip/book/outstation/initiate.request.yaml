@@ -1,0 +1,255 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/initiate-booking"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"option\": {\r
+
+    \        \"car_type\": \"SUV\",\r
+
+    \        \"fuel_type\": \"petrol\",\r
+
+    \        \"total_price\": 29702.0,\r
+
+    \        \"price_breakdown\": {\r
+
+    \            \"base_fare\": 21600.0,\r
+
+    \            \"platform_fee\": 869.0,\r
+
+    \            \"driver_allowance\": 1600.0,\r
+
+    \            \"permit_fee\": 570.0\r
+
+    \        },\r
+
+    \        \"included_kms\": 1200.0,\r
+
+    \        \"package_short_label\": \"1430.18 km | Round trip | (4 days)\",\r
+
+    \        \"package\": \"1430.18 km | Round trip | (4 days) - AC SUV(6+1) - (petrol)\",\r
+
+    \        \"overages\": {\r
+
+    \            \"indicative_overage_warning\": true,\r
+
+    \            \"overage_amount_per_km\": 22.0,\r
+
+    \            \"overage_estimate_amount\": 5064.0,\r
+
+    \            \"disclaimer\": [\r
+
+    \                \"If the driver is required to drive during night hours (8PM to 6AM), a night surcharge of ₹100.0 per hour will be applied on the final fare.\",\r
+
+    \                \"You will be charged the full fare even if your trip is shorter than the booked duration or included mileage.\",\r
+
+    \                \"If you extend the trip beyond the booked 4 day(s), an additional ₹5800 per extra day applies — pay the driver directly.\",\r
+
+    \                \"If you exceed the included mileage of 1200 kms, an overage charge of ₹22.0 per km will be applied on the final fare - pay the driver directly.\",\r
+
+    \                \"Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.\",\r
+
+    \                \"If the trip includes hill climbs, the cab AC may be switched off during such climbs.\"\r
+
+    \            ],\r
+
+    \            \"extra_charges_disclaimers\": \"Extra charges may apply:\\n - If the driver is required to drive during night hours (8PM to 6AM), a night surcharge of ₹100.0 per hour will be applied on the final fare.\\n - You will be charged the full fare even if your trip is shorter than the booked duration or included mileage.\\n - If you extend the trip beyond the booked 4 day(s), an additional ₹5800 per extra day applies — pay the driver directly.\\n - If you exceed the included mileage of 1200 kms, an overage charge of ₹22.0 per km will be applied on the final fare - pay the driver directly.\\n - Extra charges apply for tolls, paid parking, and night driving surcharges (if applicable) - pay the driver directly.\\n - If the trip includes hill climbs, the cab AC may be switched off during such climbs.\"\r
+
+    \        },\r
+
+    \        \"hash\": \"9f92ebb13c7f0e97df32b2315245a8ca836d6b462f273695dd3221135d2af291\"\r
+
+    \    },\r
+
+    \    \"preferences\": {\r
+
+    \        \"trip_type\": \"outstation\",\r
+
+    \        \"origin\": {\r
+
+    \            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \            \"lat\": 12.9716,\r
+
+    \            \"lng\": 77.6412,\r
+
+    \            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\",\r
+
+    \            \"country\": \"India\",\r
+
+    \            \"country_code\": \"IN\",\r
+
+    \            \"state\": \"Karnataka\",\r
+
+    \            \"state_code\": \"KA\"\r
+
+    \        },\r
+
+    \        \"hops\": [\r
+
+    \            {\r
+
+    \                \"display_name\": \"Varkala, KL\",\r
+
+    \                \"lat\": 8.7379,\r
+
+    \                \"lng\": 76.7163,\r
+
+    \                \"place_id\": \"ChIJT7rMwZAs6zsRpHuAZA_ZTQE\",\r
+
+    \                \"address\": \"Varkala, Kerala, India\",\r
+
+    \                \"country\": \"India\",\r
+
+    \                \"country_code\": \"IN\",\r
+
+    \                \"state\": \"Kerala\",\r
+
+    \                \"state_code\": \"KL\"\r
+
+    \            }\r
+
+    \        ],\r
+
+    \        \"destination\": {\r
+
+    \            \"display_name\": \"Thiruvananthapuram, KL\",\r
+
+    \            \"lat\": 8.5241,\r
+
+    \            \"lng\": 76.9366,\r
+
+    \            \"place_id\": \"ChIJU4rS9bQs6zsRoOwCNHHyAQs\",\r
+
+    \            \"address\": \"Thiruvananthapuram, Kerala, India\",\r
+
+    \            \"country\": \"India\",\r
+
+    \            \"country_code\": \"IN\",\r
+
+    \            \"state\": \"Kerala\",\r
+
+    \            \"state_code\": \"KL\"\r
+
+    \        },\r
+
+    \        \"start_date\": \"2026-05-19T21:00:00\",\r
+
+    \        \"end_date\": \"2026-05-23T20:00:00\",\r
+
+    \        \"expected_end_date\": \"2026-05-23T20:00:00\",\r
+
+    \        \"num_adults\": 4,\r
+
+    \        \"num_children\": 1,\r
+
+    \        \"num_large_suitcases\": 3,\r
+
+    \        \"num_carryons\": 2,\r
+
+    \        \"num_backpacks\": 0,\r
+
+    \        \"num_other_bags\": 0,\r
+
+    \        \"preferred_car_type\": \"SUV\",\r
+
+    \        \"preferred_fuel_type\": \"diesel\",\r
+
+    \        \"toll_road_preferred\": false,\r
+
+    \        \"placard_required\": false,\r
+
+    \        \"passenger\": \"self\"\r
+
+    \    },\r
+
+    \    \"metadata\": {\r
+
+    \        \"inclusions\": [\r
+
+    \            \"Base fare\",\r
+
+    \            \"Premium AC cab with professional driver\",\r
+
+    \            \"Doorstep pickup and drop\",\r
+
+    \            \"Platform/Convenience fee\",\r
+
+    \            \"Well-maintained and sanitized vehicle\",\r
+
+    \            \"24/7 customer support\",\r
+
+    \            \"Driver allowance\",\r
+
+    \            \"Water bottles, candies, and tissues\",\r
+
+    \            \"State entry taxes\"\r
+
+    \        ],\r
+
+    \        \"exclusions\": [\r
+
+    \            \"Personal expenses\",\r
+
+    \            \"Self sponsored driver meals\",\r
+
+    \            \"Tolls(if applicable)\",\r
+
+    \            \"Paid parking(if applicable)\",\r
+
+    \            \"Self sponsored driver accomodation\",\r
+
+    \            \"Night surcharges(if applicable)\"\r
+
+    \        ],\r
+
+    \        \"in_car_amenities\": {\r
+
+    \            \"ac\": true,\r
+
+    \            \"music_system\": true,\r
+
+    \            \"water_bottle\": true,\r
+
+    \            \"tissues\": true,\r
+
+    \            \"candies\": true,\r
+
+    \            \"phone_charger\": true,\r
+
+    \            \"aux_cable\": true,\r
+
+    \            \"bluetooth\": true\r
+
+    \        },\r
+
+    \        \"total_trip_days\": 4,\r
+
+    \        \"estimated_km\": 1430.18,\r
+
+    \        \"included_kms\": 1200.0,\r
+
+    \        \"choices\": 9,\r
+
+    \        \"is_interstate\": true,\r
+
+    \        \"total_unique_states\": 2,\r
+
+    \        \"unique_states\": [\r
+
+    \            \"karnataka\",\r
+
+    \            \"kerala\"\r
+
+    \        ],\r
+
+    \        \"is_round_trip\": true\r
+
+    \    }\r
+
+    }"
+order: 1000

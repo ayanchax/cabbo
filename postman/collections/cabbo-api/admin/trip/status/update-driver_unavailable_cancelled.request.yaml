@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/cancelled"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Assigned driver became unavailable due to vehicle issue. Trip cancelled.\",\r
+
+    \    \"cancelation_detail\": {\r
+
+    \        \"reason\": \"Driver reported vehicle breakdown on the way to pickup location. Customer notified and refund initiated.\",\r
+
+    \        \"cancellation_sub_status\": \"driver_unavailable\"\r
+
+    \    }\r
+
+    }"
+order: 6000

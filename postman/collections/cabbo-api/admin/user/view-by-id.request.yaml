@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/users/{{example-admin-user-id}}"
+method: GET
+body:
+  type: text
+  content: "{}"
+order: 4000

@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/booking/AIRPORT-1A2B3C4D5E6F7G8Q"
+method: GET
+order: 4000

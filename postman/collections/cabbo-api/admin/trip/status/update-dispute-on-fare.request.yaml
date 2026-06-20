@@ -1,0 +1,31 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/dispute"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Customer refused to pay remaining balance. Fare dispute raised by driver.\",\r
+
+    \    \"dispute_detail\": {\r
+
+    \        \"reason\": \"Customer disputed the final fare citing it was higher than quoted. Driver confirmed the meter reading was correct and extra charges were for a detour at customer request.\",\r
+
+    \        \"dispute_type\": \"fare\",\r
+
+    \        \"details\": {\r
+
+    \            \"estimated_fare\": 1200.00,\r
+
+    \            \"final_fare\": 1480.00,\r
+
+    \            \"extra_distance_km\": 12,\r
+
+    \            \"disputed_amount\": 280.00\r
+
+    \        }\r
+
+    \    }\r
+
+    }"
+order: 10000

@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/completed"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \     \"end_datetime\": \"2026-03-10T11:20:00Z\",\r
+
+    \    \"reason\": \"Trip completed successfully. Customer paid remaining balance to driver.\"\r
+
+    \r
+
+    }"
+order: 9000

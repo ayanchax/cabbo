@@ -1,0 +1,29 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/dispute"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Payment confirmation disputed between customer and driver. Raising dispute for support review.\",\r
+
+    \    \"dispute_detail\": {\r
+
+    \        \"reason\": \"Customer claims they paid via UPI directly to driver. Driver says no payment was received. Conflicting statements from both parties.\",\r
+
+    \        \"dispute_type\": \"other\",\r
+
+    \        \"details\": {\r
+
+    \            \"customer_claim\": \"Paid ₹950 via UPI at trip end.\",\r
+
+    \            \"driver_claim\": \"No payment received. UPI confirmation screenshot requested from customer.\",\r
+
+    \            \"support_notes\": \"Needs UPI transaction verification from both parties before resolution.\"\r
+
+    \        }\r
+
+    \    }\r
+
+    }"
+order: 11000

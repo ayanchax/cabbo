@@ -1,0 +1,59 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"airport_drop\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"Salt Lake, Kolkata, WB\",\r
+
+    \        \"lat\": 22.5867,\r
+
+    \        \"lng\": 88.4172,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"Salt Lake, Kolkata, West Bengal, India\"\r
+
+    \    },\r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Netaji Subhas Chandra Bose International Airport, Kolkata, WB\",\r
+
+    \        \"lat\": 22.6547,\r
+
+    \        \"lng\": 88.4467,\r
+
+    \        \"place_id\": \"ChIJLwPMoJmVrjsR4E9-UejD3_g\",\r
+
+    \        \"address\": \"Netaji Subhas Chandra Bose International Airport, Kolkata, West Bengal, India\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2025-07-13T15:30:00\",\r
+
+    \    \"num_adults\": 2,\r
+
+    \    \"num_children\": 1,\r
+
+    \    \"num_large_suitcases\": 2,\r
+
+    \    \"num_carryons\": 1,\r
+
+    \    \"preferred_car_type\": \"Premium Sedan\",\r
+
+    \    \"preferred_fuel_type\": \"petrol\",\r
+
+    \    \"flight_number\": \"6E789\",\r
+
+    \    \"terminal_number\": \"T1\",\r
+
+    \    \"toll_road_preferred\": false\r
+
+    }"
+order: 2000

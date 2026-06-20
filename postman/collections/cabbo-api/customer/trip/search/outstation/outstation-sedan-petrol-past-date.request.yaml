@@ -1,0 +1,59 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"outstation\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"Chennai, TN\",\r
+
+    \        \"lat\": 13.0827,\r
+
+    \        \"lng\": 80.2707,\r
+
+    \        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r
+
+    \        \"address\": \"Chennai, Tamil Nadu, India\",\r
+
+    \        \"state_code\":\"TN\"\r
+
+    \    },\r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9716,\r
+
+    \        \"lng\": 77.5946,\r
+
+    \        \"place_id\": \"ChIJbU60yXAWrjsR4E9-UejD3_g\",\r
+
+    \        \"address\": \"Bengaluru, Karnataka, India\",\r
+
+    \        \"state_code\":\"KA\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2025-09-25T06:00:00\",\r
+
+    \    \"end_date\": \"2025-09-28T21:00:00\",\r
+
+    \    \"num_adults\": 2,\r
+
+    \    \"num_children\": 0,\r
+
+    \    \"num_large_suitcases\": 2,\r
+
+    \    \"num_carryons\": 1,\r
+
+    \    \"preferred_car_type\": \"Sedan\",\r
+
+    \    \"preferred_fuel_type\": \"petrol\"\r
+
+    }\r\n"
+order: 4000

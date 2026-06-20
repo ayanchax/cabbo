@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/regions/{{example-region-id}}/add-fuel-type/{{example-fuel-type-id}}"
+method: POST
+body:
+  type: json
+  content: ""
+order: 5000

@@ -1,0 +1,197 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/initiate-booking"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"option\": {\r
+
+    \        \"car_type\": \"Premium Sedan\",\r
+
+    \        \"fuel_type\": \"petrol\",\r
+
+    \        \"total_price\": 962.0,\r
+
+    \        \"price_breakdown\": {\r
+
+    \            \"base_fare\": 931.0,\r
+
+    \            \"platform_fee\": 31.0,\r
+
+    \            \"toll\": 0.0\r
+
+    \        },\r
+
+    \        \"included_kms\": 42.0,\r
+
+    \        \"package_short_label\": \"Airport Drop\",\r
+
+    \        \"package\": \"Airport Drop | AC Premium Sedan(4+1) - (petrol)\",\r
+
+    \        \"overages\": {\r
+
+    \            \"indicative_overage_warning\": false,\r
+
+    \            \"overage_amount_per_km\": 21.0,\r
+
+    \            \"overage_estimate_amount\": 0.0,\r
+
+    \            \"disclaimer\": [\r
+
+    \                \"If you exceed the included kilometres (42) for this airport transfer, an additional charge of ₹21.0 per kilometre will apply.\"\r
+
+    \            ],\r
+
+    \            \"extra_charges_disclaimers\": \"Extra charges may apply: \\n - If you exceed the included kilometres (42) for this airport transfer, an additional charge of ₹21.0 per kilometre will apply.\"\r
+
+    \        },\r
+
+    \        \"hash\": \"49c5b9b4861d4c7c2017da53e6eab7e470fdfef8d15020806f127074a9262955\"\r
+
+    \    },\r
+
+    \    \"preferences\": {\r
+
+    \        \"trip_type\": \"airport_drop\",\r
+
+    \        \"origin\": {\r
+
+    \            \"display_name\": \"MG Road, Bengaluru, KA\",\r
+
+    \            \"lat\": 12.974,\r
+
+    \            \"lng\": 77.6122,\r
+
+    \            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \            \"address\": \"MG Road, Bengaluru, Karnataka, India\",\r
+
+    \            \"country\": \"India\",\r
+
+    \            \"country_code\": \"IN\",\r
+
+    \            \"state\": \"Karnataka\",\r
+
+    \            \"state_code\": \"KA\",\r
+
+    \            \"region\": \"Bangalore\",\r
+
+    \            \"region_code\": \"BLR\"\r
+
+    \        },\r
+
+    \        \"destination\": {\r
+
+    \            \"display_name\": \"Kempegowda International Airport, Bengaluru\",\r
+
+    \            \"lat\": 13.1986,\r
+
+    \            \"lng\": 77.7066,\r
+
+    \            \"place_id\": \"ChIJL_P_CXMEDTkRw0ZdG-0GVvw\",\r
+
+    \            \"address\": \"Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India\",\r
+
+    \            \"country\": \"India\",\r
+
+    \            \"country_code\": \"IN\",\r
+
+    \            \"state\": \"Karnataka\",\r
+
+    \            \"state_code\": \"KA\",\r
+
+    \            \"region\": \"Bangalore\",\r
+
+    \            \"region_code\": \"BLR\",\r
+
+    \            \"postal_code\": \"560300\"\r
+
+    \        },\r
+
+    \        \"start_date\": \"2026-04-11T02:54:00\",\r
+
+    \        \"num_adults\": 2,\r
+
+    \        \"num_children\": 1,\r
+
+    \        \"num_large_suitcases\": 2,\r
+
+    \        \"num_carryons\": 1,\r
+
+    \        \"num_backpacks\": 0,\r
+
+    \        \"num_other_bags\": 0,\r
+
+    \        \"preferred_car_type\": \"Premium Sedan\",\r
+
+    \        \"preferred_fuel_type\": \"petrol\",\r
+
+    \        \"flight_number\": \"6E789\",\r
+
+    \        \"terminal_number\": \"T1\",\r
+
+    \        \"toll_road_preferred\": false,\r
+
+    \        \"placard_required\": false,\r
+
+    \        \"passenger\": \"self\"\r
+
+    \    },\r
+
+    \    \"metadata\": {\r
+
+    \        \"inclusions\": [\r
+
+    \            \"Base fare\",\r
+
+    \            \"Premium AC cab with professional driver\",\r
+
+    \            \"Doorstep pickup and drop\",\r
+
+    \            \"Platform/Convenience fee\",\r
+
+    \            \"Well-maintained and sanitized vehicle\",\r
+
+    \            \"24/7 customer support\",\r
+
+    \            \"Water bottles and tissues\"\r
+
+    \        ],\r
+
+    \        \"exclusions\": [\r
+
+    \            \"Personal expenses\",\r
+
+    \            \"Self sponsored driver meals\",\r
+
+    \            \"Tolls(if applicable)\",\r
+
+    \            \"Paid parking(if applicable)\"\r
+
+    \        ],\r
+
+    \        \"in_car_amenities\": {\r
+
+    \            \"ac\": true,\r
+
+    \            \"music_system\": true,\r
+
+    \            \"water_bottle\": true,\r
+
+    \            \"tissues\": true\r
+
+    \        },\r
+
+    \        \"total_trip_days\": 1,\r
+
+    \        \"estimated_km\": 35.78,\r
+
+    \        \"included_kms\": 42.0,\r
+
+    \        \"choices\": 11\r
+
+    \    }\r
+
+    }"
+order: 1000

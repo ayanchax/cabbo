@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/self-service/verify-email?id={{customer_id}}&token=9zK1iKpwpxs7h2DmQvQCqg"
+method: GET
+queryParams:
+  id: "{{customer_id}}"
+  token: 9zK1iKpwpxs7h2DmQvQCqg
+body:
+  type: json
+  content: "{}"
+order: 11000

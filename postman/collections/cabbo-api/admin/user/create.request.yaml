@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/users/create"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"John Doe\",\r
+
+    \  \"username\": \"john_doe\",\r
+
+    \  \"email\": \"ayanchax9088@gmail.com\",\r
+
+    \  \"phone_number\": \"+919831305667\",\r
+
+    \  \"role\":\"driver_admin\"\r
+
+    }"
+order: 2000

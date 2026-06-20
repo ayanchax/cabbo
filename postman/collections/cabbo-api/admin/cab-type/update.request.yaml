@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/cab/{{example-cab-type-id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"SUV Plus\",\r
+
+    \  \"description\": \"An upgraded SUV with additional features\",\r
+
+    \  \"cab_names\": [\"Fortuner\", \"Endeavour\", \"XUV700\"],\r
+
+    \  \"inventory_cab_names\": [\"Fortuner\", \"Endeavour\"],\r
+
+    \  \"capacity\": \"6+1\"\r
+
+    }"
+order: 2000

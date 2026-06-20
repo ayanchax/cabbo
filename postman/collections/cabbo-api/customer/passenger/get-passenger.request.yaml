@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}/passengers/{{passenger_id}}"
+method: GET
+body:
+  type: json
+  content: ""
+order: 5000

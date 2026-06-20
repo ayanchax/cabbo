@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/eae374ff-e80a-41f4-815a-a7ad62ade680/status/cancelled"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Customer requested cancellation. Change of plans.\",\r
+
+    \    \"cancelation_detail\": {\r
+
+    \        \"reason\": \"Customer called to cancel. They mentioned a change in travel plans.\",\r
+
+    \        \"cancellation_sub_status\": \"customer_cancelled\"\r
+
+    \    }\r
+
+    }"
+order: 1000

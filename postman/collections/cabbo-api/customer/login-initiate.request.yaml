@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/auth/login/initiate"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"phone_number\":\"+91 9831305667\"\r
+
+    \     \r
+
+    }"
+auth:
+  type: noauth
+order: 7000

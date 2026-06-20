@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/customers/aa4d6210-3b06-4d9b-ba65-2a1ee0d8a68d/suspemd"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\":\"Suspended\"\r
+
+    }"
+order: 5000

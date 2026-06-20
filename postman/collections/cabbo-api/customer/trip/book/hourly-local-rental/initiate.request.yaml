@@ -1,0 +1,207 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/initiate-booking"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"option\": {\r
+
+    \        \"car_type\": \"Sedan\",\r
+
+    \        \"fuel_type\": \"petrol\",\r
+
+    \        \"total_price\": 1251.0,\r
+
+    \        \"price_breakdown\": {\r
+
+    \            \"base_fare\": 1200.0,\r
+
+    \            \"platform_fee\": 51.0,\r
+
+    \            \"driver_allowance\": 0.0\r
+
+    \        },\r
+
+    \        \"included_kms\": 40.0,\r
+
+    \        \"included_hours\": 4,\r
+
+    \        \"package_short_label\": \"4Hours / 40KM\",\r
+
+    \        \"package\": \"4Hours / 40KM | AC Sedan(4+1) - (petrol)\",\r
+
+    \        \"overages\": {\r
+
+    \            \"indicative_overage_warning\": false,\r
+
+    \            \"overage_amount_per_km\": 16.0,\r
+
+    \            \"overage_amount_per_hour\": 300.0,\r
+
+    \            \"disclaimer\": [\r
+
+    \                \"If you exceed the included hours and/or kilometres in your selected package (4Hours / 40KM), an additional charge of ₹300.0 per hour and/or ₹16.0 per km will apply.\",\r
+
+    \                \"You will be charged the full fare even if your trip is shorter than the booked duration or included mileage.\",\r
+
+    \                \"Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.\"\r
+
+    \            ],\r
+
+    \            \"extra_charges_disclaimers\": \"Extra charges may apply: \\n - If you exceed the included hours and/or kilometres in your selected package (4Hours / 40KM), an additional charge of ₹300.0 per hour and/or ₹16.0 per km will apply.\\n - You will be charged the full fare even if your trip is shorter than the booked duration or included mileage.\\n - Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.\"\r
+
+    \        },\r
+
+    \        \"hash\": \"5ab6aea7b76b687592a9bbcd406e2f3112861c1b69ab89b9b34819c143a76bca\"\r
+
+    \    },\r
+
+    \    \"preferences\": {\r
+
+    \        \"trip_type\": \"local\",\r
+
+    \        \"origin\": {\r
+
+    \            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \            \"lat\": 12.9716,\r
+
+    \            \"lng\": 77.6412,\r
+
+    \            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\",\r
+
+    \            \"country\": \"India\",\r
+
+    \            \"country_code\": \"IN\",\r
+
+    \            \"state\": \"Karnataka\",\r
+
+    \            \"state_code\": \"KA\",\r
+
+    \            \"region\": \"Bangalore\",\r
+
+    \            \"region_code\": \"BLR\"\r
+
+    \        },\r
+
+    \        \"destination\": {\r
+
+    \            \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \            \"lat\": 12.9716,\r
+
+    \            \"lng\": 77.6412,\r
+
+    \            \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \            \"address\": \"Indiranagar, Bengaluru, Karnataka, India\",\r
+
+    \            \"country\": \"India\",\r
+
+    \            \"country_code\": \"IN\",\r
+
+    \            \"state\": \"Karnataka\",\r
+
+    \            \"state_code\": \"KA\",\r
+
+    \            \"region\": \"Bangalore\",\r
+
+    \            \"region_code\": \"BLR\"\r
+
+    \        },\r
+
+    \        \"start_date\": \"2026-08-18T06:45:00\",\r
+
+    \        \"expected_end_date\": \"2026-08-18 05:15:00+00:00\",\r
+
+    \        \"num_adults\": 2,\r
+
+    \        \"num_children\": 0,\r
+
+    \        \"num_large_suitcases\": 1,\r
+
+    \        \"num_carryons\": 1,\r
+
+    \        \"num_backpacks\": 0,\r
+
+    \        \"num_other_bags\": 0,\r
+
+    \        \"preferred_car_type\": \"Sedan\",\r
+
+    \        \"preferred_fuel_type\": \"petrol\",\r
+
+    \        \"package_id\": \"3fbebb71-9ae5-44f8-9168-2a1c335139e5\",\r
+
+    \        \"toll_road_preferred\": false,\r
+
+    \        \"placard_required\": false,\r
+
+    \        \"passenger\": \"self\"\r
+
+    \    },\r
+
+    \    \"metadata\": {\r
+
+    \        \"inclusions\": [\r
+
+    \            \"Base fare\",\r
+
+    \            \"Premium AC cab with professional driver\",\r
+
+    \            \"Doorstep pickup and drop\",\r
+
+    \            \"Platform/Convenience fee\",\r
+
+    \            \"Well-maintained and sanitized vehicle\",\r
+
+    \            \"24/7 customer support\",\r
+
+    \            \"Water bottles and tissues\"\r
+
+    \        ],\r
+
+    \        \"exclusions\": [\r
+
+    \            \"Personal expenses\",\r
+
+    \            \"Self sponsored driver meals\",\r
+
+    \            \"Tolls(if applicable)\",\r
+
+    \            \"Paid parking(if applicable)\"\r
+
+    \        ],\r
+
+    \        \"in_car_amenities\": {\r
+
+    \            \"ac\": true,\r
+
+    \            \"music_system\": true,\r
+
+    \            \"water_bottle\": true,\r
+
+    \            \"tissues\": true,\r
+
+    \            \"phone_charger\": true,\r
+
+    \            \"aux_cable\": true\r
+
+    \        },\r
+
+    \        \"total_trip_days\": 1,\r
+
+    \        \"included_hours\": 4.0,\r
+
+    \        \"included_kms\": 40.0,\r
+
+    \        \"choices\": 10,\r
+
+    \        \"is_round_trip\": true\r
+
+    \    }\r
+
+    }"
+order: 1000

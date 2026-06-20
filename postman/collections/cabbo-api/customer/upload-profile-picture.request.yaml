@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}/upload/profile-picture"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: file
+      src: /C:/Users/ayanc/OneDrive/Desktop/kbs-logo-png_seeklogo-444010.png
+order: 12000

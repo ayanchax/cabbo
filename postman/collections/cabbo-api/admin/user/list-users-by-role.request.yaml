@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/users/role/driver_admin"
+method: GET
+body:
+  type: text
+  content: "{}"
+order: 6000

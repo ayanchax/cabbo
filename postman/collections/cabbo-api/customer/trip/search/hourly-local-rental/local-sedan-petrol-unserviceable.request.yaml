@@ -1,0 +1,45 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"local\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"MG Road, Chennai, TN\",\r
+
+    \        \"lat\": 13.0648,\r
+
+    \        \"lng\": 80.2498,\r
+
+    \        \"place_id\": \"ChIJCSF8lBJuUjoRM9RjaAunYW4\",\r
+
+    \        \"address\": \"MG Road, Chennai, Tamil Nadu, India\",\r
+
+    \        \"region_code\":\"TN\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-07-12T09:00:00\",\r
+
+    \    \"end_date\": \"2026-07-01T13:00:00\",\r
+
+    \    \"num_adults\": 2,\r
+
+    \    \"num_children\": 0,\r
+
+    \    \"num_large_suitcases\": 1,\r
+
+    \    \"num_carryons\": 1,\r
+
+    \    \"preferred_car_type\": \"Sedan\",\r
+
+    \    \"preferred_fuel_type\": \"petrol\",\r
+
+    \    \"package_id\": \"{{hourly_package_id}}\"\r
+
+    }\r\n"
+order: 3000

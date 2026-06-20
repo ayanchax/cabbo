@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/users/{{example-admin-user-id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Jane Doe Jr\",\r
+
+    \  \"username\": \"trem86\",\r
+
+    \  \"email\": \"derek.doe@example.com\",\r
+
+    \  \"phone_number\": \"+916876543210\"\r
+
+    \   \r
+
+    }"
+order: 3000

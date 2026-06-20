@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/ad8d7570-9e1c-4fca-9a93-fe97adc74204/status/cancelled"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Driver declined to complete the trip after assignment. Trip cancelled.\",\r
+
+    \    \"cancelation_detail\": {\r
+
+    \        \"reason\": \"Driver refused to proceed after accepting the trip. Customer informed and full refund initiated.\",\r
+
+    \        \"cancellation_sub_status\": \"driver_cancelled\"\r
+
+    \    }\r
+
+    }"
+order: 4000

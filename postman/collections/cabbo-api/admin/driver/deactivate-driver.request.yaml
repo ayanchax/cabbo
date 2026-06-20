@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/{{example-driver-id}}/deactivate"
+method: POST
+body:
+  type: json
+  content: ""
+order: 3000

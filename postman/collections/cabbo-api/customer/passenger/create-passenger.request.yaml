@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}/passenger/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"name\":\"Ram\",\r
+
+    \    \"phone_number\":\"9908109901\"\r
+
+    }"
+order: 1000

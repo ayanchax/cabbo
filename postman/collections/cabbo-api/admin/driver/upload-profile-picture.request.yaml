@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/{{example-driver-id}}/profile-picture"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: file
+      src: /C:/Users/ayanc/Downloads/logo-without-tagline-removebg-preview.png
+order: 9000
