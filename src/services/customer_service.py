@@ -482,3 +482,11 @@ async def async_suspend_customer(
     
 def get_customer_email(customer:CustomerRead):
     return customer.email if customer.email else None
+
+def serialize_customer(customer, trip_dict: dict):
+            customer = CustomerRead.model_validate(customer)
+            customer_data = customer.model_dump()
+            trip_dict["customer"] = customer_data
+            trip_dict.pop("creator_id", None)
+            trip_dict.pop("creator_type", None)
+            return trip_dict

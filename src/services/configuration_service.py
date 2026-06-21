@@ -1,5 +1,6 @@
 from typing import Optional
 from core.store import ConfigStore
+from db.database import get_mysql_local_session
 from models.geography.region_schema import RegionSchema
 from models.geography.state_schema import StateSchema
 from models.map.location_schema import LocationInfo
@@ -116,3 +117,17 @@ def get_currency(db: Session):
         or 100,
     )
     return currency
+
+def serialize_currency(trip_dict: dict, db: Session=None):
+    if not db:
+        db = get_mysql_local_session()
+    currency= get_currency(db)
+    trip_dict["currency"] = currency.model_dump() if currency else None
+    return trip_dict
+
+def remove_extra_fields_from_currency(currency: dict):
+    keys_to_remove = ["code_position", "decimal_places", "decimal_separator", "in_words","international_name","symbol_position","thousand_separator"]
+    for key in keys_to_remove:
+                    currency.pop(key, None)
+    return currency
+

@@ -1,4 +1,5 @@
 from typing import Union
+from api.v1.endpoints.admin import trip
 from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.security import RoleEnum
 from models.customer.passenger_orm import Passenger
@@ -274,3 +275,9 @@ def is_passenger_belongs_to_customer(passenger_id:str, customer_id:str, db:Sessi
     if not passenger:
         return False
     return passenger if passenger.customer_id == customer_id else False
+
+def serialize_passenger(passenger, trip_dict: dict):
+        passenger_data = PassengerRequest.model_validate(passenger).model_dump()
+        trip_dict["passenger"] = passenger_data
+        trip_dict.pop("passenger_id", None)
+        return trip_dict

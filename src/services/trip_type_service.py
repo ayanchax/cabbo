@@ -211,3 +211,18 @@ def get_packages_by_region_code(trip_type: TripTypeEnum, region_code: str, db: S
             status_code=500,
             error_code=TRIP_PACKAGE_FETCH_FAILED,
         )
+
+def serialize_trip_type(trip_type_master, trip_dict: dict):
+        trip_type_data = TripTypeSchema.model_validate(
+            trip_type_master
+        ).model_dump()
+        trip_dict["trip_type"] = trip_type_data
+        trip_dict.pop("trip_type_id", None)
+        trip_dict.pop("trip_type_master", None)
+        return trip_dict
+
+def remove_extra_fields_from_trip_type(trip_type: dict):
+    keys_to_remove = ["id"]
+    for key in keys_to_remove:
+        trip_type.pop(key, None)
+    return trip_type

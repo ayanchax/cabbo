@@ -204,3 +204,11 @@ async def update_dispute_by_trip_id(trip_id: str, payload: DisputeUpdateSchema, 
         await db.rollback()
         log.error(f"Error updating dispute record for trip {trip_id}: {str(e)}")
         raise e
+    
+def serialize_dispute(dispute, trip_dict: dict):
+    dispute = DisputeSchema.model_validate(dispute)
+    dispute_data = dispute.model_dump()
+    trip_dict["dispute"] = dispute_data
+    trip_dict["dispute"].pop("id", None)
+    trip_dict["dispute"].pop("entity_id", None)
+    return trip_dict

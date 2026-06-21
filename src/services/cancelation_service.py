@@ -170,6 +170,7 @@ def get_cancelation_policy_id(policy: Optional[CancelationPolicySchema]):
 
 
 async def fetch_all_cancelled_trips(db: AsyncSession):
+
     try:
         result = await db.execute(
             select(Cancellation).where(Cancellation.is_active == True)
@@ -179,3 +180,9 @@ async def fetch_all_cancelled_trips(db: AsyncSession):
     except Exception as e:
         log.error(f"Error fetching all cancellations: {e}")
         return []
+    
+def serialize_cancelation(cancellation, trip_dict: dict):
+    cancellation = CancelationSchema.model_validate(cancellation)
+    cancellation_data = cancellation.model_dump()
+    trip_dict["cancellation"] = cancellation_data
+    return trip_dict

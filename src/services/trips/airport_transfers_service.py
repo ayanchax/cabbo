@@ -775,3 +775,12 @@ def derive_trip_sort_priority(
         capacity_score = (option_rank - minimum_rank) * 100
 
     return (capacity_score, option.total_price)
+
+def remove_extra_fields_from_airport_transfer_trip(trip_dict: dict, trip_type: TripTypeEnum) -> dict:
+    keys_to_remove = ["created_at", "creator_id", "creator_type", "estimated_km","final_display_price","indicative_overage_warning", "is_active", "is_interstate", "is_round_trip", "package_label","package_label_short","parking", "permit_fee","payment_provider_metadata", "platform_fee","preferred_car_type","preferred_fuel_type", "total_unique_states", "unique_states","rate_per_km","rate_per_min","toll_road_preferred","tolls","total_days","updated_at","utc_offset", "driver_allowance", "expected_end_datetime", "included_kms"]
+    if trip_type == TripTypeEnum.airport_drop:
+        #We do not need these fields for airport drop trips, but they are required for airport pickup trips, so we will only remove them for airport drop trips
+        keys_to_remove.extend(["placard_required", "flight_number", "terminal_number", "placard_name"])
+    for key in keys_to_remove:
+        trip_dict.pop(key, None)
+    return trip_dict

@@ -4,8 +4,9 @@
 from core.exceptions import GENERIC_EXCEPTION, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.store import ConfigStore
 from models.geography.region_orm import RegionModel
+from models.pricing.pricing_schema import TripPackageConfigSchema
 from models.trip.trip_enums import TripTypeEnum
-from models.trip.trip_orm import TripPackageConfig
+from models.trip.trip_orm import Trip, TripPackageConfig
 from models.trip.trip_schema import TripPackageSchema, TripPackageUpdateSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.geography_service import async_get_region_by_code
@@ -305,3 +306,24 @@ async def activate_trip_package_config_by_id(id: str, db: AsyncSession):
     except Exception as e:
         await db.rollback()
         raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
+
+def serialize_trip_package(trip:Trip, trip_dict: dict):
+    def _get_rate_per_minute_fallback():
+        if trip.package:
+            package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
+            total_included_minutes = package_data.get("included_hours") * 60
+            total_price=trip.final_price if trip.final_price else 0.0
+            return round(total_price / total_included_minutes, 2)
+        return 0.0
+        
+    package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
+    trip_dict["package"] = package_data
+    trip_dict["rate_per_min"] = trip.rate_per_min if trip.rate_per_min else _get_rate_per_minute_fallback()
+    trip_dict.pop("package_id", None)
+    return trip_dict
+
+def remove_extra_fields_from_trip_package(trip_package: dict):
+    keys_to_remove = ["id", "region_id", "trip_type_id", "package_label"]
+    for key in keys_to_remove:
+        trip_package.pop(key, None)
+    return trip_package

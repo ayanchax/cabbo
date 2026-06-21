@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_NOT_FOUND, DRIVER_NOT_FOUND
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
-from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_enums import TripResponseView, TripStatusEnum
 from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange
 from models.user.user_orm import User
 from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
@@ -97,7 +97,7 @@ async def list_all_trips(
     trips = await async_get_all_trips(db)
     if not trips:
         raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
-    return serialize_trips(trips)
+    return serialize_trips(trips, view=TripResponseView.ADMIN_LIST)
 
 
 # List trips by driver_id - this will be used by driver admin to see all trips that belong to a particular driver, and also by super admin for any driver
@@ -119,7 +119,7 @@ async def list_trips_by_driver_id(
     if not trips:
         raise CabboException("No trips found for the driver", status_code=404, error_code=TRIP_NOT_FOUND)
     # Serialize trips and driver details
-    return serialize_trips(trips)
+    return serialize_trips(trips, view=TripResponseView.ADMIN_LIST)
 
 
 # List trips by customer_id - this will be used by customer admin to see all trips that belong to a particular customer, and also by super admin for any customer
@@ -154,7 +154,7 @@ async def list_trips_by_customer_id(
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
-    return serialize_trips(trips, expose_customer_details=can_expose_customer_details)
+    return serialize_trips(trips, view=TripResponseView.ADMIN_LIST)
 
 
 # List trips of customer by status: super_admin, customer_admin
@@ -191,7 +191,7 @@ async def list_trips_by_customer_id_and_status(
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
     serialized_trips = serialize_trips(
-        trips, expose_customer_details=can_expose_customer_details
+        trips, view=TripResponseView.ADMIN_LIST
     )
     filtered_trips = [
         trip for trip in serialized_trips if trip.get("status") == status.value
@@ -224,7 +224,7 @@ async def list_trips_by_status(
     trips = await async_get_all_trips(db)
     if not trips:
         raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
-    serialized_trips = serialize_trips(trips)
+    serialized_trips = serialize_trips(trips, view=TripResponseView.ADMIN_LIST)
     filtered_trips = [
         trip for trip in serialized_trips if trip.get("status") == status.value
     ]

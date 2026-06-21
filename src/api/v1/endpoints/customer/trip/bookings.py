@@ -10,7 +10,7 @@ from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.support.support_schema import CommentSchema
-from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange, TripUpdateRequestSchema
 from services.dispute_service import add_comment_to_dispute_by_trip_id
 from services.orchestration_service import BackgroundTaskOrchestrator
@@ -43,7 +43,7 @@ async def view_trip_details_by_booking_id_and_customer_id(
 
     if trip is None:
         raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
-    serialized_trip = serialize_trip(trip=trip, expose_currency_detail=True, expose_fleet_detail=True, expose_trip_label=True, optimize_response=True)
+    serialized_trip = serialize_trip(trip=trip, view= TripResponseView.CUSTOMER_DETAIL)
     if "id" in serialized_trip:
         serialized_trip.pop(
             "id"
@@ -122,7 +122,7 @@ async def list_trips_by_customer_id(
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
-    serialized_trips = serialize_trips(trips, expose_customer_details=True)
+    serialized_trips = serialize_trips(trips, view=TripResponseView.CUSTOMER_LIST)
 
     # Remove id from each trip in the serialized_trips for security reasons
     for trip in serialized_trips:
@@ -147,7 +147,7 @@ async def list_trips_by_customer_id_and_status(
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
-    serialized_trips = serialize_trips(trips, expose_customer_details=True)
+    serialized_trips = serialize_trips(trips, view=TripResponseView.CUSTOMER_LIST)
 
     # Remove id from each trip in the serialized_trips for security reasons
     for trip in serialized_trips:
@@ -180,7 +180,7 @@ async def list_trips_by_customer_id_and_trip_type(
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
 
-    serialized_trips = serialize_trips(trips, expose_customer_details=True)
+    serialized_trips = serialize_trips(trips, view=TripResponseView.CUSTOMER_LIST)
     # Remove id from each trip in the serialized_trips for security reasons
     for trip in serialized_trips:
         if "id" in trip:
@@ -249,7 +249,7 @@ async def get_dispute_details_by_booking_id_and_customer_id(
         raise CabboException("No active dispute found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
     if trip.dispute.is_active == False:
         raise CabboException("No active dispute found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)
-    serialized_trip = serialize_trip(trip, expose_dispute_details=True)
+    serialized_trip = serialize_trip(trip, view=TripResponseView.CUSTOMER_DISPUTE)
     dispute_details = serialized_trip.get("dispute", None)
     if dispute_details is None:
         raise CabboException("Dispute details not found for the trip", status_code=404, error_code=GENERIC_EXCEPTION)

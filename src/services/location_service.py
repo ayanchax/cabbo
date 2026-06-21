@@ -87,3 +87,9 @@ def get_location_from_place_id(place_id: str, session_token:Optional[str]=None) 
 
         return google_place_details(place_id, session_token=session_token)
     return None
+
+def remove_extra_fields_from_location(location_details: dict):
+    keys_to_remove = ["country", "region", "state", "postal_code"]
+    for key in keys_to_remove:
+        location_details.pop(key, None)
+    return location_details

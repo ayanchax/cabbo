@@ -1,6 +1,7 @@
 from core.constants import APP_NAME
-from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
-
+from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
+from models.trip.trip_schema import TripSerializationOptions
+from models.trip.trip_schema import TripSerializationOptions
 
 TRIP_MESSAGES = {
     TripStatusEnum.created.value: {
@@ -85,18 +86,64 @@ COMMON_EXCLUSIONS = [
     "Paid parking(if applicable)",
 ]
 
-DEFAULT_PRIOR_BOOKING_WINDOW_HOURS={
-    TripTypeEnum.local:6,
-    TripTypeEnum.airport_general:3,
-    TripTypeEnum.outstation:48
+DEFAULT_PRIOR_BOOKING_WINDOW_HOURS = {
+    TripTypeEnum.local: 6,
+    TripTypeEnum.airport_general: 3,
+    TripTypeEnum.outstation: 48,
 }
 
-OUTSTATION_DEFAULTS={
-    "max_hops":3,
-    "min_hops":15,
-    "min_days_allowed":2,
-    "max_days_allowed":7,
+OUTSTATION_DEFAULTS = {
+    "max_hops": 3,
+    "min_hops": 15,
+    "min_days_allowed": 2,
+    "max_days_allowed": 7,
 }
 
+TRIP_RESPONSE_OPTIONS = {
+    TripResponseView.CUSTOMER_DETAIL: TripSerializationOptions(
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        optimize_response=True,
+        expose_policy_detail=True,
 
+    ),
+    TripResponseView.CUSTOMER_LIST: TripSerializationOptions(
+        expose_customer_details=True,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        optimize_response=True,
+        expose_policy_detail=True,
+    ),
+    TripResponseView.CUSTOMER_DISPUTE: TripSerializationOptions(
+        expose_dispute_details=True,
+        optimize_response=True,
+    ),
+    TripResponseView.CUSTOMER_CANCELLATION_POLICY: TripSerializationOptions(
+        expose_policy_detail=True,
+        optimize_response=True,
+        expose_cancellation_detail=True,
+    ),
 
+    TripResponseView.ADMIN_DETAIL: TripSerializationOptions(
+        expose_customer_details=True,
+        expose_cancellation_detail=True,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        expose_policy_detail=True,
+        expose_dispute_details=True,
+
+    ),
+     TripResponseView.ADMIN_LIST: TripSerializationOptions(
+        expose_customer_details=True,
+        expose_cancellation_detail=True,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        expose_policy_detail=True,
+        expose_dispute_details=True,
+
+    )
+}

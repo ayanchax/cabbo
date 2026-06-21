@@ -66,3 +66,12 @@ class CarTypeEnum(str, enum.Enum):
     sedan_plus = "Premium Sedan"
     suv = "SUV"
     suv_plus = "SUV+"
+
+
+class TripResponseView(str, enum.Enum):
+    CUSTOMER_DETAIL = "customer_detail"
+    CUSTOMER_LIST = "customer_list"
+    CUSTOMER_DISPUTE = "customer_dispute"
+    CUSTOMER_CANCELLATION_POLICY = "customer_cancellation_policy"
+    ADMIN_DETAIL = "admin_detail"
+    ADMIN_LIST = "admin_list"

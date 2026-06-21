@@ -32,7 +32,9 @@ from services.payment_service import (
     initiate_refund,
     is_payment_settled,
 )
-import logging 
+import logging
+
+
 log = logging.getLogger(__name__)
 
 
@@ -53,7 +55,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 f"Refund initiation for trip {trip.id} is already in process or completed, hence skipping refund initiation"
             )
             return False
-        
+
         # Determine if the cancellation is done by cabbo or by driver or due to any other reason except customer cancellation or customer no show, because if the customer is canceling the trip then they should be responsible for any cancellation charges and we should not refund the advance payment in that case or refund partially. But if the trip is canceled by cabbo or by driver admin or due to any other reason except customer cancellation, then we should refund the advance payment to customer in full because it is not the fault of customer and they should not be penalized for that.
         canceled_by_cabbo = cancelation_sub_status not in [
             CancellationSubStatusEnum.customer_cancelled,
@@ -234,10 +236,9 @@ async def refund_advance_payment_to_customer_on_cancellation(
             )
 
             currency = Currency(
-                    code=config_store.geographies.country_server.currency,
-                    lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
-                )
-            
+                code=config_store.geographies.country_server.currency,
+                lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
+            )
 
             initial_refund_response = get_initial_refund_response(
                 payment_id=payment_id,
@@ -467,17 +468,17 @@ async def _update_refund_status(
         return False
 
 
-async def _is_existing_refund(
-    id: str, db: AsyncSession, silently_fail: bool = False
-):
+async def _is_existing_refund(id: str, db: AsyncSession, silently_fail: bool = False):
 
     # Check DB for existing refund record
     existing_refund = await get_refund_details_by_trip_id(trip_id=id, db=db)
     if existing_refund:
-        log.info(f"Refund record already exists for trip {id} with status {existing_refund.refund_status.value}, skipping. Scheduler will handle it as applicable.")
+        log.info(
+            f"Refund record already exists for trip {id} with status {existing_refund.refund_status.value}, skipping. Scheduler will handle it as applicable."
+        )
         return True
     return False
-    
+
 
 async def fetch_refund_detail_by_booking_id_and_customer_id(
     booking_id: str, requestor: str, db: AsyncSession
@@ -650,7 +651,7 @@ async def initiate_refund_by_booking_id(
                 raise CabboException(
                     f"No active trip found for booking ID {booking_id}, cannot initiate refund",
                     status_code=404,
-                    error_code=TRIP_NOT_FOUND
+                    error_code=TRIP_NOT_FOUND,
                 )
             log.info(
                 f"No active trip found for booking ID {booking_id}, cannot initiate refund"
@@ -662,7 +663,7 @@ async def initiate_refund_by_booking_id(
                 raise CabboException(
                     f"Trip with booking ID {booking_id} is not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled",
                     status_code=400,
-                    error_code=GENERIC_EXCEPTION
+                    error_code=GENERIC_EXCEPTION,
                 )
             log.info(
                 f"Trip with booking ID {booking_id} is  not cancelled, current status is {trip.status.value}, cannot initiate refund for a trip which is not cancelled"
@@ -718,7 +719,7 @@ async def attempt_refund_initiation(
 
     stored_notes = (refund.refund_details or {}).get("notes", {})
     customer = trip.customer
-                
+
     notes = PaymentNotesSchema(
         reference_source_id=trip.id,
         refund_type=stored_notes.get("refund_type"),
@@ -732,11 +733,11 @@ async def attempt_refund_initiation(
     )
 
     with get_mysql_local_session() as sync_db:
-        config_store = settings.get_config_store(sync_db) 
+        config_store = settings.get_config_store(sync_db)
 
     currency = Currency(
         code=config_store.geographies.country_server.currency,
-        lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor
+        lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
     )
 
     log.info(
@@ -779,4 +780,5 @@ async def inactivate_refund(refund: RefundORM, db: AsyncSession):
     await db.commit()
     await db.refresh(refund)
     log.info(f"Refund {refund.id} has been inactivated")
+
 

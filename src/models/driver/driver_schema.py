@@ -111,7 +111,7 @@ class CustomerSafeDriverReadSchema(BaseModel):
     name: str  # Driver's name
     phone: str  # Driver's phone number
     email: Optional[EmailStr] = None  # Driver's email address
-    profile_picture: Optional[str] = None  # Driver's profile picture url
+    profile_picture_url: Optional[str] = None  # Driver's profile picture url
     avg_rating: Optional[float]= Field(0.0, description="Average rating of the driver based on customer feedback")
     cab_registration_number: str  # Registration number of the car
     cab_type: CarTypeEnum  # Type of car (e.g., sedan, SUV)

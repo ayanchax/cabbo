@@ -500,3 +500,9 @@ def derive_trip_sort_priority(recommended_car_type:CarTypeEnum, option: TripSear
         capacity_score = (option_rank - minimum_rank) * 100
 
     return (capacity_score, option.total_price)
+
+def remove_extra_fields_from_local_hourly_rental_trip(trip_dict: dict):
+    keys_to_remove = ["created_at", "creator_id", "creator_type", "estimated_km","final_display_price","indicative_overage_warning", "is_active", "is_interstate", "is_round_trip", "num_backpacks","num_carryons", "num_large_suitcases","num_luggages", "num_other_bags","package_label","package_label_short","parking", "permit_fee","payment_provider_metadata","placard_required","platform_fee","preferred_car_type","preferred_fuel_type", "total_unique_states", "unique_states", "flight_number", "terminal_number","rate_per_km","toll_road_preferred","tolls","total_days","updated_at","utc_offset", "driver_allowance"]
+    for key in keys_to_remove:
+        trip_dict.pop(key, None)
+    return trip_dict

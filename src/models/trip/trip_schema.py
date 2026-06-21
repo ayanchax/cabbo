@@ -4,7 +4,7 @@ from datetime import datetime
 from core.exceptions import INVALID_TRIP_TYPE, CabboException
 from models.common import AmenitiesSchema
 from models.customer.customer_schema import CustomerBase, CustomerRead
-from models.driver.driver_schema import DriverReadSchema
+from models.driver.driver_schema import CustomerSafeDriverReadSchema, DriverReadSchema
 from models.policies.cancelation_schema import CancelationPolicySchema, CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
 from models.pricing.pricing_schema import (
@@ -338,6 +338,16 @@ class TripBookRequest(BaseModel):
     )
 
 
+class TripSerializationOptions(BaseModel):
+    expose_customer_details: bool = False
+    expose_dispute_details: bool = False
+    expose_cancellation_detail: bool = False
+    expose_policy_detail: bool = False
+    expose_currency_detail: bool = False
+    expose_fleet_detail: bool = False
+    expose_trip_label: bool = False
+    optimize_response: bool = False
+
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
@@ -428,7 +438,7 @@ class TripDetailSchema(BaseModel):
     )
 
     # Driver assignment fields
-    driver: Optional[Union[Dict[str, Any], Any]] = Field(
+    driver: Optional[Union[Dict[str, Any], Any, DriverReadSchema, CustomerSafeDriverReadSchema]] = Field(
         None, description="Driver details of the assigned driver"
     )
 
