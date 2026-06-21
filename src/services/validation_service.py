@@ -1105,7 +1105,8 @@ def validate_hops(
         max_allowed_hops = config_store.outstation.get(
             dest_state.state_code
         ).auxiliary_pricing.common.max_hops_allowed
-
+        if not max_allowed_hops:
+            max_allowed_hops = OUTSTATION_DEFAULTS.get("max_hops", 3)  # Default to 3 if not configured
         if len(hops) > max_allowed_hops:
             raise CabboException(
                 f"Number of hops/stops in outstation trip cannot exceed {max_allowed_hops}, please reduce the number of hops and try again",
@@ -1208,7 +1209,7 @@ def validate_hops(
                         error_code=OUTSTATION_CONSECUTIVE_HOPS_ZERO_DISTANCE,
                     )
 
-        # Keep only unique, valid hops (invalid hops cause an exception below)
+        # Keep only unique, valid hops (invalid hops cause an exception above)
         hops = [h for h in unique_hops]
 
     log.info("Hops validation passed")

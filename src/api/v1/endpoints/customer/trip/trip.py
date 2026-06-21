@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from core.exceptions import CabboException
 from core.security import validate_customer_token
-from core.trip_helpers import get_prior_booking_window_hours
+from core.trip_helpers import get_prior_booking_window_hours, get_trip_constraints_by_trip_type
 from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
@@ -135,6 +135,23 @@ def get_prior_booking_window(
         trip_type=trip_type, jurisdiction_code=jurisdiction_code
     )
 
+
+
+@router.get(
+    "/constraints/{trip_type}/{jurisdiction_code}",
+    response_model=dict,
+    tags=["customer-trip-booking"],
+)
+def get_trip_constraints(
+    trip_type: TripTypeEnum,
+    jurisdiction_code: str,
+    db: Session = Depends(yield_mysql_session),
+    _: Customer = Depends(validate_customer_token),
+):
+   
+    return get_trip_constraints_by_trip_type(
+        trip_type=trip_type, jurisdiction_code=jurisdiction_code, db=db
+    )
 
 # Trip review endpoints for customers to provide ratings and feedback for their trips and view their reviews. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trip reviews securely. The review endpoint will allow customers to submit their ratings and feedback for their completed trips, while the view reviews endpoint will enable customers to view their submitted reviews, enhancing the overall user experience and enabling better service quality through customer feedback.
 router.include_router(

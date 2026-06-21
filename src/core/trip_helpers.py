@@ -2,6 +2,7 @@ import json
 from typing import List, Optional, Union
 from core.exceptions import INVALID_TRIP_TYPE, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.security import RoleEnum, generate_hash
+from core.trip_constants import OUTSTATION_DEFAULTS
 from db.database import get_mysql_local_session
 from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
@@ -251,3 +252,20 @@ def get_prior_booking_window_hours(
     except Exception as e:
         log.error(f"Error fetching prior booking window hours from config: {e}")
     return None
+
+
+def get_trip_constraints_by_trip_type(trip_type: TripTypeEnum, jurisdiction_code: Optional[str], db: Session) -> dict:
+    from core.config import settings
+    config_store = settings.get_config_store(db)
+    
+    if trip_type == TripTypeEnum.outstation:
+        config = config_store.outstation.get(jurisdiction_code)
+        if config and config.auxiliary_pricing and config.auxiliary_pricing.common:
+            return {
+                "max_hops": config.auxiliary_pricing.common.max_hops_allowed or OUTSTATION_DEFAULTS.get("max_hops", 3),
+                "min_trip_days": config.auxiliary_pricing.common.min_days_allowed or OUTSTATION_DEFAULTS.get("min_days_allowed", 2),
+                "max_trip_days": config.auxiliary_pricing.common.max_days_allowed or OUTSTATION_DEFAULTS.get("max_days_allowed", 7),
+                "round_trip_only":True
+            }
+    # Add more trip type specific constraints if needed
+    return {}

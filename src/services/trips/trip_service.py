@@ -916,6 +916,10 @@ def get_trip_label(trip: dict):
                 ]
                 and start_datetime <= current_datetime
             ):  # All trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+                if trip_status == TripStatusEnum.completed:
+                    return "completed"
+                elif trip_status == TripStatusEnum.cancelled:
+                    return "cancelled"
                 return "past"
 
         # Outstation Logic(strictly based on start and expected end datetime to account for real-world conditions like delays, early arrivals, etc.)
@@ -969,7 +973,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
                 upcoming_trips.append(trip)
             elif label == "ongoing":
                 ongoing_trips.append(trip)
-            elif label == "past":
+            elif label == "past" or label in ["completed", "cancelled"]:
                 past_trips.append(trip)
     except Exception as e:
         log.error(f"Error grouping trips by status with timezone validation: {str(e)}")

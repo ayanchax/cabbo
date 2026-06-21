@@ -94,7 +94,7 @@ DEFAULT_PRIOR_BOOKING_WINDOW_HOURS = {
 
 OUTSTATION_DEFAULTS = {
     "max_hops": 3,
-    "min_hops": 15,
+    "min_hops": 1,
     "min_days_allowed": 2,
     "max_days_allowed": 7,
 }
