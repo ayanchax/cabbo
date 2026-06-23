@@ -3,6 +3,7 @@ from sqlalchemy import (
     Column,
     String,
     DateTime,
+    Integer,
     Enum as SAEnum,
     Boolean
 )
@@ -29,6 +30,8 @@ class CabType(Base):
     name = Column(SAEnum(CarTypeEnum), unique=True, nullable=False)
     description = Column(String(255), nullable=True)  # Description of cab type
     capacity = Column(String(20), nullable=True)  # Passenger capacity e.g, "4+1",
+    passenger_capacity = Column(Integer, nullable=True)  # Number of passengers the cab type can accommodate
+    luggage_capacity = Column(JSON, nullable=True)  # JSON representation of LuggageInfoSchema
     cab_names = Column(
         JSON, nullable=True
     )  # JSON list of cab model names

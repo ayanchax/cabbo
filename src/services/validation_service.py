@@ -1492,6 +1492,12 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
             error_code=OUTSTATION_TOTAL_DAYS_ABOVE_MAXIMUM_THRESHOLD,
         )
 
+    search_in.start_date = start_date
+    search_in.start_date= to_timezone_aware_datetime(search_in.start_date)  # Format start date with timezone info for consistency, so that client can rely on the format in the response and does not have to do additional parsing to get timezone info if needed, plus can convert to local timezone if needed based on the timezone info in the string
+    search_in.end_date = end_date
+    search_in.end_date= to_timezone_aware_datetime(search_in.end_date)  # Format end date with timezone info for consistency
+    
+
     return total_days
 
 

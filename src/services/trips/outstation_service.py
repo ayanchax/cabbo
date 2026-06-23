@@ -17,7 +17,7 @@ from core.trip_helpers import (
     get_default_trip_amenities,
 )
 from core.config import settings
-from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema, VehicleCapacitySchema
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import PassengerRequest
@@ -233,13 +233,13 @@ def _get_outstation_trips_disclaimer_lines(
 
     extra_day_line = (
         f"If you extend the trip beyond the booked {total_trip_days} day(s), "
-        f"an additional {currency}{rounded_extra_day_rate} per extra day will apply."
+        f"an additional {currency}{rounded_extra_day_rate} per extra day will apply - pay the driver directly."
     )
     return [
-        f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will apply.",
         non_refund_line,
         extra_day_line,
-        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{rounded_overage_amount_per_km} per km will apply.",
+        f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will apply - pay the driver directly.",
+        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{rounded_overage_amount_per_km} per km will apply - pay the driver directly.",
         "Extra charges apply for tolls, paid parking, night driving surcharges and exceeding included days or mileage (if applicable) - pay the driver directly.",
         "If the trip includes hill climbs, the cab AC may be switched off during such climbs.",
     ]
@@ -311,6 +311,7 @@ def get_outstation_trip_options(
     inclusions, exclusions = _get_inclusions_exclusions_for_outstation_trip(
         is_interstate
     )
+    
     in_car_amenities = get_default_trip_amenities()
 
     in_car_amenities.candies = True  # Candies are included for outstation trips
@@ -407,7 +408,14 @@ def get_outstation_trip_options(
         rate_per_km = round(total_price / included_km, 2)
 
         option = TripSearchOption(
-            car_type=cab_type_schema.name,
+            car_type=CarTypeEnum(cab_type_schema.name),
+            car_capacity=VehicleCapacitySchema(
+                passenger_capacity=cab_type_schema.passenger_capacity,
+                luggage_capacity=cab_type_schema.luggage_capacity,
+                capacity_match = search_in.total_passengers <= cab_type_schema.passenger_capacity and search_in.total_luggages <= cab_type_schema.total_luggages if cab_type_schema.passenger_capacity is not None and cab_type_schema.luggage_capacity is not None else False,
+                recommended=get_recommended_car_type(search_in.total_passengers, search_in.total_luggages) == CarTypeEnum(cab_type_schema.name),
+                rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
+            ),
             fuel_type=fuel_type_schema.name,
             total_price=total_price,
             price_breakdown=price_breakdown,
@@ -444,15 +452,18 @@ def get_outstation_trip_options(
             error_code=GENERIC_EXCEPTION,
         )
     cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.state_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
-    
+
     # Intelligent sorting based on user preferences and trip context
     recommended_car_type = get_car_type(search_in)
-    _options = sorted(
-        options, key=lambda option: derive_trip_sort_priority(recommended_car_type, option)
-    )[
-        : len(options)
-    ]  #  Limit to top n options based on user preferences and trip context
 
+    eligible_options = [
+        option
+        for option in options
+        if option.car_capacity.capacity_match
+    ]
+    _options = sorted(
+        eligible_options, key=lambda option: derive_trip_sort_priority(recommended_car_type, option)
+    )
     metadata = TripSearchAdditionalData(
         inclusions=inclusions,
         exclusions=exclusions,

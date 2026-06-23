@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 from typing import Any, Dict, NamedTuple, Optional, List, Union
 from datetime import datetime
 from core.exceptions import INVALID_TRIP_TYPE, CabboException
+from models.cab.cab_schema import VehicleCapacitySchema
 from models.common import AmenitiesSchema
 from models.customer.customer_schema import CustomerBase, CustomerRead
 from models.driver.driver_schema import CustomerSafeDriverReadSchema, DriverReadSchema
@@ -242,6 +243,7 @@ class TripSearchRequest(BaseModel):
 
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
+    car_capacity:Optional[VehicleCapacitySchema] = None
     fuel_type: FuelTypeEnum
     total_price: float
     price_breakdown: Union[

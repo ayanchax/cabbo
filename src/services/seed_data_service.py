@@ -113,12 +113,16 @@ CAB_TYPES_SEED_DATA = {
         "cab_names": ["WagonR", "Celerio", "Tiago", "Santro", "i10", "Swift"],
         "inventory_cab_names": ["WagonR"],
         "capacity": "4+1",
+        "passenger_capacity": 4,
+        "luggage_capacity": { "num_large_suitcases": 1, "num_carryons": 1, "num_backpacks": 1, "num_other_bags": 0}
     },
     CarTypeEnum.sedan: {
         "description": "Comfortable sedans, suitable for city and outstation travel.",
         "cab_names": ["Dzire", "Amaze", "Indigo"],
         "inventory_cab_names": ["Dzire"],
         "capacity": "4+1",
+        "passenger_capacity": 4,
+        "luggage_capacity": { "num_large_suitcases": 1, "num_carryons": 1, "num_backpacks": 1, "num_other_bags": 0}
     },
     CarTypeEnum.sedan_plus: {
         "description": "Premium sedans for extra comfort and luxury.",
@@ -135,18 +139,24 @@ CAB_TYPES_SEED_DATA = {
         ],
         "inventory_cab_names": ["Etios", "Dzire Plus", "Xcent", "Aura"],
         "capacity": "4+1",
+        "passenger_capacity": 4,
+        "luggage_capacity": { "num_large_suitcases": 1, "num_carryons": 2, "num_backpacks": 1, "num_other_bags": 0}
     },
     CarTypeEnum.suv: {
         "description": "Spacious SUVs, good for family/group travel and rough roads.",
         "cab_names": ["Ertiga", "Innova", "Marazzo", "XL6", "Mobilio"],
         "inventory_cab_names": ["Ertiga", "Innova"],
         "capacity": "6+1",
+        "passenger_capacity": 6,
+        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 2, "num_other_bags": 1}
     },
     CarTypeEnum.suv_plus: {
         "description": "Premium SUVs with extra comfort and luggage space.",
         "cab_names": ["Innova Crysta", "Hexa", "Fortuner", "XUV500", "Alcazar"],
         "inventory_cab_names": ["Innova Crysta"],
         "capacity": "7+1",
+        "passenger_capacity": 7,
+        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 3, "num_other_bags": 2}
     },
 }
 

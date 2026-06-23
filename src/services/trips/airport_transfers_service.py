@@ -15,7 +15,7 @@ from core.trip_helpers import (
     generate_trip_hash,
     get_default_trip_amenities,
 )
-from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema, VehicleCapacitySchema
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import PassengerRequest
@@ -391,7 +391,23 @@ def get_airport_pickup_trip_options(
         rate_per_km = round(total_price / max_included_km, 2)
 
         option = TripSearchOption(
-            car_type=cab_type_schema.name,  # Use display name from schema
+            car_type=CarTypeEnum(cab_type_schema.name),  # Use display name
+            car_capacity=VehicleCapacitySchema(
+                passenger_capacity=cab_type_schema.passenger_capacity,
+                luggage_capacity=cab_type_schema.luggage_capacity,
+                capacity_match=(
+                    search_in.total_passengers <= cab_type_schema.passenger_capacity
+                    and search_in.total_luggages <= cab_type_schema.total_luggages
+                    if cab_type_schema.passenger_capacity is not None
+                    and cab_type_schema.luggage_capacity is not None
+                    else False
+                ),
+                recommended=get_recommended_car_type(
+                    search_in.total_passengers, search_in.total_luggages
+                )
+                == CarTypeEnum(cab_type_schema.name),
+                rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
+            ),
             fuel_type=fuel_type_schema.name,  # Use display name from schema
             total_price=total_price,
             included_kms=max_included_km,
@@ -434,13 +450,14 @@ def get_airport_pickup_trip_options(
 
     # Intelligent sorting based on user preferences and trip context
     recommended_car_type = get_car_type(search_in)
+    eligible_options = [
+        option
+        for option in options
+        if option.car_capacity.capacity_match
+    ]
     _options = sorted(
-        options,
-        key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
-    )[
-        : len(options)
-    ]  #  Limit to top n options based on user preferences and trip context
-
+        eligible_options, key=lambda option: derive_trip_sort_priority(recommended_car_type, option)
+    )
     metadata = TripSearchAdditionalData(
         inclusions=inclusions,
         exclusions=exclusions,
@@ -557,7 +574,23 @@ def get_airport_dropoff_trip_options(
         rate_per_km = round(total_price / max_included_km, 2)
 
         option = TripSearchOption(
-            car_type=cab_type_schema.name,  # Use display name
+            car_type=CarTypeEnum(cab_type_schema.name),  # Use display name
+            car_capacity=VehicleCapacitySchema(
+                passenger_capacity=cab_type_schema.passenger_capacity,
+                luggage_capacity=cab_type_schema.luggage_capacity,
+                capacity_match=(
+                    search_in.total_passengers <= cab_type_schema.passenger_capacity
+                    and search_in.total_luggages <= cab_type_schema.total_luggages
+                    if cab_type_schema.passenger_capacity is not None
+                    and cab_type_schema.luggage_capacity is not None
+                    else False
+                ),
+                recommended=get_recommended_car_type(
+                    search_in.total_passengers, search_in.total_luggages
+                )
+                == CarTypeEnum(cab_type_schema.name),
+                rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
+            ),
             fuel_type=fuel_type_schema.name,  # Use display name
             total_price=total_price,
             price_breakdown=price_breakdown,
@@ -600,13 +633,13 @@ def get_airport_dropoff_trip_options(
 
     # Intelligent sorting based on user preferences and trip context
     recommended_car_type = get_car_type(search_in)
+    eligible_options = [
+        option for option in options if option.car_capacity.capacity_match
+    ]
     _options = sorted(
-        options,
+        eligible_options,
         key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
-    )[
-        : len(options)
-    ]  #  Limit to top n options based on user preferences and trip context
-
+    )
     metadata = TripSearchAdditionalData(
         inclusions=inclusions,
         exclusions=exclusions,
@@ -724,8 +757,16 @@ def get_kwargs_for_airport_transfer(
             "pickup_location": origin.address,
             "drop_location": destination.address,
             "booking_id": trip.booking_id,
-            "trip_date": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%d %b %Y"),  # Format date
-            "trip_time": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%I:%M %p"),  # Format time
+            "trip_date": format_trip_datetime(
+                trip.start_datetime, trip.timezone
+            ).strftime(
+                "%d %b %Y"
+            ),  # Format date
+            "trip_time": format_trip_datetime(
+                trip.start_datetime, trip.timezone
+            ).strftime(
+                "%I:%M %p"
+            ),  # Format time
             "luggage_info": luggage_info,
             "placard_name": (
                 trip.placard_name
@@ -776,12 +817,46 @@ def derive_trip_sort_priority(
 
     return (capacity_score, option.total_price)
 
-def remove_extra_fields_from_airport_transfer_trip(trip_dict: dict, trip_type: TripTypeEnum) -> dict:
-    keys_to_remove = ["created_at", "creator_id", "creator_type", "estimated_km","final_display_price","indicative_overage_warning", "is_active", "is_interstate", "is_round_trip", "package_label","package_label_short","parking", "permit_fee","payment_provider_metadata", "platform_fee","preferred_car_type","preferred_fuel_type", "total_unique_states", "unique_states","rate_per_km","rate_per_min","tolls","total_days","updated_at","utc_offset", "driver_allowance", "expected_end_datetime", "included_kms"]
+
+def remove_extra_fields_from_airport_transfer_trip(
+    trip_dict: dict, trip_type: TripTypeEnum
+) -> dict:
+    keys_to_remove = [
+        "created_at",
+        "creator_id",
+        "creator_type",
+        "estimated_km",
+        "final_display_price",
+        "indicative_overage_warning",
+        "is_active",
+        "is_interstate",
+        "is_round_trip",
+        "package_label",
+        "package_label_short",
+        "parking",
+        "permit_fee",
+        "payment_provider_metadata",
+        "platform_fee",
+        "preferred_car_type",
+        "preferred_fuel_type",
+        "total_unique_states",
+        "unique_states",
+        "rate_per_km",
+        "rate_per_min",
+        "tolls",
+        "total_days",
+        "updated_at",
+        "utc_offset",
+        "driver_allowance",
+        "expected_end_datetime",
+        "included_kms",
+    ]
     if trip_type == TripTypeEnum.airport_drop:
-        #We do not need these fields for airport drop trips, but they are required for airport pickup trips, so we will only remove them for airport drop trips
-        keys_to_remove.extend(["placard_required", "flight_number", "terminal_number", "placard_name"])
-    
+        # We do not need these fields for airport drop trips, but they are required for airport pickup trips, so we will only remove them for airport drop trips
+        keys_to_remove.extend(
+            ["placard_required", "flight_number", "terminal_number", "placard_name"]
+        )
+
     # Toll is only relevant for airport pickup and drop trips when the customer has selected the toll road preference, so we can remove it for all airport drop trips and for airport pickup trips where toll road is not preferred
     if trip_dict.get("toll_road_preferred", False) == False:
         keys_to_remove.append("toll_road_preferred")

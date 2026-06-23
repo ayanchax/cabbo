@@ -8,6 +8,7 @@ from models.cab.cab_orm import CabType
 from models.cab.cab_schema import CabTypeSchema, CabTypeUpdateSchema
 import logging
 
+from models.common import LuggageInfoSchema
 from models.trip.trip_enums import CarTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import TripSearchRequest
@@ -33,6 +34,8 @@ def create_cabs(cabs: dict, db: Session, created_by: RoleEnum = RoleEnum.system)
                 inventory_cab_names=data["inventory_cab_names"],
                 capacity=data["capacity"],
                 created_by=created_by,
+                passenger_capacity=data["passenger_capacity"],
+                luggage_capacity=data["luggage_capacity"],
             )
         )
     try:
@@ -53,6 +56,8 @@ async def add_new_cab_type(
         inventory_cab_names=cab_type.inventory_cab_names,
         capacity=cab_type.capacity,
         created_by=created_by,
+        passenger_capacity=cab_type.passenger_capacity,
+        luggage_capacity=cab_type.luggage_capacity.model_dump() if cab_type.luggage_capacity else None,
     )
     try:
         db.add(new_cab)
@@ -118,6 +123,8 @@ async def async_update_cab_type(
         for field, value in cab_type_data.model_dump(
             exclude_unset=True, exclude={"id"}
         ).items():
+            if field == "luggage_capacity" and value is not None:
+                value = LuggageInfoSchema.model_validate(value)
             setattr(cab, field, value)
         await db.commit()
         await db.refresh(cab)
