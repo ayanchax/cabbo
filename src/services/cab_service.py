@@ -36,6 +36,7 @@ def create_cabs(cabs: dict, db: Session, created_by: RoleEnum = RoleEnum.system)
                 created_by=created_by,
                 passenger_capacity=data["passenger_capacity"],
                 luggage_capacity=data["luggage_capacity"],
+                roof_carrier=data["roof_carrier"] if "roof_carrier" in data else False
             )
         )
     try:
@@ -58,6 +59,7 @@ async def add_new_cab_type(
         created_by=created_by,
         passenger_capacity=cab_type.passenger_capacity,
         luggage_capacity=cab_type.luggage_capacity.model_dump() if cab_type.luggage_capacity else None,
+        roof_carrier=cab_type.roof_carrier
     )
     try:
         db.add(new_cab)

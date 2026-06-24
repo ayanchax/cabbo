@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, computed_field
-from typing import Optional
+from typing import Optional, Union
 
 from core.security import RoleEnum
 from models.common import LuggageInfoSchema
@@ -26,6 +26,9 @@ class CabTypeSchema(BaseModel):
     luggage_capacity: Optional[LuggageInfoSchema] = Field(
         None, description="Number of luggage items the cab type can accommodate"
     )  # e.g., 2, 3
+    roof_carrier: Optional[bool] = Field(
+        default=False, description="Indicates if the cab type has a roof carrier"
+    )  # Indicates if the cab type has a roof carrier
     created_by: Optional[str] = Field(
         default=RoleEnum.system.value,
         description="The role of the user who created this cab type",
@@ -72,6 +75,9 @@ class CabTypeUpdateSchema(BaseModel):
     luggage_capacity: Optional[LuggageInfoSchema] = Field(
         None, description="Number of luggage items the cab type can accommodate"
     )  # e.g., 2, 3
+    roof_carrier: Optional[bool] = Field(
+        default=False, description="Indicates if the cab type has a roof carrier"
+    )
 
     class Config:
         from_attributes = True
@@ -96,7 +102,7 @@ class VehicleCapacitySchema(BaseModel):
     passenger_capacity: Optional[int] = Field(
         None, description="Number of passengers the cab type can accommodate"
     )  # e.g., 4, 6
-    luggage_capacity: Optional[LuggageInfoSchema] = Field(
+    luggage_capacity: Optional[Union[LuggageInfoSchema, int]] = Field(
         None, description="Number of luggage items the cab type can accommodate"
     )  # e.g., 2, 3
     capacity_match: Optional[bool] = Field(
@@ -111,6 +117,9 @@ class VehicleCapacitySchema(BaseModel):
         None,
         description="Rank of the vehicle based on capacity match and recommendation status",
     )
+    roof_carrier: Optional[bool] = Field(
+        default=False, description="Indicates if the cab type has a roof carrier"
+    )  # Indicates if the cab type has a roof carrier
 
     class Config:
         from_attributes = True

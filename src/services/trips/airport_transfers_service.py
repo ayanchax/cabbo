@@ -27,7 +27,7 @@ from models.pricing.pricing_schema import (
     Currency,
     OveragesSchema,
 )
-from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
+from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
@@ -394,7 +394,7 @@ def get_airport_pickup_trip_options(
             car_type=CarTypeEnum(cab_type_schema.name),  # Use display name
             car_capacity=VehicleCapacitySchema(
                 passenger_capacity=cab_type_schema.passenger_capacity,
-                luggage_capacity=cab_type_schema.luggage_capacity,
+                luggage_capacity=cab_type_schema.total_luggages,
                 capacity_match=(
                     search_in.total_passengers <= cab_type_schema.passenger_capacity
                     and search_in.total_luggages <= cab_type_schema.total_luggages
@@ -402,11 +402,9 @@ def get_airport_pickup_trip_options(
                     and cab_type_schema.luggage_capacity is not None
                     else False
                 ),
-                recommended=get_recommended_car_type(
-                    search_in.total_passengers, search_in.total_luggages
-                )
-                == CarTypeEnum(cab_type_schema.name),
+                
                 rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
+                roof_carrier=cab_type_schema.roof_carrier
             ),
             fuel_type=fuel_type_schema.name,  # Use display name from schema
             total_price=total_price,
@@ -455,8 +453,9 @@ def get_airport_pickup_trip_options(
         for option in options
         if option.car_capacity.capacity_match
     ]
-    _options = sorted(
-        eligible_options, key=lambda option: derive_trip_sort_priority(recommended_car_type, option)
+    _options = populate_best_choice_recommendation(
+        eligible_options=eligible_options,
+        recommended_car_type=recommended_car_type,
     )
     metadata = TripSearchAdditionalData(
         inclusions=inclusions,
@@ -577,7 +576,7 @@ def get_airport_dropoff_trip_options(
             car_type=CarTypeEnum(cab_type_schema.name),  # Use display name
             car_capacity=VehicleCapacitySchema(
                 passenger_capacity=cab_type_schema.passenger_capacity,
-                luggage_capacity=cab_type_schema.luggage_capacity,
+                luggage_capacity=cab_type_schema.total_luggages,
                 capacity_match=(
                     search_in.total_passengers <= cab_type_schema.passenger_capacity
                     and search_in.total_luggages <= cab_type_schema.total_luggages
@@ -585,11 +584,8 @@ def get_airport_dropoff_trip_options(
                     and cab_type_schema.luggage_capacity is not None
                     else False
                 ),
-                recommended=get_recommended_car_type(
-                    search_in.total_passengers, search_in.total_luggages
-                )
-                == CarTypeEnum(cab_type_schema.name),
                 rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
+                roof_carrier=cab_type_schema.roof_carrier
             ),
             fuel_type=fuel_type_schema.name,  # Use display name
             total_price=total_price,
@@ -636,9 +632,9 @@ def get_airport_dropoff_trip_options(
     eligible_options = [
         option for option in options if option.car_capacity.capacity_match
     ]
-    _options = sorted(
-        eligible_options,
-        key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
+    _options = populate_best_choice_recommendation(
+        eligible_options=eligible_options,
+        recommended_car_type=recommended_car_type,
     )
     metadata = TripSearchAdditionalData(
         inclusions=inclusions,
@@ -863,3 +859,45 @@ def remove_extra_fields_from_airport_transfer_trip(
     for key in keys_to_remove:
         trip_dict.pop(key, None)
     return trip_dict
+
+def populate_best_choice_recommendation(
+    eligible_options: List[TripSearchOption],
+    recommended_car_type: CarTypeEnum,
+) -> List[TripSearchOption]:
+    sorted_options = sorted(
+        eligible_options,
+        key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
+    )
+
+    
+    recommended_candidates = [
+        option
+        for option in sorted_options
+        if option.car_type == recommended_car_type
+        and option.fuel_type == FuelTypeEnum.diesel
+    ]
+
+    if not recommended_candidates:
+        recommended_candidates = [
+            option
+            for option in sorted_options
+            if option.car_type == recommended_car_type
+        ]
+
+    recommended_option = min(
+        recommended_candidates,
+        key=lambda option: option.total_price,
+        default=sorted_options[0] if sorted_options else None,
+    )
+
+    if recommended_option:
+        recommended_option.car_capacity.recommended = True
+
+    return sorted(
+        sorted_options,
+        key=lambda option: (
+            not option.car_capacity.recommended,
+            derive_trip_sort_priority(recommended_car_type, option),
+        ),
+    )
+

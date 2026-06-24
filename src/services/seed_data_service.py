@@ -148,7 +148,8 @@ CAB_TYPES_SEED_DATA = {
         "inventory_cab_names": ["Ertiga", "Innova"],
         "capacity": "6+1",
         "passenger_capacity": 6,
-        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 2, "num_other_bags": 1}
+        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 2, "num_other_bags": 1},
+        "roof_carrier": True  # Indicates that this cab type has a roof carrier
     },
     CarTypeEnum.suv_plus: {
         "description": "Premium SUVs with extra comfort and luggage space.",
@@ -156,7 +157,8 @@ CAB_TYPES_SEED_DATA = {
         "inventory_cab_names": ["Innova Crysta"],
         "capacity": "7+1",
         "passenger_capacity": 7,
-        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 3, "num_other_bags": 2}
+        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 3, "num_other_bags": 2},
+        "roof_carrier": True  # Indicates that this cab type has a roof carrier
     },
 }
 
