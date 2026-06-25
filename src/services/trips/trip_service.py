@@ -73,6 +73,7 @@ from services.trips.airport_transfers_service import remove_extra_fields_from_ai
 from services.trips.local_hourly_rental_service import (
     remove_extra_fields_from_local_hourly_rental_trip,
 )
+from services.trips.outstation_service import remove_extra_fields_from_outstation_trip
 from services.trips.status_service import change_status
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
@@ -206,7 +207,7 @@ def serialize_trip(
                     trip_details
                 )
             elif trip_type == TripTypeEnum.outstation:
-                pass  # We will do as we proceed further with our frontend flows
+                trip_details = remove_extra_fields_from_outstation_trip(trip_details)
             elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
                 trip_details = remove_extra_fields_from_airport_transfer_trip(trip_details, trip_type)
         

@@ -210,11 +210,13 @@ def _get_outstation_common_disclaimer_lines():
 def _get_outstation_trips_disclaimer_lines(
     night_hours_display_label: str,
     night_surcharge_per_hour: float,
+    min_included_mileage_km_per_day: int,
     included_mileage_km: int,
     overage_amount_per_km: float,
     currency: str,
     extra_day_rate: float,
     total_trip_days: int,
+    indicative_overage_warning: bool = False
 ):
     """
     Returns the disclaimer lines for outstation trips, including overage charges and parking fees.
@@ -231,16 +233,25 @@ def _get_outstation_trips_disclaimer_lines(
 
     rounded_extra_day_rate = int(math.ceil(extra_day_rate)) if extra_day_rate is not None else 0
 
+     
+
     extra_day_line = (
-        f"If you extend the trip beyond the booked {total_trip_days} day(s), "
-        f"an additional {currency}{rounded_extra_day_rate} per extra day will apply - pay the driver directly."
-    )
+    f"If you extend the trip beyond the booked {total_trip_days} day(s), "
+    f"an additional {currency}{rounded_extra_day_rate} per extra day will apply, "
+    f"that includes {min_included_mileage_km_per_day} kms and driver allowance for one day - pay the driver directly."
+)
+    
+    exceed_mileage_line= f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{rounded_overage_amount_per_km} per km will apply - pay the driver directly."
+    if indicative_overage_warning:
+        if rounded_overage_amount_per_km > 0:
+               exceed_mileage_line= f"This route is close to or may exceed the {included_mileage_km} km included with this trip. If the final trip distance exceeds {included_mileage_km} km, an additional charge of {currency}{rounded_overage_amount_per_km} per km will apply - pay the driver directly."
+            
     return [
         non_refund_line,
         extra_day_line,
+        exceed_mileage_line,
         f"If the driver is required to drive during night hours ({night_hours_display_label}), a night surcharge of {currency}{night_surcharge_per_hour} per hour will apply - pay the driver directly.",
-        f"If you exceed the included mileage of {included_mileage_km} kms, an overage charge of {currency}{rounded_overage_amount_per_km} per km will apply - pay the driver directly.",
-        "Extra charges apply for tolls, paid parking, night driving surcharges and exceeding included days or mileage (if applicable) - pay the driver directly.",
+        "Extra charges apply for tolls, paid parking, night driving surcharges, extra days, and extra mileage, if applicable - pay the driver directly.",
         "If the trip includes hill climbs, the cab AC may be switched off during such climbs.",
     ]
 
@@ -390,16 +401,18 @@ def get_outstation_trip_options(
             platform_fee=platform_fee_amount,
         )
         extra_day_rate = math.ceil(
-            base_fare_per_km * min_included_km_per_day + driver_allowance_per_day
+            overage_amount_per_km  * min_included_km_per_day + driver_allowance_per_day
         )
         disclaimer_lines = _get_outstation_trips_disclaimer_lines(
             night_hours_display_label=night_hours_display_label,
             night_surcharge_per_hour=night_surcharge_per_hour,
+            min_included_mileage_km_per_day=min_included_km_per_day,
             included_mileage_km=included_km,
             overage_amount_per_km=overage_amount_per_km,
             currency=currency,
             extra_day_rate=extra_day_rate,
             total_trip_days=total_trip_days,
+            indicative_overage_warning=indicative_overage_warning
         )
 
         total_price = math.ceil(
@@ -704,3 +717,10 @@ def populate_best_choice_recommendation(
             derive_trip_sort_priority(recommended_car_type, option),
         ),
     )
+
+
+def remove_extra_fields_from_outstation_trip(trip_dict: dict):
+    keys_to_remove = ["created_at", "creator_id", "creator_type", "driver_allowance","final_display_price","indicative_overage_warning", "is_active","package_label","package_label_short","parking", "permit_fee","payment_provider_metadata","placard_required","platform_fee","preferred_car_type","preferred_fuel_type","updated_at","utc_offset", "driver_allowance", "rate_per_min","toll_road_preferred","tolls"]
+    for key in keys_to_remove:
+        trip_dict.pop(key, None)
+    return trip_dict

@@ -12,7 +12,6 @@ from models.common import LuggageInfoSchema
 from models.trip.trip_enums import CarTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import TripSearchRequest
-
 log = logging.getLogger(__name__)
 
 
@@ -202,7 +201,8 @@ def get_recommended_car_type(
 def serialize_fleet(trip: Trip,  trip_dict: dict, db: Session=None):
     if not db:
         db = get_mysql_local_session()
-    all_cabs = get_all_cabs(db)
+    from services.configuration_service import get_all_cabs as get_all_cabs_config
+    all_cabs = get_all_cabs_config(db)
 
     # Find the cab that matches the preferred car type
     preferred_cab = next(

@@ -359,6 +359,8 @@ def initiate_trip_booking(
         return trip_id, order
     except Exception as e:
         db.rollback()
+        if isinstance(e, CabboException):
+            raise e  # Re-raise the CabboException to be handled by the caller
         raise CabboException(
             f"Failed to initiate trip booking: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )

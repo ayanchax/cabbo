@@ -210,7 +210,7 @@ def _get_airport_trips_disclaimer_lines(
         )
         if rounded_overage_amount_per_km > 0:
             lines.append(
-                f"This route is close to or may exceed the {included_kms} km included with this airport transfer. If the final trip distance exceeds {included_kms} km, an additional charge of {currency}{rounded_overage_amount_per_km} per km will apply."
+                f"This route is close to or may exceed the {included_kms} km included with this airport transfer. If the final trip distance exceeds {included_kms} km, an additional charge of {currency}{rounded_overage_amount_per_km} per km will apply - pay the driver directly."
             )
 
     lines.extend(

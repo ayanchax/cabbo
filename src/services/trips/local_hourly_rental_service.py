@@ -126,9 +126,10 @@ def _get_local_trips_disclaimer_lines(
     rounded_overage_amount_per_km = int(math.ceil(overage_amount_per_km)) if overage_amount_per_km is not None else 0
 
     disclaimer_lines = [
+            #In hourly rental, we do not have an indicative overage warning as we cannot estimate distance in advance since routes are uncertain and hence no est_km is provided. Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, thus, we keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
             f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{rounded_overage_amount_per_minute} per minute and/or {currency}{rounded_overage_amount_per_km} per km will apply.",
             non_refund_line,
-            "Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.",
+            "Extra charges apply for tolls, paid parking, and extra hours, and extra mileage, if applicable - pay the driver directly.",
         ]
 
     if applicable_driver_allowance > 0.0:

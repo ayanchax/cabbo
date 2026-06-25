@@ -109,7 +109,7 @@ TRIP_TYPE_SEED_DATA = [
 
 CAB_TYPES_SEED_DATA = {
     CarTypeEnum.hatchback: {
-        "description": "Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
+        "description": "Compact hatchbacks, ideal for city rides and short trips.",
         "cab_names": ["WagonR", "Celerio", "Tiago", "Santro", "i10", "Swift"],
         "inventory_cab_names": ["WagonR"],
         "capacity": "4+1",
