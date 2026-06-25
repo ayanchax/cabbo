@@ -423,7 +423,7 @@ def delete_temp_trip(requestor: str, db: Session):
         # Delete all temporary trip records for the requestor
         db.query(TempTrip).filter(TempTrip.creator_id == requestor).delete()
         db.commit()
-        print(f"Temporary trip details deleted for requestor: {requestor}")
+        log.info(f"Temporary trip details deleted for requestor: {requestor}")
     except Exception as e:
         db.rollback()
         raise CabboException(
@@ -670,7 +670,7 @@ def create_temporary_trip(
         db.add(temp_trip)
         db.commit()
         db.refresh(temp_trip)
-        print(f"Temporary trip created for requestor: {requestor}")
+        log.info(f"Temporary trip created for requestor: {requestor}")
         return temp_trip
     except Exception as e:
         db.rollback()
@@ -841,9 +841,9 @@ async def async_get_trips_by_customer_id(
 
 def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dict:
     if validate_by_tz:
-        print("Grouping trips by status with timezone validation")
+        log.info("Grouping trips by status with timezone validation")
         return _group_by_trip_status_with_timezone_validation(trips)
-    print("Grouping trips by status without timezone validation")
+    log.info("Grouping trips by status without timezone validation")
     upcoming_trips = [
         trip
         for trip in trips

@@ -45,7 +45,8 @@ from services.policy_service import get_refund_and_cancellation_policy_by_jurisd
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_outstation_trip_schedule
 from utils.utility import format_trip_datetime
-
+import logging
+log = logging.getLogger(__name__)
 
 def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
     """
@@ -510,7 +511,7 @@ def get_kwargs_for_outstation_trip(
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
-            print("Invalid trip information.")
+            log.error("Invalid trip information.")
             return {}  # Do not proceed if trip info is invalid
 
         app_name = APP_NAME.capitalize()
@@ -521,14 +522,14 @@ def get_kwargs_for_outstation_trip(
         destination = LocationInfo.model_validate(trip.destination)
 
         if not origin or not destination:
-            print("Invalid origin or destination for trip:", trip.booking_id)
+            log.error("Invalid origin or destination for trip:", trip.booking_id)
             return {}  # Do not proceed if origin or destination is invalid
 
         if not customer:
             customer_id = trip.creator_id
 
             if not customer_id or not customer_email:
-                print("Invalid customer information for trip:", trip.booking_id)
+                log.error("Invalid customer information for trip:", trip.booking_id)
                 return {}  # Do not proceed if customer info is invalid
 
             # Get customer from customer_id
@@ -540,7 +541,7 @@ def get_kwargs_for_outstation_trip(
             customer = CustomerRead.model_validate(customer) if customer else None
 
             if not customer:
-                print("Customer not found for trip:", trip.booking_id)
+                log.error("Customer not found for trip:", trip.booking_id)
                 return {}  # Do not proceed if customer not found
 
             customer_name = customer.name or "Valued Customer"
@@ -627,7 +628,7 @@ def get_kwargs_for_outstation_trip(
 
         return kwargs
     except Exception as e:
-        print("Error preparing kwargs for outstation trip:", str(e))
+        log.error("Error preparing kwargs for outstation trip:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
 
 

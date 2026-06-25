@@ -5,6 +5,8 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from core.config import settings
+import logging
+log = logging.getLogger(__name__)
 
 async def save_recent_location(customer_id: str, location: LocationInfo, db: AsyncSession):
     existing = await db.execute(
@@ -48,5 +50,5 @@ async def get_recent_locations_for_customer(customer_id: str, db: AsyncSession, 
         records = result.scalars().all()
         return [RecentLocationRead.model_validate(record) for record in records]
     except Exception as e:
-        print(f"Error fetching recent locations for customer {customer_id}: {e}")
+        log.error(f"Error fetching recent locations for customer {customer_id}: {e}")
         return []

@@ -29,7 +29,8 @@ from services.driver_service import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.refund_service import refund_advance_payment_to_customer_on_cancellation
-
+import logging
+log = logging.getLogger(__name__)
 
 async def change_status(
     trip: Trip,
@@ -147,7 +148,7 @@ async def _ongoing(
             and trip.driver.is_available
         ):
             # Silently handle the scenario where driver is still marked available due to some reason (like app crash, network issue etc.) after they were assigned to the trip but before the trip was marked as ongoing. In this case, we will log a warning and proceed with marking the trip as ongoing and setting the start datetime because we do not want to block the trip from starting just because of an issue in updating driver availability status in the system.
-            print(
+            log.warning(
                 f"Warning: Driver {trip.driver_id} is still marked as available even after they were assigned for this trip: {trip.id}. Proceeding with marking trip as ongoing and setting start datetime. Marking driver unavailable again to ensure smooth flow of the trip."
             )
             trip.driver.is_available = False
@@ -160,7 +161,7 @@ async def _ongoing(
 
         # Log audit trail for trip start
         reason = payload.reason if payload and payload.reason else "No reason provided"
-        print(f"Logging audit trail for trip start with reason: {reason}")
+        log.info(f"Logging audit trail for trip start with reason: {reason}")
         await a_log_trip_audit(
             trip_id=trip.id,
             status=status,
@@ -228,7 +229,7 @@ async def _complete(
 
         # Log audit trail for trip completion
         reason = payload.reason if payload and payload.reason else "No reason provided"
-        print(f"Logging audit trail for trip completion with reason: {reason}")
+        log.info(f"Logging audit trail for trip completion with reason: {reason}")
 
         await a_log_trip_audit(
             trip_id=trip.id,
@@ -334,7 +335,7 @@ async def _cancelled(
             and payload.cancelation_detail.reason
             else "No cancellation reason provided"
         )
-        print(f"Logging audit trail for trip cancellation with reason: {reason}")
+        log.info(f"Logging audit trail for trip cancellation with reason: {reason}")
 
         await a_log_trip_audit(
             trip_id=trip.id,
@@ -404,7 +405,7 @@ async def _dispute(
             if payload and payload.dispute_detail and payload.dispute_detail.reason
             else "No dispute reason provided"
         )
-        print(f"Logging audit trail for trip dispute with reason: {reason}")
+        log.info(f"Logging audit trail for trip dispute with reason: {reason}")
 
         await a_log_trip_audit(
             trip_id=trip.id,

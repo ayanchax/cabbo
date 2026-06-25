@@ -252,7 +252,7 @@ def _create_confirmed_trip_from_temp_trip(
             reason="Trip confirmed",
             db=db,
         )  # Log the trip status audit entry
-        print(f"Trip confirmed for trip ID: {trip.id}")
+        log.info(f"Trip confirmed for trip ID: {trip.id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
         delete_temp_trip(
             requestor=requestor, db=db
@@ -270,7 +270,7 @@ def _create_confirmed_trip_from_temp_trip(
 
     except Exception as e:
         db.rollback()
-        print(e)
+        log.error(e)
         raise CabboException(
             f"Failed to confirm trip booking: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
@@ -437,7 +437,7 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
     try:
         db.delete(temp_trip)
         db.commit()
-        print(f"Temporary trip deleted for booking ID: {booking_id}")
+        log.info(f"Temporary trip deleted for booking ID: {booking_id}")
         return True
     except Exception as e:
         db.rollback()

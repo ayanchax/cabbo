@@ -48,7 +48,8 @@ from services.validation_service import (
     validate_placard_requirements,
 )
 from utils.utility import format_trip_datetime
-
+import logging
+log = logging.getLogger(__name__)
 
 def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = False):
     """
@@ -178,7 +179,6 @@ def _get_airport_pickup_pricing_configuration_by_region(
 
     region_code = region_code.upper()
     # Find the airport pickup configuration for the given region code
-    print(region_code)
     return config_store.airport_pickup.get(region_code, None)
 
 
@@ -671,7 +671,7 @@ def get_kwargs_for_airport_transfer(
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
-            print("Invalid trip information.")
+            log.error("Invalid trip information.")
             return (
                 {}
             )  # Do not proceed if trip info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
@@ -684,7 +684,7 @@ def get_kwargs_for_airport_transfer(
         destination = LocationInfo.model_validate(trip.destination)
 
         if not origin or not destination:
-            print("Invalid origin or destination for trip:", trip.booking_id)
+            log.error("Invalid origin or destination for trip:", trip.booking_id)
             return (
                 {}
             )  # Do not proceed if origin or destination is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
@@ -693,7 +693,7 @@ def get_kwargs_for_airport_transfer(
             customer_id = trip.creator_id
 
             if not customer_id:
-                print("Invalid customer information for trip:", trip.booking_id)
+                log.error("Invalid customer information for trip:", trip.booking_id)
                 return (
                     {}
                 )  # Do not proceed if customer info is invalid, do not raise exception here as this is used for email notifications that will mostly fail silently
@@ -707,7 +707,7 @@ def get_kwargs_for_airport_transfer(
             customer = CustomerRead.model_validate(customer) if customer else None
 
             if not customer:
-                print("Customer not found for trip:", trip.booking_id)
+                log.error("Customer not found for trip:", trip.booking_id)
                 return (
                     {}
                 )  # Do not proceed if customer not found, do not raise exception here as this is used for email notifications that will mostly fail silently
@@ -787,7 +787,7 @@ def get_kwargs_for_airport_transfer(
 
         return kwargs
     except Exception as e:
-        print("Error preparing kwargs for airport transfer:", str(e))
+        log.error("Error preparing kwargs for airport transfer:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
 
 

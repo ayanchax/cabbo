@@ -137,7 +137,7 @@ def upload_driver_profile_picture(
                 # We are explictly removing old picture because profile pictures are hex named and we want to avoid orphaned files in S3 which can lead to unnecessary storage costs. By removing old picture immediately after successful upload of new picture, we ensure that there is only one profile picture per driver at any given time, which simplifies management and reduces storage usage. If we don't remove old picture, we would need a separate cleanup process to identify and delete orphaned files, which adds complexity and overhead.
                 removed = remove_driver_profile_picture(key=existing_s3_image_info.key)
                 if not removed:
-                    #just print the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
+                    #just log the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
                     log.error("Failed to cleanup old profile picture from storage.")
             
             #Finally update driver record with new profile picture info

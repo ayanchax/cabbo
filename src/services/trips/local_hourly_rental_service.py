@@ -40,7 +40,8 @@ from services.policy_service import get_refund_and_cancellation_policy_by_jurisd
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import format_trip_datetime, to_timezone_aware_datetime, validate_date_time
-
+import logging
+log = logging.getLogger(__name__)
 
 def _get_inclusions_exclusions_for_local_trip():
     """
@@ -381,7 +382,7 @@ def get_kwargs_for_local_hourly_rental(
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
-            print("Invalid trip information.")
+            log.error("Invalid trip information.")
             return {}  # Do not proceed if trip info is invalid
 
         app_name = APP_NAME.capitalize()
@@ -391,20 +392,20 @@ def get_kwargs_for_local_hourly_rental(
         origin = LocationInfo.model_validate(trip.origin)
 
         if not origin:
-            print("Invalid origin for trip:", trip.booking_id)
+            log.error("Invalid origin for trip:", trip.booking_id)
             return {}  # Do not proceed if origin is invalid
 
         if not customer :
             customer_id = trip.creator_id
             if not customer_id:
-                print("Invalid customer information for trip:", trip.booking_id)
+                log.error("Invalid customer information for trip:", trip.booking_id)
                 return {}  # Do not proceed if customer info is invalid
 
             # Get customer from customer_id
             customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
             customer = CustomerRead.model_validate(customer) if customer else None
             if not customer:
-                print("Customer not found for trip:", trip.booking_id)
+                log.error("Customer not found for trip:", trip.booking_id)
                 return {}  # Do not proceed if customer not found
 
             customer_name = customer.name or "Valued Customer"
@@ -470,7 +471,7 @@ def get_kwargs_for_local_hourly_rental(
        
         return kwargs
     except Exception as e:
-        print("Error preparing kwargs for local hourly rental service:", str(e))
+        log.error("Error preparing kwargs for local hourly rental service:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
 
 

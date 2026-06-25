@@ -3,6 +3,9 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile
 from core.config import settings
 from models.common import S3ObjectInfo
+import logging
+log = logging.getLogger(__name__)
+
 
 
 class S3Service:
@@ -27,11 +30,11 @@ class S3Service:
                 key,
                 ExtraArgs={"ContentType": file.content_type},
             )
-            print(f"File uploaded to S3 bucket: {self.bucket} with key: {key}")
+            log.info(f"File uploaded to S3 bucket: {self.bucket} with key: {key}")
             return S3ObjectInfo(key=key, url=f"{self.base_url}/{key}")
 
         except (BotoCoreError, ClientError) as e:
-            print(f"S3 upload failed: {str(e)}")
+            log.error(f"S3 upload failed: {str(e)}")
             return None
 
     def delete_file(self, key: str) -> bool:
@@ -41,9 +44,9 @@ class S3Service:
         try:
             self.client.head_object(Bucket=self.bucket, Key=key)  # Raises if not exists
             self.client.delete_object(Bucket=self.bucket, Key=key)
-            print(f"File deleted from S3 bucket: {self.bucket} with key: {key}")
+            log.info(f"File deleted from S3 bucket: {self.bucket} with key: {key}")
             return True
 
         except (BotoCoreError, ClientError) as e:
-            print(f"S3 delete failed: {str(e)}")
+            log.error(f"S3 delete failed: {str(e)}")
             return False

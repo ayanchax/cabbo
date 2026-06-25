@@ -6,6 +6,8 @@ from dateutil.parser import isoparse
 from core.config import settings
 import requests
 import re
+import logging
+log = logging.getLogger(__name__)
 
 
 def validate_date_time(date_time: Union[str, datetime], timezone_str: str = None, utc_offset: int = None) -> datetime:
@@ -97,7 +99,7 @@ def convert_based_on_currency(
             # If convert_to_lowest is False, it means we want to convert from the lowest unit to the standard unit, so we divide by the conversion factor
             return amount / conversion_factor
     else:
-        print(
+        log.error(
             f"Invalid conversion factor. Using original amount without conversion."
         )
         return amount
@@ -108,12 +110,12 @@ def safe_request(url, params, timeout=3):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"Request failed: {e}")
+        log.error(f"Request failed: {e}")
         return {}
     
 def log_lru_cache(name, func):
     info = func.cache_info()
-    print(
+    log.debug(
         f"[CACHE:{name}] hits={info.hits}, misses={info.misses}, size={info.currsize}"
     )
 
