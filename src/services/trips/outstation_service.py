@@ -498,7 +498,7 @@ def get_outstation_trip_options(
 
     return TripSearchResponse(
         options=_options,
-        preferences=search_in,
+        preferences=remove_extra_fields_from_outstation_trip(search_in.model_dump(exclude_none=True, exclude_unset=True)),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_outstation_common_disclaimer_lines(),
         refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),

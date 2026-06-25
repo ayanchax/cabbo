@@ -325,7 +325,7 @@ class TripSearchAdditionalData(BaseModel):
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
-    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
+    preferences: Optional[Union[dict,TripSearchRequest]] = None  # User preferences used for search
     metadata: Optional[Union[dict, TripSearchAdditionalData]] = (
         None  # Metadata about the trip search, like total options found, etc.
     )

@@ -364,10 +364,9 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         choices=len(_options),  # Total number of options returned
         is_round_trip=True,
     )
-    
     return TripSearchResponse(
         options=_options,
-        preferences=search_in,
+        preferences=remove_extra_fields_from_local_hourly_rental_trip(search_in.model_dump(exclude_none=True)),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_local_trips_common_disclaimer_lines(currency, applicable_driver_allowance=math.ceil(package.driver_allowance) if package and package.driver_allowance else 0.0),
         refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),

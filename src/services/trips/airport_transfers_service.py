@@ -473,7 +473,7 @@ def get_airport_pickup_trip_options(
 
     return TripSearchResponse(
         options=_options,
-        preferences=search_in,
+        preferences=remove_extra_fields_from_airport_transfer_trip(search_in.model_dump(exclude_none=True, exclude_unset=True), trip_type=TripTypeEnum.airport_pickup),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_airport_trips_common_disclaimer_lines(
             includes_tolls=search_in.toll_road_preferred,
@@ -652,7 +652,7 @@ def get_airport_dropoff_trip_options(
 
     return TripSearchResponse(
         options=_options,
-        preferences=search_in,
+        preferences=remove_extra_fields_from_airport_transfer_trip(search_in.model_dump(exclude_none=True, exclude_unset=True), trip_type=TripTypeEnum.airport_drop),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_airport_trips_common_disclaimer_lines(
             includes_tolls=search_in.toll_road_preferred,
