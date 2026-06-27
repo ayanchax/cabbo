@@ -116,6 +116,15 @@ TRIP_RESPONSE_OPTIONS = {
         optimize_response=True,
         expose_policy_detail=True,
     ),
+    TripResponseView.CUSTOMER_LIST_SELF: TripSerializationOptions(
+        expose_customer_details=False,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        optimize_response=True,
+        expose_policy_detail=False,
+    ),
+
     TripResponseView.CUSTOMER_DISPUTE: TripSerializationOptions(
         expose_dispute_details=True,
         optimize_response=True,

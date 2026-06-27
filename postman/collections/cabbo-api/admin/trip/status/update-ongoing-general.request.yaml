@@ -1,5 +1,6 @@
 $kind: http-request
-url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/ongoing"
+name: update-ongoing-general
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/0f4175c2-e3c1-45f6-a50b-4e28bcd92b7f/status/ongoing"
 method: PATCH
 body:
   type: json

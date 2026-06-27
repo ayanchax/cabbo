@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from core.buffers import TRIP_START_LATE_BUFFER_MINUTES
 from core.exceptions import (
     DRIVER_ALREADY_ASSIGNED,
     DRIVER_NOT_ACTIVE,
@@ -46,8 +47,10 @@ from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-log = logging.getLogger(__name__)
+from utils.utility import validate_date_time
 
+log = logging.getLogger(__name__)
+ 
 
 def create_driver(
     payload: DriverCreateSchema,
@@ -244,33 +247,18 @@ async def assign_driver_to_trip(
                 status_code=400,
                 error_code=TRIP_TYPE_ID_NOT_FOUND,
             )
-        start_datetime = None
-        expected_end_datetime = None
-        if trip.start_datetime.tzinfo is None:
-            start_datetime = trip.start_datetime.replace(tzinfo=timezone.utc)
-
-        if trip.expected_end_datetime and trip.expected_end_datetime.tzinfo is None:
-            expected_end_datetime = trip.expected_end_datetime.replace(
-                tzinfo=timezone.utc
-            )
+        trip_type = TripTypeEnum(trip_type)
+        
+        start_datetime =validate_date_time(trip.start_datetime, timezone_str = trip.timezone)
+        expected_end_datetime = validate_date_time(trip.expected_end_datetime, timezone_str = trip.timezone)
         if validate_time_window:
-            # For airport drop, pickup and hourly rental trip types, block trips that happened in the past but somehow still have confirmed status. This is a bad data issue. Ideally this should not happen, but we are adding this check to prevent assigning drivers to such orphan trips which are in the past and should have been completed or cancelled but are still showing as confirmed due to some data issue.
-            if trip_type in [
-                TripTypeEnum.airport_drop,
-                TripTypeEnum.airport_pickup,
-                TripTypeEnum.local,
-            ] and start_datetime < datetime.now(timezone.utc):
-                raise CabboException(
-                    "Cannot assign driver to a trip that is in the past.",
-                    status_code=400,
-                    error_code=TRIP_IN_PAST,
-                )
-            # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
-            if (
-                trip_type == TripTypeEnum.outstation
-                and start_datetime < datetime.now(timezone.utc)
-                and expected_end_datetime < datetime.now(timezone.utc)
-            ):
+            now = datetime.now(timezone.utc)
+            latest_assignment_time = _get_latest_driver_assignment_time(
+                trip_type=trip_type,
+                start_datetime=start_datetime,
+                expected_end_datetime=expected_end_datetime,
+            )
+            if now > latest_assignment_time:
                 raise CabboException(
                     "Cannot assign driver to a trip that is in the past.",
                     status_code=400,
@@ -373,6 +361,9 @@ async def assign_driver_to_trip(
             )  # Expose customer details for access in notification task
 
         return trip, driver
+    except CabboException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise CabboException(
@@ -381,6 +372,28 @@ async def assign_driver_to_trip(
             include_traceback=True,
             error_code=DRIVER_OPERATION_FAILED,
         )
+
+
+ 
+
+
+def _get_latest_driver_assignment_time(
+    trip_type: TripTypeEnum,
+    start_datetime: datetime,
+    expected_end_datetime: Optional[datetime],
+) -> datetime:
+    late_buffer_minutes = TRIP_START_LATE_BUFFER_MINUTES.get(trip_type, 60)
+    fallback_latest_assignment_time = start_datetime + timedelta(
+        minutes=late_buffer_minutes
+    )
+
+    if (
+        expected_end_datetime
+        and expected_end_datetime > fallback_latest_assignment_time
+    ):
+        return expected_end_datetime
+
+    return fallback_latest_assignment_time
 
 
 async def _add_driver_earning_record(

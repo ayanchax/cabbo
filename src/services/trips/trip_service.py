@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum, verify_hash
@@ -78,7 +78,7 @@ from services.trips.status_service import change_status
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from core.config import settings
 import logging
 
@@ -839,6 +839,127 @@ async def async_get_trips_by_customer_id(
     return trips
 
 
+async def async_get_trips_by_customer_id_paginated(
+    customer_id: str,
+    db: AsyncSession,
+    bucket: Literal["upcoming", "ongoing", "past"] = "upcoming",
+    page: int = 1,
+    limit: int = 10,
+    expose_customer_details: bool = False,
+) -> dict:
+    """Asynchronously retrieve customer trips by UI bucket with pagination."""
+    page = max(page, 1)
+    limit = max(limit, 1)
+    offset = (page - 1) * limit # Calculate the offset for pagination, meaning starting from the (page-1)*limit-th record for the current page.
+
+    current_datetime = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    one_day_ago = current_datetime - timedelta(hours=24)
+
+    base_filters = [
+        Trip.creator_id == customer_id,
+        Trip.creator_type == RoleEnum.customer,
+        Trip.is_active == True,
+    ]
+
+    airport_and_local_types = [
+        TripTypeEnum.airport_pickup,
+        TripTypeEnum.airport_drop,
+        TripTypeEnum.local,
+    ]
+
+    if bucket == "upcoming":
+        bucket_filter = or_(
+            and_(
+                TripTypeMaster.trip_type.in_(airport_and_local_types),
+                Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
+                Trip.start_datetime > current_datetime,
+            ),
+            and_(
+                TripTypeMaster.trip_type == TripTypeEnum.outstation,
+                Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
+                Trip.start_datetime > current_datetime,
+                Trip.expected_end_datetime > current_datetime,
+            ),
+        )
+        order_by = Trip.start_datetime.asc()
+    elif bucket == "ongoing":
+        bucket_filter = or_(
+            and_(
+                TripTypeMaster.trip_type.in_(airport_and_local_types),
+                Trip.status == TripStatusEnum.ongoing,
+                Trip.start_datetime <= current_datetime,
+                Trip.start_datetime >= one_day_ago,
+            ),
+            and_(
+                TripTypeMaster.trip_type == TripTypeEnum.outstation,
+                Trip.status == TripStatusEnum.ongoing,
+                Trip.start_datetime <= current_datetime,
+                Trip.expected_end_datetime >= current_datetime,
+            ),
+        )
+        order_by = Trip.start_datetime.asc()
+    else:
+        bucket_filter = or_(
+            Trip.status.in_(
+                [
+                    TripStatusEnum.completed,
+                    TripStatusEnum.cancelled,
+                    TripStatusEnum.dispute,
+                ]
+            ),
+            and_(
+                TripTypeMaster.trip_type.in_(airport_and_local_types),
+                Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
+                Trip.start_datetime <= current_datetime,
+            ), #stale expired airport and local trips that are still marked as confirmed or created but have a start datetime in the past should be considered past trips
+            and_(
+                TripTypeMaster.trip_type == TripTypeEnum.outstation,
+                Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
+                Trip.start_datetime <= current_datetime,
+                Trip.expected_end_datetime <= current_datetime,
+            ), #stale expired outstation trips that are still marked as confirmed or created but have a start datetime in the past and expected end datetime in the past should be considered past trips
+        )
+        order_by = Trip.start_datetime.desc()
+
+    j = (TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id)
+    f = (*base_filters, bucket_filter)
+    count_result = await db.execute(
+        select(func.count(Trip.id))
+        .join(*j)
+        .filter(*f)
+    )
+    total = count_result.scalar_one()
+
+    result = await db.execute(
+        select(Trip)
+        .join(*j)
+        .filter(*f)
+        .order_by(order_by)
+        .offset(offset) #start cursor from offset, which is calculated based on the current page and limit, ensuring that we skip the appropriate number of records for pagination
+        .limit(limit) #upto 'limit' number of records for the current page, ensuring that we only retrieve the desired number of trips for the current page
+    )
+    trips = result.scalars().all()
+    for trip in trips:
+        await attach_relationships_to_trip(
+            trip, db, expose_customer_details=expose_customer_details
+        )
+
+    return {
+        "bucket": bucket,
+        "items": trips,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(trips) < total,
+            "has_previous": page > 1,
+        },
+    }
+
+
+
 def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dict:
     if validate_by_tz:
         log.info("Grouping trips by status with timezone validation")
@@ -857,7 +978,7 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
         trip
         for trip in trips
         if trip.get("status")
-        in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value]
+        in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
     ]
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
@@ -889,6 +1010,13 @@ def get_trip_label(trip: dict):
             if expected_end_datetime
             else None
         )
+
+        if (
+                trip_status in [TripStatusEnum.dispute]
+                
+            ):
+            # First check if the trip is in dispute status, as this takes precedence over other statuses. If a trip is in dispute, it should be labeled as "dispute" regardless of its start or end datetime.
+            return "dispute"
 
         # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
         if trip_type in [
@@ -974,7 +1102,7 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
                 upcoming_trips.append(trip)
             elif label == "ongoing":
                 ongoing_trips.append(trip)
-            elif label == "past" or label in ["completed", "cancelled"]:
+            elif label == "past" or label in ["completed", "cancelled", "dispute"]:
                 past_trips.append(trip)
     except Exception as e:
         log.error(f"Error grouping trips by status with timezone validation: {str(e)}")

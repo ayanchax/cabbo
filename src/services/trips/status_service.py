@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
+from core.buffers import TRIP_START_EARLY_BUFFER_MINUTES, TRIP_START_LATE_BUFFER_MINUTES, TRIP_START_LATE_BUFFER_MINUTES
 from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
@@ -31,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.refund_service import refund_advance_payment_to_customer_on_cancellation
 import logging
 log = logging.getLogger(__name__)
-
+ 
 async def change_status(
     trip: Trip,
     db: AsyncSession,
@@ -57,32 +58,25 @@ async def change_status(
             now = datetime.now(timezone.utc)
             #payload.start_datetime can be provided as overriden value by driver_admin when they are marking the trip as ongoing, because sometimes the driver might have started the trip a bit earlier than the scheduled start time due to traffic conditions, customer readiness etc. and in such cases we want to allow driver_admin to provide the actual start datetime when marking the trip as ongoing for better accuracy in trip records and also for better analysis of trip data in the future. But if payload.start_datetime is not provided then we will use the original start datetime of the trip for further processing in the flow of marking trip as ongoing.
             scheduled_start_time = _evaluate_start_time(trip.start_datetime, payload.start_datetime if payload else None)
-            buffer_times ={
-                TripTypeEnum.airport_drop: 60,  # For airport trips we will allow to mark the trip as ongoing within 60 minutes before the scheduled start time considering the potential traffic conditions and other factors that can affect the timely arrival of driver at airport and also considering the short notice and potential driver inconvenience in case of airport trips.
-                TripTypeEnum.airport_pickup: 60,  # For airport trips we will allow to mark the trip as ongoing within 60 minutes before the scheduled start time considering the potential traffic conditions and other factors that can affect the timely arrival of driver at airport and also considering the short notice and potential driver inconvenience in case of airport trips.
-                TripTypeEnum.local: 0,  # For local trips we will not allow to mark the trip as ongoing before the scheduled start time to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-                TripTypeEnum.outstation: 0,  # For outstation trips we will not allow to mark the trip as ongoing before the scheduled start time to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-            }
-            buffer_time_minutes = buffer_times.get(trip_type, 0)
+            earliest_start_time, latest_start_time = _get_ongoing_start_window(
+                trip=trip,
+                trip_type=trip_type,
+                scheduled_start_time=scheduled_start_time,
+            )
             
-            #Past trip guard
-            # Block past trips, only allow trips that are scheduled to start in the future or within the buffer time window for trips to be marked as ongoing, because we do not want to allow marking of past trips as ongoing to avoid any misuse or accidental marking of old trips as ongoing which can create confusion and issues in driver allocation and customer experience. For non-airport trips, we will not allow to mark the trip as ongoing before the scheduled start time to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-            
-            if now > scheduled_start_time + timedelta(minutes=buffer_time_minutes):
+            if now > latest_start_time:
                 raise CabboException(
-                    f"Cannot start trip after {(now - scheduled_start_time).total_seconds() // 60} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience.",
+                    f"Cannot start trip after {(now - latest_start_time).total_seconds() // 60} minutes of the allowed start window. Please ensure to mark the trip as ongoing before the trip window expires.",
                     status_code=400,
                     error_code=GENERIC_EXCEPTION,
                 )
 
-            #Do not start too early guard
-            #Trip can be marked as ongoing if current time is equal to or after the start time minus buffer time for trips considering the short notice and potential driver inconvenience, but we will not allow to mark the trip as ongoing much before the start time to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-            if now < scheduled_start_time - timedelta(minutes=buffer_time_minutes):
-                    raise CabboException(
-                        f"Cannot start trip before {(scheduled_start_time - now).total_seconds() // 60} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience.",
-                        status_code=400,
-                        error_code=GENERIC_EXCEPTION,
-                    )
+            if now < earliest_start_time:
+                raise CabboException(
+                    f"Cannot start trip before {(earliest_start_time - now).total_seconds() // 60} minutes of the allowed start window. Please ensure to mark the trip as ongoing closer to the scheduled start time.",
+                    status_code=400,
+                    error_code=GENERIC_EXCEPTION,
+                )
             payload.start_datetime = scheduled_start_time  # Update the start datetime in the payload with the evaluated start datetime which is based on the original start datetime of the trip and any overridden start datetime provided in the payload, so that we can use this start datetime for further processing in the flow of marking trip as ongoing and also to log in the audit trail for trip status change.
         return await _ongoing(
             trip=trip, db=db, status=status, requestor=requestor, payload=payload
@@ -447,3 +441,25 @@ def _evaluate_start_time(startdatetime: datetime, overridden_startdatetime: Opti
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _get_ongoing_start_window(
+    trip: Trip,
+    trip_type: TripTypeEnum,
+    scheduled_start_time: datetime,
+) -> tuple[datetime, datetime]:
+    early_buffer_minutes = TRIP_START_EARLY_BUFFER_MINUTES.get(trip_type, 30)
+    late_buffer_minutes = TRIP_START_LATE_BUFFER_MINUTES.get(trip_type, 60)
+
+    earliest_start_time = scheduled_start_time - timedelta(minutes=early_buffer_minutes)
+    fallback_latest_start_time = scheduled_start_time + timedelta(minutes=late_buffer_minutes)
+
+    expected_end_datetime = getattr(trip, "expected_end_datetime", None)
+    if expected_end_datetime:
+        latest_start_time = _evaluate_start_time(expected_end_datetime)
+        if latest_start_time < fallback_latest_start_time:
+            latest_start_time = fallback_latest_start_time
+    else:
+        latest_start_time = fallback_latest_start_time
+
+    return earliest_start_time, latest_start_time

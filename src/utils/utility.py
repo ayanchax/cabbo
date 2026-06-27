@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 from core.exceptions import DATETIME_PROCESSING_ERROR, GENERIC_EXCEPTION, INVALID_DATETIME_INPUT, CabboException
 from datetime import date, datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -10,20 +10,27 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def validate_date_time(date_time: Union[str, datetime], timezone_str: str = None, utc_offset: int = None) -> datetime:
+def validate_date_time(date_time: Union[str, datetime], timezone_str: str = None, utc_offset: int = None) -> Optional[datetime]:
     """
     Parse input (str or datetime). If naive, assume settings.CABBO_DEFAULT_TIMEZONE
     (fallback to UTC). Always return an aware datetime in UTC.
     """
     try:
+        if not date_time:   
+            return None  # Return None if date_time is None or empty
         if isinstance(date_time, str):
             try:
                 dt = isoparse(date_time)
             except Exception as e:
-                raise CabboException("Invalid datetime format", status_code=400, error_code=INVALID_DATETIME_INPUT) from e
+                log.error(f"Error parsing datetime: {e}")
+                if isinstance(date_time, datetime):
+                    dt = date_time
+                else:
+                    raise CabboException("Invalid datetime format", status_code=400, error_code=INVALID_DATETIME_INPUT) from e
         elif isinstance(date_time, datetime):
             dt = date_time
         else:
+            log.error(f"Invalid datetime type: {type(date_time)}")
             raise CabboException("Invalid datetime type", status_code=400, error_code=INVALID_DATETIME_INPUT)
 
         # If naive, attach tzinfo using utc_offset if provided, else use timezone_str/default
@@ -40,7 +47,8 @@ def validate_date_time(date_time: Union[str, datetime], timezone_str: str = None
                 tz_name = timezone_str or settings.CABBO_DEFAULT_TIMEZONE or "UTC"
                 try:
                     local_tz = ZoneInfo(tz_name)
-                except Exception:
+                except Exception as e:
+                    log.error(f"Error setting timezone: {e}")
                     local_tz = timezone.utc
                 dt = dt.replace(tzinfo=local_tz)
         # Always convert to UTC after enriching with timezone info
@@ -48,6 +56,7 @@ def validate_date_time(date_time: Union[str, datetime], timezone_str: str = None
     except CabboException:
         raise
     except Exception as e:
+        log.error(f"Error processing datetime: {e}")
         raise CabboException("Error processing datetime", status_code=400, error_code=DATETIME_PROCESSING_ERROR) from e
 
 

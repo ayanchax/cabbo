@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from core.exceptions import (
     CabboException,
     TRIP_NOT_FOUND,
@@ -17,6 +17,7 @@ from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import (
     async_get_trip_by_booking_id_customer_id,
     async_get_trips_by_customer_id,
+    async_get_trips_by_customer_id_paginated,
     group_by_trip_status,
     serialize_trip,
     serialize_trips,
@@ -108,7 +109,37 @@ async def update_non_cost_impacting_trip_details_by_booking_id_and_customer_id(
     return {"message": "Trip details updated successfully"}
 
 
-# Get all trips for the authenticated customer
+@router.get("/my/feed", response_model=dict)
+async def list_trip_bookings_feed_by_customer_id(
+    bucket:Literal["upcoming", "ongoing", "past"] = Query("upcoming", description="Bucket to filter trips by status. Possible values: upcoming, ongoing, past"),
+    page: int = Query(1, ge=1, description="Page number for pagination, starting from 1"),
+    limit: int = Query(10, ge=1, le=50, description="Number of trips per page for pagination, maximum 50"),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    customer: Customer = Depends(validate_customer_token),
+):
+    """List trips by customer_id."""
+
+    trips = await async_get_trips_by_customer_id_paginated(
+        customer_id=customer.id, db=db, bucket=bucket, page=page, limit=limit
+    )
+    if not trips or not trips.get("items", []) or not isinstance(trips.get("items", []), list) or len(trips.get("items", [])) == 0:
+        raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
+
+    serialized_trips = serialize_trips(trips.get("items", []), view=TripResponseView.CUSTOMER_LIST_SELF)
+    trips.pop("items", None)  # Remove the original items list from the trips dictionary to avoid duplication
+    # Remove id from each trip in the serialized_trips for security reasons
+    for trip in serialized_trips:
+        if "id" in trip:
+            trip.pop("id")
+
+    return {
+     **trips,
+     "trips":serialized_trips,
+
+    }
+
+
+# Get all trips for the authenticated customer [We do not use this anymore, as we have the paginated version above, but we keep this for backward compatibility and for customers who may want to fetch all their trips at once without pagination]
 @router.get("/", response_model=dict)
 async def list_trips_by_customer_id(
     db: AsyncSession = Depends(a_yield_mysql_session),
