@@ -11,6 +11,7 @@ from core.security import RoleEnum
 from models.geography.country_orm import CountryModel
 from models.geography.region_orm import RegionModel
 from models.geography.state_orm import StateModel
+from models.map.location_schema import LocationInfo
 from models.support.support_enum import SupportScopeEnum, SupportTypeEnum
 from models.support.support_orm import SupportContact, SupportRoutingRule
 from models.support.support_schema import (
@@ -24,7 +25,8 @@ from models.support.support_schema import (
     TripTypeScope,
 )
 from models.trip.trip_enums import TripTypeEnum
-
+from services.geography_service import async_get_country_by_code, async_get_region_by_code, async_get_state_by_state_code
+from core.config import settings
 log = logging.getLogger(__name__)
 
 CUSTOMER_SUPPORT_REGION_TRIP_TYPE_SCOPES = [
@@ -717,3 +719,47 @@ async def _validate_support_scope(
             status_code=404,
             error_code=GENERIC_EXCEPTION,
         )
+
+
+
+async def get_support_geography_ids(
+    trip_type: TripTypeEnum,
+    origin: LocationInfo,
+    db: AsyncSession,
+) -> tuple[str | None, str | None, str | None]:
+    region_id = None
+    state_id = None
+    country_id = None
+
+    if trip_type in [
+        TripTypeEnum.local,
+        TripTypeEnum.airport_pickup,
+        TripTypeEnum.airport_drop,
+    ]:
+        if origin.region_code:
+            region = await async_get_region_by_code(origin.region_code, db)
+            if region:
+                region_id = region.id
+                state_id = region.state_id
+                country_id = region.country_id
+
+    if not state_id and origin.state_code:
+        state = await async_get_state_by_state_code(origin.state_code, db)
+        if state:
+            state_id = state.id
+            country_id = country_id or state.country_id
+
+    if not country_id and origin.country_code:
+        country = await async_get_country_by_code(origin.country_code, db)
+        if country:
+            country_id = country.id
+
+    if not country_id:
+        country = await async_get_country_by_code(settings.COUNTRY_CODE, db)
+        if country:
+            country_id = country.id
+
+    if trip_type == TripTypeEnum.outstation:
+        region_id = None
+
+    return region_id, state_id, country_id

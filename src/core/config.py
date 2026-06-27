@@ -79,6 +79,7 @@ class Settings(BaseSettings):
 
     CUSTOMER_SUPPORT_EMAIL: str
     CUSTOMER_SUPPORT_PHONE_NUMBER: str
+    CUSTOMER_SUPPORT_WHATSAPP_NUMBER: str
 
     class Config:
         env_file = ENV_FILE

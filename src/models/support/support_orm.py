@@ -18,7 +18,6 @@ from sqlalchemy.orm import relationship
 from core.security import RoleEnum
 from db.database import Base
 from models.support.support_enum import SupportScopeEnum, SupportTypeEnum
-from models.support.support_schema import TripTypeScope
 
 
 class SupportContact(Base):
@@ -109,7 +108,7 @@ class SupportRoutingRule(Base):
         index=True,
     )
     trip_type_scope = Column(
-        SAEnum(TripTypeScope, name="trip_type_scope_enum"),
+        MySQL_CHAR(36),
         nullable=False,
         default="all",
         index=True,

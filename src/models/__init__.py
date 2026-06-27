@@ -16,6 +16,7 @@ from .policies.refund_orm import Refund
 from .policies.dispute_orm import Dispute
 from .user.user_orm import User
 from .seed.seed_orm import SeedMetaData
+from .support.support_orm import SupportContact, SupportRoutingRule
 
 __all__ = [
     "SeedMetaData",
@@ -25,5 +26,5 @@ __all__ = [
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",
     "CommonPricingConfiguration", "FixedPlatformPricingConfiguration", "PermitFeeConfiguration",
     "Trip", "Refund", "Dispute", "Driver","DriverEarning","TripRating","TripTypeMaster", "TripStatusAudit","TripPackageConfig",
-    "TempTrip", "User"
+    "TempTrip", "User", "SupportContact", "SupportRoutingRule"
 ]

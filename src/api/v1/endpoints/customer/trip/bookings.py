@@ -10,19 +10,17 @@ from core.exceptions import (
 from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
-from models.map.location_schema import LocationInfo
 from models.support.support_enum import SupportTypeEnum
-from models.support.support_schema import CommentSchema, CustomerSupportContactSchema
+from models.support.support_schema import (
+    CommentSchema,
+    CustomerSupportContactLookupRequest,
+    CustomerSupportContactSchema,
+)
 from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange, TripUpdateRequestSchema
 from services.dispute_service import add_comment_to_dispute_by_trip_id
-from services.geography_service import (
-    async_get_country_by_code,
-    async_get_region_by_code,
-    async_get_state_by_state_code,
-)
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.support_service import get_best_support_contact
+from services.support_service import get_best_support_contact, get_support_geography_ids
 from services.trips.trip_service import (
     async_get_trip_by_booking_id_customer_id,
     async_get_trips_by_customer_id,
@@ -38,97 +36,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter()
 
 
-async def _get_support_geography_ids(
-    trip_type: TripTypeEnum,
-    origin: LocationInfo,
-    db: AsyncSession,
-) -> tuple[str | None, str | None, str | None]:
-    region_id = None
-    state_id = None
-    country_id = None
-
-    if trip_type in [
-        TripTypeEnum.local,
-        TripTypeEnum.airport_pickup,
-        TripTypeEnum.airport_drop,
-    ]:
-        if origin.region_code:
-            region = await async_get_region_by_code(origin.region_code, db)
-            if region:
-                region_id = region.id
-                state_id = region.state_id
-                country_id = region.country_id
-
-    if not state_id and origin.state_code:
-        state = await async_get_state_by_state_code(origin.state_code, db)
-        if state:
-            state_id = state.id
-            country_id = country_id or state.country_id
-
-    if not country_id and origin.country_code:
-        country = await async_get_country_by_code(origin.country_code, db)
-        if country:
-            country_id = country.id
-
-    if not country_id:
-        country = await async_get_country_by_code(settings.COUNTRY_CODE, db)
-        if country:
-            country_id = country.id
-
-    if trip_type == TripTypeEnum.outstation:
-        region_id = None
-
-    return region_id, state_id, country_id
-
-
-@router.get(
-    "/{booking_id}/support-contact",
-    response_model=CustomerSupportContactSchema,
-)
-async def get_support_contact_for_trip(
-    booking_id: str,
-    db: AsyncSession = Depends(a_yield_mysql_session),
-    current_user: Customer = Depends(validate_customer_token),
-):
-    trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_user.id, db
-    )
-
-    if trip is None:
-        raise CabboException(
-            "Trip booking not found",
-            status_code=404,
-            error_code=TRIP_NOT_FOUND,
-        )
-
-    origin = LocationInfo.model_validate(trip.origin)
-    trip_type = TripTypeEnum(trip.trip_type_master.trip_type)
-    region_id, state_id, country_id = await _get_support_geography_ids(
-        trip_type=trip_type,
-        origin=origin,
-        db=db,
-    )
-
-    support_contact = await get_best_support_contact(
-        db=db,
-        support_type=SupportTypeEnum.customer,
-        trip_type_scope=trip_type.value,
-        region_id=region_id,
-        state_id=state_id,
-        country_id=country_id,
-    )
-
-    if support_contact:
-        return CustomerSupportContactSchema.model_validate(support_contact)
-
-    #Default support contact if no specific support contact is found for the trip's geography and trip type
-    return CustomerSupportContactSchema(
-        display_name="Cabbo Customer Support",
-        email=settings.CUSTOMER_SUPPORT_EMAIL,
-        phone_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
-        whatsapp_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
-        support_type=SupportTypeEnum.customer,
-    )
 
 
 # View trip details by booking_id and customer_id.

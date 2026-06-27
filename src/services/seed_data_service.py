@@ -367,7 +367,7 @@ def _seed_support_contacts(session: Session):
         display_name="Cabbo Customer Support",
         email=settings.CUSTOMER_SUPPORT_EMAIL,
         phone_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
-        whatsapp_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
+        whatsapp_number=settings.CUSTOMER_SUPPORT_WHATSAPP_NUMBER,
     )
 
 

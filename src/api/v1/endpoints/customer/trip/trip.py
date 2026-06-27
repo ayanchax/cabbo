@@ -27,6 +27,8 @@ from .bookings import router as trip_bookings
 from .classifier import router as trip_type_classifier
 from .package import router as trip_packages
 from .fleet import router as fleet_router
+from .support import router as trip_support_router
+
 
 router = APIRouter()
 
@@ -183,4 +185,9 @@ router.include_router(
 # Fleet browsing endpoint for customers to view the different fleets available in the system which they can then choose from when booking a trip. This endpoint will validate the JWT token to ensure that only authenticated customers can view the available fleets for security reasons.
 router.include_router(
     fleet_router, prefix="/fleet", tags=["customer-fleet-browsing"]
+)
+
+# Trip support contact retrieval endpoint for customers to get the best support contact based on their trip type and origin location. This endpoint will validate the JWT token to ensure that only authenticated customers can access this functionality securely. The support contact retrieval endpoint will allow customers to input their trip type and origin location, and the system will return the best support contact available for their specific trip, enhancing the overall customer experience and providing timely assistance when needed.
+router.include_router(
+    trip_support_router, prefix="/support", tags=["customer-trip-support"]
 )
