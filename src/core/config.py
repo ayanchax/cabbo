@@ -77,6 +77,9 @@ class Settings(BaseSettings):
 
     GOOGLE_MAPS_API_KEY: str
 
+    CUSTOMER_SUPPORT_EMAIL: str
+    CUSTOMER_SUPPORT_PHONE_NUMBER: str
+
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"

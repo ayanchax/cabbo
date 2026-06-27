@@ -11,6 +11,9 @@ class SeedKeyEnum(str, Enum):
     SEED_GEO_CORE_V1 = "seed.geo.core.v1"
     SEED_GEO_REGIONS_V1 = "seed.geo.regions.v1"
 
+    # Support contact seeding keys
+    SEED_SUPPORT_CONTACTS_V1 = "seed.support.contacts.v1"
+
     # Pricing seeding keys
     SEED_PRICING_LOCAL_V1="seed.pricing.local.v1"
     SEED_PRICING_OUTSTATION_V1="seed.pricing.outstation.v1"

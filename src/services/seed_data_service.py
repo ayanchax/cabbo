@@ -1,5 +1,6 @@
 from typing import List
 from sqlalchemy.orm import Session
+from core.config import settings
 from core.trip_helpers import create_trip_types, get_all_trip_types
 from models.geography.country_schema import CountrySchema
 from models.geography.region_schema import RegionSchema
@@ -46,6 +47,7 @@ from services.pricing_service import (
     create_permit_fee_configuration,
     create_trip_package_pricing_configuration,
 )
+from services.support_service import seed_customer_support_contact_for_serviceable_geographies
 from services.user_service import create_super_admin_user
 import logging 
 log= logging.getLogger(__name__)
@@ -315,7 +317,6 @@ def _seed_regions(session: Session):
 
 # End of geo data seeding
 
-
 # Seed master data seeding - trip types, cab types, fuel types etc
 def _seed_master_data(session: Session):
     # Seed core data like trip types, cab types, fuel types
@@ -358,6 +359,16 @@ def _seed_airports(session: Session):
 
 
 # End of master data seeding
+
+
+def _seed_support_contacts(session: Session):
+    seed_customer_support_contact_for_serviceable_geographies(
+        db=session,
+        display_name="Cabbo Customer Support",
+        email=settings.CUSTOMER_SUPPORT_EMAIL,
+        phone_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
+        whatsapp_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
+    )
 
 
 # Seed pricing data for local, airport and outstation trips
@@ -1542,6 +1553,11 @@ SEED_REGISTRY: list[SeedRegistryEntry] = [
         key=SeedKeyEnum.SEED_GEO_REGIONS_V1,
         func=_seed_regions,
         depends_on=[SeedKeyEnum.SEED_GEO_CORE_V1],
+    ),
+    SeedRegistryEntry(
+        key=SeedKeyEnum.SEED_SUPPORT_CONTACTS_V1,
+        func=_seed_support_contacts,
+        depends_on=[SeedKeyEnum.SEED_GEO_REGIONS_V1],
     ),
     SeedRegistryEntry(
         key=SeedKeyEnum.SEED_PRICING_LOCAL_V1,
