@@ -106,6 +106,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_trip_label=True,
         optimize_response=True,
         expose_policy_detail=True,
+        expose_trip_review=True,
 
     ),
     TripResponseView.CUSTOMER_LIST: TripSerializationOptions(
@@ -143,6 +144,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_trip_label=True,
         expose_policy_detail=True,
         expose_dispute_details=True,
+        expose_trip_review=True,
 
     ),
      TripResponseView.ADMIN_LIST: TripSerializationOptions(
@@ -153,6 +155,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_trip_label=True,
         expose_policy_detail=True,
         expose_dispute_details=True,
+        expose_trip_review=True,
 
     )
 }

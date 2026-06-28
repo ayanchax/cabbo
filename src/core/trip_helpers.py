@@ -202,6 +202,8 @@ async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_cust
             await db.refresh(trip, attribute_names=["package"])
         if trip.passenger_id:
             await db.refresh(trip, attribute_names=["passenger"])
+        if trip.trip_rating:
+            await db.refresh(trip, attribute_names=["trip_rating"])
         if expose_customer_details and trip.creator_id:
             await db.refresh(trip, attribute_names=["customer"])
         if expose_cancellation_detail:

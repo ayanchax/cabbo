@@ -22,13 +22,10 @@ class RefundSchema(BaseModel):
         from_attributes = True
         extra="allow"
 
-class CustomerRefundSchema(RefundSchema):
+class CustomerRefundSchema(BaseModel):
     refund_status: Optional[RefundStatus] = Field(RefundStatus.unknown, description="Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.")
     refund_amount: Optional[float] = Field(None, description="Amount to be refunded to the customer")
-    refund_description: Optional[str] = Field(None, description="Reason for the refund (e.g., cancellation, adjustment, etc.)")
-    refund_details: Optional[Dict] = Field(None, description="Details of the refund transaction from the payment provider")
     refund_initiated_datetime: Optional[datetime] = Field(None, description="Date and time when the refund was initiated")
     refund_retried_datetime: Optional[datetime] = Field(None, description="Date and time when the refund initiation was retried in case of a retry attempt for refund initiation if the initial refund initiation attempt failed or if we want to retry the refund initiation for any reason, we can update this field with the date and time of the retry attempt and also update the refund_status and refund_description fields accordingly to keep track of the retry attempts for refund initiation in case of failures or if we want to retry for any reason.")
     refund_type: Optional[RefundType] = Field(RefundType.other, description="Type of refund, e.g., full, partial, etc.")
-    refund_provider: Optional[PaymentProvider] = Field(None, description="Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.")
 

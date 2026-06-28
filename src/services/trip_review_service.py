@@ -51,6 +51,16 @@ async def save_trip_review(
     if not trip:
         raise CabboException("Trip not found for the given booking_id", status_code=404, error_code=GENERIC_EXCEPTION)
 
+    if  trip.status != TripStatusEnum.completed:
+        raise CabboException(
+            "Trip can be rated only if it is completed", status_code=400, error_code=GENERIC_EXCEPTION
+        )
+    
+    if trip.balance_payment > 0 or trip.balance_payment is None:
+        raise CabboException(
+            "Trip can be rated only if the balance payment has been made", status_code=400, error_code=GENERIC_EXCEPTION
+        )
+
     if trip.creator_type != RoleEnum.customer:
         raise CabboException(
             "Only customers can provide rating for trip",
@@ -111,11 +121,11 @@ async def save_trip_review(
     existing_rating_record = existing_rating_record.scalar_one_or_none()
     response_dict = {"action": None, "message": None}
     if existing_rating_record:
-        await update_trip_review(
-            rating_record=existing_rating_record, payload=payload, db=db
+        raise CabboException(
+            "Trip review already exists for the trip by the customer for the driver",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
-        response_dict["action"] = "update"
-        response_dict["message"] = "Your trip review has been updated successfully."
     else:
         await create_trip_review(
             trip_id=trip.id,

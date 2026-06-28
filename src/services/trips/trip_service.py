@@ -26,6 +26,7 @@ from models.trip.trip_enums import (
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
+    CustomerTripRatingReadSchema,
     TripBookRequest,
     TripDetailSchema,
     TripDetails,
@@ -158,6 +159,11 @@ def serialize_trip(
 
     if options.expose_trip_label:
         trip_dict["label"] = get_trip_label(trip_dict)
+    
+    if options.expose_trip_review:
+        rating = CustomerTripRatingReadSchema.model_validate(trip.trip_rating)
+        trip_dict["rating"]= rating.model_dump(exclude_none=True, exclude_unset=True)
+        
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
@@ -1011,12 +1017,14 @@ def get_trip_label(trip: dict):
             else None
         )
 
-        if (
-                trip_status in [TripStatusEnum.dispute]
-                
-            ):
-            # First check if the trip is in dispute status, as this takes precedence over other statuses. If a trip is in dispute, it should be labeled as "dispute" regardless of its start or end datetime.
-            return "dispute"
+        if trip_status in [
+            TripStatusEnum.completed,
+            TripStatusEnum.cancelled,
+            TripStatusEnum.dispute,
+        ]:
+            # Terminal statuses should be labeled by lifecycle state regardless of
+            # whether the scheduled trip time is still in the future.
+            return trip_status.value
 
         # Airport Pickup, Drop, Rental Logic (1 day buffer for ongoing trips to account for delays and real-world conditions)
         if trip_type in [
@@ -1231,9 +1239,9 @@ async def update_non_cost_impacting_trip_fields(
         validate_status (bool): Whether to validate the trip status before allowing updates. Defaults to False.
     """
     try:
-        if validate_status and trip.status not in [TripStatusEnum.confirmed]:
+        if validate_status and trip.status not in [TripStatusEnum.confirmed, TripStatusEnum.created]:
             raise CabboException(
-                f"Trip details can only be updated for trips in confirmed status. Current status: {trip.status}",
+                f"Trip details can only be updated for trips in confirmed or created status. Current status: {trip.status}",
                 status_code=400,
             )
         if trip.trip_type_master.trip_type in [

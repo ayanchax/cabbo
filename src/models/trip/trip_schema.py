@@ -349,6 +349,7 @@ class TripSerializationOptions(BaseModel):
     expose_fleet_detail: bool = False
     expose_trip_label: bool = False
     optimize_response: bool = False
+    expose_trip_review: bool = False
 
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")
@@ -700,6 +701,13 @@ class TripRatingSchema(TripRatingCreateSchema):
 
     class Config:
         from_attributes = True
+
+
+class CustomerTripRatingReadSchema(TripRatingCreateSchema):
+    class Config:
+        extra ="allow"
+        from_attributes=True
+    
 
 
 class TripRatingResponseSchema(TripRatingCreateSchema):

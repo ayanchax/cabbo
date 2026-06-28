@@ -486,7 +486,7 @@ async def delete_support_routing_rule(rule_id: str, db: AsyncSession) -> bool:
 async def get_best_support_contact(
     db: AsyncSession,
     support_type: SupportTypeEnum,
-    trip_type_scope: str = "all",
+    trip_type_scope: TripTypeScope = "all",
     region_id: Optional[str] = None,
     state_id: Optional[str] = None,
     country_id: Optional[str] = None,

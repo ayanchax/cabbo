@@ -43,7 +43,7 @@ async def submit_trip_review(
             task_name=f"BackgroundTaskUpdateDriverAvgRating",
             **background_task.kwargs,
         )
-    return response
+    return response["message"] if response and "message" in response else "Trip review submitted successfully"
 
 
 # Get own review given for a trip.
