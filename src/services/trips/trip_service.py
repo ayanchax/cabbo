@@ -26,7 +26,6 @@ from models.trip.trip_enums import (
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
-    CustomerTripRatingReadSchema,
     TripBookRequest,
     TripDetailSchema,
     TripDetails,
@@ -106,38 +105,48 @@ def serialize_trip(
 
 
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
-    if trip.driver:  # Serialize the driver if it exists
+    driver = trip_dict.get("driver")
+    trip_type_master = trip_dict.get("trip_type_master")
+    package = trip_dict.get("package")
+    passenger = trip_dict.get("passenger")
+    customer = trip_dict.get("customer")
+    cancellation = trip_dict.get("cancellation")
+    dispute = trip_dict.get("dispute")
+    rating = trip_dict.get("trip_rating")
+
+    if driver:  # Serialize the driver if it exists
         from services.driver_service import serialize_driver
 
-        trip_dict = serialize_driver(trip.driver, trip_dict)
+        trip_dict = serialize_driver(driver, trip_dict)
     else:
         trip_dict["driver"] = None
-    if trip.trip_type_master:  # Serialize the trip type if it exists
-        trip_dict = serialize_trip_type(trip.trip_type_master, trip_dict)
+    if trip_type_master:  # Serialize the trip type if it exists
+        trip_dict = serialize_trip_type(trip_type_master, trip_dict)
     else:
         trip_dict["trip_type"] = None
-    if trip.package:  # Serialize the package if it exists
+    if package:  # Serialize the package if it exists
         trip_dict = serialize_trip_package(trip, trip_dict)
     else:
         trip_dict["package"] = None
-    if trip.passenger:  # Serialize the passenger if it exists
-        trip_dict = serialize_passenger(trip.passenger, trip_dict)
+    if passenger:  # Serialize the passenger if it exists
+        trip_dict = serialize_passenger(passenger, trip_dict)
     else:
         trip_dict["passenger"] = (
             None  # means passenger is itself the customer, so we can populate customer details in the response if expose_customer_details is True
         )
+     
 
     if options.expose_customer_details:
-        if trip.customer:
-            trip_dict = serialize_customer(trip.customer, trip_dict)
+        if customer:
+            trip_dict = serialize_customer(customer, trip_dict)
         else:
             trip_dict["customer"] = None
     if options.expose_cancellation_detail:
-        if trip.cancellation:
-            trip_dict = serialize_cancelation(trip.cancellation, trip_dict)
+        if cancellation:
+            trip_dict = serialize_cancelation(cancellation, trip_dict)
     if options.expose_dispute_details:
-        if trip.dispute:
-            trip_dict = serialize_dispute(trip.dispute, trip_dict)
+        if dispute:
+            trip_dict = serialize_dispute(dispute, trip_dict)
 
     if options.expose_currency_detail:
         trip_dict = serialize_currency(trip_dict=trip_dict)
@@ -161,9 +170,10 @@ def serialize_trip(
         trip_dict["label"] = get_trip_label(trip_dict)
     
     if options.expose_trip_review:
-        rating = CustomerTripRatingReadSchema.model_validate(trip.trip_rating)
-        trip_dict["rating"]= rating.model_dump(exclude_none=True, exclude_unset=True)
-        
+        from services.trip_review_service import serialize_rating
+        trip_dict = serialize_rating(trip_dict=trip_dict)
+           
+            
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
@@ -712,9 +722,7 @@ def get_trip_by_id(trip_id: str, db: Session) -> Trip:
 async def async_get_trip_by_id(
     trip_id: str,
     db: AsyncSession,
-    expose_customer_details: bool = False,
-    expose_dispute_details: bool = False,
-    expose_cancellation_detail: bool = False,
+    view: TripResponseView = TripResponseView.ADMIN_DETAIL,
 ) -> Trip:
     """Asynchronously retrieve a trip by its ID."""
     query = select(Trip).filter(
@@ -726,9 +734,7 @@ async def async_get_trip_by_id(
         await attach_relationships_to_trip(
             trip_result,
             db,
-            expose_customer_details=expose_customer_details,
-            expose_dispute_details=expose_dispute_details,
-            expose_cancellation_detail=expose_cancellation_detail,
+            view=view,
         )
     return trip_result
 
@@ -736,9 +742,7 @@ async def async_get_trip_by_id(
 async def async_get_trip_by_booking_id(
     booking_id: str,
     db: AsyncSession,
-    expose_customer_details: bool = False,
-    expose_dispute_details: bool = False,
-    expose_cancellation_detail: bool = False,
+    view: TripResponseView = TripResponseView.ADMIN_DETAIL,
 ) -> Trip:
     """Asynchronously retrieve a trip by its booking ID."""
     result = await db.execute(
@@ -751,9 +755,7 @@ async def async_get_trip_by_booking_id(
         await attach_relationships_to_trip(
             trip_result,
             db,
-            expose_customer_details=expose_customer_details,
-            expose_dispute_details=expose_dispute_details,
-            expose_cancellation_detail=expose_cancellation_detail,
+            view=view,
         )
     return trip_result
 
@@ -762,9 +764,7 @@ async def async_get_trip_by_booking_id_customer_id(
     booking_id: str,
     customer_id: str,
     db: AsyncSession,
-    expose_customer_details: bool = False,
-    expose_dispute_details: bool = False,
-    expose_cancellation_detail: bool = False,
+    view: TripResponseView = TripResponseView.CUSTOMER_DETAIL,
 ) -> Trip:
     """Asynchronously retrieve a trip by its booking ID and customer ID."""
     result = await db.execute(
@@ -780,9 +780,7 @@ async def async_get_trip_by_booking_id_customer_id(
         await attach_relationships_to_trip(
             trip_result,
             db,
-            expose_customer_details=expose_customer_details,
-            expose_dispute_details=expose_dispute_details,
-            expose_cancellation_detail=expose_cancellation_detail,
+            view=view,
         )
     return trip_result
 
@@ -794,7 +792,7 @@ async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
     )  # Only retrieve active trips
     all = result.scalars().all()
     for trip in all:
-        await attach_relationships_to_trip(trip, db)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_LIST)
     return all
 
 
@@ -808,7 +806,7 @@ async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession) -> list
     if not trips:
         return []
     for trip in trips:
-        await attach_relationships_to_trip(trip, db)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_LIST)
     return trips
 
 
@@ -825,7 +823,9 @@ def serialize_trips(trips: list[Trip], view: TripResponseView) -> list:
 
 
 async def async_get_trips_by_customer_id(
-    customer_id: str, db: AsyncSession, expose_customer_details: bool = False
+    customer_id: str,
+    db: AsyncSession,
+    view: TripResponseView = TripResponseView.CUSTOMER_LIST,
 ) -> list[Trip]:
     """Asynchronously retrieve trips by customer ID."""
     result = await db.execute(
@@ -840,7 +840,9 @@ async def async_get_trips_by_customer_id(
         return []
     for trip in trips:
         await attach_relationships_to_trip(
-            trip, db, expose_customer_details=expose_customer_details
+            trip,
+            db,
+            view=view,
         )
     return trips
 
@@ -851,7 +853,7 @@ async def async_get_trips_by_customer_id_paginated(
     bucket: Literal["upcoming", "ongoing", "past"] = "upcoming",
     page: int = 1,
     limit: int = 10,
-    expose_customer_details: bool = False,
+    view: TripResponseView = TripResponseView.CUSTOMER_LIST_SELF,
 ) -> dict:
     """Asynchronously retrieve customer trips by UI bucket with pagination."""
     page = max(page, 1)
@@ -948,7 +950,9 @@ async def async_get_trips_by_customer_id_paginated(
     trips = result.scalars().all()
     for trip in trips:
         await attach_relationships_to_trip(
-            trip, db, expose_customer_details=expose_customer_details
+            trip,
+            db,
+            view=view,
         )
 
     return {
@@ -1125,7 +1129,7 @@ async def update_trip_status(
     payload: AdditionalDetailsOnTripStatusChange = None,
     validate_time_window: bool = False,
 ):
-    trip = await async_get_trip_by_id(trip_id, db, expose_customer_details=True)
+    trip = await async_get_trip_by_id(trip_id, db, view=TripResponseView.ADMIN_DETAIL)
     if trip is None:
         raise CabboException(
             "Trip not found", status_code=404, error_code=GENERIC_EXCEPTION

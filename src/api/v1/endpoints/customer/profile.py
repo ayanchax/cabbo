@@ -25,12 +25,13 @@ from services.file_service import (
 )
 
 from models.customer.customer_schema import (
-    CustomerRead,
+    CustomerSafeRead,
     CustomerUpdate,
     CustomerReadAfterUpdate,
 )
 from core.security import validate_customer_token
 from core.exceptions import (
+    LOGOUT_FAILED,
     CabboException,
     USER_NOT_FOUND,
     GENERIC_EXCEPTION,
@@ -50,12 +51,16 @@ log = logging.getLogger(__name__)
 
 # Profile endpoints
 # View customer profile, only accessible to the customer themselves for viewing their own profile details. This will validate the JWT token and ensure that the customer can only access their own profile details and not other customers' profiles for privacy and security reasons.
-@router.get("/", response_model=CustomerRead)
+@router.get("/", response_model=CustomerSafeRead)
 def get_customer_profile(
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    return get_active_customer_by_id(current_customer.id, db)
+    customer =  get_active_customer_by_id(current_customer.id, db)
+    safe_customer= CustomerSafeRead.model_validate(customer)
+    profile_picture= S3ObjectInfo.model_validate(customer.s3_image_info)
+    safe_customer.profile_picture_url= profile_picture.url
+    return safe_customer
 
 
 # Update customer profile, only accessible to the customer themselves for updating their own profile details. This will validate the JWT token and ensure that the customer can only update their own profile details and not other customers' profiles for privacy and security reasons.

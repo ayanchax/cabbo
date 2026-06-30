@@ -9,6 +9,7 @@ from models.driver.driver_orm import TripRating
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_schema import (
+    CustomerTripRatingReadSchema,
     TripRatingCreateSchema,
     TripRatingResponseSchema,
     TripRatingSchema,
@@ -51,42 +52,12 @@ async def save_trip_review(
     if not trip:
         raise CabboException("Trip not found for the given booking_id", status_code=404, error_code=GENERIC_EXCEPTION)
 
-    if  trip.status != TripStatusEnum.completed:
+    eligible_for_review = (trip.status == TripStatusEnum.completed or trip.status == TripStatusEnum.cancelled) and trip.balance_payment == 0 and trip.creator_type == RoleEnum.customer and trip.creator_id == customer_id and trip.driver_id is not None
+    if  not eligible_for_review:
         raise CabboException(
-            "Trip can be rated only if it is completed", status_code=400, error_code=GENERIC_EXCEPTION
+            "Trip can be rated only if it is completed or cancelled with balance payment made and driver assigned", status_code=400, error_code=GENERIC_EXCEPTION
         )
     
-    if trip.balance_payment > 0 or trip.balance_payment is None:
-        raise CabboException(
-            "Trip can be rated only if the balance payment has been made", status_code=400, error_code=GENERIC_EXCEPTION
-        )
-
-    if trip.creator_type != RoleEnum.customer:
-        raise CabboException(
-            "Only customers can provide rating for trip",
-            status_code=403,
-            error_code=GENERIC_EXCEPTION,
-        )
-
-    if trip.creator_id != customer_id:
-        raise CabboException(
-            "Customer is not the creator of the trip and cannot provide rating for the trip",
-            status_code=403,
-            error_code=GENERIC_EXCEPTION,
-        )
-
-    if trip.status != TripStatusEnum.completed:
-        raise CabboException(
-            "Trip can be rated only if it is completed", status_code=400, error_code=GENERIC_EXCEPTION
-        )
-
-    if not trip.driver_id:
-        raise CabboException(
-            "Driver not assigned for the trip yet. Cannot provide rating for the trip.",
-            status_code=400,
-            error_code=GENERIC_EXCEPTION,
-        )
-
     if validate_time_window:
         # If start_datetime of the trip is in the past then only allow to provide rating
         # We do not want to have spam of ratings for the driver for trips that are scheduled for the future
@@ -627,3 +598,27 @@ async def update_trip_review_flag_status(
     except Exception as e:
         await db.rollback()
         raise e
+    
+def serialize_rating(trip_dict:dict):
+    rating = trip_dict.get("trip_rating")
+    if isinstance(rating, list):
+        trip_id = trip_dict.get("id")
+        rating = next(
+            (
+                item
+                for item in rating
+                if (item.get("trip_id") if isinstance(item, dict) else getattr(item, "trip_id", None))
+                == trip_id
+            ),
+            None,
+        )
+
+    if rating is not None:
+        rating_schema = CustomerTripRatingReadSchema.model_validate(rating)
+        trip_dict["rating"] = rating_schema.model_dump(exclude_none=True, exclude_unset=True)
+    else:
+        trip_dict["rating"] = None
+
+    trip_dict.pop("trip_rating", None)
+    
+    return trip_dict

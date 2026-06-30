@@ -3,6 +3,7 @@ from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_schema import (
+    CustomerTripRatingReadSchema,
     TripRatingCreateSchema,
     TripRatingResponseSchema,
 )
@@ -49,7 +50,7 @@ async def submit_trip_review(
 # Get own review given for a trip.
 @router.get(
     "/{booking_id}/review",
-    response_model=TripRatingResponseSchema,
+    response_model=CustomerTripRatingReadSchema,
 )
 async def get_trip_review(
     booking_id: str,
@@ -57,6 +58,7 @@ async def get_trip_review(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     """Get the review given by the current customer to a driver for a specific trip."""
-    return await fetch_trip_review_by_booking_id_customer_id(
+    rating=  await fetch_trip_review_by_booking_id_customer_id(
         booking_id=booking_id, customer_id=current_customer.id, db=db
     )
+    return CustomerTripRatingReadSchema.model_validate(rating)

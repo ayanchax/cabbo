@@ -13,6 +13,7 @@ from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundTyp
 from models.pricing.pricing_schema import Currency
 from models.trip.trip_enums import (
     CancellationSubStatusEnum,
+    TripResponseView,
     TripStatusEnum,
     TripTypeEnum,
 )
@@ -671,7 +672,7 @@ async def initiate_refund_by_booking_id(
             return False
 
         await attach_relationships_to_trip(
-            trip, db, expose_customer_details=True, expose_cancellation_detail=True
+            trip, db, view=TripResponseView.ADMIN_DETAIL
         )
 
         trip_schema = TripDetailSchema.model_validate(trip)

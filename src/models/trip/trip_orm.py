@@ -264,6 +264,7 @@ class Trip(Base):
     trip_rating = relationship(
         "TripRating",
         back_populates="trip",
+        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )  # A trip can have only one rating given by the customer but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to TripRating and one-to-many from Driver to TripRating.

@@ -2,13 +2,13 @@ import json
 from typing import List, Optional, Union
 from core.exceptions import INVALID_TRIP_TYPE, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.security import RoleEnum, generate_hash
-from core.trip_constants import OUTSTATION_DEFAULTS
+from core.trip_constants import OUTSTATION_DEFAULTS, TRIP_RESPONSE_OPTIONS
 from db.database import get_mysql_local_session
 from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
-from models.trip.trip_enums import TripTypeEnum
+from models.trip.trip_enums import TripResponseView, TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import  TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
 from sqlalchemy.orm import Session
@@ -193,23 +193,33 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
     return TripTypeEnum(trip_type_obj.trip_type)
 
 
-async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False, expose_cancellation_detail:bool=False, expose_dispute_details:bool=False):
-        if trip.driver_id:
-            await db.refresh(trip, attribute_names=["driver"])
-        if trip.trip_type_id:
-            await db.refresh(trip, attribute_names=["trip_type_master"])
-        if trip.package_id:
-            await db.refresh(trip, attribute_names=["package"])
-        if trip.passenger_id:
-            await db.refresh(trip, attribute_names=["passenger"])
-        if trip.trip_rating:
-            await db.refresh(trip, attribute_names=["trip_rating"])
-        if expose_customer_details and trip.creator_id:
-            await db.refresh(trip, attribute_names=["customer"])
-        if expose_cancellation_detail:
-            await db.refresh(trip, attribute_names=["cancellation"])
-        if expose_dispute_details:
-            await db.refresh(trip, attribute_names=["dispute"])
+async def attach_relationships_to_trip(
+    trip: Trip,
+    db: AsyncSession,
+    view: Optional[TripResponseView] = None,
+):
+    options = TRIP_RESPONSE_OPTIONS.get(view) if view else None
+
+    relationship_names = []
+    if trip.driver_id:
+        relationship_names.append("driver")
+    if trip.trip_type_id:
+        relationship_names.append("trip_type_master")
+    if trip.package_id:
+        relationship_names.append("package")
+    if trip.passenger_id:
+        relationship_names.append("passenger")
+    if options and options.expose_customer_details and trip.creator_id:
+        relationship_names.append("customer")
+    if options and options.expose_cancellation_detail:
+        relationship_names.append("cancellation")
+    if options and options.expose_dispute_details:
+        relationship_names.append("dispute")
+    if options and options.expose_trip_review:
+        relationship_names.append("trip_rating")
+
+    for relationship_name in relationship_names:
+        await db.refresh(trip, attribute_names=[relationship_name])
 
 
 def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):

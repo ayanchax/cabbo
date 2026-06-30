@@ -46,7 +46,7 @@ async def view_trip_details(
         raise CabboException(
             "You do not have permission to view trip details.", status_code=403, error_code=UNAUTHORIZED
         )
-    trip = await async_get_trip_by_id(trip_id, db)
+    trip = await async_get_trip_by_id(trip_id, db, view=TripResponseView.ADMIN_DETAIL)
     if trip is None:
         raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
 
@@ -70,7 +70,9 @@ async def view_trip_details_by_booking_id(
         raise CabboException(
             "You do not have permission to view trip details.", status_code=403, error_code=UNAUTHORIZED
         )
-    trip = await async_get_trip_by_booking_id(booking_id, db)
+    trip = await async_get_trip_by_booking_id(
+        booking_id, db, view=TripResponseView.ADMIN_DETAIL
+    )
 
     if trip is None:
         raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -143,13 +145,11 @@ async def list_trips_by_customer_id(
             "You do not have permission to view trips by customer.", status_code=403, error_code=UNAUTHORIZED
         )
 
-    can_expose_customer_details = current_user_role in [
-        RoleEnum.super_admin,
-        RoleEnum.customer_admin,
-    ]
     # Implementation to fetch and return trips by customer_id goes here
     trips = await async_get_trips_by_customer_id(
-        customer_id, db, expose_customer_details=can_expose_customer_details
+        customer_id,
+        db,
+        view=TripResponseView.ADMIN_LIST,
     )
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -179,13 +179,11 @@ async def list_trips_by_customer_id_and_status(
             "You do not have permission to view trips by customer.", status_code=403, error_code=UNAUTHORIZED
         )
 
-    can_expose_customer_details = current_user_role in [
-        RoleEnum.super_admin,
-        RoleEnum.customer_admin,
-    ]
     # Implementation to fetch and return trips by customer_id goes here
     trips = await async_get_trips_by_customer_id(
-        customer_id, db, expose_customer_details=can_expose_customer_details
+        customer_id,
+        db,
+        view=TripResponseView.ADMIN_LIST,
     )
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)

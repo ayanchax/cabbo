@@ -5,7 +5,7 @@ from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
-from models.trip.trip_enums import CancellationSubStatusEnum, TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import CancellationSubStatusEnum, TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
@@ -167,7 +167,7 @@ async def _ongoing(
         await db.flush()  # Flush to ensure the start_datetime and status update is saved before any further operations
         await db.commit()
         await db.refresh(trip)
-        await attach_relationships_to_trip(trip, db, expose_customer_details=True, expose_cancellation_detail=True)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_DETAIL)
         return TripDetailSchema.model_validate(trip), None
      
 
@@ -239,7 +239,7 @@ async def _complete(
 
         # Add a record to DriverEarning for the amount paid to driver - Background Task
         # Delegating the task of adding driver earning record to background task because it is a secondary work and also to ensure that the main flow of trip completion and marking driver available is not affected by any potential issues in adding driver earning record and also to improve the response time for trip completion API.
-        await attach_relationships_to_trip(trip, db, expose_customer_details=True, expose_cancellation_detail=True)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_DETAIL)
         trip_schema = TripDetailSchema.model_validate(
             trip
         )  # Convert the serialized trip dictionary back to TripDetails schema for better type safety and to ensure we are passing the correct data structure to the background task of adding driver earning record.
@@ -343,7 +343,7 @@ async def _cancelled(
         await db.commit()
         await db.refresh(trip)
         await attach_relationships_to_trip(
-            trip, db, expose_customer_details=True, expose_cancellation_detail=True
+            trip, db, view=TripResponseView.ADMIN_DETAIL
         )
         trip_schema = TripDetailSchema.model_validate(trip)
 
@@ -412,7 +412,7 @@ async def _dispute(
         await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations
         await db.commit()
         await db.refresh(trip)
-        await attach_relationships_to_trip(trip, db, expose_customer_details=True, expose_cancellation_detail=True)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_DETAIL)
         trip_schema = TripDetailSchema.model_validate(trip)
         # Create a dispute record in the system for this trip - Background Task
         background_task = AppBackgroundTask(

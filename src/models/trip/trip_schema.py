@@ -669,8 +669,8 @@ class TripExperienceSchema(BaseModel):
 
 
 class TripRatingCreateSchema(BaseModel):
-    rating: int = Field(
-        ...,
+    rating: Optional[int] = Field(
+        None,
         ge=1,
         le=5,
         description="Rating given by the customer for the trip on a scale of 1 to 5",

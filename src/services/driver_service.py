@@ -35,7 +35,7 @@ from models.driver.driver_schema import (
 from core.security import ActiveInactiveStatusEnum, RoleEnum
 import uuid
 
-from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
@@ -357,7 +357,7 @@ async def assign_driver_to_trip(
         )  # Log the trip status audit entry
         if attach_trip_relationships:
             await attach_relationships_to_trip(
-                trip, db, expose_customer_details=True
+                trip, db, view=TripResponseView.CUSTOMER_LIST
             )  # Expose customer details for access in notification task
 
         return trip, driver
@@ -789,7 +789,9 @@ async def fetch_all_trips_for_driver(
             )
 
         for trip in trips:
-            await attach_relationships_to_trip(trip, db, expose_customer_details=True)
+            await attach_relationships_to_trip(
+                trip, db, view=TripResponseView.CUSTOMER_LIST
+            )
 
         trip_summaries = [
             TripSummarySchema(
@@ -838,8 +840,7 @@ async def add_driver_earning_record_manually(
         trip = await async_get_trip_by_id(
             trip_id=trip_id,
             db=db,
-            expose_customer_details=True,
-            expose_cancellation_detail=True,
+            view=TripResponseView.ADMIN_DETAIL,
         )
         if trip is None:
             raise CabboException(

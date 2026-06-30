@@ -308,15 +308,17 @@ async def activate_trip_package_config_by_id(id: str, db: AsyncSession):
         raise CabboException(str(e), status_code=500, error_code=GENERIC_EXCEPTION)
 
 def serialize_trip_package(trip:Trip, trip_dict: dict):
+    package = trip_dict.get("package")
+
     def _get_rate_per_minute_fallback():
-        if trip.package:
-            package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
+        if package:
+            package_data = TripPackageConfigSchema.model_validate(package).model_dump()
             total_included_minutes = package_data.get("included_hours") * 60
             total_price=trip.final_price if trip.final_price else 0.0
             return round(total_price / total_included_minutes, 2)
         return 0.0
         
-    package_data = TripPackageConfigSchema.model_validate(trip.package).model_dump()
+    package_data = TripPackageConfigSchema.model_validate(package).model_dump()
     trip_dict["package"] = package_data
     trip_dict["rate_per_min"] = trip.rate_per_min if trip.rate_per_min else _get_rate_per_minute_fallback()
     trip_dict.pop("package_id", None)

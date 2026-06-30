@@ -45,6 +45,19 @@ class CustomerRead(CustomerBase):
     class Config:
         from_attributes = True  # Read from ORM attributes of customer_orm
 
+class CustomerSafeRead(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: str  # Initially during onboarding we just need a phone number, hence no optional
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_number: Optional[str] = None
+    # opt_in_updates: Optional[bool] = False -- We will expose this field for enabling customer to opt in to receive promotional whatsapp updates in v2.
+    profile_picture_url: Optional[str] = None  # Customer's profile picture url
+    
+    class Config:
+        from_attributes = True 
+        extra="ignore"
+
 
 
 

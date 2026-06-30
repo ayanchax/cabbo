@@ -48,7 +48,7 @@ async def view_trip_details_by_booking_id_and_customer_id(
     """View trip details by booking_id and customer_id."""
 
     trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_user.id, db
+        booking_id, current_user.id, db, view=TripResponseView.CUSTOMER_DETAIL
     )
 
     if trip is None:
@@ -157,7 +157,9 @@ async def list_trips_by_customer_id(
     """List trips by customer_id."""
 
     trips = await async_get_trips_by_customer_id(
-        customer_id=customer.id, db=db, expose_customer_details=True
+        customer_id=customer.id,
+        db=db,
+        view=TripResponseView.CUSTOMER_LIST,
     )
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -182,7 +184,9 @@ async def list_trips_by_customer_id_and_status(
     """List trips of customer by status."""
 
     trips = await async_get_trips_by_customer_id(
-        customer.id, db, expose_customer_details=True
+        customer.id,
+        db,
+        view=TripResponseView.CUSTOMER_LIST,
     )
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -215,7 +219,9 @@ async def list_trips_by_customer_id_and_trip_type(
     """List trips of customer by trip type."""
 
     trips = await async_get_trips_by_customer_id(
-        customer.id, db, expose_customer_details=True
+        customer.id,
+        db,
+        view=TripResponseView.CUSTOMER_LIST,
     )
     if not trips:
         raise CabboException("No trips found for the customer", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -281,7 +287,10 @@ async def get_dispute_details_by_booking_id_and_customer_id(
     """Get dispute details for a trip by booking_id and customer_id."""
 
     trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_user.id, db, expose_dispute_details=True
+        booking_id,
+        current_user.id,
+        db,
+        view=TripResponseView.CUSTOMER_DISPUTE,
     )
     if trip is None:
         raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -307,7 +316,10 @@ async def add_comment_to_dispute_thread_by_booking_id_and_customer_id(
     """Add comment to dispute thread for a trip by booking_id and customer_id."""
 
     trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_user.id, db, expose_dispute_details=True
+        booking_id,
+        current_user.id,
+        db,
+        view=TripResponseView.CUSTOMER_DISPUTE,
     )
     if trip is None:
         raise CabboException("Trip booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
