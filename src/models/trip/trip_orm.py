@@ -224,8 +224,7 @@ class Trip(Base):
     indicative_overage_warning = Column(
         Boolean, default=False, nullable=False
     )  # does not apply to all hourly local trips
-    alternate_customer_phone = Column(String(32), nullable=True)
-    # Passenger info (nullable, for 'book for someone else' feature)
+    alternate_customer_phone = Column(String(32), nullable=True) # Alternate phone number provided by customer for the trip, if any. Use case: This is applicable for scenarios where customer wants to provide an alt contact number where they can be reached - if their primary phone number is not reachable. 
     passenger_id = Column(
         MySQL_CHAR(36),
         ForeignKey("passengers.id", ondelete="SET NULL"),

@@ -147,9 +147,12 @@ def format_trip_datetime(dt:datetime, timezone:str):
         return None
 
     # Database values represent UTC, even if MySQL returns them as naive.
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+    dt = as_utc_datetime(dt)
 
     return dt.astimezone(trip_tz)
 
 
+def as_utc_datetime(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)

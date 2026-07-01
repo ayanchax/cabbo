@@ -11,6 +11,7 @@ from models.common import S3ObjectInfo
 from models.customer.customer_orm import Customer
 from services.customer_service import (
     get_active_customer_by_id,
+    transform_to_safe_customer,
     update_customer_dob,
     update_customer_emergency_contact,
     update_customer_gender,
@@ -36,7 +37,7 @@ from core.exceptions import (
     USER_NOT_FOUND,
     GENERIC_EXCEPTION,
 )
-from services.user_service import delete_bearer_token
+from services.customer_service import delete_bearer_token
 from services.validation_service import (
     validate_customer_payload,
 )
@@ -57,10 +58,7 @@ def get_customer_profile(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     customer =  get_active_customer_by_id(current_customer.id, db)
-    safe_customer= CustomerSafeRead.model_validate(customer)
-    profile_picture= S3ObjectInfo.model_validate(customer.s3_image_info)
-    safe_customer.profile_picture_url= profile_picture.url
-    return safe_customer
+    return transform_to_safe_customer(customer)
 
 
 # Update customer profile, only accessible to the customer themselves for updating their own profile details. This will validate the JWT token and ensure that the customer can only update their own profile details and not other customers' profiles for privacy and security reasons.

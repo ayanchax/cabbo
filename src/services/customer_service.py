@@ -4,12 +4,13 @@ from models.common import S3ObjectInfo
 from models.customer.customer_schema import (
     CustomerCreate,
     CustomerRead,
+    CustomerSafeRead,
     CustomerSuspensionRequest,
     CustomerUpdate,
 )
 from models.customer.customer_orm import Customer
 from core.exceptions import CabboException, USER_NOT_FOUND, GENERIC_EXCEPTION
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from core.security import (
     generate_jwt_token,
     decode_jwt_token,
@@ -20,7 +21,10 @@ from core.security import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from models.trip.trip_enums import TripStatusEnum
 from models.user.user_enum import GenderEnum
+from services.message_service import EMAIL_VERIFY_EXPIRY_UNIT
+from utils.utility import as_utc_datetime
 
 
 def create_customer(
@@ -63,7 +67,15 @@ def create_customer(
 
 
 def is_existing_customer(phone_number: str, db: Session) -> bool:
-    existing = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
+    existing = (
+        db.query(Customer)
+        .filter(
+            Customer.phone_number == phone_number,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
+        )
+        .first()
+    )
     return existing is not None
 
 
@@ -74,40 +86,77 @@ def get_active_customer_by_id(customer_id: str, db: Session) -> Customer:
         .first()
     )
     if not customer:
-        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
+        raise CabboException(
+            "Customer not found", status_code=404, error_code=USER_NOT_FOUND
+        )
     return customer
 
 
-def get_customer_by_phone_number(phone_number: str, db: Session, silently_fail: bool = False) -> Customer:
-    customer = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
+def get_customer_by_phone_number(
+    phone_number: str, db: Session, silently_fail: bool = False
+) -> Customer:
+    customer = (
+        db.query(Customer)
+        .filter(
+            Customer.phone_number == phone_number,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
+        )
+        .first()
+    )
     if not customer:
         if silently_fail:
             return None
-        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
+        raise CabboException(
+            "Customer not found", status_code=404, error_code=USER_NOT_FOUND
+        )
     return customer
 
 
 def get_customer_by_id(customer_id: str, db: Session) -> Customer:
-    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False).first()
+    customer = (
+        db.query(Customer)
+        .filter(
+            Customer.id == customer_id,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
+        )
+        .first()
+    )
     if not customer:
-        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
+        raise CabboException(
+            "Customer not found", status_code=404, error_code=USER_NOT_FOUND
+        )
     return customer
+
 
 async def a_get_customer_by_id(customer_id: str, db: AsyncSession) -> Customer:
-    result = await db.execute(select(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False))
+    result = await db.execute(
+        select(Customer).filter(
+            Customer.id == customer_id,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
+        )
+    )
     customer = result.scalar_one_or_none()
     if not customer:
-        raise CabboException("Customer not found", status_code=404, error_code=USER_NOT_FOUND)
+        raise CabboException(
+            "Customer not found", status_code=404, error_code=USER_NOT_FOUND
+        )
     return customer
 
-def update_customer_name(customer_id:str, new_name:str, db:Session):
+
+def update_customer_name(customer_id: str, new_name: str, db: Session):
     customer = get_active_customer_by_id(customer_id, db)
     if update_name(CustomerUpdate(name=new_name), customer):
         db.commit()
         db.refresh(customer)
     return customer.name
 
-def update_customer_email(customer_id:str, new_email:str, db:Session, unverify_email:bool=True):
+
+def update_customer_email(
+    customer_id: str, new_email: str, db: Session, unverify_email: bool = True
+):
     customer = get_active_customer_by_id(customer_id, db)
     if customer.email == new_email:
         return customer.email, False  # No update needed if email is the same
@@ -118,21 +167,26 @@ def update_customer_email(customer_id:str, new_email:str, db:Session, unverify_e
     db.refresh(customer)
     return customer.email, True
 
-def update_customer_dob(customer_id:str, new_dob:datetime, db:Session):
+
+def update_customer_dob(customer_id: str, new_dob: datetime, db: Session):
     customer = get_active_customer_by_id(customer_id, db)
     if update_dob(CustomerUpdate(dob=new_dob), customer):
         db.commit()
         db.refresh(customer)
     return customer.dob
 
-def update_customer_gender(customer_id, new_gender:GenderEnum, db:Session):
+
+def update_customer_gender(customer_id, new_gender: GenderEnum, db: Session):
     customer = get_active_customer_by_id(customer_id, db)
     if update_gender(CustomerUpdate(gender=new_gender), customer):
         db.commit()
         db.refresh(customer)
     return customer.gender
 
-def update_customer_emergency_contact(customer_id, payload:CustomerUpdate, db:Session):
+
+def update_customer_emergency_contact(
+    customer_id, payload: CustomerUpdate, db: Session
+):
     customer = get_active_customer_by_id(customer_id, db)
     if update_emergency_contact(payload, customer):
         db.commit()
@@ -141,6 +195,7 @@ def update_customer_emergency_contact(customer_id, payload:CustomerUpdate, db:Se
         "emergency_contact_name": customer.emergency_contact_name,
         "emergency_contact_number": customer.emergency_contact_number,
     }
+
 
 def update_customer_profile(
     customer_id: str, payload: CustomerUpdate, db: Session
@@ -162,8 +217,10 @@ def update_customer_profile(
             customer.last_modified = datetime.now(timezone.utc)
             db.commit()
             db.refresh(customer)
-        
-        email_updated = updated_flags[1]  # The second item in the list corresponds to email update
+
+        email_updated = updated_flags[
+            1
+        ]  # The second item in the list corresponds to email update
         return customer, email_updated
     except Exception as e:
         db.rollback()
@@ -173,7 +230,6 @@ def update_customer_profile(
             include_traceback=True,
             error_code=GENERIC_EXCEPTION,
         )
-
 
 
 def update_name(payload: CustomerUpdate, customer: Customer):
@@ -266,6 +322,9 @@ def calculate_customer_age(payload: CustomerUpdate):
         except Exception:
             return None
     return None
+
+
+ 
 
 
 def get_active_customer_by_id_and_bearer_token(
@@ -374,7 +433,10 @@ def mark_customer_email_verified(customer_id: str, db: Session) -> bool:
             error_code=GENERIC_EXCEPTION,
         )
 
-def update_customer_profile_picture(customer:Customer, db:Session, s3_image_info:S3ObjectInfo=None):
+
+def update_customer_profile_picture(
+    customer: Customer, db: Session, s3_image_info: S3ObjectInfo = None
+):
     try:
         customer.s3_image_info = s3_image_info.model_dump() if s3_image_info else None
         db.commit()
@@ -479,14 +541,42 @@ async def async_suspend_customer(
 
     except Exception as e:
         return False, f"Error suspending customer: {str(e)}"
-    
-def get_customer_email(customer:CustomerRead):
+
+
+def get_customer_email(customer: CustomerRead):
     return customer.email if customer.email else None
 
+
 def serialize_customer(customer, trip_dict: dict):
-            customer = CustomerRead.model_validate(customer)
-            customer_data = customer.model_dump()
-            trip_dict["customer"] = customer_data
-            trip_dict.pop("creator_id", None)
-            trip_dict.pop("creator_type", None)
-            return trip_dict
+    customer = CustomerRead.model_validate(customer)
+    customer_data = customer.model_dump()
+    trip_dict["customer"] = customer_data
+    trip_dict.pop("creator_id", None)
+    trip_dict.pop("creator_type", None)
+    return trip_dict
+
+
+def transform_to_safe_customer(customer: Customer):
+    safe_customer = CustomerSafeRead.model_validate(customer)
+    profile_picture = S3ObjectInfo.model_validate(customer.s3_image_info)
+    safe_customer.profile_picture_url = profile_picture.url
+    safe_customer.joined_on = customer.created_at
+    actual_trips = (
+        [
+            trip
+            for trip in customer.trips
+            if trip.status
+            not in [TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
+            and trip.is_active
+        ]
+        if hasattr(customer, "trips")
+        else []
+    )
+    safe_customer.number_of_trips = len(actual_trips)
+    # If >2 hours have passed since the customer was last modified, they can reinitiate email verification if their email is not verified. Otherwise, they cannot reinitiate email verification until 2 hours have passed since their last modification.
+    _last_modified = customer.last_modified or customer.created_at
+    utc_now = datetime.now(timezone.utc)
+    _last_modified = as_utc_datetime(_last_modified) if _last_modified else utc_now
+    if not customer.is_email_verified and utc_now - _last_modified > timedelta(hours=EMAIL_VERIFY_EXPIRY_UNIT):
+        safe_customer.can_reinitiate_email_verification = True
+    return safe_customer

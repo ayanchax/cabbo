@@ -1,7 +1,7 @@
 from enum import Enum
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime
 from models.common import S3ObjectInfo
 from models.user.user_enum import GenderEnum
@@ -49,11 +49,14 @@ class CustomerSafeRead(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone_number: str  # Initially during onboarding we just need a phone number, hence no optional
-    emergency_contact_name: Optional[str] = None
-    emergency_contact_number: Optional[str] = None
+    # emergency_contact_name: Optional[str] = None -- We will expose this field for emergency contact name in v2.
+    # emergency_contact_number: Optional[str] = None -- We will expose this field for emergency contact number in v2.
     # opt_in_updates: Optional[bool] = False -- We will expose this field for enabling customer to opt in to receive promotional whatsapp updates in v2.
     profile_picture_url: Optional[str] = None  # Customer's profile picture url
-    
+    is_email_verified: Optional[bool] = False  # To indicate if the customer's email is verified
+    joined_on: Optional[datetime] = None  # To indicate when the customer joined the platform
+    number_of_trips: Optional[int] = 0  # To indicate how many trips the customer has taken
+    can_reinitiate_email_verification: Optional[bool] = False  # To indicate if the customer can initiate email verification
     class Config:
         from_attributes = True 
         extra="ignore"
