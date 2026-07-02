@@ -64,6 +64,9 @@ def trigger_email_verification(
         raise CabboException(
             "Failed to create email verification link", status_code=500, error_code=EMAIL_VERIFICATION_CREATION_FAILED
         )
+    if existing_email_verification:
+        #Skip sending email if an existing verification link is found and is still valid
+        return {"message": "Verification email already sent. Please check your inbox."}
     orchestrator = BackgroundTaskOrchestrator(background_tasks)
     orchestrator.add_task(
         notify_verification_email_to_customer,

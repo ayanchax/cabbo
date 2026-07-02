@@ -95,6 +95,7 @@ class Customer(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    
 
 
 class PreOnboardingCustomer(Base):

@@ -58,7 +58,7 @@ def get_customer_profile(
     current_customer: Customer = Depends(validate_customer_token),
 ):
     customer =  get_active_customer_by_id(current_customer.id, db)
-    return transform_to_safe_customer(customer)
+    return transform_to_safe_customer(customer, db)
 
 
 # Update customer profile, only accessible to the customer themselves for updating their own profile details. This will validate the JWT token and ensure that the customer can only update their own profile details and not other customers' profiles for privacy and security reasons.
@@ -179,6 +179,7 @@ def upload_profile_picture(
     db: Session = Depends(yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
+     
     customer_id = current_customer.id
     customer = get_active_customer_by_id(customer_id, db)
     # Save file and get URL

@@ -10,7 +10,7 @@ from models.customer.customer_schema import (
 )
 from models.customer.customer_orm import Customer
 from core.exceptions import CabboException, USER_NOT_FOUND, GENERIC_EXCEPTION
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from core.security import (
     generate_jwt_token,
     decode_jwt_token,
@@ -23,8 +23,7 @@ from sqlalchemy import select
 
 from models.trip.trip_enums import TripStatusEnum
 from models.user.user_enum import GenderEnum
-from services.message_service import EMAIL_VERIFY_EXPIRY_UNIT
-from utils.utility import as_utc_datetime
+from services.customer_email_verification_service import get_existing_email_verification_link
 
 
 def create_customer(
@@ -556,7 +555,8 @@ def serialize_customer(customer, trip_dict: dict):
     return trip_dict
 
 
-def transform_to_safe_customer(customer: Customer):
+def transform_to_safe_customer(customer: Customer, db: Session) -> CustomerSafeRead:
+    
     safe_customer = CustomerSafeRead.model_validate(customer)
     profile_picture = S3ObjectInfo.model_validate(customer.s3_image_info)
     safe_customer.profile_picture_url = profile_picture.url
@@ -573,10 +573,13 @@ def transform_to_safe_customer(customer: Customer):
         else []
     )
     safe_customer.number_of_trips = len(actual_trips)
-    # If >2 hours have passed since the customer was last modified, they can reinitiate email verification if their email is not verified. Otherwise, they cannot reinitiate email verification until 2 hours have passed since their last modification.
-    _last_modified = customer.last_modified or customer.created_at
-    utc_now = datetime.now(timezone.utc)
-    _last_modified = as_utc_datetime(_last_modified) if _last_modified else utc_now
-    if not customer.is_email_verified and utc_now - _last_modified > timedelta(hours=EMAIL_VERIFY_EXPIRY_UNIT):
-        safe_customer.can_reinitiate_email_verification = True
+    existing_valid_email_verification = get_existing_email_verification_link(customer.id, db=db)  # Check for existing email verification link
+    
+    can_reinitiate_email_verification = False  # Default to False
+    
+    if not customer.is_email_verified and not existing_valid_email_verification:
+        # If email is not verified and no existing valid email verification link exists, the customer can reinitiate email verification.
+        can_reinitiate_email_verification = True
+    
+    safe_customer.can_reinitiate_email_verification = can_reinitiate_email_verification
     return safe_customer

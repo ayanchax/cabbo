@@ -9,6 +9,7 @@ from api.v1.endpoints import (
     auth as auth_ep,
     location as location_ep,
     geography as geography_ep,
+    legal as legal_ep,
 )
 from api.v1.endpoints.customer import (
      customer as customer_ep,
@@ -34,6 +35,7 @@ router.include_router(trip_router.router, prefix="/trips")
 router.include_router(driver_router.router, prefix="/driver", tags=["driver-operations-for-customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
 router.include_router(geography_ep.router, prefix="/geography", tags=["geography"])
+router.include_router(legal_ep.router, prefix="/legal", tags=["legal"])
 
 router.include_router(admin_auth_ep.router, prefix="/admin/auth", tags=["admin-auth"])
 router.include_router(
