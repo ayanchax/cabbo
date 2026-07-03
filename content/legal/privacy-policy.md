@@ -49,6 +49,14 @@ Cabbo uses location information to support pickup, drop, route, fare calculation
 
 Depending on app permissions and product design, Cabbo may collect location entered by you, location selected on a map, or device location when you allow it.
 
+## Local Storage
+
+Cabbo may use browser local storage to keep you signed in, remember recent places, cache approximate location information after you choose current location, and store geography-related preferences needed for the app experience.
+
+Cabbo does not use non-essential advertising or tracking cookies.
+
+You can clear local storage from your browser or device settings. Clearing local storage may sign you out, remove saved trip-search context, or require Cabbo to load location and geography information again.
+
 ## Sharing Of Data
 
 Cabbo may share relevant data with:
@@ -72,7 +80,21 @@ Cabbo stores payment references and metadata needed to verify booking payments, 
 
 Cabbo keeps personal data for as long as needed for booking, support, safety, accounting, tax, fraud prevention, legal, and business purposes.
 
-Some records, such as invoices, payment references, trip history, support tickets, and dispute records, may be retained for longer where required for legal, tax, audit, or operational reasons.
+Some records, such as invoices, payment references, refund references, trip history, support tickets, reviews, complaints, safety notes, and dispute records, may be retained for longer where required for legal, tax, audit, payment, fraud prevention, safety, or operational reasons.
+
+## Account Deletion And Deactivation
+
+Customers may request account deletion or account closure by emailing Cabbo at grievances@cabbo.co.in.
+
+Cabbo handles deletion requests through an internal admin process. Cabbo may deactivate or soft delete the customer account instead of immediately and permanently deleting all records. Once deactivated, the customer may not be able to log in or make new bookings unless Cabbo reviews and reactivates the account.
+
+When an account is deactivated, Cabbo may remove, disable, or stop using profile-level information where practical, such as profile picture, optional email, communication preferences, and editable profile details.
+
+Cabbo may continue to retain records that are needed for completed bookings, payment verification, refunds, invoices, tax and accounting, fraud prevention, dispute handling, customer support, safety review, legal compliance, or enforcement of Cabbo's terms. This may include trip records, payment and refund metadata, support logs, complaints, reviews, special requests, driver assignment records, booking status history, and audit records.
+
+Completed bookings are not deleted from Cabbo's operational history only because an account is deactivated. Cabbo may keep them to resolve past or future payment, refund, tax, safety, support, fraud, or dispute questions.
+
+If Cabbo no longer needs certain personal data, Cabbo may delete, anonymize, aggregate, or restrict access to it, depending on the type of data and operational requirement.
 
 ## Security
 
@@ -82,7 +104,7 @@ Cabbo will never ask for your password, OTP, UPI PIN, full card details, or bank
 
 ## Customer Rights And Requests
 
-Subject to applicable law and operational limits, you may email Cabbo at griveances@cabbo.co.in to request access, correction, update, deletion, withdrawal of consent, or grievance redressal relating to your personal data.
+Subject to applicable law and operational limits, you may email Cabbo at grievances@cabbo.co.in to request access, correction, update, deletion, withdrawal of consent, or grievance redressal relating to your personal data.
 
 Some requests may not be completed immediately if Cabbo needs to keep records for booking completion, refunds, fraud prevention, safety, legal claims, tax, accounting, or compliance.
 

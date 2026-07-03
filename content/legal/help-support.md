@@ -22,7 +22,7 @@ For trip-specific help, open your booking detail page and use the Call or WhatsA
 
 Please keep your booking ID ready. It helps us find your ride faster and avoid repeat questions.
 
-Support hours, if limited, will be shown with the support option or communicated by the support team. If Cabbo has not published specific hours, support requests will be handled as soon as the team is available.
+Trip support availability may depend on operating hours and team availability. If a request cannot be handled immediately, Cabbo will review it as soon as the team is available.
 
 ## Common Reasons To Contact Us
 
@@ -42,13 +42,13 @@ If your pickup time is close and you cannot reach the driver, use the Call or Wh
 
 ## During The Ride
 
-For route, pickup, drop, or coordination issues, first speak with the driver where practical. If the issue is not resolved, contact Cabbo support with your booking ID.
+For route, pickup, drop, or coordination issues, first speak with the driver where practical. If the issue is not resolved, use the Call or WhatsApp support option on the booking detail page.
 
 In an emergency, contact local police, ambulance, or emergency services first. Cabbo support is not a substitute for emergency services.
 
 ## After The Ride
 
-If something went wrong during the ride, contact us as soon as possible with:
+If something went wrong during the ride, use the support option on the booking detail page as soon as possible and keep these details ready:
 
 - Booking ID
 - Date and time of ride

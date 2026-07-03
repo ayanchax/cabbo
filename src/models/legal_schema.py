@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 
-class LegalPageMetadata(BaseModel):
+class LegalPageMetadataInternal(BaseModel):
     slug: str
     title: str
     version: str
@@ -15,5 +15,18 @@ class LegalPageMetadata(BaseModel):
     locale: str
 
 
-class LegalPageRead(LegalPageMetadata):
+class LegalPageInternal(LegalPageMetadataInternal):
+    content: str
+
+
+class LegalPageSummary(BaseModel):
+    slug: str
+    title: str
+    version: str
+    effective_date: str
+    requires_acceptance: bool
+
+
+class LegalPageRead(LegalPageSummary):
+    content_format: str
     content: str

@@ -22,7 +22,7 @@ Cabbo is not an emergency response provider.
 
 If you face an immediate safety risk, medical emergency, crime, accident, fire, or threat, contact local emergency services, police, ambulance, or other appropriate authorities first.
 
-After you are safe, contact Cabbo support with your booking ID so we can review and assist with ride-related action.
+After you are safe, use the support option on the booking detail page so Cabbo can review and assist with ride-related action.
 
 ## Safety Expectations
 
@@ -36,13 +36,13 @@ Customers should:
 - Avoid distracting the driver.
 - Not ask drivers to break traffic laws.
 - Keep personal belongings secure.
-- Contact support if driver or vehicle details do not match the booking.
+- Use the booking detail support option if driver or vehicle details do not match the booking.
 
 ## Driver And Cab Verification
 
 Before starting the ride, check that the driver name, phone number, vehicle number, and vehicle details match the booking details shared by Cabbo where available.
 
-If the details do not match, do not start the ride until you have confirmed with Cabbo support.
+If the details do not match, do not start the ride until you have confirmed through the booking detail support option.
 
 ## Contact Cabbo
 
@@ -62,13 +62,11 @@ If your issue is not resolved through regular support, you may ask for escalatio
 
 Escalated issues may take longer where they involve payment partners, drivers, safety review, legal review, or third-party records.
 
-Cabbo will route trip support through the booking detail page support flow. Privacy and grievance requests can be emailed to griveances@cabbo.co.in.
+Cabbo will route trip support through the booking detail page support flow. Privacy and grievance requests can be emailed to grievances@cabbo.co.in.
 
 ## Grievance Contact
 
-For V1 grievances, email Cabbo at griveances@cabbo.co.in.
-
-For grievances, please include:
+For grievances, email Cabbo at grievances@cabbo.co.in and include:
 
 - Your name
 - Registered phone number or email

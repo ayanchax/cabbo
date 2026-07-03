@@ -91,9 +91,15 @@ Cabbo may record support notes, trip events, payment references, and communicati
 
 Cabbo may restrict or suspend access if we believe an account is involved in fraud, misuse, abusive behavior, repeated no-shows, unpaid dues, policy violations, safety issues, or unlawful activity.
 
+Cabbo may also deactivate an account if a customer requests account deletion or account closure. Account deletion is handled as deactivation or soft deletion through Cabbo's internal admin process, not immediate permanent deletion from all systems.
+
+If your account is deactivated, you may not be able to log in or make new bookings unless Cabbo reactivates the account after review. Completed bookings, payment records, refund records, support history, dispute records, reviews, safety notes, and other operational records may continue to be retained where needed for legal, tax, accounting, payment, fraud prevention, dispute, safety, or service-operation reasons.
+
+Cabbo may remove or stop using profile-level information where practical, but some historical records may remain linked to past bookings where they are needed to understand what happened during a ride, payment, refund, support request, complaint, or dispute.
+
 ## Disputes
 
-If you have a concern, contact Cabbo support first with your booking ID and details. Cabbo will review available records and try to resolve the issue fairly.
+If you have a trip-related concern, use the support option on the booking detail page with your booking ID and details. Cabbo will review available records and try to resolve the issue fairly.
 
 These Terms are governed by the laws of India. Courts in India will have jurisdiction, subject to applicable law.
 

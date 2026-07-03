@@ -38,9 +38,9 @@ A Cabbo fare may include:
 
 ## Advance And Balance
 
-Cabbo may ask customers to pay an advance amount online to confirm a booking. The remaining balance may be payable to the driver.
+Cabbo may ask customers to pay an advance amount online to confirm a booking. The remaining balance may be payable directly to the driver.
 
-The app or support team will show or explain the payment split where applicable.
+The booking flow or booking detail page will show or explain the payment split where applicable.
 
 ## Extra Charges
 
@@ -85,7 +85,7 @@ Cabbo may update fares, fees, packages, discounts, and charges from time to time
 
 ## Disputes About Charges
 
-If you believe you were charged incorrectly, contact Cabbo support with:
+If you believe you were charged incorrectly, use the support option on the booking detail page and keep these details ready:
 
 - Booking ID
 - Amount charged
@@ -93,4 +93,4 @@ If you believe you were charged incorrectly, contact Cabbo support with:
 - Screenshot, if available
 - Reason you believe the charge is incorrect
 
-Cabbo will review booking details, payment records, trip distance/time, and available driver/support inputs and get back to you.
+Cabbo will review booking details, payment records, trip distance/time, and available driver or support inputs.
