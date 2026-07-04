@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+from utils.redaction import mask_email, mask_phone
+
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from twilio.rest import Client
@@ -40,19 +42,6 @@ EMAIL_VERIFICATION_FILE = "email_verification.html"
 EMAIL_TEMPLATES_DIR = os.path.join(PROJECT_ROOT, "templates", "emails")
 
 
-def _mask_phone(value: str | None) -> str:
-    if not value:
-        return "unknown"
-    visible = value[-4:] if len(value) >= 4 else value
-    return f"***{visible}"
-
-
-def _mask_email(value: str | None) -> str:
-    if not value or "@" not in value:
-        return "unknown"
-    local, domain = value.split("@", 1)
-    prefix = local[:2] if len(local) >= 2 else local[:1]
-    return f"{prefix}***@{domain}"
 
 
 jinja_templates_env = Environment(
@@ -80,7 +69,7 @@ def _send_mock_sms(to_number: str, message: str) -> bool:
     """
     Mock SMS sending for testing purposes. Always returns True.
     """
-    log.info(f"Mock SMS generated for {_mask_phone(to_number)}")
+    log.info(f"Mock SMS generated for {mask_phone(to_number)}")
     return True
 
 def _send_twilio_sms(to_number: str, message: str) -> bool:
@@ -92,7 +81,7 @@ def _send_twilio_sms(to_number: str, message: str) -> bool:
         return True
     except Exception as e:
         log.error(
-            f"Twilio SMS send failed for {_mask_phone(to_number)}: "
+            f"Twilio SMS send failed for {mask_phone(to_number)}: "
             f"{type(e).__name__}"
         )
         # Log the error and delete OTP from temp table if sending fails
@@ -140,13 +129,13 @@ async def _brevo_send_email(
             password=settings.BREVO_SMTP_PASSWORD,
             timeout=20,
         )
-        log.info(f"Brevo email sent to {_mask_email(to_email)}")
+        log.info(f"Brevo email sent to {mask_email(to_email)}")
         return True
 
     except Exception as e:
         # We will log audit logs later on failures of email sending
         log.error(
-            f"Brevo email send failed for {_mask_email(to_email)}: "
+            f"Brevo email send failed for {mask_email(to_email)}: "
             f"{type(e).__name__}"
         )
         return False
@@ -165,12 +154,12 @@ def _sendgrid_send_email(
             html_content=html_content,
         )
         response = sg_client.send(message)
-        log.info(f"SendGrid email sent to {_mask_email(to_email)} with status code {response.status_code}")
+        log.info(f"SendGrid email sent to {mask_email(to_email)} with status code {response.status_code}")
         return 200 <= response.status_code < 300
     except Exception as e:
         # We will log audit logs later on failures of email sending
         log.error(
-            f"SendGrid email send failed for {_mask_email(to_email)}: "
+            f"SendGrid email send failed for {mask_email(to_email)}: "
             f"{type(e).__name__}"
         )
         return False
@@ -203,13 +192,13 @@ async def _aws_ses_send_email(
             password=settings.AWS_SES_SMTP_PASSWORD,
             timeout=20,
         )
-        log.info(f"AWS SES email sent to {_mask_email(to_email)}")
+        log.info(f"AWS SES email sent to {mask_email(to_email)}")
         return True
 
     except Exception as e:
         # We will log audit logs later on failures of email sending
         log.error(
-            f"AWS SES email send failed for {_mask_email(to_email)}: "
+            f"AWS SES email send failed for {mask_email(to_email)}: "
             f"{type(e).__name__}"
         )
         return False

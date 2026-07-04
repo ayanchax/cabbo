@@ -26,6 +26,7 @@ from core.config import settings
 from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
+from utils.redaction import summarize_provider_entity
 from utils.utility import convert_based_on_currency
 
 log = logging.getLogger(__name__)
@@ -38,19 +39,6 @@ RAZOR_PAY_CLIENT_DETAILS = {
     "name": f"{APP_NAME.capitalize()} Trip Booking Service",
     "description": "Service for booking trips and managing payments.",
 }
-
-
-def _provider_entity_summary(entity: dict | None) -> dict:
-    if not entity:
-        return {}
-    return {
-        "id": entity.get("id"),
-        "entity": entity.get("entity"),
-        "status": entity.get("status"),
-        "amount": entity.get("amount"),
-        "currency": entity.get("currency"),
-        "receipt": entity.get("receipt"),
-    }
 
 
 class RazorPayRefundStatusEnum(str, Enum):
@@ -105,7 +93,7 @@ def _get_razorpay_existing_order(
         if existing_order and existing_order.get('status') == RazorPayOrderStatusEnum.CREATED.value:
             log.info(
                 f"Found existing valid Razorpay order for receipt {razorpay_order.receipt}: "
-                f"{_provider_entity_summary(existing_order)}"
+                f"{summarize_provider_entity(existing_order)}"
             )
             _formatted_order =  _format_razorpay_order(existing_order, razorpay_order.currency_conversion_factor)
             _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
@@ -199,7 +187,7 @@ def _create_razorpay_order(
         _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
         log.info(
             f"Razorpay order created successfully: "
-            f"{_provider_entity_summary(_formatted_order)}"
+            f"{summarize_provider_entity(_formatted_order)}"
         )
 
         return _formatted_order
@@ -433,7 +421,7 @@ def initiate_razorpay_refund(
 
         log.info(
             f"Razorpay refund initiated successfully: "
-            f"{_provider_entity_summary(formatted_refund)}"
+            f"{summarize_provider_entity(formatted_refund)}"
         )
         return formatted_refund
 
@@ -518,7 +506,7 @@ def is_razorpay_payment_settled(payment_id: str) -> bool:
         payment = client.payment.fetch(payment_id)
         log.info(
             f"Razorpay payment settlement check: "
-            f"{_provider_entity_summary(payment)}"
+            f"{summarize_provider_entity(payment)}"
         )
         settlement_id = payment.get("settlement_id", None)
         status = payment.get("status", None)
