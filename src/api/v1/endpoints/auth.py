@@ -125,7 +125,6 @@ def onboard_customer(
         access_token=token,
         token_type="bearer",
         expires_in=JWT_EXPIRES_IN,  # n days in seconds
-        customer_id=str(customer.id),
         first_time_login=True,  # Indicating this is the first login after registration, so that in UI we can show a welcome message or initiate a welcome Tour for customer
     )
 
@@ -194,7 +193,6 @@ def login(
         access_token=token,
         token_type="bearer",
         expires_in=JWT_EXPIRES_IN,  # n days in seconds
-        customer_id=str(customer.id),
     )
 
 

@@ -70,12 +70,16 @@ def init_booking(
         **get_trip_messages(status=TripStatusEnum.created),
         
     }
+    #Pop id from customer
+    if "customer" in response and isinstance(response["customer"], dict) and "id" in response["customer"]:
+        response["customer"].pop("id", None)
+
     fleet= None
     if trip_in.preferences.retrieve_fleet:
         #If the request includes a flag to retrieve fleet information, fetch the fleet details based on the car type preference specified in the trip booking request and include it in the response. This allows customers to view the available fleet options that match their preferences when initiating a trip booking, enhancing their booking experience and enabling them to make informed decisions about their trip options.
         all_cabs = get_all_cabs(db)
         preferred_cab = next((cab for cab in all_cabs if cab.name.lower() == trip_in.option.car_type.value.lower()), None)
-        fleet = preferred_cab.model_dump() if preferred_cab else None
+        fleet = preferred_cab.model_dump(exclude_none=True, exclude={"id","created_by","is_active"}) if preferred_cab else None
         response["fleet"] = fleet
     return response
 

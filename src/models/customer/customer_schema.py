@@ -102,7 +102,6 @@ class CustomerLoginResponse(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
-    customer_id: str
     first_time_login: Optional[bool] = None
 
 
