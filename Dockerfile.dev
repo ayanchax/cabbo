@@ -1,20 +1,23 @@
 # Dockerfile.dev
 
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 # Prevent python from buffering stdout/stderr
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/src \
+    ENV=dev
 
 WORKDIR /app
 
-ENV PYTHONPATH=/app/src
 
-# Install system dependencies (minimal)
-RUN apt-get update && apt-get install -y \
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
+# Note :curl is used by the Docker healthcheck.
+
 
 # Install uv (Astral)
 RUN pip install --no-cache-dir uv
@@ -28,13 +31,16 @@ RUN uv pip install --system .
 # Copy application code
 COPY . .
 
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.dev.sh /app/migration.oneoff.sh \
+    && addgroup --system --gid 10001 cabbo \
+    && adduser --system --uid 10001 --ingroup cabbo cabbo \
+    && chown -R cabbo:cabbo /app
+
+USER cabbo
 
 # Expose port
 EXPOSE 8000
 
-# Set environment
-ENV ENV=dev
 
-# Start the application by running the entrypoint script
-CMD ["./entrypoint.sh"]
+# Start the application by running the dev entrypoint script
+CMD ["./entrypoint.dev.sh"]

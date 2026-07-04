@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -7,10 +7,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# curl is used by the Docker healthcheck.
+# Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
+# Note :curl is used by the Docker healthcheck.
 
 RUN pip install --no-cache-dir uv
 
@@ -19,8 +20,7 @@ RUN uv pip install --system .
 
 COPY . .
 
-RUN chmod +x /app/entrypoint.sh \
-    && mkdir -p /app/logs \
+RUN chmod +x /app/entrypoint.prod.sh /app/migration.oneoff.sh \
     && addgroup --system --gid 10001 cabbo \
     && adduser --system --uid 10001 --ingroup cabbo cabbo \
     && chown -R cabbo:cabbo /app
@@ -29,4 +29,4 @@ USER cabbo
 
 EXPOSE 8000
 
-CMD ["./entrypoint.sh"]
+CMD ["./entrypoint.prod.sh"]

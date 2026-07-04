@@ -2,12 +2,14 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    container_name: cabbo-backend-dev
+      dockerfile: Dockerfile.local
+    container_name: cabbo-backend-local
     ports:
       - "8000:8000"
     env_file:
-      - .env.dev
+      - .env.local
+    volumes:
+      - ./logs:/app/logs
     restart: "no"
 
     healthcheck:
