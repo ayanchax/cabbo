@@ -1,14 +1,14 @@
 from core.cabbo_logging import * #Cabbo Logging is configured in this module at the top/root, importing it ensures it's set up before any logs are emitted and that any logs are emitted during import of other modules are captured within the cabbo logger. This is important for a consistent logging setup across the entire application.
+logger = logging.getLogger(APP_NAME)
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, Environment
 from core.config import settings
 import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 from sqlalchemy.exc import SQLAlchemyError
 from core.exceptions import get_mysql_exception
 from db.database import check_db_connection, get_mysql_local_session
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
 
-warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
-logger = logging.getLogger(APP_NAME)
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,9 +65,9 @@ app.add_middleware(
 )
 
 
-@app.get("/", tags=["Health"])
+@app.get("/health", tags=["Health"])
 def health():
-    return {"message": f"Welcome to {APP_NAME.capitalize()} API!"}
+    return {"status": "ok"}
 
 
 # Include routers

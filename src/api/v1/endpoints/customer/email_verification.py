@@ -24,7 +24,7 @@ from models.customer.customer_schema import (
     CustomerRead,
 )
 from core.security import validate_customer_token
-from core.exceptions import EMAIL_VERIFICATION_CREATION_FAILED, EMAIL_VERIFICATION_FAILED, INVALID_VERIFICATION_LINK, NO_EMAIL_FOUND, UNAUTHORIZED, CabboException
+from core.exceptions import EMAIL_ALREADY_VERIFIED, EMAIL_VERIFICATION_CREATION_FAILED, EMAIL_VERIFICATION_FAILED, INVALID_VERIFICATION_LINK, NO_EMAIL_FOUND, CabboException
 from services.notification_service import notify_verification_email_to_customer
 from services.orchestration_service import BackgroundTaskOrchestrator
 router = APIRouter()
@@ -82,25 +82,25 @@ def verify_email(
     id: str = Query(..., description="Customer UUID"),
     token: str = Query(..., description="Verification token"),
     db: Session = Depends(yield_mysql_session),
-    current_customer: Customer = Depends(validate_customer_token),
 ):
     """
     Verify customer's email using the provided id and token passed in the query parameters of the verification link.
     This endpoint will be called when the customer clicks on the verification link sent to their email.
-    The customer has to be logged in to verify their email and they can only verify their own email for security reasons, 
-    hence the JWT token validation and check to ensure the customer can only verify their own email.
+    The verification link is treated as proof of access to the customer's email inbox, so the customer
+    does not need to be logged in when opening the link from a different browser or device.
     """
-    # Only allow self-service
-    if str(current_customer.id) != id:
-        raise CabboException("Unauthorized", status_code=403, error_code=UNAUTHORIZED)
 
-    if is_customer_email_verified(id, db):
-        return {"message": "Email already verified."}
+    customer = get_active_customer_by_id(id, db)
+    
+    if customer.is_email_verified:
+        raise CabboException("Email already verified.", status_code=400, error_code=EMAIL_ALREADY_VERIFIED)
 
+    
     valid_email_verification = is_email_verification_link_valid(id, token, db)
     if not valid_email_verification:
         raise CabboException("Invalid or expired verification link.", status_code=400, error_code=INVALID_VERIFICATION_LINK)
-
+    
+    
     # Mark email as verified
     if mark_customer_email_verified(valid_email_verification.customer_id, db):
         if remove_email_verification(
