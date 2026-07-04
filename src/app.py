@@ -188,7 +188,10 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.error(f"Validation error: {exc}", exc_info=True)
+    logger.error(
+        f"Validation error on {request.method} {request.url.path}: "
+        f"{len(exc.errors())} error(s)"
+    )
     diagnostics = get_diagnostics(request)
     # If the error is due to missing Authorization header, return 401
     for err in exc.errors():

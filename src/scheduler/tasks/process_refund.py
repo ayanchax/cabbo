@@ -20,7 +20,7 @@ from services.payment_service import (
     is_eligible_to_attempt_refund_initiation,
 )
 from services.notification_service import notify_refund_processed_to_customer
-from services.refund_service import inactivate_refund, attempt_refund_initiation
+from services.refund_service import inactivate_refund, attempt_refund_initiation, send_refund_credited_notification
 
 log = logging.getLogger(__name__)
 
@@ -197,7 +197,7 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
 
     trip = refund.trip
     if trip and trip.customer:
-            await _send_refund_credited_notification(
+            await send_refund_credited_notification(
                 refund=refund,
                 trip=trip,
                 provider_refund_id=provider_refund_id,
@@ -211,49 +211,6 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     log.info(f"[process_refund] Finished processing refund {refund.id}")
 
 
-async def _send_refund_credited_notification(
-    refund: RefundORM, trip: Trip, provider_refund_id: str
-):
-    """
-    Sends the 'Refund Credited' email once Razorpay confirms the refund is processed
-    and the money is on its way to the customer's account.
-
-    """
-    try:
-        with get_mysql_local_session() as sync_db:
-            from core.config import settings
-
-            config_store = settings.get_config_store(sync_db)
-            decimal_places = (
-                config_store.geographies.country_server.currency_decimal_places
-            )
-            currency = config_store.geographies.country_server.currency_symbol
-
-        formatted_refund_amount = f"{refund.refund_amount:.{decimal_places}f}"
-        formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"
-        customer = CustomerRead.model_validate(trip.customer)
-        await notify_refund_processed_to_customer(
-            customer=customer,
-            refund_id=provider_refund_id,
-            refund_amount=formatted_refund_amount,
-            booking_id=trip.booking_id,
-            currency=currency,
-            original_amount=formatted_original_amount,
-            refund_type=refund.refund_type.value if refund.refund_type else "full",
-        )
-
-        
-        log.info(
-            f"[process_refund] Sent refund processed notification for refund {refund.id} "
-            f"(entity={refund.entity_id}) to customer {customer.id}"
-        )
-
-    except Exception as e:
-        
-        log.error(
-            f"[process_refund] Failed to send refund-credited notification "
-            f"for refund {refund.id}: {e}"
-        )
 
 
 if __name__ == "__main__":

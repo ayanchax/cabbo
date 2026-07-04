@@ -6,7 +6,7 @@ from core.security import RoleEnum
 from core.store import ConfigStore
 from core.trip_helpers import attach_relationships_to_trip
 from db.database import get_mysql_local_session
-from models.customer.customer_schema import CustomerPayment
+from models.customer.customer_schema import CustomerPayment, CustomerRead
 from models.financial.payments_schema import PaymentNotesSchema
 from models.policies.cancelation_schema import CancelationPolicySchema
 from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundType
@@ -27,7 +27,7 @@ from sqlalchemy import select
 from services.cancelation_service import get_cancelation_policy_id
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.notification_service import notify_trip_cancellation_to_customer
+from services.notification_service import notify_refund_processed_to_customer, notify_trip_cancellation_to_customer
 from services.payment_service import (
     get_initial_refund_response,
     initiate_refund,
@@ -702,6 +702,7 @@ async def attempt_refund_initiation(
     db: AsyncSession,
 ):
     # Only retry if payment has settled — unsettled payments will fail again
+    #payment settled means if payment provider has got the money from customer and has transferred it to cabbo's account, then only we can initiate refund 
     is_settled = is_payment_settled(payment_id, silently_fail=True)
     if not is_settled:
         log.info(
@@ -744,6 +745,7 @@ async def attempt_refund_initiation(
     log.info(
         f"[process_refund] Retrying refund initiation for refund {refund.id} (payment {payment_id})"
     )
+    #Issue refund.
     refund_response = initiate_refund(
         payment_id=payment_id,
         refund_amount=refund.refund_amount,
@@ -769,10 +771,66 @@ async def attempt_refund_initiation(
     db.add(refund)
     await db.commit()
     await db.refresh(refund)
+    # In case the payment provider instantly processes the refund and returns a processed status, we will send the notification to customer about the refund being credited to their account. 
+    # If the payment provider returns a status other than processed, we will not send the notification to customer 
+    # and will wait for the next scheduler cycle to check for the status update and 
+    # send the notification when the status is updated to processed.
+    if refund.refund_status == RefundStatus.processed:
+        trip = refund.trip
+        if trip and trip.customer:
+            await send_refund_credited_notification(
+                refund=refund, trip=trip, provider_refund_id=refund.id
+            )
 
     log.info(
         f"[process_refund] Refund attempt complete. New ID: {refund.id}, status: {new_status_str}"
     )
+
+
+async def send_refund_credited_notification(
+    refund: RefundORM, trip: Trip, provider_refund_id: str
+):
+    """
+    Sends the 'Refund Credited' email once Razorpay confirms the refund is processed
+    and the money is on its way to the customer's account.
+
+    """
+    try:
+        with get_mysql_local_session() as sync_db:
+            from core.config import settings
+
+            config_store = settings.get_config_store(sync_db)
+            decimal_places = (
+                config_store.geographies.country_server.currency_decimal_places
+            )
+            currency = config_store.geographies.country_server.currency_symbol
+
+        formatted_refund_amount = f"{refund.refund_amount:.{decimal_places}f}"
+        formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"
+        customer = CustomerRead.model_validate(trip.customer)
+        await notify_refund_processed_to_customer(
+            customer=customer,
+            refund_id=provider_refund_id,
+            refund_amount=formatted_refund_amount,
+            booking_id=trip.booking_id,
+            currency=currency,
+            original_amount=formatted_original_amount,
+            refund_type=refund.refund_type.value if refund.refund_type else "full",
+        )
+
+        
+        log.info(
+            f"[process_refund] Sent refund processed notification for refund {refund.id} "
+            f"(entity={refund.entity_id}) to customer {customer.id}"
+        )
+
+    except Exception as e:
+        
+        log.error(
+            f"[process_refund] Failed to send refund-credited notification "
+            f"for refund {refund.id}: {e}"
+        )
+
 
 
 async def inactivate_refund(refund: RefundORM, db: AsyncSession):

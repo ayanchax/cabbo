@@ -40,6 +40,19 @@ RAZOR_PAY_CLIENT_DETAILS = {
 }
 
 
+def _provider_entity_summary(entity: dict | None) -> dict:
+    if not entity:
+        return {}
+    return {
+        "id": entity.get("id"),
+        "entity": entity.get("entity"),
+        "status": entity.get("status"),
+        "amount": entity.get("amount"),
+        "currency": entity.get("currency"),
+        "receipt": entity.get("receipt"),
+    }
+
+
 class RazorPayRefundStatusEnum(str, Enum):
     INITIATED = "initiated"  # Refund has been initiated and is in the system, but not yet processed by Razorpay
     PENDING = "pending"  # Refund queued but not yet processed
@@ -90,7 +103,10 @@ def _get_razorpay_existing_order(
     try:
         existing_order = RAZOR_PAY_CLIENT.order.fetch(order_id or razorpay_order.receipt)
         if existing_order and existing_order.get('status') == RazorPayOrderStatusEnum.CREATED.value:
-            log.info(f"Found existing valid Razorpay order for receipt {razorpay_order.receipt}: {existing_order}")
+            log.info(
+                f"Found existing valid Razorpay order for receipt {razorpay_order.receipt}: "
+                f"{_provider_entity_summary(existing_order)}"
+            )
             _formatted_order =  _format_razorpay_order(existing_order, razorpay_order.currency_conversion_factor)
             _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
             return _formatted_order
@@ -181,7 +197,10 @@ def _create_razorpay_order(
             order, razorpay_order.currency_conversion_factor
         )
         _formatted_order["currency_symbol"] = razorpay_order.currency_symbol
-        log.info(f"Razorpay order created successfully: {_formatted_order}")
+        log.info(
+            f"Razorpay order created successfully: "
+            f"{_provider_entity_summary(_formatted_order)}"
+        )
 
         return _formatted_order
     except razorpay.errors.BadRequestError as e:
@@ -412,13 +431,13 @@ def initiate_razorpay_refund(
             ),  # Convert paise to rupees
         }
 
-        log.info(f"Razorpay refund initiated successfully: {formatted_refund}")
+        log.info(
+            f"Razorpay refund initiated successfully: "
+            f"{_provider_entity_summary(formatted_refund)}"
+        )
         return formatted_refund
 
     except razorpay.errors.BadRequestError as e:
-        import traceback
-
-        traceback.print_exc()
         log.error(f"Razorpay refund creation failed: {str(e)}")
 
         return _populate_failed_razorpay_refund_response(
@@ -497,7 +516,10 @@ def is_razorpay_payment_settled(payment_id: str) -> bool:
     client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
     try:
         payment = client.payment.fetch(payment_id)
-        log.info(f"Payment details for settlement check: {payment}")
+        log.info(
+            f"Razorpay payment settlement check: "
+            f"{_provider_entity_summary(payment)}"
+        )
         settlement_id = payment.get("settlement_id", None)
         status = payment.get("status", None)
         refund_status = payment.get("refund_status", None)

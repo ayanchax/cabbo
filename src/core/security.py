@@ -67,8 +67,6 @@ def validate_customer_token(
             "Authorization header missing or invalid.", status_code=401, error_code=INVALID_TOKEN
         )
     token = authorization.split(" ", 1)[1]
-    if settings.ENV in [Environment.DEV.value, Environment.LOCAL.value]:
-            log.info(f"Token: {token}")
     if not token:
         raise CabboException("Token is missing.", status_code=401, error_code=TOKEN_MISSING)
     try:
@@ -102,8 +100,6 @@ def validate_user_token(
             "Authorization header missing or invalid.", status_code=401, error_code=INVALID_TOKEN
         )
     token = authorization.split(" ", 1)[1]
-    if settings.ENV in [Environment.DEV.value, Environment.LOCAL.value]:
-            log.info(f"Token: {token}")
     if not token:
         raise CabboException("Token is missing.", status_code=401, error_code=TOKEN_MISSING)
     try:
