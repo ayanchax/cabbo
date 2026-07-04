@@ -49,9 +49,13 @@ Cabbo uses location information to support pickup, drop, route, fare calculation
 
 Depending on app permissions and product design, Cabbo may collect location entered by you, location selected on a map, or device location when you allow it.
 
+Cabbo may also use a third-party IP-based geolocation service, such as ipapi.co, to estimate your city, region, country, or similar geography from your IP address. This helps Cabbo load relevant service-area and geography information. This is approximate IP-based geography and is not the same as precise GPS location.
+
 ## Local Storage
 
 Cabbo may use browser local storage to keep you signed in, remember recent places, cache approximate location information after you choose current location, and store geography-related preferences needed for the app experience.
+
+Cabbo may cache client geography information in local storage for a limited period, such as 24 hours, so the app does not need to request the same approximate geography repeatedly.
 
 Cabbo does not use non-essential advertising or tracking cookies.
 
@@ -63,6 +67,7 @@ Cabbo may share relevant data with:
 
 - Drivers or transport partners for ride fulfilment.
 - Payment partners for payment and refund processing.
+- IP-based geolocation providers for approximate city, region, country, or service-area lookup.
 - Communication providers for SMS, email, WhatsApp, calls, and notifications.
 - Map, routing, analytics, hosting, cloud, storage, and infrastructure providers.
 - Support, operations, finance, audit, legal, or compliance teams.
