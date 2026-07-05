@@ -83,7 +83,13 @@ class Settings(BaseSettings):
     CUSTOMER_SUPPORT_PHONE_NUMBER: str
     CUSTOMER_SUPPORT_WHATSAPP_NUMBER: str
 
-    SENTRY_DSN: str  # Sentry DSN for error tracking
+    SENTRY_DSN: str = ""  # Sentry DSN for error tracking
+    SENTRY_ENVIRONMENT: str | None = None
+    SENTRY_RELEASE: str | None = None
+    SENTRY_ERROR_SAMPLE_RATE: float = 1.0
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.05
+    SENTRY_PROFILES_SAMPLE_RATE: float = 0.0
+    SENTRY_ENABLE_LOGS: bool = True
     
     class Config:
         env_file = ENV_FILE

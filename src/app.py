@@ -21,21 +21,11 @@ from fastapi import HTTPException as FastAPIHTTPException
 from datetime import datetime, timezone
 from api.v1.routes import router as v1_router
 from utils.redaction import redact_query_params
-import sentry_sdk
+from core.sentry import configure_sentry
 log = logging.getLogger(__name__)
 ENV = settings.ENV
 
-if ENV != Environment.LOCAL.value:
-    # Attach Sentry for error tracking in non-local environments
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-        send_default_pii=False,  # Set to True if you want to send PII data like user IPs
-        # Enable sending logs to Sentry
-        enable_logs=True,
-         
-    )
+configure_sentry()
 
 
 @asynccontextmanager
@@ -90,9 +80,15 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
-@app.get("/sentry-debug")
-async def trigger_error():
-    division_by_zero = 1 / 0
+@app.get("/sentry-debug", tags=["Debug"])
+def trigger_error():
+    """Endpoint to trigger a test error for Sentry integration."""
+    division_by_zero = 1 / 0  # This will raise a ZeroDivisionError
+
+if ENV == Environment.DEV.value:
+    @app.get("/sentry-debug")
+    async def trigger_error():
+        division_by_zero = 1 / 0
 
 
 # Include routers

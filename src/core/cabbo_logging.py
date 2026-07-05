@@ -2,7 +2,6 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 from core.constants import APP_NAME, PROJECT_ROOT, Environment
-import sentry_sdk
 
 ENV = os.getenv("ENV", Environment.LOCAL.value)
 LOG_FORMAT = f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'
