@@ -24,3 +24,28 @@ def summarize_provider_entity(entity: dict | None) -> dict:
         "currency": entity.get("currency"),
         "receipt": entity.get("receipt"),
     }
+
+
+SENSITIVE_PARAM_NAMES = {
+    "access_token",
+    "api_key",
+    "authorization",
+    "jwt",
+    "otp",
+    "password",
+    "refresh_token",
+    "secret",
+    "session",
+    "token",
+}
+
+
+def redact_query_params(params: dict) -> dict:
+    redacted = {}
+    for key, value in params.items():
+        key_lower = key.lower()
+        if any(sensitive_name in key_lower for sensitive_name in SENSITIVE_PARAM_NAMES):
+            redacted[key] = "***redacted***"
+        else:
+            redacted[key] = value
+    return redacted

@@ -19,6 +19,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi import HTTPException as FastAPIHTTPException
 from datetime import datetime, timezone
 from api.v1.routes import router as v1_router
+from utils.redaction import redact_query_params
 log = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -58,7 +59,7 @@ app = FastAPI(
 # CORS middleware for API best practices
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust for production
+    allow_origins=["http://localhost:5173", "https://app.dev.cabbo.co.in", "https://app.cabbo.co.in"],  # Adjust for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -130,7 +131,7 @@ async def log_requests(request: Request, call_next):
     if ENV == Environment.DEV.value:
         logger.info(
         f"{request.method} {request.url.path} "
-        f"Query: {dict(request.query_params)} "
+        f"Query: {redact_query_params(dict(request.query_params))} "
         f"Status: {response.status_code} "
         f"Time: {round(duration, 2)}ms "
         f"Size: {response_size} bytes "

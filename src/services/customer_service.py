@@ -558,8 +558,8 @@ def serialize_customer(customer, trip_dict: dict):
 def transform_to_safe_customer(customer: Customer, db: Session) -> CustomerSafeRead:
     
     safe_customer = CustomerSafeRead.model_validate(customer)
-    profile_picture = S3ObjectInfo.model_validate(customer.s3_image_info)
-    safe_customer.profile_picture_url = profile_picture.url
+    profile_picture = S3ObjectInfo.model_validate(customer.s3_image_info) if customer.s3_image_info else None
+    safe_customer.profile_picture_url = profile_picture.url if profile_picture else None
     safe_customer.joined_on = customer.created_at
     actual_trips = (
         [

@@ -69,6 +69,7 @@ def _send_mock_sms(to_number: str, message: str) -> bool:
     """
     Mock SMS sending for testing purposes. Always returns True.
     """
+    print(message)
     log.info(f"Mock SMS generated for {mask_phone(to_number)}")
     return True
 

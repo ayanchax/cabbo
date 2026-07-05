@@ -122,6 +122,22 @@ def _create_razorpay_order(
     """
     try:
         client = RAZOR_PAY_CLIENT
+        customer_notes = {
+             
+            "name": str(
+                razorpay_order.notes.customer.name
+                if razorpay_order.notes.customer
+                else ""
+            ),
+            "contact": str(
+                razorpay_order.notes.customer.contact
+                if razorpay_order.notes.customer
+                and razorpay_order.notes.customer.contact
+                else ""
+            ),
+        }
+        if razorpay_order.notes.customer and razorpay_order.notes.customer.email:
+            customer_notes["email"] = str(razorpay_order.notes.customer.email)
 
         order_data = {
             "description": razorpay_order.description,
@@ -137,40 +153,7 @@ def _create_razorpay_order(
                     razorpay_order.notes.reference_source_id or ""
                 ),
                 "requestor": str(razorpay_order.notes.requestor or ""),
-                "customer_id": str(
-                    razorpay_order.notes.customer.id
-                    if razorpay_order.notes.customer
-                    else ""
-                ),
-                "customer_name": str(
-                    razorpay_order.notes.customer.name
-                    if razorpay_order.notes.customer
-                    else ""
-                ),
-                "customer": {
-                    "id": str(
-                        razorpay_order.notes.customer.id
-                        if razorpay_order.notes.customer
-                        else ""
-                    ),
-                    "name": str(
-                        razorpay_order.notes.customer.name
-                        if razorpay_order.notes.customer
-                        else ""
-                    ),
-                    "email": str(
-                        razorpay_order.notes.customer.email
-                        if razorpay_order.notes.customer
-                        and razorpay_order.notes.customer.email
-                        else ""
-                    ),
-                    "contact": str(
-                        razorpay_order.notes.customer.contact
-                        if razorpay_order.notes.customer
-                        and razorpay_order.notes.customer.contact
-                        else ""
-                    ),
-                },
+                "customer": customer_notes,
             },
         }
         client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
@@ -222,7 +205,6 @@ def _populate_failed_razorpay_refund_response(
             "reference_source_id": str(notes.reference_source_id or ""),
             "refund_type": str(notes.refund_type or ""),
             "requestor": str(notes.requestor or ""),
-            "customer_id": str(notes.customer.id if notes.customer else ""),
             "customer_name": str(notes.customer.name if notes.customer else ""),
         },
         "payment_id": payment_id,
@@ -252,7 +234,6 @@ def _populate_initiated_razorpay_refund_response(
             "reference_source_id": str(notes.reference_source_id or ""),
             "refund_type": str(notes.refund_type or ""),
             "requestor": str(notes.requestor or ""),
-            "customer_id": str(notes.customer.id if notes.customer else ""),
             "customer_name": str(notes.customer.name if notes.customer else ""),
         },
         "payment_id": payment_id,
@@ -285,7 +266,6 @@ def get_razorpay_payment_order(
         notes=PaymentNotesSchema(
             reference_source_id=temp_trip.id,
             customer=CustomerPayment(
-                id=customer.id,
                 name=customer.name,
                 email=customer.email or None,
                 contact=customer.phone_number,
@@ -370,7 +350,6 @@ def initiate_razorpay_refund(
                 "reference_source_id": str(notes.reference_source_id or ""),
                 "refund_type": str(notes.refund_type or ""),
                 "requestor": str(notes.requestor or ""),
-                "customer_id": str(notes.customer.id if notes.customer else ""),
                 "customer_name": str(notes.customer.name if notes.customer else ""),
             }
 

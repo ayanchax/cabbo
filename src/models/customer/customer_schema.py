@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, Union
 from datetime import datetime
 from models.common import S3ObjectInfo
@@ -12,6 +12,13 @@ class CustomerPayment(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     contact: Optional[str] = None  # Contact number, can be phone or email
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_email_as_none(cls, value):
+        if value == "":
+            return None
+        return value
 
     class Config:
         exclude_none = True  # Exclude fields with None values from the model dump

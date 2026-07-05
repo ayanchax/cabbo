@@ -1280,7 +1280,7 @@ def validate_distance_and_time_constraints(
         # Min and max distance constraint validation.
         if min_distance_km and distance < min_distance_km:
             raise CabboException(
-                f"Distance between origin and destination is below the minimum threshold of {min_distance_km} km for airport trips in this region, please check the locations and try again",
+                f"Distance between origin and destination is below the minimum threshold of {min_distance_km} km for {trip_type.value} trips in this region, please check the locations and try again",
                 status_code=400,
                 error_code=DISTANCE_BELOW_MINIMUM_THRESHOLD,
             )
@@ -1290,7 +1290,7 @@ def validate_distance_and_time_constraints(
 
         if max_distance_km and distance > max_distance_km:
             raise CabboException(
-                f"Distance between origin and destination exceeds the maximum threshold of {max_distance_km} km for airport trips in this region, please check the locations and try again",
+                f"Distance between origin and destination exceeds the maximum threshold of {max_distance_km} km for {trip_type.value} trips in this region, please check the locations and try again",
                 status_code=400,
                 error_code=DISTANCE_ABOVE_MAXIMUM_THRESHOLD,
             )
