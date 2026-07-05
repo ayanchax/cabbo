@@ -1,8 +1,9 @@
-from core.cabbo_logging import * #Cabbo Logging is configured in this module at the top/root, importing it ensures it's set up before any logs are emitted and that any logs are emitted during import of other modules are captured within the cabbo logger. This is important for a consistent logging setup across the entire application.
+from core.cabbo_logging import *  # Cabbo Logging is configured in this module at the top/root, importing it ensures it's set up before any logs are emitted and that any logs are emitted during import of other modules are captured within the cabbo logger. This is important for a consistent logging setup across the entire application.
 logger = logging.getLogger(APP_NAME)
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, Environment
 from core.config import settings
 import warnings
+
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 from sqlalchemy.exc import SQLAlchemyError
 from core.exceptions import get_mysql_exception
@@ -20,7 +21,22 @@ from fastapi import HTTPException as FastAPIHTTPException
 from datetime import datetime, timezone
 from api.v1.routes import router as v1_router
 from utils.redaction import redact_query_params
+import sentry_sdk
 log = logging.getLogger(__name__)
+ENV = settings.ENV
+
+if ENV != Environment.LOCAL.value:
+    # Attach Sentry for error tracking in non-local environments
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        # Add data like request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=False,  # Set to True if you want to send PII data like user IPs
+        # Enable sending logs to Sentry
+        enable_logs=True,
+         
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,9 +52,9 @@ async def lifespan(app: FastAPI):
     # Initialize ConfigStore at startup to ensure it's ready when needed
     with get_mysql_local_session() as db:
         settings.init_config_store(db=db)
-    
+
     yield
-    
+
     # Shutdown
     log.info("Shutting down scheduler...")
     stop_scheduler()
@@ -59,7 +75,11 @@ app = FastAPI(
 # CORS middleware for API best practices
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://app.dev.cabbo.co.in", "https://app.cabbo.co.in"],  # Adjust for production
+    allow_origins=[
+        "http://localhost:5173",
+        "https://app.dev.cabbo.co.in",
+        "https://app.cabbo.co.in",
+    ],  # Adjust for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,6 +89,10 @@ app.add_middleware(
 @app.get("/health", tags=["Health"])
 def health():
     return {"status": "ok"}
+
+@app.get("/sentry-debug")
+async def trigger_error():
+    division_by_zero = 1 / 0
 
 
 # Include routers
@@ -92,7 +116,9 @@ def custom_openapi():
     endpoint_count = sum(1 for route in app.routes if hasattr(route, "endpoint"))
 
     # Add the endpoint count to the description
-    openapi_schema["info"]["description"] += f"\n\nThis API has **{endpoint_count} endpoints**."
+    openapi_schema["info"][
+        "description"
+    ] += f"\n\nThis API has **{endpoint_count} endpoints**."
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -100,7 +126,7 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-ENV = settings.ENV
+
 
 
 def get_diagnostics(request: Request):
@@ -130,13 +156,13 @@ async def log_requests(request: Request, call_next):
     response_size = response.headers.get("content-length", "unknown")
     if ENV == Environment.DEV.value:
         logger.info(
-        f"{request.method} {request.url.path} "
-        f"Query: {redact_query_params(dict(request.query_params))} "
-        f"Status: {response.status_code} "
-        f"Time: {round(duration, 2)}ms "
-        f"Size: {response_size} bytes "
-        f"Client: {request.client.host if request.client else 'unknown'}"
-    )
+            f"{request.method} {request.url.path} "
+            f"Query: {redact_query_params(dict(request.query_params))} "
+            f"Status: {response.status_code} "
+            f"Time: {round(duration, 2)}ms "
+            f"Size: {response_size} bytes "
+            f"Client: {request.client.host if request.client else 'unknown'}"
+        )
     else:
         logger.info(
             f"{request.method} {request.url.path} "
@@ -146,6 +172,7 @@ async def log_requests(request: Request, call_next):
         )
 
     return response
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -168,8 +195,15 @@ async def cabbo_exception_handler(request: Request, exc: CabboException):
     kwargs = exc.extra if hasattr(exc, "extra") else {}
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.message, "error": str(exc), **diagnostics, "error_code": exc.error_code or "UNKNOWN_ERROR", **kwargs},
+        content={
+            "detail": exc.message,
+            "error": str(exc),
+            **diagnostics,
+            "error_code": exc.error_code or "UNKNOWN_ERROR",
+            **kwargs,
+        },
     )
+
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):

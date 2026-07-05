@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     CUSTOMER_SUPPORT_PHONE_NUMBER: str
     CUSTOMER_SUPPORT_WHATSAPP_NUMBER: str
 
+    SENTRY_DSN: str  # Sentry DSN for error tracking
+    
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"

@@ -261,6 +261,7 @@ dependencies = [
     { name = "razorpay" },
     { name = "rich" },
     { name = "sendgrid" },
+    { name = "sentry-sdk" },
     { name = "setuptools" },
     { name = "sqlalchemy" },
     { name = "twilio" },
@@ -293,6 +294,7 @@ requires-dist = [
     { name = "razorpay", specifier = ">=1.3.0" },
     { name = "rich" },
     { name = "sendgrid" },
+    { name = "sentry-sdk", specifier = ">=2.64.0" },
     { name = "setuptools" },
     { name = "sqlalchemy" },
     { name = "twilio" },
@@ -1292,6 +1294,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b1/84/58b912c56a701f4524018c34bf720ffa21ed6239726d5aa9b71776e8c899/sendgrid-6.12.2.tar.gz", hash = "sha256:969297eaf4a57970fbcdf9de5b663d6c1c50710cceda103b26557b661ab1382a", size = 50175, upload-time = "2025-05-13T10:56:28.401Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d2/e4/3a2fd8e46fd3715133fc4d900ec064619886b5866a3688a35b9b0aa0f59d/sendgrid-6.12.2-py3-none-any.whl", hash = "sha256:423f207e8593fb2950b6f7571c44994f20518bb25f19d89ecb3f9aa41ee88e18", size = 102079, upload-time = "2025-05-13T10:56:27.069Z" },
+]
+
+[[package]]
+name = "sentry-sdk"
+version = "2.64.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/60/31/b7341f156a5f6f36f0b4845d6f1c28a2ae4799171dba7007f3a1e9b234b4/sentry_sdk-2.64.0.tar.gz", hash = "sha256:68be2c29e14ae310f8a39e1a79916b6d85c6cb41dcce789d14ff05fe293e4c55", size = 921020, upload-time = "2026-06-30T08:13:47.682Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/a8/3fb9a4319efa3b26f5be0e90e6d8918df43fa7c7e977d26390f589501d82/sentry_sdk-2.64.0-py3-none-any.whl", hash = "sha256:715ea91ca860a819e8d8a50a7bde3a80d0df3b4ed7b6660a20fb9a2d084188f1", size = 498901, upload-time = "2026-06-30T08:13:45.566Z" },
 ]
 
 [[package]]

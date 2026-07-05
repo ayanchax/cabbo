@@ -2,6 +2,7 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 from core.constants import APP_NAME, PROJECT_ROOT, Environment
+import sentry_sdk
 
 ENV = os.getenv("ENV", Environment.LOCAL.value)
 LOG_FORMAT = f'%(asctime)s [%(levelname)s] {APP_NAME} :: %(name)s: %(message)s'
@@ -27,7 +28,7 @@ if not root_logger.handlers:
         error_handler.setLevel(logging.ERROR) # 40 -> ERROR and above to error.log
 
         handlers.extend([debug_handler, error_handler])
-
+    
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO) # 20 -> INFO and above to console
     handlers.append(console_handler)
