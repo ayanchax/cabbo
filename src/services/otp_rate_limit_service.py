@@ -6,6 +6,7 @@ from threading import Lock
 from fastapi import Request
 
 from core.config import settings
+from core.constants import Environment
 from core.exceptions import OTP_RATE_LIMITED, CabboException
 from core.sentry import capture_otp_rate_limit_hit
 from utils.redaction import mask_phone
@@ -42,6 +43,28 @@ def _seconds_until_oldest_expires(events: deque[datetime], window_seconds: int, 
 
 def assert_otp_send_allowed(phone_number: str, client_ip: str) -> None:
     now = datetime.now(timezone.utc)
+    forced_rate_limit_phone = settings.OTP_FORCE_RATE_LIMIT_PHONE_NUMBER.strip()
+
+    if (
+        settings.ENV not in {Environment.PROD.value, Environment.DEV.value}
+        and forced_rate_limit_phone
+        
+    ):
+        phone_number = phone_number.strip().replace("+91", "").strip()
+        print(phone_number)
+        if phone_number == forced_rate_limit_phone:
+            retry_after = settings.OTP_RESEND_COOLDOWN_SECONDS
+            log.warning(
+                "OTP test rate limit forced for %s",
+                mask_phone(phone_number),
+            )
+            
+            raise CabboException(
+                "Too many OTP requests for this phone number. Please try again later.",
+                status_code=429,
+                error_code=OTP_RATE_LIMITED,
+                retry_after_seconds=retry_after,
+            )
 
     with _lock:
         phone_events = _phone_events[phone_number]
