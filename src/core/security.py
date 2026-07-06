@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from models.customer.customer_orm import Customer
 
 import logging
-JWT_EXPIRY_UNIT = 5
-JWT_EXPIRES_IN=JWT_EXPIRY_UNIT * 24 * 60 * 60  # Default expiry in seconds (5 days)
+JWT_EXPIRY_UNIT = 30
+JWT_EXPIRES_IN=JWT_EXPIRY_UNIT * 24 * 60 * 60  # Default expiry in seconds (30 days)
 JWT_EXPIRY_UNIT_TIME_FRAME = {
     "DAYS": "days",
     "HOURS": "hours",

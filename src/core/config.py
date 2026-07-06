@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     LOG_DIR: str
     SMS_SERVICE_PROVIDER: str
+    OTP_LENGTH: int = 6
+    OTP_EXPIRY_MINUTES: int = 5
+    OTP_VERIFICATION_MAX_ATTEMPTS: int = 3
+    OTP_RESEND_COOLDOWN_SECONDS: int = 60
+    OTP_PHONE_WINDOW_SECONDS: int = 3600 # 1 hour window for phone number rate limiting | Count OTP sends from the phone number fromthe last 1 hour only, ignore/drop older events
+    OTP_PHONE_MAX_SENDS_PER_WINDOW: int = 3 # Maximum OTP sends allowed per phone number within the window | A phone number can recieve max 3 otps in a rolling 1 hour window, after which it will be rate limited for the next hour. 1h = <=3 otps etc. | This is to prevent abuse and spam
+    OTP_IP_WINDOW_SECONDS: int = 3600 # 1 hour window for IP rate limiting | Count OTP sends from the IP from the last 1 hour only, ignore/drop older events
+    OTP_IP_MAX_SENDS_PER_WINDOW: int = 6 # Maximum OTP sends allowed per IP within the window | A single IP can send max 6 otps in a rolling 1 hour window, after which it will be rate limited for the next hour. 1h = <=6 otps etc. | This is to prevent abuse and spam
+    OTP_PHONE_DAILY_CAP: int = 4 # Maximum OTP sends allowed per phone number per day
     LOCATION_SERVICE_PROVIDER: str
     EMAIL_SERVICE_PROVIDER: str
     PAYMENT_PROVIDER: str

@@ -2,12 +2,13 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
+from core.config import settings
 from models.customer.customer_orm import PreOnboardingCustomer
 from core.exceptions import OTP_ALREADY_SENT, OTP_GENERATION_FAILED, OTP_RESEND_TOO_SOON, CabboException
-OTP_LENGTH = 6
-OTP_EXPIRY_MINUTES = 5
-OTP_RESEND_INTERVAL_SECONDS = 60 # Minimum time between OTP sends to prevent abuse
-MAX_ATTEMPTS = 3
+OTP_LENGTH = settings.OTP_LENGTH
+OTP_EXPIRY_MINUTES = settings.OTP_EXPIRY_MINUTES
+OTP_RESEND_INTERVAL_SECONDS = settings.OTP_RESEND_COOLDOWN_SECONDS # Minimum time between OTP sends to prevent abuse
+MAX_ATTEMPTS = settings.OTP_VERIFICATION_MAX_ATTEMPTS # Maximum attempts allowed for OTP verification before invalidating the OTP 
 
 # Helper to generate a unique 6-digit OTP based on phone number and current time
 # Ensures no repeat for the same phone number

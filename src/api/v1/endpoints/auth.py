@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from core.security import JWT_EXPIRES_IN
 from db.database import yield_mysql_session
@@ -32,6 +32,11 @@ from services.customer_service import (
 from services.message_service import (
     send_otp,
 )
+from services.otp_rate_limit_service import (
+    assert_otp_send_allowed,
+    get_client_ip,
+    record_otp_send,
+)
 from core.exceptions import GENERIC_EXCEPTION, CabboException, PHONE_ALREADY_REGISTERED, PHONE_NOT_REGISTERED, ALREADY_LOGGED_IN, OTP_SEND_FAILED, INVALID_OTP, OTP_RESEND_FAILED
 from core.constants import APP_NAME
 from services.validation_service import (
@@ -46,6 +51,7 @@ router = APIRouter()
 # Onboarding endpoints
 @router.post("/onboard/initiate")
 def initiate_onboarding(
+    request: Request,
     payload: CustomerOnboardInitiationRequest = Depends(
         validate_customer_onboarding_payload
     ),
@@ -55,11 +61,14 @@ def initiate_onboarding(
     # Check if phone number already exists in permanent users
     if is_existing_customer(phone_number, db):
         raise CabboException("Phone number already registered.", status_code=400, error_code=GENERIC_EXCEPTION)
+    client_ip = get_client_ip(request)
+    assert_otp_send_allowed(phone_number=phone_number, client_ip=client_ip)
     # Generate OTP and return
     otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
 
     if send_otp(to_number=phone_number, message=message):
+        record_otp_send(phone_number=phone_number, client_ip=client_ip)
         return {
             "message": "OTP sent to phone number.",
             "phone_number": phone_number,
@@ -131,10 +140,10 @@ def onboard_customer(
 
 # Onboard endpoints - END
 
-
 # Authentication endpoints (login, logout, resend OTP)
 @router.post("/login/initiate")
 def initiate_login(
+    request: Request,
     payload: CustomerOnboardInitiationRequest = Depends(
         validate_customer_login_payload
     ),
@@ -150,9 +159,12 @@ def initiate_login(
             "Cannot initiate login. You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN
         )
 
+    client_ip = get_client_ip(request)
+    assert_otp_send_allowed(phone_number=phone_number, client_ip=client_ip)
     otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to login into your account. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
     if send_otp(to_number=phone_number, message=message):
+        record_otp_send(phone_number=phone_number, client_ip=client_ip)
         return {
             "message": "OTP sent to phone number.",
             "phone_number": phone_number,
@@ -196,10 +208,9 @@ def login(
     )
 
 
-
-
 @router.post("/resend-otp")
 def resend_one_time_password(
+    request: Request,
     payload: CustomerOTPRequest = Depends(validate_customer_onboarding_payload),
     db: Session = Depends(yield_mysql_session),
 ):
@@ -211,10 +222,13 @@ def resend_one_time_password(
             "Failed to resend OTP. You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN
         )
 
+    client_ip = get_client_ip(request)
+    assert_otp_send_allowed(phone_number=payload.phone_number, client_ip=client_ip)
     otp, _, _, last_sent_at = resend_otp(payload.phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
 
     if send_otp(to_number=payload.phone_number, message=message):
+        record_otp_send(phone_number=payload.phone_number, client_ip=client_ip)
         return {
             "message": "OTP resent to phone number.",
             "phone_number": payload.phone_number,

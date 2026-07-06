@@ -7,7 +7,7 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 
 from core.config import settings
 from core.constants import APP_VERSION, Environment
-import logging
+
 log = logging.getLogger(__name__)
 
 
@@ -107,3 +107,36 @@ def configure_sentry() -> None:
         before_send=before_send,
     )
     log.info("Sentry configured successfully")
+
+
+def capture_otp_rate_limit_hit(
+    limit_type: str,
+    retry_after_seconds: int,
+    current_count: int,
+    configured_limit: int,
+    window_seconds: int,
+) -> None:
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("feature", "otp")
+        scope.set_tag("otp.event", "rate_limit_hit")
+        scope.set_tag("otp.limit_type", limit_type)
+        scope.set_tag("otp.provider", settings.SMS_SERVICE_PROVIDER.lower())
+        scope.set_context(
+            "otp_rate_limit",
+            {
+                "current_count": current_count,
+                "configured_limit": configured_limit,
+                "retry_after_seconds": retry_after_seconds,
+                "window_seconds": window_seconds,
+            },
+        )
+        scope.capture_message("OTP rate limit hit", level="warning")
+
+
+def capture_otp_send_failure(provider: str, failure_type: str) -> None:
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("feature", "otp")
+        scope.set_tag("otp.event", "send_failure")
+        scope.set_tag("otp.provider", provider)
+        scope.set_tag("otp.failure_type", failure_type)
+        scope.capture_message("OTP send failure", level="error")

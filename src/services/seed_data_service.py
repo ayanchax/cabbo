@@ -213,10 +213,10 @@ PLATFORM_FEE_BY_COUNTRY = {
     # These are seed data and can be updated later via admin interface
     #Breakdown of estimated costs for platform fee for a typical ₹800 local trip in India:
     # Payment gateway (Razorpay): ~2% of ₹800 = ₹16
-    # SMS / OTP: ₹1–₹2
-    # Infra (AWS amortized): ₹10–₹20
-    # Misc (email, logging, etc): ₹5
-    # Mapping and location services: ₹5–₹10
+    # SMS by Twilio / OTP: ₹8 per SMS segment
+    # Infra (Railway Backend, Digital Ocean MySQL Managed DB): ₹10–₹20
+    # Misc (email by Brevo(300/day free), logging to Sentry, etc): ₹5
+    # Google Mapping and location services: ₹5–₹10
     "IN": 65,  # 65 INR for India, sweet spot to cover costs and ensure profitability while remaining competitive.
     # Future countries:
     # "US": 2.5,  # $2.5 for USA

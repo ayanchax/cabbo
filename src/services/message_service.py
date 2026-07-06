@@ -16,6 +16,7 @@ from email.message import EmailMessage
 import aiosmtplib
 from core.config import settings
 from core.constants import APP_NAME, PROJECT_ROOT
+from core.sentry import capture_otp_send_failure
 import logging
 log = logging.getLogger(__name__)
 EMAIL_VERIFY_EXPIRY_UNIT = 2
@@ -62,6 +63,10 @@ def send_otp(to_number: str, message="Hello world") -> bool:
         return _send_mock_sms(to_number, message)
     else:
         log.error(f"Unsupported SMS service provider: {settings.SMS_SERVICE_PROVIDER}")
+        capture_otp_send_failure(
+            provider=settings.SMS_SERVICE_PROVIDER.lower(),
+            failure_type="unsupported_provider",
+        )
         return False
 
 
@@ -84,6 +89,10 @@ def _send_twilio_sms(to_number: str, message: str) -> bool:
         log.error(
             f"Twilio SMS send failed for {mask_phone(to_number)}: "
             f"{type(e).__name__}"
+        )
+        capture_otp_send_failure(
+            provider="twilio",
+            failure_type=type(e).__name__,
         )
         # Log the error and delete OTP from temp table if sending fails
         return False
