@@ -19,8 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Note :curl is used by the Docker healthcheck.
 
 
-# Install uv (Astral)
-RUN pip install --no-cache-dir uv
+# Install uv (Astral) via official installer (bypasses PyPI)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 # Copy dependency files first (for caching)
 COPY pyproject.toml uv.lock ./
