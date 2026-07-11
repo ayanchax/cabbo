@@ -51,7 +51,6 @@ def assert_otp_send_allowed(phone_number: str, client_ip: str) -> None:
         
     ):
         phone_number = phone_number.strip().replace("+91", "").strip()
-        print(phone_number)
         if phone_number == forced_rate_limit_phone:
             retry_after = settings.OTP_RESEND_COOLDOWN_SECONDS
             log.warning(

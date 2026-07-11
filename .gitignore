@@ -38,6 +38,7 @@ error.log.*
 
 # MySQL dumps
 *.sql
+backups/
 
 # Build
 build/

@@ -8,6 +8,10 @@ services:
       - "8000:8000"
     env_file:
       - .env.dev
+    environment:
+      DB_SSL_CA: /run/secrets/db-ca.pem
+    volumes:
+      - ./certs/db/dev-db-ca.pem:/run/secrets/db-ca.pem:ro
     restart: "no"
 
     healthcheck:

@@ -8,6 +8,8 @@ from sqlalchemy import engine_from_config, pool
 import os
 import sys
 from pathlib import Path
+import tempfile
+import base64
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
@@ -30,19 +32,46 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT") or 3306
 DB_NAME = os.getenv("DB_NAME")
+DB_SSL_CA = os.getenv("DB_SSL_CA", "")
+DB_SSL_CA_PEM = os.getenv("DB_SSL_CA_PEM", "")
 SQLALCHEMY_DATABASE_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
 
 
+def resolve_db_ssl_ca_path() -> str | None:
+    if DB_SSL_CA:
+        ssl_ca_path = Path(DB_SSL_CA)
+        if not ssl_ca_path.is_absolute():
+            ssl_ca_path = Path(PROJECT_ROOT) / ssl_ca_path
+
+        if not ssl_ca_path.exists():
+            raise RuntimeError(f"DB SSL CA file not found at {ssl_ca_path}")
+
+        return str(ssl_ca_path)
+
+    if DB_SSL_CA_PEM:
+        ssl_ca_path = Path(tempfile.gettempdir()) / "cabbo-db-ca.pem"
+        ssl_ca_pem = DB_SSL_CA_PEM.strip()
+        if "-----BEGIN CERTIFICATE-----" not in ssl_ca_pem:
+            ssl_ca_pem = base64.b64decode(ssl_ca_pem).decode("utf-8")
+        ssl_ca_pem = ssl_ca_pem.replace("\\n", "\n")
+        ssl_ca_path.write_text(ssl_ca_pem + "\n", encoding="utf-8")
+        return str(ssl_ca_path)
+
+    return None
+
+
+DB_SSL_CA_PATH = resolve_db_ssl_ca_path()
+
+
 import models  # Ensure all models are imported so that they are registered with SQLAlchemy
 from db.database import Base
 
-# Set the sqlalchemy.url dynamically
+ 
 config = context.config
 config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
-
-# ...rest of your env.py...
+ 
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -103,10 +132,20 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    connect_args = {}
+    if DB_SSL_CA_PATH:
+        connect_args = {
+            "ssl": {
+                "ca": DB_SSL_CA_PATH,
+                "check_hostname": True,
+            }
+        }
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     with connectable.connect() as connection:

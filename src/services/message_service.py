@@ -11,6 +11,8 @@ import secrets
 from sendgrid.helpers.mail import Mail
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from core.constants import Environment as AppEnvironment
+
 import os
 from email.message import EmailMessage
 import aiosmtplib
@@ -74,8 +76,10 @@ def _send_mock_sms(to_number: str, message: str) -> bool:
     """
     Mock SMS sending for testing purposes. Always returns True.
     """
-    print(message)
-    log.info(f"Mock SMS generated for {mask_phone(to_number)}")
+    if settings.ENV==AppEnvironment.LOCAL.value:
+        log.info(f"Mock SMS generated for {mask_phone(to_number)} with message: {message}")
+    else:
+        log.info(f"Mock SMS generated for {mask_phone(to_number)}")
     return True
 
 def _send_twilio_sms(to_number: str, message: str) -> bool:
