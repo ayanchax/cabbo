@@ -79,7 +79,7 @@ def initiate_onboarding(
         # If sending OTP fails, delete the OTP record from the database
         delete_otp(phone_number, db)
         raise CabboException(
-            "Failed to send OTP. Please try again later.", status_code=500, error_code=GENERIC_EXCEPTION
+            "Failed to send OTP. Please try again later.", status_code=500, error_code=OTP_SEND_FAILED
         )
 
 
