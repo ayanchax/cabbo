@@ -16,6 +16,8 @@ locale: en-IN
 
 This Privacy Policy explains what personal data Cabbo collects, why we use it, how we share it, and how customers can contact us about privacy questions.
 
+**This Privacy Policy forms part of Cabbo's Terms of Service and should be read together with those Terms.**
+
 
 ## Data We Collect
 
@@ -42,6 +44,10 @@ Cabbo uses personal data to:
 - Improve reliability, safety, fraud prevention, and service quality.
 - Send important service updates.
 - Meet legal, tax, accounting, security, and compliance requirements.
+
+## Legal Basis For Processing
+
+Cabbo processes personal data to provide requested services, fulfil bookings, comply with applicable laws, prevent fraud, improve safety, and meet contractual or legal obligations. Where required by applicable law, Cabbo relies on your consent for specific processing activities.
 
 ## Location Data
 
@@ -75,6 +81,10 @@ Cabbo may share relevant data with:
 
 Cabbo shares only what is reasonably needed for the purpose.
 
+## International Processing
+
+Some service providers may process or store information outside India. Cabbo takes reasonable steps to ensure such processing complies with applicable law.
+
 ## Payment And Refund Partners
 
 Online payments and refunds may be processed by third-party payment providers. These providers may collect or process payment information under their own terms and privacy practices.
@@ -103,7 +113,7 @@ If Cabbo no longer needs certain personal data, Cabbo may delete, anonymize, agg
 
 ## Security
 
-Cabbo uses reasonable technical and organizational measures to protect personal data. No system is completely secure, so customers should also protect their account, OTPs, and devices.
+Cabbo uses reasonable technical and organizational measures to protect personal data, including access controls, authentication mechanisms, monitoring, and encryption where appropriate. No system is completely secure, so customers should also protect their account, OTPs, and devices.
 
 Cabbo will never ask for your password, OTP, UPI PIN, full card details, or banking password over support calls or WhatsApp.
 
@@ -113,11 +123,15 @@ Subject to applicable law and operational limits, you may email Cabbo at grievan
 
 Some requests may not be completed immediately if Cabbo needs to keep records for booking completion, refunds, fraud prevention, safety, legal claims, tax, accounting, or compliance.
 
+## Withdrawal Of Consent
+
+Withdrawal of consent may affect Cabbo's ability to provide some or all services.
+
 ## Children
 
 Cabbo is intended for use by adults who can make valid bookings and payments. If a minor travels as a passenger, the booking should be made and managed by a parent, guardian, or responsible adult.
 
-## Grievance Contact
+## Privacy Contact
 
 For privacy questions or grievances, email Cabbo at grievances@cabbo.co.in.
 

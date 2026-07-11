@@ -12,17 +12,43 @@ category: legal
 locale: en-IN
 ---
 
-# Terms of Service
+# Terms Of Service
 
-These Terms explain how customers may use Cabbo to search, book, manage, pay for, and receive scheduled cab services.
+These terms explain how customers may use Cabbo to search, book, manage, pay for, and receive scheduled cab services.
 
 By creating an account, making a booking, or using Cabbo, you agree to these Terms and the policies linked from the app or website.
+
+These terms should be read together with Cabbo's:
+
+• Privacy Policy
+• Fare & Charges Policy
+• Cancellation & Refund Policy
+• Help & Support
+• Safety, Contact & Grievance
+
+## Acceptance Of These Terms
+
+By creating an account, making a booking, accessing Cabbo, or using the Services, you agree to these Terms of Service and the policies referenced herein.
+
+If you do not agree to these Terms, you should not use Cabbo.
+
+## Eligibility
+
+You must have the legal capacity to enter into a binding agreement under applicable law.
+
+If you make bookings on behalf of another person, you confirm that you are authorized to do so.
+
+Bookings for minors should be made by a parent or legal guardian.
 
 ## Cabbo's Role
 
 Cabbo helps customers book scheduled cab services and coordinate with drivers or transport partners. Cabbo may provide booking, pricing, payment, refund, support, and communication tools.
 
 Cabbo is not an emergency transport provider. If you face an emergency, contact local emergency services first.
+
+## Privacy
+
+Cabbo collects and processes personal information in accordance with its Privacy Policy.
 
 ## Account Rules
 
@@ -61,11 +87,13 @@ Online payments may be processed through third-party payment partners such as Ra
 
 If a payment is successful but the booking is not confirmed, Cabbo will verify the transaction and either confirm the booking, issue a refund where applicable, or guide you through the next step.
 
+For additional information regarding fares, pricing, applicable charges and payment methods, please refer to the Fare & Charges Policy.
+
 ## Cancellations And Refunds
 
-Cancellations, no-shows, failed payments, and refunds are handled under Cabbo's Cancellation & Refund Policy.
-
 Refunds, where approved, are normally sent back to the original payment source through the payment partner. Settlement timelines may depend on banks, cards, UPI, wallets, or payment gateways.
+
+Cancellations, no-shows, failed payments, and refunds are handled under Cabbo's Cancellation & Refund Policy.
 
 ## Fares And Extra Charges
 
@@ -87,6 +115,22 @@ You may send messages, support details, reviews, documents, images, or other inf
 
 Cabbo may record support notes, trip events, payment references, and communication logs for service, safety, dispute resolution, and compliance purposes.
 
+## Intellectual Property
+
+The Cabbo platform, software, branding, logos, content, and related intellectual property belong to Cabbo or its licensors.
+
+You may use the Services only for their intended purpose.
+
+You must not copy, modify, reverse engineer, or commercially exploit any part of the platform without written permission.
+
+## Third-Party Services
+
+Cabbo relies on third-party providers such as payment gateways, messaging services, and cloud providers.
+
+These providers operate under their own terms.
+
+Cabbo is not responsible for outages or failures solely caused by these providers.
+
 ## Suspension Or Restriction
 
 Cabbo may restrict or suspend access if we believe an account is involved in fraud, misuse, abusive behavior, repeated no-shows, unpaid dues, policy violations, safety issues, or unlawful activity.
@@ -97,12 +141,34 @@ If your account is deactivated, you may not be able to log in or make new bookin
 
 Cabbo may remove or stop using profile-level information where practical, but some historical records may remain linked to past bookings where they are needed to understand what happened during a ride, payment, refund, support request, complaint, or dispute.
 
+## Force Majeure
+
+Cabbo will not be responsible for delays or service interruptions caused by circumstances beyond its reasonable control, including natural disasters, strikes, internet failures, government restrictions, or similar events.
+
 ## Disputes
 
 If you have a trip-related concern, use the support option on the booking detail page with your booking ID and details. Cabbo will review available records and try to resolve the issue fairly.
 
+For assistance with bookings, payments, or account-related issues, please refer to the Help & Support page.
+
 These Terms are governed by the laws of India. Courts in India will have jurisdiction, subject to applicable law.
+
+Safety guidance, emergency assistance and grievance procedures are available in the Safety, Contact & Grievance page.
+
+## Contact
+
+For support, safety issues and grievances, use the contact methods provided in Cabbo's Help & Support page and Safety, Contact & Grievance page.
 
 ## Changes To These Terms
 
 Cabbo may update these Terms as the service, pricing, payment flow, or legal requirements change. The latest version will be shown in the app or website with its effective date.
+
+## Related Policies
+
+The following documents should be read together with these Terms of Service:
+
+- Privacy Policy
+- Fare & Charges Policy
+- Cancellation & Refund Policy
+- Help & Support
+- Safety, Contact & Grievance

@@ -2,25 +2,17 @@ import logging
 from typing import Any, Optional
 from pydantic_settings import BaseSettings
 from pydantic import ValidationError
-import os
 from rich.console import Console
 from core.constants import Environment
 from sqlalchemy.orm import Session
-
-
-ENV = os.getenv("ENV", Environment.LOCAL.value)
-ENV_FILE = f".env.{Environment.LOCAL.value}" if ENV == Environment.LOCAL.value else None
+from services.environment_service import load_env
 log = logging.getLogger(__name__)
-if not ENV_FILE:
-    log.info("Running in non-local mode, relying on system env vars")
-
-
 class Settings(BaseSettings):
 
     # Mandatory application settings for configuring the application behavior, such as app name, description, version, URLs, ports, and other environment-specific settings. These settings are required for all environments to ensure consistent application behavior and proper functioning of the API endpoints.
     APP_URL: str
     APP_LOGO_URL: str
-    ENV: str = ENV
+    ENV: str
     COUNTRY_CODE: str
 
     #Worker and Port. Ideally these are set in production environment variables, but can be set in local environment for testing and debugging purposes. 
@@ -67,8 +59,6 @@ class Settings(BaseSettings):
     # Mandatory JWT secret key for signing and verifying JSON Web Tokens (JWTs) used for authentication and authorization in the application. This setting is required for all environments to ensure secure token-based authentication and to protect sensitive user data. 
     JWT_SECRET: str
 
-    
-
     #SMS and OTP settings for sending OTPs to users for authentication and verification purposes. These settings are mandatory for all environments, as OTP functionality is a core feature of the application.
     SMS_SERVICE_PROVIDER: str
     OTP_LENGTH: int = 6
@@ -106,7 +96,6 @@ class Settings(BaseSettings):
     S3_BUCKET: str
     S3_BASE_URL: str   
 
-    DEBUG_LRU_CACHE: bool = ENV == Environment.LOCAL.value  # Enable detailed LRU cache logging in local environment for debugging 
 
     # Google Maps API Key for geocoding, reverse geocoding, and other map-related services
     # This is mandatory key and used for interacting with Google Maps services, such as converting addresses to geographic coordinates and vice versa.
@@ -133,7 +122,8 @@ class Settings(BaseSettings):
     LOG_DIR: Optional[str]=None
     
     class Config:
-        env_file = ENV_FILE
+        env_file = load_env() #Get environment file path from the environment service, which will load the appropriate .env file based on the current environment (local, dev, prod). This allows for dynamic loading of environment variables based on the deployment environment.
+                              # Here we just load the env file path and let pydantic do the rest of the work of loading the env vars into the settings object. This is a cleaner approach than loading the env vars directly in this file, as it allows for better separation of concerns and easier testing.
         env_file_encoding = "utf-8"
         extra = "ignore"
 

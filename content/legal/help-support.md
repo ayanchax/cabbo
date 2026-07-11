@@ -57,9 +57,17 @@ If something went wrong during the ride, use the support option on the booking d
 - Short description of the issue
 - Any relevant screenshots or payment references
 
+## Lost & Found
+
+Cabbo will reasonably assist customers in coordinating with drivers regarding lost items. However, Cabbo cannot guarantee recovery of lost items.
+
 ## Response Expectations
 
-Cabbo will try to respond as quickly as possible. Some issues, such as refunds, payment checks, driver verification, or route review, may take longer because they require confirmation from payment partners, drivers, or internal records.
+Response times vary depending on the nature and complexity of the request. Some issues, such as refunds, payment checks, driver verification, or route review, may take longer because they require confirmation from payment partners, drivers, or internal records.
+
+## Abuse
+
+Cabbo may refuse abusive, threatening, or fraudulent support requests.
 
 ## Support Channels
 

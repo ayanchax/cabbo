@@ -76,11 +76,22 @@ if [ "$YES" != "--yes" ]; then
   fi
 fi
 
+MYSQL_BIN="$(command -v mysql 2>/dev/null || true)"
+if [ -z "$MYSQL_BIN" ]; then
+  echo "mysql was not found on this machine." >&2
+  echo "Install the MySQL client first, then rerun the restore." >&2
+  echo "Examples:" >&2
+  echo "  Ubuntu/Debian: sudo apt-get install mariadb-client" >&2
+  echo "  macOS: brew install mysql-client" >&2
+  echo "  Windows: winget install Oracle.MySQL" >&2
+  exit 127
+fi
+
 ARGS="--host=${DB_HOST} --port=${DB_PORT} --user=${DB_USER}"
 if [ -n "$CA_FILE" ]; then
   ARGS="$ARGS --ssl-ca=${CA_FILE} --ssl-mode=VERIFY_IDENTITY"
 fi
 
 echo "Restoring ${BACKUP_FILE} into ${ENV_NAME} database '${DB_NAME}'"
-MYSQL_PWD="$DB_PASSWORD" mysql $ARGS "$DB_NAME" < "$BACKUP_FILE"
+MYSQL_PWD="$DB_PASSWORD" "$MYSQL_BIN" $ARGS "$DB_NAME" < "$BACKUP_FILE"
 echo "Restore complete."

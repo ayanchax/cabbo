@@ -17,7 +17,8 @@ notes/
 postman/
 test/
 backups/
-alembic/versions/__pycache__/
+alembic/
+scripts/
 *.log
 *.pem
 .env.local

@@ -18,6 +18,8 @@ This policy explains what happens when a customer cancels a booking, a driver is
 
 Refund decisions are based on Cabbo's backend cancellation policy for the trip type and service region or state.
 
+**This Cancellation & Refund Policy forms part of Cabbo's Terms of Service and should be read together with those Terms.**
+
 ## Customer Cancellation
 
 You may cancel an eligible booking from the app.
@@ -95,6 +97,18 @@ Some charges may be non-refundable or deductible depending on the booking and po
 - Already incurred tolls, parking, permits, or taxes, if any
 
 Cabbo does not automatically deduct separate cancellation charges from the advance payment outside the configured refund percentage. The final refund amount follows Cabbo's active backend cancellation policy.
+
+## Duplicate Payments
+
+If duplicate payments are successfully identified and verified by Cabbo, eligible refunds will be initiated through the original payment method wherever reasonably possible.
+
+## Failed Online Payments
+
+If an online payment remains pending or fails due to a banking or payment gateway issue, Cabbo may temporarily verify the payment status before processing the booking or refund.
+
+## Fraudulent Refund Requests
+
+Cabbo reserves the right to decline refund requests that are found to be fraudulent, abusive, or unsupported by available booking records.
 
 ## Support Path
 

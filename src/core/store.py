@@ -150,7 +150,7 @@ class ConfigStore(BaseModel):
         return cls._instance
 
     @classmethod
-    def reset_instance(cls):
+    def reset_instance(cls, db:Session=None, force_reload: bool = False):
         """Reset the singleton instance (useful for testing)."""
         with cls._instance_lock:
             if cls._instance is not None:
@@ -158,6 +158,14 @@ class ConfigStore(BaseModel):
                 cls._instance._last_loaded_at = None
                 settings.CONFIG_STORE = None
             cls._instance = None
+            if db is not None and force_reload:
+                cls.warm_up_cache(db)
+    
+    @classmethod
+    def warm_up_cache(cls, db: Session):
+        """Eagerly load all configurations into the cache."""
+        instance = cls.get_instance()
+        instance.initialize_config_store(db)
 
     def initialize_config_store(self, db: Session):
         """Initial load of all configurations from database."""

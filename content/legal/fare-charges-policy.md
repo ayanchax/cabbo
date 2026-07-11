@@ -16,6 +16,8 @@ locale: en-IN
 
 This policy explains how Cabbo fares and extra charges may work. The exact fare shown for a booking depends on trip type, route, vehicle, timing, availability, and Cabbo's active pricing configuration.
 
+**This Fare & Charges Policy forms part of Cabbo's Terms of Service and should be read together with those Terms.**
+
 ## Fare Estimate
 
 Cabbo may show an estimated fare before booking. The estimate may include known charges available at the time of booking.
@@ -38,7 +40,7 @@ A Cabbo fare may include:
 
 ## Advance And Balance
 
-Cabbo may ask customers to pay an advance amount online to confirm a booking. The remaining balance may be payable directly to the driver.
+Cabbo may ask customers to pay an advance amount online to confirm a booking. The remaining balance must be paid directly to the driver.
 
 The booking flow or booking detail page will show or explain the payment split where applicable.
 
@@ -81,7 +83,7 @@ Customers should ask for details if a charge is unclear before paying.
 
 ## Fare Changes
 
-Cabbo may update fares, fees, packages, discounts, and charges from time to time. The applicable fare for a booking will be based on the pricing shown or confirmed for that booking, subject to any changes caused by route, time, extra usage, or additional charges.
+Fares, fees, packages, discounts and pricing structures may be updated periodically. The applicable fare for a booking will be based on the pricing shown or confirmed for that booking, subject to any changes caused by route, time, extra usage, or additional charges.
 
 ## Disputes About Charges
 
@@ -94,3 +96,9 @@ If you believe you were charged incorrectly, use the support option on the booki
 - Reason you believe the charge is incorrect
 
 Cabbo will review booking details, payment records, trip distance/time, and available driver or support inputs.
+
+## Cancellation And Refunds
+
+Cancellation charges, if applicable, depend on the booking type, booking stage, driver assignment, and the timing of cancellation. Any applicable cancellation charge will be communicated during the cancellation process where possible.
+
+Refund eligibility and processing are governed by Cabbo's Cancellation & Refund Policy.

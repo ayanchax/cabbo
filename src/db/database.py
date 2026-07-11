@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -28,10 +30,11 @@ ENGINE_OPTIONS = dict(
     
 )
 
-
-def _resolve_db_ssl_ca_path() -> str | None:
-    if settings.DB_SSL_CA:
-        ssl_ca_path = Path(settings.DB_SSL_CA)
+def resolve_db_ssl_ca_path() -> str | None:
+    DB_SSL_CA = os.getenv("DB_SSL_CA", settings.DB_SSL_CA)
+    DB_SSL_CA_PEM = os.getenv("DB_SSL_CA_PEM", settings.DB_SSL_CA_PEM)
+    if DB_SSL_CA:
+        ssl_ca_path = Path(DB_SSL_CA)
         if not ssl_ca_path.is_absolute():
             ssl_ca_path = Path(PROJECT_ROOT) / ssl_ca_path
 
@@ -40,11 +43,10 @@ def _resolve_db_ssl_ca_path() -> str | None:
 
         return str(ssl_ca_path)
 
-    if settings.DB_SSL_CA_PEM:
+    if DB_SSL_CA_PEM:
         ssl_ca_path = Path(tempfile.gettempdir()) / "cabbo-db-ca.pem"
-        ssl_ca_pem = settings.DB_SSL_CA_PEM.strip()
+        ssl_ca_pem = DB_SSL_CA_PEM.strip()
         if "-----BEGIN CERTIFICATE-----" not in ssl_ca_pem:
-            # If the PEM is base64 encoded, decode it
             ssl_ca_pem = base64.b64decode(ssl_ca_pem).decode("utf-8")
         ssl_ca_pem = ssl_ca_pem.replace("\\n", "\n")
         ssl_ca_path.write_text(ssl_ca_pem + "\n", encoding="utf-8")
@@ -53,7 +55,9 @@ def _resolve_db_ssl_ca_path() -> str | None:
     return None
 
 
-DB_SSL_CA_PATH = _resolve_db_ssl_ca_path()
+
+ 
+DB_SSL_CA_PATH = resolve_db_ssl_ca_path()
 
 SYNC_CONNECT_ARGS = {}
 ASYNC_CONNECT_ARGS = {}
@@ -134,4 +138,3 @@ def get_mysql_local_session():
 async def a_yield_mysql_session():
     async with AsyncSessionLocal() as session:
         yield session
-

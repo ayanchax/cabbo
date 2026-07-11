@@ -24,6 +24,7 @@ from api.v1.endpoints.admin import (
     kyc_document_types as admin_kyc_document_types_ep,
     trip_type as admin_trip_type_ep,
     local_trip_package as admin_trip_package_ep,
+    housekeeping as admin_housekeeping_ep
 )
 from api.v1.endpoints.customer.trip import trip as trip_router
 from api.v1.endpoints.admin.trip import trip as admin_trip_ep
@@ -80,5 +81,11 @@ router.include_router(
     admin_trip_package_ep.router,
     prefix="/admin/config/trip-packages",
     tags=["admin-trip-package-configuration"],
+)
+
+router.include_router(
+    admin_housekeeping_ep.router,
+    prefix="/admin/housekeeping",
+    tags=["admin-housekeeping"],
 )
 

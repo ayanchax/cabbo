@@ -22,6 +22,8 @@ Cabbo is not an emergency response provider.
 
 If you face an immediate safety risk, medical emergency, crime, accident, fire, or threat, contact local emergency services, police, ambulance, or other appropriate authorities first.
 
+You may contact Emergency Response Support System (ERSS) by dialing 112.
+
 After you are safe, use the support option on the booking detail page so Cabbo can review and assist with ride-related action.
 
 ## Safety Expectations
@@ -43,6 +45,24 @@ Customers should:
 Before starting the ride, check that the driver name, phone number, vehicle number, and vehicle details match the booking details shared by Cabbo where available.
 
 If the details do not match, do not start the ride until you have confirmed through the booking detail support option.
+
+## Driver Misconduct
+
+Customers can report:
+
+- Unsafe driving
+- Intoxication
+- Harassment
+- Discrimination
+
+## Passenger Misconduct
+
+Cabbo may suspend customers who:
+
+- Assault drivers
+- Damage vehicles
+- Refuse payment
+- Misuse emergency reporting
 
 ## Contact Cabbo
 
@@ -74,7 +94,7 @@ For grievances, email Cabbo at grievances@cabbo.co.in and include:
 - Clear description of the concern
 - Supporting screenshots, payment references, or documents
 
-Cabbo will acknowledge and review grievances in line with applicable law and internal support processes.
+Cabbo aims to acknowledge grievances within a reasonable time and resolve them as promptly as practical, subject to the complexity of the matter.
 
 ## Privacy And Data Grievances
 

@@ -62,11 +62,22 @@ mkdir -p "$OUT_DIR"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_FILE="${OUT_DIR}/${ENV_NAME}-${DB_NAME}-${TIMESTAMP}.sql"
 
+MYSQLDUMP_BIN="$(command -v mysqldump 2>/dev/null || true)"
+if [ -z "$MYSQLDUMP_BIN" ]; then
+  echo "mysqldump was not found on this machine." >&2
+  echo "Install the MySQL client first, then rerun the backup." >&2
+  echo "Examples:" >&2
+  echo "  Ubuntu/Debian: sudo apt-get install mariadb-client" >&2
+  echo "  macOS: brew install mysql-client" >&2
+  echo "  Windows: winget install Oracle.MySQL" >&2
+  exit 127
+fi
+
 ARGS="--host=${DB_HOST} --port=${DB_PORT} --user=${DB_USER} --single-transaction --quick --routines --triggers --events --set-gtid-purged=OFF"
 if [ -n "$CA_FILE" ]; then
   ARGS="$ARGS --ssl-ca=${CA_FILE} --ssl-mode=VERIFY_IDENTITY"
 fi
 
 echo "Creating ${ENV_NAME} DB backup at ${BACKUP_FILE}"
-MYSQL_PWD="$DB_PASSWORD" mysqldump $ARGS "$DB_NAME" > "$BACKUP_FILE"
+MYSQL_PWD="$DB_PASSWORD" "$MYSQLDUMP_BIN" $ARGS "$DB_NAME" > "$BACKUP_FILE"
 echo "Backup complete: ${BACKUP_FILE}"

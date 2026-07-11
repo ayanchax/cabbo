@@ -8,24 +8,13 @@ from sqlalchemy import engine_from_config, pool
 import os
 import sys
 from pathlib import Path
-import tempfile
-import base64
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
-from dotenv import load_dotenv
-from core.constants import PROJECT_ROOT, Environment
-log= logging.getLogger(__name__)
-# Load .env file
-ENV = os.getenv("ENV", Environment.LOCAL.value)
-# Load ONLY for local
-if ENV == Environment.LOCAL.value:
-    env_path = os.path.join(PROJECT_ROOT, f".env.{Environment.LOCAL.value}")
-    load_dotenv(dotenv_path=env_path)
-    log.info(f"Loaded local env: {env_path}")
-else:
-    log.info("Running in non-local mode, relying on system env vars")
+from services.environment_service import load_env
 
+log= logging.getLogger(__name__)
+load_env(load_env_file=True)  # Ensure env vars are loaded before importing models
 # Build DB URL from env vars
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
@@ -39,36 +28,14 @@ SQLALCHEMY_DATABASE_URL = (
 )
 
 
-def resolve_db_ssl_ca_path() -> str | None:
-    if DB_SSL_CA:
-        ssl_ca_path = Path(DB_SSL_CA)
-        if not ssl_ca_path.is_absolute():
-            ssl_ca_path = Path(PROJECT_ROOT) / ssl_ca_path
+ 
 
-        if not ssl_ca_path.exists():
-            raise RuntimeError(f"DB SSL CA file not found at {ssl_ca_path}")
-
-        return str(ssl_ca_path)
-
-    if DB_SSL_CA_PEM:
-        ssl_ca_path = Path(tempfile.gettempdir()) / "cabbo-db-ca.pem"
-        ssl_ca_pem = DB_SSL_CA_PEM.strip()
-        if "-----BEGIN CERTIFICATE-----" not in ssl_ca_pem:
-            ssl_ca_pem = base64.b64decode(ssl_ca_pem).decode("utf-8")
-        ssl_ca_pem = ssl_ca_pem.replace("\\n", "\n")
-        ssl_ca_path.write_text(ssl_ca_pem + "\n", encoding="utf-8")
-        return str(ssl_ca_path)
-
-    return None
-
-
-DB_SSL_CA_PATH = resolve_db_ssl_ca_path()
 
 
 import models  # Ensure all models are imported so that they are registered with SQLAlchemy
-from db.database import Base
+from db.database import Base, resolve_db_ssl_ca_path
 
- 
+DB_SSL_CA_PATH = resolve_db_ssl_ca_path()
 config = context.config
 config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
  

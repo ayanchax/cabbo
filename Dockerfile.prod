@@ -23,7 +23,7 @@ RUN uv pip install --system .
 
 COPY . .
 
-RUN chmod +x /app/entrypoint.prod.sh /app/migration.oneoff.sh \
+RUN chmod +x /app/entrypoint.prod.sh \
     && addgroup --system --gid 10001 cabbo \
     && adduser --system --uid 10001 --ingroup cabbo cabbo \
     && chown -R cabbo:cabbo /app
