@@ -22,8 +22,9 @@ from datetime import datetime, timezone
 from api.v1.routes import router as v1_router
 from utils.redaction import redact_query_params
 from core.sentry import configure_sentry
+from services.environment_service import get_env
 log = logging.getLogger(__name__)
-ENV = settings.ENV
+ENV = get_env()
 
 configure_sentry()
 
@@ -62,15 +63,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+ 
 # CORS middleware for API best practices
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:4173",
-        "https://app.dev.cabbo.co.in",
-        "https://app.cabbo.co.in",
-    ],  # Adjust for production
+    allow_origins=[settings.APP_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,11 +78,6 @@ app.add_middleware(
 @app.get("/health", tags=["Health"])
 def health():
     return {"status": "ok"}
-
-@app.get("/sentry-debug", tags=["Debug"])
-def trigger_error():
-    """Endpoint to trigger a test error for Sentry integration."""
-    division_by_zero = 1 / 0  # This will raise a ZeroDivisionError
 
 if ENV == Environment.DEV.value:
     @app.get("/sentry-debug")
@@ -128,7 +121,7 @@ app.openapi = custom_openapi
 
 def get_diagnostics(request: Request):
     """Return diagnostics dict if in dev environment, else empty dict."""
-    if ENV == "dev":
+    if ENV == Environment.DEV.value:
         return {
             "path": str(request.url),
             "method": request.method,

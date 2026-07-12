@@ -151,13 +151,23 @@ def initiate_login(
 ):
     phone_number = payload.phone_number
     customer = get_customer_by_phone_number(phone_number, db)
+    
     if not customer:
         raise CabboException("Phone number not registered.", status_code=404, error_code=PHONE_NOT_REGISTERED)
 
-    if is_customer_logged_in(customer=customer):
-        raise CabboException(
-            "Cannot initiate login. You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN
-        )
+    if customer.bearer_token:
+        client_token = payload.existing_token
+        if client_token and client_token == customer.bearer_token:
+            if is_customer_logged_in(customer, client_token):
+                raise CabboException(
+                    "Cannot initiate login. You are already logged in.",
+                    status_code=400,
+                    error_code=ALREADY_LOGGED_IN,
+                )
+
+        # Client has no token, a different token, or an expired/invalid stored token.
+        # Allow OTP login recovery, but do not clear the existing server session until
+        # OTP verification succeeds in the login endpoint.
 
     client_ip = get_client_ip(request)
     assert_otp_send_allowed(phone_number=phone_number, client_ip=client_ip)
@@ -191,13 +201,11 @@ def login(
         raise CabboException(
             "Login failed as phone number not registered.", status_code=404, error_code=PHONE_NOT_REGISTERED
         )
-    # Check if bearer token is still valid in DB
-    if is_customer_logged_in(customer=customer):
-        raise CabboException("You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN)
     # Verify OTP
     valid, message = verify_otp(phone_number, otp, db)
     if not valid:
         raise CabboException(message, status_code=400, error_code=INVALID_OTP)
+    # OTP verification is the proof required to replace any existing customer session.
     token = persist_bearer_token(
         customer=customer, token=generate_customer_jwt(customer=customer), db=db
     )
@@ -214,14 +222,6 @@ def resend_one_time_password(
     payload: CustomerOTPRequest = Depends(validate_customer_onboarding_payload),
     db: Session = Depends(yield_mysql_session),
 ):
-    customer = get_customer_by_phone_number(
-        payload.phone_number, db, silently_fail=True
-    )
-    if customer and is_customer_logged_in(customer=customer):
-        raise CabboException(
-            "Failed to resend OTP. You are already logged in.", status_code=400, error_code=ALREADY_LOGGED_IN
-        )
-
     client_ip = get_client_ip(request)
     assert_otp_send_allowed(phone_number=payload.phone_number, client_ip=client_ip)
     otp, _, _, last_sent_at = resend_otp(payload.phone_number, db)

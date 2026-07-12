@@ -96,8 +96,13 @@ class CustomerOTPRequest(BaseModel):
     otp:Optional[str] = None  # OTP is optional here because for resend OTP endpoint, we might not require it in the payload
     
 
-class CustomerOnboardInitiationRequest(BaseModel):
+class ClientAccessToken(BaseModel):
+    existing_token: Optional[str] = None  # Token is optional here because for some endpoints, we might not require it in the payload
+
+class CustomerOnboardInitiationRequest(ClientAccessToken):
     phone_number: str
+    
+
 
 
 class CustomerLoginRequest(BaseModel):

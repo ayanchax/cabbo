@@ -2,7 +2,6 @@ import logging
 import os
 from dotenv import load_dotenv
 from core.constants import PROJECT_ROOT, Environment
-
 log = logging.getLogger(__name__)
 
 def load_env(load_env_file: bool = False):
@@ -18,3 +17,6 @@ def load_env(load_env_file: bool = False):
     else:
         log.info(f"No env file found for {ENV}; relying on system env vars")
     return None
+
+def get_env():
+    return os.getenv("ENV", Environment.LOCAL.value).lower()

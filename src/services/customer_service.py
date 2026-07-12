@@ -20,7 +20,7 @@ from core.security import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
+import jwt
 from models.trip.trip_enums import TripStatusEnum
 from models.user.user_enum import GenderEnum
 from services.customer_email_verification_service import get_existing_email_verification_link
@@ -343,14 +343,30 @@ def get_active_customer_by_id_and_bearer_token(
         return None
 
 
-def is_customer_logged_in(customer: Customer) -> bool:
+def is_customer_logged_in(customer: Customer, client_token: Optional[str] = None) -> bool:
     if not customer.bearer_token:
-        return False
+        return False # If the customer does not have a bearer token, they are not logged in
+    
+    if not client_token:
+        return False  # If the client does not provide a token, we cannot verify this client session
+
+    if client_token != customer.bearer_token: # If the client token does not match the customer's bearer token in server, they are not logged in
+        return False  # stale/different client session
+
     try:
-        decode_jwt_token(
+        payload= decode_jwt_token(
             customer.bearer_token
         )  # Decode the JWT token and raise error if invalid or expired
+        user_id = payload.get("sub")
+        if not user_id:
+            return False  # If the token does not contain a subject, the customer is not logged in
+        if str(user_id) != str(customer.id):
+            return False  # If the subject in the token does not match the customer ID, the customer is not logged in
         return True
+    except jwt.ExpiredSignatureError:
+        return False  # If the token has expired, the customer is not logged in
+    except jwt.InvalidTokenError:
+        return False  # If the token is invalid, the customer is not logged in
     except Exception:
         return False
 
