@@ -20,11 +20,11 @@ By creating an account, making a booking, or using Cabbo, you agree to these Ter
 
 These terms should be read together with Cabbo's:
 
-• Privacy Policy
-• Fare & Charges Policy
-• Cancellation & Refund Policy
-• Help & Support
-• Safety, Contact & Grievance
+- Privacy Policy
+- Fare & Charges Policy
+- Cancellation & Refund Policy
+- Help & Support
+- Safety, Contact & Grievance
 
 ## Acceptance Of These Terms
 
@@ -167,8 +167,8 @@ Cabbo may update these Terms as the service, pricing, payment flow, or legal req
 
 The following documents should be read together with these Terms of Service:
 
-- Privacy Policy
-- Fare & Charges Policy
-- Cancellation & Refund Policy
-- Help & Support
-- Safety, Contact & Grievance
+- [Privacy Policy](APP_URL/legal/privacy-policy)
+- [Fare & Charges Policy](APP_URL/legal/fare-charges-policy)
+- [Cancellation & Refund Policy](APP_URL/legal/cancellation-refund-policy)
+- [Help & Support](APP_URL/legal/help-support)
+- [Safety, Contact & Grievance](APP_URL/legal/safety-contact-grievance)

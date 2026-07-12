@@ -3,7 +3,7 @@ from typing import Any
 
 from core.exceptions import CabboException, GENERIC_EXCEPTION
 from models.legal_schema import LegalPageInternal, LegalPageRead, LegalPageSummary
-
+from core.config import settings
 
 LEGAL_CONTENT_DIR = Path(__file__).resolve().parents[2] / "content" / "legal"
 
@@ -64,6 +64,9 @@ def list_legal_pages() -> list[LegalPageSummary]:
 def get_legal_page_by_slug(slug: str) -> LegalPageRead:
     for page in _load_published_pages():
         if page.slug == slug:
+            # Replace APP_URL placeholders with the configured app URL.
+            if "APP_URL" in page.content:
+                page.content = page.content.replace("APP_URL", settings.APP_URL)
             return LegalPageRead(**page.model_dump())
 
     raise CabboException(
