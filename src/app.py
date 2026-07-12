@@ -80,7 +80,7 @@ def health():
     return {"status": "ok"}
 
 if ENV == Environment.DEV.value:
-    @app.get("/sentry-debug")
+    @app.get("/sentry-debug", tags=["Debug"])
     async def trigger_error():
         division_by_zero = 1 / 0
 
