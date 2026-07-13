@@ -1,0 +1,15 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/cancelled",
+        "scenario": "Customer voluntarily cancels the trip. Since the requestor is the customer (or admin acting on behalf), the service auto-derives cancellation_sub_status as 'customer_cancelled'. No refund is triggered because it is customer-initiated.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → cancelled",
+        "refund": false,
+        "note": "canceled_by_cabbo = false → no refund triggered. If requesting user is the trip creator, sub-status is auto-set to customer_cancelled."
+    },
+    "reason": "Customer requested cancellation. Change of plans.",
+    "cancelation_detail": {
+        "reason": "Customer called to cancel. They mentioned a change in travel plans.",
+        "cancellation_sub_status": "customer_cancelled"
+    }
+}

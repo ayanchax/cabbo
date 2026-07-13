@@ -1,0 +1,27 @@
+{
+    "trip_type": "airport_drop",
+    "origin": {
+        "display_name": "MG Road, Bengaluru, KA",
+        "lat": 12.9740,
+        "lng": 77.6122,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "MG Road, Bengaluru, Karnataka, India"
+    },
+    "destination": {
+        "display_name": "Kempegowda International Airport, Bengaluru, KA",
+        "lat": 13.1986,
+        "lng": 77.7066,
+        "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",
+        "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India"
+    },
+    "start_date": "2025-07-13T15:30:00",
+    "num_adults": 2,
+    "num_children": 1,
+    "num_large_suitcases": 2,
+    "num_carryons": 1,
+    "preferred_car_type": "Premium Sedan",
+    "preferred_fuel_type": "petrol",
+    "flight_number": "6E789",
+    "terminal_number": "T1",
+    "toll_road_preferred": false
+}

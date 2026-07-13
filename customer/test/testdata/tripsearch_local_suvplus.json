@@ -1,0 +1,19 @@
+{
+    "trip_type": "local",
+    "origin": {
+        "display_name": "Koramangala, Bengaluru, KA",
+        "lat": 12.9352,
+        "lng": 77.6245,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "Koramangala, Bengaluru, Karnataka, India"
+    },
+    "start_date": "2025-07-10T09:00:00",
+    "end_date": "2025-07-10T13:00:00",
+    "num_adults": 3,
+    "num_children": 1,
+    "num_large_suitcases": 2,
+    "num_carryons": 1,
+    "preferred_car_type": "SUV+",
+    "preferred_fuel_type": "diesel",
+    "package_id": "3c9922c6-28ce-4ebc-b251-a089a42157ee"
+}

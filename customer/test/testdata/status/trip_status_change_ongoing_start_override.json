@@ -1,0 +1,11 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/ongoing",
+        "scenario": "Driver started the trip slightly earlier than scheduled (e.g., traffic cleared early, customer was ready). The driver_admin provides the actual start time to ensure accurate trip records and correct overage calculations for local/outstation trips.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → ongoing",
+        "note": "start_datetime must be within the allowed time window: ±0 min for local/outstation, ±60 min for airport trips."
+    },
+    "start_datetime": "2026-03-10T08:45:00Z",
+    "reason": "Driver arrived early and customer was ready to depart. Actual trip start recorded."
+}

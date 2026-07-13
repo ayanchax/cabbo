@@ -1,0 +1,35 @@
+FROM python:3.10-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/src \
+    ENV=prod
+
+WORKDIR /app
+
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+# Note :curl is used by the Docker healthcheck.
+
+# Install uv (Astral) via official installer (bypasses PyPI)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+
+COPY pyproject.toml uv.lock ./
+RUN uv pip install --system .
+
+COPY . .
+
+RUN chmod +x /app/entrypoint.prod.sh \
+    && addgroup --system --gid 10001 cabbo \
+    && adduser --system --uid 10001 --ingroup cabbo cabbo \
+    && chown -R cabbo:cabbo /app
+
+USER cabbo
+
+EXPOSE 8000
+
+CMD ["./entrypoint.prod.sh"]

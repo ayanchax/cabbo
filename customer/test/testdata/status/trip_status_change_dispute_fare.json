@@ -1,0 +1,20 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/dispute",
+        "scenario": "Fare dispute — customer refused to pay the remaining balance amount shown in the app after trip completion. Driver reported this to admin. Admin marks the trip as dispute and a dispute record is created for investigation. Balance payment is intentionally NOT zeroed out so the payment details remain visible for resolution.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "ongoing → dispute",
+        "note": "Driver availability is freed even in dispute. Balance payment remains non-zero for audit purposes until dispute is resolved."
+    },
+    "reason": "Customer refused to pay remaining balance. Fare dispute raised by driver.",
+    "dispute_detail": {
+        "reason": "Customer disputed the final fare citing it was higher than quoted. Driver confirmed the meter reading was correct and extra charges were for a detour at customer request.",
+        "dispute_type": "fare",
+        "details": {
+            "estimated_fare": 1200.00,
+            "final_fare": 1480.00,
+            "extra_distance_km": 12,
+            "disputed_amount": 280.00
+        }
+    }
+}

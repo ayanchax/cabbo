@@ -1,0 +1,18 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/completed",
+        "scenario": "Airport drop completion — driver paid airport entry toll and dropped customer at terminal. End time recorded. No overage since airport is a fixed-fee trip type.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "ongoing → completed",
+        "applies_to_trip_types": ["airport_drop", "airport_pickup"]
+    },
+    "end_datetime": "2026-03-10T06:10:00Z",
+    "reason": "Airport drop completed. Customer reached terminal T2 on time.",
+    "extra_payment_to_driver": {
+        "toll_charges": 60.00,
+        "parking_charges": 0.00,
+        "overage_payment": 0.00,
+        "tips": 50.00,
+        "comments": "Airport entry toll paid. Customer tipped for early morning pickup."
+    }
+}

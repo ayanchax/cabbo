@@ -1,0 +1,19 @@
+{
+    "trip_type": "local",
+    "origin": {
+        "display_name": "Indiranagar, Bengaluru, KA",
+        "lat": 12.9716,
+        "lng": 77.6412,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "Indiranagar, Bengaluru, Karnataka, India"
+    },
+    "start_date": "2025-07-01T14:00:00",
+    "end_date": "2025-07-01T18:00:00",
+    "num_adults": 1,
+    "num_children": 1,
+    "num_large_suitcases": 0,
+    "num_carryons": 2,
+    "preferred_car_type": "Hatchback",
+    "preferred_fuel_type": "petrol",
+    "package_id": "1afb6ca3-3d74-4cc4-a6c4-7d886e39d707"
+}

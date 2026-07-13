@@ -1,0 +1,17 @@
+{
+  "name": "Ravi Kumar Updated",
+  "email": "ravi.kumar.updated@example.com",
+  "phone": "+919812345678",
+  "dob": "1985-07-15T00:00:00",
+  "gender": "male",
+  "emergency_contact_name": "Suman Kumar Updated",
+  "emergency_contact_number": "+919800000000",
+  "nationality": "indian",
+  "religion": "hindu",
+  "car_type": "sedan",
+  "car_model": "Honda Amaze",
+  "car_registration_number": "KA01CD5678",
+  "payment_mode": "phonepe",
+  "payment_phone_number": "+919812345678",
+  "bank_details": null
+}

@@ -1,0 +1,9 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/ongoing",
+        "scenario": "Basic trip start — driver_admin marks trip as ongoing at the scheduled time. No overrides needed. The system uses the trip's original start_datetime from the booking.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → ongoing"
+    },
+    "reason": "Trip started on time as scheduled."
+}

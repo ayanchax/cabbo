@@ -1,0 +1,41 @@
+{
+    "trip_type": "outstation",
+    "origin": {
+        "display_name": "Indiranagar, Bengaluru, KA",
+        "lat": 12.9716,
+        "lng": 77.6412,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "Indiranagar, Bengaluru, Karnataka, India"
+    },
+    "destination": {
+        "display_name": "Chennai, TN",
+        "lat": 13.0827,
+        "lng": 80.2707,
+        "place_id": "ChIJCSF8lBJuUjoRM9RjaAunYW4",
+        "address": "Chennai, Tamil Nadu, India"
+    },
+    "start_date": "2025-07-03T07:00:00",
+    "end_date": "2025-07-04T20:00:00",
+    "num_adults": 4,
+    "num_children": 1,
+    "num_large_suitcases": 3,
+    "num_carryons": 2,
+    "preferred_car_type": "SUV",
+    "preferred_fuel_type": "diesel",
+    "hops": [
+        {
+            "display_name": "Pune, MH",
+            "lat": 18.5204,
+            "lng": 73.8567,
+            "place_id": "ChIJARFGZy6_wjsR6h8lh0U7b3w",
+            "address": "Pune, Maharashtra, India"
+        },
+        {
+            "display_name": "Vellore, TN",
+            "lat": 12.9165,
+            "lng": 79.1325,
+            "place_id": "ChIJw2QwQw8rCDsR4E9-UejD3_g",
+            "address": "Vellore, Tamil Nadu, India"
+        }
+    ]
+}

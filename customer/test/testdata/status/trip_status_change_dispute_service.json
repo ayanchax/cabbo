@@ -1,0 +1,19 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/dispute",
+        "scenario": "Service quality dispute — customer fled without paying and is alleging poor service (rude driver behavior, unsafe driving, unclean vehicle etc.) to justify non-payment. Admin marks trip as dispute to trigger investigation before any resolution or refund.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "ongoing → dispute",
+        "note": "Use 'service' dispute_type when the grievance is about driver behavior or trip quality, not the fare amount."
+    },
+    "reason": "Customer complaint about driver behavior. Left without paying remaining balance.",
+    "dispute_detail": {
+        "reason": "Customer alleged driver was rude and drove rashly. Customer left the vehicle before destination without paying. Driver denies the allegations.",
+        "dispute_type": "service",
+        "details": {
+            "incident_location": "NH-48, near Hoskote Toll, Bengaluru",
+            "customer_complaint": "Driver was rude and refused to follow route instructions.",
+            "driver_version": "Customer demanded multiple route changes and then refused to pay."
+        }
+    }
+}

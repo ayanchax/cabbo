@@ -1,0 +1,15 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/cancelled",
+        "scenario": "Driver voluntarily cancelled the assigned trip — e.g., driver refused the trip after assignment. This is Cabbo-side fault; a full refund is triggered for the customer.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → cancelled",
+        "refund": true,
+        "note": "canceled_by_cabbo = true → full refund triggered. Distinguish from driver_unavailable: 'driver_cancelled' implies driver choice, not an operational emergency."
+    },
+    "reason": "Driver declined to complete the trip after assignment. Trip cancelled.",
+    "cancelation_detail": {
+        "reason": "Driver refused to proceed after accepting the trip. Customer informed and full refund initiated.",
+        "cancellation_sub_status": "driver_cancelled"
+    }
+}

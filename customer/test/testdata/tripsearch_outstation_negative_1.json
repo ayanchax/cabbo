@@ -1,0 +1,25 @@
+{
+    "trip_type": "outstation",
+    "origin": {
+        "display_name": "Indiranagar, Bengaluru, KA",
+        "lat": 12.9716,
+        "lng": 77.6412,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "Indiranagar, Bengaluru, Karnataka, India"
+    },
+    "destination": {
+        "display_name": "Pune, MH",
+        "lat": 18.5204,
+        "lng": 73.8567,
+        "place_id": "ChIJARFGZy6_wjsR6h8lh0U7b3w",
+        "address": "Pune, Maharashtra, India"
+    },
+    "start_date": "2025-07-03T07:00:00",
+    "end_date": "2025-07-04T20:00:00",
+    "num_adults": 4,
+    "num_children": 1,
+    "num_large_suitcases": 3,
+    "num_carryons": 2,
+    "preferred_car_type": "SUV",
+    "preferred_fuel_type": "diesel"
+}

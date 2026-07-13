@@ -1,0 +1,10 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/completed",
+        "scenario": "Basic trip completion — no extra charges. Driver completed the trip, customer paid the full remaining balance directly to the driver. Balance payment is internally zeroed out by the system on completion.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "ongoing → completed"
+    },
+    "end_datetime": "2026-03-10T11:20:00Z",
+    "reason": "Trip completed successfully. Customer paid remaining balance to driver."
+}

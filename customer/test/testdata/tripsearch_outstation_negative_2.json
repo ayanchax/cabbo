@@ -1,0 +1,25 @@
+{
+    "trip_type": "outstation",
+    "origin": {
+        "display_name": "Chennai, TN",
+        "lat": 13.0827,
+        "lng": 80.2707,
+        "place_id": "ChIJCSF8lBJuUjoRM9RjaAunYW4",
+        "address": "Chennai, Tamil Nadu, India"
+    },
+    "destination": {
+        "display_name": "Bengaluru, KA",
+        "lat": 12.9716,
+        "lng": 77.5946,
+        "place_id": "ChIJbU60yXAWrjsR4E9-UejD3_g",
+        "address": "Bengaluru, Karnataka, India"
+    },
+    "start_date": "2025-07-05T06:00:00",
+    "end_date": "2025-07-07T21:00:00",
+    "num_adults": 2,
+    "num_children": 0,
+    "num_large_suitcases": 2,
+    "num_carryons": 1,
+    "preferred_car_type": "Sedan",
+    "preferred_fuel_type": "petrol"
+}

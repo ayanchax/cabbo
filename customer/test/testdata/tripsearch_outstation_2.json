@@ -1,0 +1,34 @@
+{
+    "trip_type": "outstation",
+    "origin": {
+        "display_name": "MG Road, Bengaluru, KA",
+        "lat": 12.9740,
+        "lng": 77.6122,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "MG Road, Bengaluru, Karnataka, India"
+    },
+    "destination": {
+        "display_name": "Kochi, KL",
+        "lat": 9.9312,
+        "lng": 76.2673,
+        "place_id": "ChIJv0sdZQkCDDsR4E9-UejD3_g",
+        "address": "Kochi, Kerala, India"
+    },
+    "start_date": "2025-07-05T06:00:00",
+    "end_date": "2025-07-07T21:00:00",
+    "num_adults": 2,
+    "num_children": 0,
+    "num_large_suitcases": 2,
+    "num_carryons": 1,
+    "preferred_car_type": "Sedan",
+    "preferred_fuel_type": "petrol",
+    "hops": [
+        {
+            "display_name": "Salem, TN",
+            "lat": 11.6643,
+            "lng": 78.1460,
+            "place_id": "ChIJw2QwQw8rCDsR4E9-UejD3_g",
+            "address": "Salem, Tamil Nadu, India"
+        }
+    ]
+}

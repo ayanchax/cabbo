@@ -1,0 +1,25 @@
+{
+    "trip_type": "airport_drop",
+    "origin": {
+        "display_name": "Koramangala, Bengaluru, KA",
+        "lat": 12.9352,
+        "lng": 77.6245,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "Koramangala, Bengaluru, Karnataka, India"
+    },
+    "destination": {
+        "display_name": "Kempegowda International Airport, Bengaluru, KA",
+        "lat": 13.1986,
+        "lng": 77.7066,
+        "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",
+        "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India"
+    },
+    "start_date": "2025-07-02T05:30:00",
+    "num_adults": 1,
+    "num_children": 1,
+    "num_large_suitcases": 0,
+    "num_carryons": 2,
+    "preferred_car_type": "Sedan",
+    "preferred_fuel_type": "petrol",
+    "toll_road_preferred": false
+}

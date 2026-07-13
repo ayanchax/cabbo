@@ -1,0 +1,15 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/cancelled",
+        "scenario": "Driver no-show — assigned driver did not arrive at the pickup location without valid reason. Admin cancels the trip and a full refund of the advance payment is triggered for the customer since Cabbo is at fault.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → cancelled",
+        "refund": true,
+        "note": "canceled_by_cabbo = true → full refund triggered. Driver availability is freed."
+    },
+    "reason": "Assigned driver did not reach pickup location. Trip cancelled on behalf of customer.",
+    "cancelation_detail": {
+        "reason": "Driver was unreachable and did not show up at the scheduled pickup time. Customer was waiting.",
+        "cancellation_sub_status": "driver_no_show"
+    }
+}

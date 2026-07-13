@@ -1,0 +1,15 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/cancelled",
+        "scenario": "Customer no-show — driver waited at the pickup location for the allowed time but the customer never arrived. Driver admin cancels on behalf. No refund is triggered since it is the customer's fault.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → cancelled",
+        "refund": false,
+        "note": "canceled_by_cabbo = false → no refund. Driver time and effort is not compensated via this flow; handled separately if applicable."
+    },
+    "reason": "Customer did not show up at the pickup location after waiting.",
+    "cancelation_detail": {
+        "reason": "Driver waited 30 minutes at the pickup point. Customer did not show up and did not respond to calls.",
+        "cancellation_sub_status": "customer_no_show"
+    }
+}

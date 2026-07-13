@@ -1,0 +1,15 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/cancelled",
+        "scenario": "Admin-initiated system or operational cancellation that doesn't fit a specific sub-status — e.g., cancelled due to a system-level issue, safety concern, area restriction, or regulatory reason. Refund is triggered since it is Cabbo-side.",
+        "roles_allowed": ["super_admin"],
+        "transition": "confirmed → cancelled",
+        "refund": true,
+        "note": "canceled_by_cabbo = true → full refund triggered. Use a specific sub-status (driver_no_show, driver_unavailable, etc.) wherever possible. Only fall back to 'other' when no other sub-status fits."
+    },
+    "reason": "Trip cancelled by operations team due to safety concern in pickup zone.",
+    "cancelation_detail": {
+        "reason": "Trip cancelled by Cabbo operations due to reported road closure and safety advisory in the pickup area. Customer refund initiated.",
+        "cancellation_sub_status": "other"
+    }
+}

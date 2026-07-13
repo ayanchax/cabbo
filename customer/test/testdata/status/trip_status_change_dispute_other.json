@@ -1,0 +1,19 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/dispute",
+        "scenario": "Unclassified dispute — situation does not cleanly fit into 'fare' or 'service'. E.g., customer claims they already paid but driver says they did not. Use 'other' type and document the details fully so the support team can investigate.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "ongoing → dispute",
+        "note": "Use 'other' only when dispute_type cannot be determined at time of reporting. Support team will reclassify during investigation."
+    },
+    "reason": "Payment confirmation disputed between customer and driver. Raising dispute for support review.",
+    "dispute_detail": {
+        "reason": "Customer claims they paid via UPI directly to driver. Driver says no payment was received. Conflicting statements from both parties.",
+        "dispute_type": "other",
+        "details": {
+            "customer_claim": "Paid ₹950 via UPI at trip end.",
+            "driver_claim": "No payment received. UPI confirmation screenshot requested from customer.",
+            "support_notes": "Needs UPI transaction verification from both parties before resolution."
+        }
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "trip_type": "local",
+    "origin": {
+        "display_name": "MG Road, Bengaluru, KA",
+        "lat": 12.9740,
+        "lng": 77.6122,
+        "place_id": "ChIJd8BlQ2BfUjoR7yE6k5h1K2I",
+        "address": "MG Road, Bengaluru, Karnataka, India"
+    },
+    "start_date": "2025-07-01T09:00:00",
+    "end_date": "2025-07-01T13:00:00",
+    "num_adults": 2,
+    "num_children": 0,
+    "num_large_suitcases": 1,
+    "num_carryons": 1,
+    "preferred_car_type": "Sedan",
+    "preferred_fuel_type": "petrol",
+    "package_id": "05e47772-aca5-4ab5-9aea-d4fffc15788a"
+}

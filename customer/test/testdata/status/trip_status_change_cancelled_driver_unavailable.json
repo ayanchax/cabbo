@@ -1,0 +1,15 @@
+{
+    "_meta": {
+        "endpoint": "PATCH /api/v1/admin/trips/{trip_id}/status/cancelled",
+        "scenario": "Driver became unavailable after being assigned — e.g., vehicle breakdown, medical emergency. Admin re-assigns or cancels the trip. Full refund triggered as Cabbo is responsible.",
+        "roles_allowed": ["super_admin", "driver_admin"],
+        "transition": "confirmed → cancelled",
+        "refund": true,
+        "note": "canceled_by_cabbo = true → full refund triggered. Use this over 'driver_cancelled' when the driver had a genuine operational issue."
+    },
+    "reason": "Assigned driver became unavailable due to vehicle issue. Trip cancelled.",
+    "cancelation_detail": {
+        "reason": "Driver reported vehicle breakdown on the way to pickup location. Customer notified and refund initiated.",
+        "cancellation_sub_status": "driver_unavailable"
+    }
+}
