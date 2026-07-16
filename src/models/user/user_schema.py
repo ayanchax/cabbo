@@ -122,14 +122,21 @@ class UserLoginRequest(BaseModel):
             raise ValueError("Password must be at least 8 characters long")
         return v 
 
-class UserLoginResponse(BaseModel):
+class UserLoginBaseResponse(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
+    role: RoleEnum  # User's role for the logged-in user
+
+
+
+class UserLoginResponse(UserLoginBaseResponse):
+     
     user_id: str
     first_time_login: Optional[bool] = None
-    role: RoleEnum  # User's role for the logged-in user
  
+
+
 
     
 

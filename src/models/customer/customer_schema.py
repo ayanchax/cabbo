@@ -46,11 +46,23 @@ class CustomerCreate(CustomerBase):
 
 
 class CustomerRead(CustomerBase):
-    id: str = Field(..., description="UUID v4 customer ID")
-    created_at: datetime
+    id: Optional[str] = Field(None, description="UUID v4 customer ID")
+    created_at: Optional[datetime]=Field(None, description="Optional created datetime")
 
     class Config:
         from_attributes = True  # Read from ORM attributes of customer_orm
+        extra = "allow"
+
+        
+class AdminSafeReadCustomer(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: str  # Initially during onboarding we just need a phone number, hence no optional
+    profile_picture_url: Optional[str] = None  # Customer's profile picture url
+    
+    class Config:
+        from_attributes = True 
+        extra="ignore"
 
 class CustomerSafeRead(BaseModel):
     name: Optional[str] = None

@@ -2,6 +2,7 @@ from typing import Literal, Optional
 from sqlalchemy.orm import Session
 from models.common import S3ObjectInfo
 from models.customer.customer_schema import (
+    AdminSafeReadCustomer,
     CustomerCreate,
     CustomerRead,
     CustomerSafeRead,
@@ -562,6 +563,28 @@ def get_customer_email(customer: CustomerRead):
     return customer.email if customer.email else None
 
 
+def _get_customer_profile_picture_url(customer) -> Optional[str]:
+    try:
+        s3_image_info = (
+            customer.get("s3_image_info")
+            if isinstance(customer, dict)
+            else getattr(customer, "s3_image_info", None)
+        )
+         
+        if not s3_image_info:
+            return None
+
+        if isinstance(s3_image_info, dict):
+            return s3_image_info.get("url")
+
+        if isinstance(s3_image_info, S3ObjectInfo):
+            return s3_image_info.url
+
+        return getattr(s3_image_info, "url", None)
+    except Exception:
+        return None
+
+
 def serialize_customer(customer, trip_dict: dict):
     customer = CustomerRead.model_validate(customer)
     customer_data = customer.model_dump()
@@ -570,12 +593,23 @@ def serialize_customer(customer, trip_dict: dict):
     trip_dict.pop("creator_type", None)
     return trip_dict
 
+def serialize_customer_for_admin_retrieval(customer, trip_dict: dict):
+    profile_picture_url = _get_customer_profile_picture_url(customer)
+    customer = AdminSafeReadCustomer.model_validate(customer)
+    customer.profile_picture_url = profile_picture_url
+    
+    customer_data = customer.model_dump(exclude_none=True, exclude_unset=True)
+    trip_dict["customer"] = customer_data
+    trip_dict.pop("creator_id", None)
+    trip_dict.pop("creator_type", None)
+    trip_dict.pop("opt_in_updates", None)
+
+    return trip_dict
 
 def transform_to_safe_customer(customer: Customer, db: Session) -> CustomerSafeRead:
     
     safe_customer = CustomerSafeRead.model_validate(customer)
-    profile_picture = S3ObjectInfo.model_validate(customer.s3_image_info) if customer.s3_image_info else None
-    safe_customer.profile_picture_url = profile_picture.url if profile_picture else None
+    safe_customer.profile_picture_url = _get_customer_profile_picture_url(customer)
     safe_customer.joined_on = customer.created_at
     actual_trips = (
         [

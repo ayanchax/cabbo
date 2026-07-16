@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
-from core.exceptions import ALREADY_LOGGED_IN, CREDENTIALS_NOT_PROVIDED, GENERIC_EXCEPTION, INCORRECT_PASSWORD, ROLE_ERROR, USER_INACTIVE, USER_NOT_FOUND, USER_PASSWORD_NOT_SET, CabboException
-from core.security import ADMIN_JWT_EXPIRES_IN, JWT_EXPIRY_UNIT, RoleEnum, verify_password_hash
+from core.exceptions import ALREADY_LOGGED_IN, CREDENTIALS_NOT_PROVIDED, INCORRECT_PASSWORD, ROLE_ERROR, USER_INACTIVE, USER_NOT_FOUND, USER_PASSWORD_NOT_SET, CabboException
+from core.security import ADMIN_JWT_EXPIRES_IN, RoleEnum, verify_password_hash
 from db.database import yield_mysql_session
-from models.user.user_schema import UserLoginRequest, UserLoginResponse
+from models.user.user_schema import UserLoginBaseResponse, UserLoginRequest
 from services.user_service import generate_user_jwt, get_user_by_username, is_user_logged_in, persist_bearer_token
 
 router = APIRouter()
 
 
 # Login as admin user
-@router.post("/login", response_model=UserLoginResponse)
+@router.post("/login", response_model=UserLoginBaseResponse)
 def login_admin_user(
     payload: UserLoginRequest = Body(...), db: Session = Depends(yield_mysql_session)
 ):
@@ -44,11 +44,10 @@ def login_admin_user(
     
     token = persist_bearer_token(user=user, token=generate_user_jwt(user=user), db=db)
     
-    return UserLoginResponse(
+    return UserLoginBaseResponse(
         access_token=token,
         token_type="bearer",
         expires_in=ADMIN_JWT_EXPIRES_IN,  # n days in seconds
-        user_id=str(user.id),
         role=user.role,
     )
 

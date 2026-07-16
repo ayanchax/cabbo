@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_NOT_FOUND, DRIVER_NOT_FOUND
 from core.security import RoleEnum, validate_user_token
@@ -14,11 +14,13 @@ from services.orchestration_service import BackgroundTaskOrchestrator
 from services.trips.trip_service import (
     activate_trip,
     async_get_all_trips,
+    async_get_all_trips_paginated,
     async_get_trip_by_booking_id,
     async_get_trip_by_id,
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
     delete_trip,
+    remove_platform_payment_fields_for_admin_trip_operations,
     serialize_trip,
     serialize_trips,
     update_trip_status,
@@ -85,21 +87,32 @@ async def view_trip_details_by_booking_id(
 
 
 # List all trips in system
-@router.get("/list/all", response_model=list, tags=["Admin Trip Management"])
+@router.get("/list/all", response_model=dict, tags=["Admin Trip Management"])
 async def list_all_trips(
+    page: int = Query(1, ge=1, description="Page number for pagination, starting from 1"),
+    limit: int = Query(10, ge=1, le=50, description="Number of trips per page for pagination, maximum 50"),
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """List all trips in the system."""
     current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin]:
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
             "You do not have permission to view all trips.", status_code=403, error_code=UNAUTHORIZED
         )
-    trips = await async_get_all_trips(db)
-    if not trips:
+    trips = await async_get_all_trips_paginated(db=db, page=page, limit=limit)
+    if not trips or not trips.get("items", []):
         raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
-    return serialize_trips(trips, view=TripResponseView.ADMIN_LIST)
+    serialized_trips = serialize_trips(trips.get("items", []), view=TripResponseView.ADMIN_LIST)
+    trips.pop("items", None)
+    serialized_trips = remove_platform_payment_fields_for_admin_trip_operations(
+        serialized_trips
+    )
+
+    return {
+        **trips,
+        "trips": serialized_trips,
+    }
 
 
 # List trips by driver_id - this will be used by driver admin to see all trips that belong to a particular driver, and also by super admin for any driver

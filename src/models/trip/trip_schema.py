@@ -4,7 +4,7 @@ from datetime import datetime
 from core.exceptions import INVALID_TRIP_TYPE, CabboException
 from models.cab.cab_schema import VehicleCapacitySchema
 from models.common import AmenitiesSchema
-from models.customer.customer_schema import CustomerBase, CustomerRead
+from models.customer.customer_schema import AdminSafeReadCustomer, CustomerBase, CustomerRead, CustomerSafeRead
 from models.driver.driver_schema import CustomerSafeDriverReadSchema, DriverReadSchema
 from models.policies.cancelation_schema import CancelationPolicySchema, CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
@@ -356,7 +356,7 @@ class TripDetailSchema(BaseModel):
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
 
     # Creator information
-    customer: Optional[CustomerRead] = Field(
+    customer: Optional[Union[CustomerRead]] = Field(
         None,
         description="Customer details of the trip creator, included only if the creator is a customer and if the requesting user has permission to view customer details",
     )

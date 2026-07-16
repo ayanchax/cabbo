@@ -45,7 +45,7 @@ from services.configuration_service import (
     remove_extra_fields_from_currency,
     serialize_currency,
 )
-from services.customer_service import serialize_customer
+from services.customer_service import serialize_customer, serialize_customer_for_admin_retrieval
 from services.dispute_service import serialize_dispute
 from services.driver_service import remove_extra_fields_from_driver
 from services.location_service import remove_extra_fields_from_location
@@ -138,7 +138,11 @@ def serialize_trip(
 
     if options.expose_customer_details:
         if customer:
-            trip_dict = serialize_customer(customer, trip_dict)
+            if view == TripResponseView.ADMIN_LIST:
+                trip_dict = serialize_customer_for_admin_retrieval(customer, trip_dict)
+            else:
+                trip_dict = serialize_customer(customer, trip_dict)
+
         else:
             trip_dict["customer"] = None
     if options.expose_cancellation_detail:
@@ -796,6 +800,48 @@ async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
     return all
 
 
+async def async_get_all_trips_paginated(
+    db: AsyncSession,
+    page: int = 1,
+    limit: int = 10,
+    view: TripResponseView = TripResponseView.ADMIN_LIST,
+) -> dict:
+    """Asynchronously retrieve all active trips with pagination."""
+    page = max(page, 1)
+    limit = max(limit, 1)
+    offset = (page - 1) * limit
+
+    base_filters = [Trip.is_active == True]
+
+    count_result = await db.execute(
+        select(func.count(Trip.id)).filter(*base_filters)
+    )
+    total = count_result.scalar_one()
+
+    result = await db.execute(
+        select(Trip)
+        .filter(*base_filters)
+        .order_by(Trip.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    trips = result.scalars().all()
+    for trip in trips:
+        await attach_relationships_to_trip(trip, db, view=view)
+
+    return {
+        "items": trips,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(trips) < total,
+            "has_previous": page > 1,
+        },
+    }
+
+
 async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession) -> list[Trip]:
     """Asynchronously retrieve trips by driver ID."""
     query = select(Trip).filter(
@@ -820,6 +866,25 @@ def serialize_trips(trips: list[Trip], view: TripResponseView) -> list:
             )
         )
     return serialized_trips
+
+
+def remove_platform_payment_fields_for_admin_trip_operations(
+    trips: list[dict],
+) -> list[dict]:
+    """Hide platform payment internals from admin trip operation list responses."""
+    for trip in trips:
+        trip["cost_to_driver"] = trip.get("balance_payment", 0.0) #Balance payment is the amount left to pay which is the actual driver payment for this trip plus any extras as applicable.
+        trip.pop("advance_payment", None)
+        trip.pop("balance_payment", None)
+        trip.pop("base_fare", None)
+        trip.pop("final_price", None)
+
+
+        price_breakdown = trip.get("price_breakdown")
+        if isinstance(price_breakdown, dict):
+            price_breakdown.pop("platform_fee", None)
+
+    return trips
 
 
 async def async_get_trips_by_customer_id(
