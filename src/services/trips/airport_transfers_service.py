@@ -302,6 +302,7 @@ def get_airport_pickup_trip_options(
             status_code=404,
         )
     currency = config_store.geographies.country_server.currency_symbol
+    currency_code = config_store.geographies.country_server.currency
 
     validate_airport_schedule(search_in)  # Validate airport pickup schedule
     validate_placard_requirements(search_in)  # Validate placard requirements
@@ -422,7 +423,7 @@ def get_airport_pickup_trip_options(
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency(),
+            currency=Currency(symbol=currency, code = currency_code ) if currency else Currency(),
             rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
@@ -507,7 +508,8 @@ def get_airport_dropoff_trip_options(
             status_code=404,
         )
     currency = config_store.geographies.country_server.currency_symbol
-
+    currency_code = config_store.geographies.country_server.currency
+    
     validate_airport_schedule(search_in)  # Validate airport drop schedule
 
     _, _, est_km = _get_trip_origin_destination_distance_airport_drop(search_in)
@@ -603,7 +605,7 @@ def get_airport_dropoff_trip_options(
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency(),
+            currency=Currency(symbol=currency, code = currency_code) if currency else Currency(),
             rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(

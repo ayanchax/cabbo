@@ -309,7 +309,8 @@ def get_outstation_trip_options(
         )
 
     currency = config_store.geographies.country_server.currency_symbol
-
+    currency_code = config_store.geographies.country_server.currency
+    
     _, _, total_est_km = _get_trip_origin_destination_distance_outstation(
         search_in,
         min_distance=configuration.auxiliary_pricing.common.min_outbound_distance_km,
@@ -446,7 +447,7 @@ def get_outstation_trip_options(
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency(),
+            currency=Currency(symbol=currency, code = currency_code) if currency else Currency(),
             rate_per_km=rate_per_km,
         )
 
