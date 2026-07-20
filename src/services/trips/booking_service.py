@@ -1,3 +1,4 @@
+from decimal import Decimal
 import secrets
 import string
 from datetime import datetime, timezone
@@ -135,7 +136,7 @@ def _is_existing_trip_booking(trip_id: str, requestor: str, db: Session) -> bool
 def verify_temp_trip_platform_fee(
     temp_trip_id: str,
     requestor: str,
-    cost: float,
+    amount: Decimal,
     db: Session,
 ) -> bool:
     temp_trip = _get_temp_trip_by_trip_id_and_requestor(
@@ -143,13 +144,13 @@ def verify_temp_trip_platform_fee(
         requestor=requestor,
         db=db,
     )
-    client_cost = money(cost)
+    client_platform_fee = money(amount)
     server_platform_fee = money(temp_trip.platform_fee)
 
-    if client_cost != server_platform_fee:
+    if client_platform_fee != server_platform_fee:
         log.error(
             f"Trip cost verification failed for temp trip {temp_trip_id}: "
-            f"client cost {client_cost} did not match server platform fee {server_platform_fee}"
+            f"client platform fee: {client_platform_fee} did not match server platform fee: {server_platform_fee}"
         )
         raise CabboException(
             "Trip cost verification failed",

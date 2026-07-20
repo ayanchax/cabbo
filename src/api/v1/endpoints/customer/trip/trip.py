@@ -29,7 +29,7 @@ from .classifier import router as trip_type_classifier
 from .package import router as trip_packages
 from .fleet import router as fleet_router
 from .support import router as trip_support_router
-
+from decimal import Decimal
 
 router = APIRouter()
 
@@ -161,10 +161,10 @@ def get_trip_constraints(
     )
 
 
-@router.get("/verify/cost/{id}/{cost}")
+@router.get("/verify/platform-fee/{id}/{amount}")
 def verify_trip_cost(
     id: str = Path(..., description="Temp trip id to verify the cost for"),
-    cost: float = Path(
+    amount: Decimal = Path(
         ...,
         description="Cost to verify against actual/expected trip cost",
         ge=100,
@@ -179,7 +179,7 @@ def verify_trip_cost(
         "verified": verify_temp_trip_platform_fee(
             temp_trip_id=id,
             requestor=current_customer.id,
-            cost=cost,
+            amount=amount,
             db=db,
         )
     }

@@ -310,6 +310,7 @@ def verify_razorpay_payment(
                 f"got {payment_detail.razorpay_order_id}"
             )
             return False
+        
 
         client.utility.verify_payment_signature(
             {
@@ -317,7 +318,7 @@ def verify_razorpay_payment(
                 "razorpay_payment_id": payment_id,
                 "razorpay_signature": payment_detail.razorpay_signature,
             }
-        )
+        ) # Throws SignatureVerificationError
 
         payment = client.payment.fetch(payment_id)
         if expected_order_id and payment.get("order_id") != expected_order_id:
@@ -357,7 +358,10 @@ def verify_razorpay_payment(
             f"Payment verification failed for {payment_id}: {str(e)}"
         )
         return False  # If there's an error, we assume payment verification failed
-
+    
+    except razorpay.errors.SignatureVerificationError as e:
+        log.error(f"Payment signature verification failed for {payment_id}: {str(e)}")
+        return False
     except Exception as e:
         log.error(
             f"Unexpected error during payment verification for {payment_id}: {str(e)}"
