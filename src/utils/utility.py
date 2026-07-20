@@ -7,6 +7,8 @@ from core.config import settings
 import requests
 import re
 import logging
+from decimal import Decimal, ROUND_HALF_UP
+
 log = logging.getLogger(__name__)
 
 
@@ -156,3 +158,6 @@ def as_utc_datetime(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+def money(value: float) -> Decimal:
+    return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

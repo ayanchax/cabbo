@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from core.exceptions import CabboException
 from core.security import validate_customer_token
 from core.trip_helpers import get_prior_booking_window_hours, get_trip_constraints_by_trip_type
@@ -18,6 +18,7 @@ from services.trips.booking_service import (
     confirm_trip_booking,
     delete_temp_trip_by_booking_id,
     initiate_trip_booking,
+    verify_temp_trip_platform_fee,
 )
 from services.trips.search_service import search
 from utils.utility import remove_none_recursive
@@ -158,6 +159,30 @@ def get_trip_constraints(
     return get_trip_constraints_by_trip_type(
         trip_type=trip_type, jurisdiction_code=jurisdiction_code, db=db
     )
+
+
+@router.get("/verify/cost/{id}/{cost}")
+def verify_trip_cost(
+    id: str = Path(..., description="Temp trip id to verify the cost for"),
+    cost: float = Path(
+        ...,
+        description="Cost to verify against actual/expected trip cost",
+        ge=100,
+        le=1200,
+    ),
+    db: Session = Depends(yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    # Reverify the platform fee before opening Razorpay checkout. If a client
+    # payload was tampered with, fail before the payment modal is initialized.
+    return {
+        "verified": verify_temp_trip_platform_fee(
+            temp_trip_id=id,
+            requestor=current_customer.id,
+            cost=cost,
+            db=db,
+        )
+    }
 
 # Trip review endpoints for customers to provide ratings and feedback for their trips and view their reviews. These endpoints will validate the JWT token to ensure that only authenticated customers can access these functionalities and manage their trip reviews securely. The review endpoint will allow customers to submit their ratings and feedback for their completed trips, while the view reviews endpoint will enable customers to view their submitted reviews, enhancing the overall user experience and enabling better service quality through customer feedback.
 router.include_router(
