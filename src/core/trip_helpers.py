@@ -172,7 +172,7 @@ def get_default_trip_amenities():
     )
 
 
-def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
+def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session, use_cache=True) -> TripTypeEnum:
     """
     Retrieves the trip type from the database based on the provided trip type ID.
     Args:
@@ -183,6 +183,18 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
     Raises:
         CabboException: If the trip type ID is not found in the database.
     """
+    if use_cache:
+        from core.config import settings
+        config_store = settings.get_config_store(db)
+        trip_types = config_store.trip_types
+        trip_type_obj= next(trip_type for trip_type in trip_types if trip_type.id == trip_type_id)
+        if not trip_type_obj:
+            raise CabboException(
+            f"Trip type with ID {trip_type_id} not found", status_code=404, error_code=TRIP_TYPE_ID_NOT_FOUND
+        )
+        return TripTypeEnum(trip_type_obj.trip_type)
+
+
     trip_type_obj = (
         db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id, TripTypeMaster.is_active).first()
     )

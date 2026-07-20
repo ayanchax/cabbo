@@ -1,4 +1,3 @@
-
 import sys
 from pathlib import Path
 from typing import Optional
@@ -280,35 +279,88 @@ def get_razorpay_payment_order(
         return trip_id, _get_razorpay_existing_order(razorpay_order=razorpay_schema, order_id=existing_order_id)
 
 
-def verify_razorpay_payment(payment_detail: dict):
+def verify_razorpay_payment(
+    payment_detail: dict,
+    expected_order_id: Optional[str] = None,
+    expected_amount: Optional[int] = None,
+    expected_currency: Optional[str] = None,
+):
     """
     Verify the payment status with Razorpay.
     This function should be called after the payment is completed to confirm the payment status.
     """
     client = RAZOR_PAY_CLIENT
     client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
+    payment_id = None
     try:
-        payment_detail = RazorPayPaymentResponse.model_validate(payment_detail)
-        payment = client.payment.fetch(payment_detail.razorpay_payment_id)
+        payment_detail: RazorPayPaymentResponse = RazorPayPaymentResponse.model_validate(
+            payment_detail
+        )
+        payment_id = payment_detail.razorpay_payment_id
+        order_id = expected_order_id or payment_detail.razorpay_order_id
+
+        if not payment_detail.razorpay_signature:
+            log.error("Payment verification failed: missing Razorpay signature.")
+            return False
+
+        if expected_order_id and payment_detail.razorpay_order_id != expected_order_id:
+            log.error(
+                f"Payment verification failed for {payment_id}: "
+                f"order id mismatch. Expected {expected_order_id}, "
+                f"got {payment_detail.razorpay_order_id}"
+            )
+            return False
+
+        client.utility.verify_payment_signature(
+            {
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": payment_id,
+                "razorpay_signature": payment_detail.razorpay_signature,
+            }
+        )
+
+        payment = client.payment.fetch(payment_id)
+        if expected_order_id and payment.get("order_id") != expected_order_id:
+            log.error(
+                f"Payment verification failed for {payment_id}: "
+                f"provider order id mismatch. Expected {expected_order_id}, "
+                f"got {payment.get('order_id')}"
+            )
+            return False
+
+        if expected_amount is not None and payment.get("amount") != expected_amount:
+            log.error(
+                f"Payment verification failed for {payment_id}: "
+                f"amount mismatch. Expected {expected_amount}, got {payment.get('amount')}"
+            )
+            return False
+
+        if expected_currency and payment.get("currency") != expected_currency:
+            log.error(
+                f"Payment verification failed for {payment_id}: "
+                f"currency mismatch. Expected {expected_currency}, got {payment.get('currency')}"
+            )
+            return False
+
         if payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value:
             log.debug(
-                f"Payment {payment_detail.razorpay_payment_id} verified successfully."
+                f"Payment {payment_id} verified successfully."
             )
             return True
         else:
             log.error(
-                f"Payment verification failed for {payment_detail.razorpay_payment_id}: Status is {payment['status']}"
+                f"Payment verification failed for {payment_id}: Status is {payment['status']}"
             )
             return False
     except razorpay.errors.BadRequestError as e:
         log.error(
-            f"Payment verification failed for {payment_detail.razorpay_payment_id}: {str(e)}"
+            f"Payment verification failed for {payment_id}: {str(e)}"
         )
         return False  # If there's an error, we assume payment verification failed
 
     except Exception as e:
         log.error(
-            f"Unexpected error during payment verification for {payment_detail.razorpay_payment_id}: {str(e)}"
+            f"Unexpected error during payment verification for {payment_id}: {str(e)}"
         )
         return False
 
@@ -530,7 +582,6 @@ def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str):
     return payment_id and payment_id.startswith("pay_")
 
 
-   
 if __name__ == "__main__":
     # Quick test to verify Razorpay integration is working
     test_payment_id = (
