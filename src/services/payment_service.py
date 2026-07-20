@@ -43,9 +43,20 @@ def get_booking_payment_order(
     )
 
 
-def verify_payment(payment_details: dict, silently_fail: bool = False):
+def verify_payment(
+    payment_details: dict,
+    silently_fail: bool = False,
+    expected_order_id: Optional[str] = None,
+    expected_amount: Optional[int] = None,
+    expected_currency: Optional[str] = None,
+):
     if PAYMENT_PROVIDER == PaymentProvider.razorpay.value:
-        return verify_razorpay_payment(payment_details)
+        return verify_razorpay_payment(
+            payment_detail=payment_details,
+            expected_order_id=expected_order_id,
+            expected_amount=expected_amount,
+            expected_currency=expected_currency,
+        )
 
     if silently_fail:
         return None
