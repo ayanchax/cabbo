@@ -1,10 +1,9 @@
 import secrets
 import string
-from core.store import ConfigStore
+from datetime import datetime, timezone
 from core.trip_helpers import attach_trip_details_to_order_notes, get_trip_type_by_trip_type_id
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import RazorPayPaymentResponse
-from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
@@ -17,10 +16,13 @@ from models.trip.trip_enums import (
     TripStatusEnum,
 )
 from core.exceptions import (
+    PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION,
     CabboException,
     TRIP_TYPE_ID_NOT_FOUND,
     ALREADY_BOOKED_ON_THIS_SLOT,
     GENERIC_EXCEPTION,
+    PAYMENT_VERIFICATION_FAILED,
+    TRIP_NOT_FOUND,
     UNAUTHORIZED,
 )
 from services.audit_trail_service import log_trip_audit
@@ -36,6 +38,7 @@ from services.validation_service import (
     validate_booking_request,
 )
 from core.config import settings
+from utils.utility import convert_based_on_currency
 
 import logging
 log = logging.getLogger(__name__)
@@ -132,6 +135,7 @@ def _create_confirmed_trip_from_temp_trip(
     requestor: str,
     payment_info: RazorPayPaymentResponse,
     db: Session,
+    audit_reason: str = "Trip confirmed",
 ) -> TripCreate:
     """Creates a confirmed trip record from a temporary trip record.
     This function takes a temporary trip record, validates it, and creates a confirmed trip record in the database.
@@ -234,7 +238,9 @@ def _create_confirmed_trip_from_temp_trip(
         ),
         passenger_id=temp_trip.passenger_id if temp_trip.passenger_id else None,
         payment_provider_metadata=(
-            payment_info.model_dump(exclude_none=True) if payment_info else None
+            temp_trip.payment_provider_metadata
+            if temp_trip.payment_provider_metadata
+            else (payment_info.model_dump(exclude_none=True) if payment_info else None)
         ),
         timezone=temp_trip.timezone if temp_trip.timezone else settings.CABBO_DEFAULT_TIMEZONE,
         utc_offset=temp_trip.utc_offset if temp_trip.utc_offset else settings.CABBO_DEFAULT_UTC_OFFSET
@@ -249,13 +255,13 @@ def _create_confirmed_trip_from_temp_trip(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor,
-            reason="Trip confirmed",
+            reason=audit_reason,
             db=db,
         )  # Log the trip status audit entry
         log.info(f"Trip confirmed for trip ID: {trip.id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
         delete_temp_trip(
-            requestor=requestor, db=db
+            requestor=temp_trip.creator_id, db=db
         )  # Clean up all temporary trip details for this customer.
         trip_schema = populate_trip_schema(
             trip=trip, db=db
@@ -367,6 +373,40 @@ def initiate_trip_booking(
         )
 
 
+def _mark_temp_trip_payment_verified(
+    temp_trip: TempTrip,
+    payment_info: RazorPayPaymentResponse,
+    db: Session,
+    payment_verified_via: str = "checkout_api",
+) -> None:
+    try:
+        provider_metadata = (
+            temp_trip.payment_provider_metadata
+            if isinstance(temp_trip.payment_provider_metadata, dict)
+            else {}
+        )
+        payment_metadata = payment_info.model_dump(exclude_none=True)
+        provider_metadata = {
+            **provider_metadata,
+            **payment_metadata,
+            f"{settings.PAYMENT_PROVIDER}_payment_id": payment_info.razorpay_payment_id,
+            "payment_verified": True,
+            "payment_verified_via": payment_verified_via,
+            "payment_verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+        temp_trip.payment_provider_metadata = provider_metadata
+        db.commit()
+        db.refresh(temp_trip)
+    except Exception as e:
+        db.rollback()
+        log.error(f"Failed to mark payment as verified for trip {temp_trip.id}: {e}")
+        raise CabboException(
+            "Payment verified but booking confirmation is pending. Please contact support if this persists.",
+            status_code=500,
+            error_code=PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION,
+        )
+
+
 def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Session):
     """
     Confirms a trip booking based on the provided booking request.
@@ -400,10 +440,51 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
         trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
 
+    currency = get_currency(db=db)
+    provider_metadata = temp_trip.payment_provider_metadata or {}
+    payment_order_key = f"{settings.PAYMENT_PROVIDER}_order_id"
+    expected_order_id = (
+        provider_metadata.get(payment_order_key)
+        if isinstance(provider_metadata, dict)
+        else getattr(provider_metadata, payment_order_key, None)
+    )
+    if not expected_order_id:
+        raise CabboException(
+            "Payment order reference missing",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+    expected_amount = int(
+        convert_based_on_currency(
+            temp_trip.platform_fee,
+            currency.lowest_unit_conversion_factor,
+        )
+    )
+    if expected_amount<=0:
+        raise CabboException(
+            "Expected amount is less than or equal to zero",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+
     # Verify the payment details in the booking request
-    payment_verified = verify_payment(payment_details=booking_request.payment_info.model_dump())
+    payment_verified = verify_payment(
+        payment_details=booking_request.payment_info.model_dump(),
+        expected_order_id=expected_order_id,
+        expected_amount=expected_amount,
+        expected_currency=currency.code,
+    )
     if not payment_verified:
         raise CabboException("Payment verification failed", status_code=400, error_code=GENERIC_EXCEPTION)
+
+    _mark_temp_trip_payment_verified(
+        temp_trip=temp_trip,
+        payment_info=booking_request.payment_info,
+        db=db,
+        payment_verified_via=f"{settings.PAYMENT_PROVIDER} checkout api",
+    )
 
     # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
     return _create_confirmed_trip_from_temp_trip(
@@ -411,6 +492,102 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
         requestor=customer.id,
         payment_info=booking_request.payment_info,
         db=db,
+    )
+
+
+def recover_payment_verified_temp_trip(
+    temp_trip_id: str,
+    admin_user_id: str,
+    db: Session,
+) -> TripCreate:
+    existing_trip = (
+        db.query(Trip)
+        .filter(Trip.id == temp_trip_id, Trip.is_active.is_(True))
+        .first()
+    )
+    if existing_trip:
+        payment_info = None
+        if existing_trip.payment_provider_metadata:
+            try:
+                payment_info = RazorPayPaymentResponse.model_validate(
+                    existing_trip.payment_provider_metadata
+                )
+            except Exception:
+                log.warning(
+                    f"Existing trip {existing_trip.id} has incomplete payment metadata"
+                )
+
+        return TripCreate(
+            trip_id=existing_trip.id,
+            booking_id=existing_trip.booking_id,
+            payment_info=payment_info,
+            status=existing_trip.status,
+            trip_details=populate_trip_schema(trip=existing_trip, db=db),
+        )
+
+    temp_trip = db.query(TempTrip).filter(TempTrip.id == temp_trip_id).first()
+    if not temp_trip:
+        raise CabboException(
+            "Payment-verified temporary trip not found",
+            status_code=404,
+            error_code=TRIP_NOT_FOUND,
+        )
+
+    provider_metadata = temp_trip.payment_provider_metadata or {}
+    if (
+        not isinstance(provider_metadata, dict)
+        or provider_metadata.get("payment_verified") is not True
+    ):
+        raise CabboException(
+            "Temporary trip is not marked as payment verified",
+            status_code=400,
+            error_code=PAYMENT_VERIFICATION_FAILED,
+        )
+
+    payment_info = RazorPayPaymentResponse.model_validate(provider_metadata)
+    currency = get_currency(db=db)
+    payment_order_key = f"{settings.PAYMENT_PROVIDER}_order_id"
+    expected_order_id = provider_metadata.get(payment_order_key)
+    if not expected_order_id:
+        raise CabboException(
+            "Payment order reference missing for recovered temporary trip",
+            status_code=400,
+            error_code=PAYMENT_VERIFICATION_FAILED,
+        )
+
+    expected_amount = int(
+        convert_based_on_currency(
+            temp_trip.platform_fee,
+            currency.lowest_unit_conversion_factor,
+        )
+    )
+    if expected_amount <=0:
+        raise CabboException(
+            "Payment verification failed during booking recovery",
+            status_code=400,
+            error_code=PAYMENT_VERIFICATION_FAILED,
+        )
+
+
+    payment_verified = verify_payment(
+        payment_details=payment_info.model_dump(),
+        expected_order_id=expected_order_id,
+        expected_amount=expected_amount,
+        expected_currency=currency.code,
+    )
+    if not payment_verified:
+        raise CabboException(
+            "Payment verification failed during booking recovery",
+            status_code=400,
+            error_code=PAYMENT_VERIFICATION_FAILED,
+        )
+
+    return _create_confirmed_trip_from_temp_trip(
+        temp_trip=temp_trip,
+        requestor=admin_user_id,
+        payment_info=payment_info,
+        db=db,
+        audit_reason="Recovered payment-verified booking",
     )
 
 
