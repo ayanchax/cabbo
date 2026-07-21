@@ -201,7 +201,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             error_code=GENERIC_EXCEPTION,
         )
     currency = config_store.geographies.country_server.currency_symbol
-
+    currency_code = config_store.geographies.country_server.currency
+    
     validate_local_trip_schedule(search_in)  # Validate local trip schedule
     _, _, _ = _get_trip_origin_destination_distance_local(search_in)
     inclusions, exclusions = _get_inclusions_exclusions_for_local_trip()
@@ -314,7 +315,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
                     overage_amount_per_km=overage_amount_per_km,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
-            currency=Currency(symbol=currency) if currency else Currency(),
+            currency=Currency(symbol=currency, code = currency_code) if currency else Currency(),
             rate_per_min=rate_per_minute,
             rate_per_km=rate_per_km,
         )

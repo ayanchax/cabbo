@@ -1,3 +1,4 @@
+from decimal import Decimal
 import secrets
 import string
 from datetime import datetime, timezone
@@ -38,10 +39,12 @@ from services.validation_service import (
     validate_booking_request,
 )
 from core.config import settings
-from utils.utility import convert_based_on_currency
+from utils.utility import money, convert_based_on_currency
 
 import logging
 log = logging.getLogger(__name__)
+
+
 
 def _generate_booking_id(trip_type: str, db: Session, length: int = 16, attempts: int = 5) -> str:
     """
@@ -128,6 +131,34 @@ def _is_existing_trip_booking(trip_id: str, requestor: str, db: Session) -> bool
     if trip:
         return True
     return False
+
+
+def verify_temp_trip_platform_fee(
+    temp_trip_id: str,
+    requestor: str,
+    amount: Decimal,
+    db: Session,
+) -> bool:
+    temp_trip = _get_temp_trip_by_trip_id_and_requestor(
+        trip_id=temp_trip_id,
+        requestor=requestor,
+        db=db,
+    )
+    client_platform_fee = money(amount)
+    server_platform_fee = money(temp_trip.platform_fee)
+
+    if client_platform_fee != server_platform_fee:
+        log.error(
+            f"Trip cost verification failed for temp trip {temp_trip_id}: "
+            f"client platform fee: {client_platform_fee} did not match server platform fee: {server_platform_fee}"
+        )
+        raise CabboException(
+            "Trip cost verification failed",
+            status_code=400,
+            error_code=PAYMENT_VERIFICATION_FAILED,
+        )
+
+    return True
 
 
 def _create_confirmed_trip_from_temp_trip(
