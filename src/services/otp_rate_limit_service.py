@@ -43,11 +43,11 @@ def _seconds_until_oldest_expires(events: deque[datetime], window_seconds: int, 
 
 def assert_otp_send_allowed(phone_number: str, client_ip: str) -> None:
     now = datetime.now(timezone.utc)
-    forced_rate_limit_phone = settings.OTP_FORCE_RATE_LIMIT_PHONE_NUMBER.strip()
+    forced_rate_limit_phone = settings.OTP_FORCE_RATE_LIMIT_PHONE_NUMBER
 
     if (
         settings.ENV not in {Environment.PROD.value, Environment.DEV.value}
-        and forced_rate_limit_phone
+        and forced_rate_limit_phone and forced_rate_limit_phone.strip()
         
     ):
         phone_number = phone_number.strip().replace("+91", "").strip()
