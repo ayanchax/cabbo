@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 from typing import Literal, Optional, Union
 
@@ -83,6 +83,29 @@ from core.config import settings
 import logging
 
 log = logging.getLogger(__name__)
+
+
+def _coerce_trip_filter_date(value: Optional[Union[date, str]], field_name: str) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            raise CabboException(
+                f"Invalid {field_name}. Expected date in YYYY-MM-DD format.",
+                status_code=400,
+                error_code=GENERIC_EXCEPTION,
+            )
+    raise CabboException(
+        f"Invalid {field_name}. Expected date in YYYY-MM-DD format.",
+        status_code=400,
+        error_code=GENERIC_EXCEPTION,
+    )
 
 
 def serialize_trip(
@@ -802,6 +825,10 @@ async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
 
 async def async_get_all_trips_paginated(
     db: AsyncSession,
+    status: Optional[TripStatusEnum] = None,
+    trip_type: Optional[TripTypeEnum] = None,
+    start_date: Optional[Union[date, str]] = None,
+    end_date: Optional[Union[date, str]] = None,
     page: int = 1,
     limit: int = 10,
     view: TripResponseView = TripResponseView.ADMIN_LIST,
@@ -812,14 +839,56 @@ async def async_get_all_trips_paginated(
     offset = (page - 1) * limit
 
     base_filters = [Trip.is_active == True]
+    joins = []
 
-    count_result = await db.execute(
-        select(func.count(Trip.id)).filter(*base_filters)
-    )
+    if status:
+        base_filters.append(Trip.status == status)
+
+    if trip_type:
+        joins.append((TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id))
+        base_filters.append(TripTypeMaster.trip_type == trip_type)
+
+    from_date = _coerce_trip_filter_date(start_date, "start_date")
+    to_date = _coerce_trip_filter_date(end_date, "end_date")
+
+    if from_date and not to_date:
+        base_filters.append(
+            Trip.start_datetime >= datetime.combine(from_date, datetime.min.time())
+        )
+    elif to_date and not from_date:
+        day_start = datetime.combine(to_date, datetime.min.time())
+        base_filters.extend(
+            [
+                Trip.start_datetime >= day_start,
+                Trip.start_datetime < day_start + timedelta(days=1),
+            ]
+        )
+    elif from_date and to_date:
+        if from_date > to_date:
+            raise CabboException(
+                "start_date cannot be after end_date.",
+                status_code=400,
+                error_code=GENERIC_EXCEPTION,
+            )
+        base_filters.extend(
+            [
+                Trip.start_datetime >= datetime.combine(from_date, datetime.min.time()),
+                Trip.start_datetime
+                < datetime.combine(to_date + timedelta(days=1), datetime.min.time()),
+            ]
+        )
+
+    count_stmt = select(func.count(Trip.id))
+    query_stmt = select(Trip)
+    for join in joins:
+        count_stmt = count_stmt.join(*join)
+        query_stmt = query_stmt.join(*join)
+
+    count_result = await db.execute(count_stmt.filter(*base_filters))
     total = count_result.scalar_one()
 
     result = await db.execute(
-        select(Trip)
+        query_stmt
         .filter(*base_filters)
         .order_by(Trip.created_at.desc())
         .offset(offset)

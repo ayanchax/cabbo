@@ -1,11 +1,12 @@
-from typing import Optional
+from datetime import date
+from typing import Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
-from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_NOT_FOUND, DRIVER_NOT_FOUND
+from core.exceptions import TRIPS_NOT_FOUND, UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_NOT_FOUND, DRIVER_NOT_FOUND
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
-from models.trip.trip_enums import TripResponseView, TripStatusEnum
+from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange
 from models.user.user_orm import User
 from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
@@ -91,6 +92,10 @@ async def view_trip_details_by_booking_id(
 async def list_all_trips(
     page: int = Query(1, ge=1, description="Page number for pagination, starting from 1"),
     limit: int = Query(10, ge=1, le=50, description="Number of trips per page for pagination, maximum 50"),
+    status:Optional[TripStatusEnum]=Query(None, description="Filter by status"),
+    trip_type:Optional[TripTypeEnum]=Query(None, description="Filter by trip type"),
+    start_date:Optional[Union[date, str]]= Query(None, description="Filter by trips from a specific date" ),
+    end_date:Optional[Union[date, str]]= Query(None, description="Filter by trips upto a specific date" ),
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
@@ -100,9 +105,17 @@ async def list_all_trips(
         raise CabboException(
             "You do not have permission to view all trips.", status_code=403, error_code=UNAUTHORIZED
         )
-    trips = await async_get_all_trips_paginated(db=db, page=page, limit=limit)
+    trips = await async_get_all_trips_paginated(
+        db=db,
+        status=status,
+        trip_type=trip_type,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        limit=limit,
+    )
     if not trips or not trips.get("items", []):
-        raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
+        raise CabboException("No trips found in the system", status_code=404, error_code=TRIPS_NOT_FOUND)
     serialized_trips = serialize_trips(trips.get("items", []), view=TripResponseView.ADMIN_LIST)
     trips.pop("items", None)
     serialized_trips = remove_platform_payment_fields_for_admin_trip_operations(
