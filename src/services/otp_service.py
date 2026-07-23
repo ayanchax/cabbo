@@ -1,3 +1,4 @@
+from enum import Enum
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -10,6 +11,10 @@ OTP_EXPIRY_MINUTES = settings.OTP_EXPIRY_MINUTES
 OTP_RESEND_INTERVAL_SECONDS = settings.OTP_RESEND_COOLDOWN_SECONDS # Minimum time between OTP sends to prevent abuse
 MAX_ATTEMPTS = settings.OTP_VERIFICATION_MAX_ATTEMPTS # Maximum attempts allowed for OTP verification before invalidating the OTP 
 
+class OTPFlow(str, Enum):
+    REGISTRATION="registration"
+    LOGIN="login"
+    RESEND="resend"
 # Helper to generate a unique 6-digit OTP based on phone number and current time
 # Ensures no repeat for the same phone number
 

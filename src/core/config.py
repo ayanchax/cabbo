@@ -61,6 +61,10 @@ class Settings(BaseSettings):
 
     #SMS and OTP settings for sending OTPs to users for authentication and verification purposes. These settings are mandatory for all environments, as OTP functionality is a core feature of the application.
     SMS_SERVICE_PROVIDER: str
+    SMS_PROVIDER_AUTHKEY:Optional[str]=None # Auth key is used when SMS_SERVICE_PROVIDER is MSG91
+    LOGIN_OTP_DLT_TEMPLATE_ID:Optional[str] = None
+    REGISTRATION_OTP_DLT_TEMPLATE_ID:Optional[str]= None
+    RESEND_OTP_DLT_TEMPLATE_ID:Optional[str] = None
     OTP_LENGTH: int = 6
     OTP_EXPIRY_MINUTES: int = 5
     OTP_VERIFICATION_MAX_ATTEMPTS: int = 3
