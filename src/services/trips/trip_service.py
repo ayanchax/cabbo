@@ -161,7 +161,7 @@ def serialize_trip(
 
     if options.expose_customer_details:
         if customer:
-            if view == TripResponseView.ADMIN_LIST:
+            if view in [TripResponseView.ADMIN_LIST, TripResponseView.ADMIN_DETAIL]:
                 trip_dict = serialize_customer_for_admin_retrieval(customer, trip_dict)
             else:
                 trip_dict = serialize_customer(customer, trip_dict)
@@ -937,22 +937,26 @@ def serialize_trips(trips: list[Trip], view: TripResponseView) -> list:
     return serialized_trips
 
 
+def remove_platform_payment_fields(trip: dict):
+    trip["cost_to_driver"] = trip.get(
+        "balance_payment", 0.0
+    )  # Balance payment is the amount left to pay which is the actual driver payment for this trip plus any extras as applicable.
+    trip.pop("advance_payment", None)
+    trip.pop("balance_payment", None)
+    trip.pop("base_fare", None)
+    trip.pop("final_price", None)
+    price_breakdown = trip.get("price_breakdown")
+    if isinstance(price_breakdown, dict):
+        price_breakdown.pop("platform_fee", None)
+    return trip
+
+
 def remove_platform_payment_fields_for_admin_trip_operations(
     trips: list[dict],
 ) -> list[dict]:
     """Hide platform payment internals from admin trip operation list responses."""
     for trip in trips:
-        trip["cost_to_driver"] = trip.get("balance_payment", 0.0) #Balance payment is the amount left to pay which is the actual driver payment for this trip plus any extras as applicable.
-        trip.pop("advance_payment", None)
-        trip.pop("balance_payment", None)
-        trip.pop("base_fare", None)
-        trip.pop("final_price", None)
-
-
-        price_breakdown = trip.get("price_breakdown")
-        if isinstance(price_breakdown, dict):
-            price_breakdown.pop("platform_fee", None)
-
+        trip = remove_platform_payment_fields(trip)
     return trips
 
 
@@ -1101,7 +1105,6 @@ async def async_get_trips_by_customer_id_paginated(
             "has_previous": page > 1,
         },
     }
-
 
 
 def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dict:

@@ -21,6 +21,7 @@ from services.trips.trip_service import (
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
     delete_trip,
+    remove_platform_payment_fields,
     remove_platform_payment_fields_for_admin_trip_operations,
     serialize_trip,
     serialize_trips,
@@ -84,6 +85,9 @@ async def view_trip_details_by_booking_id(
         serialized_trip.pop(
             "id"
         )  # Remove internal trip ID from the response for security reasons
+ 
+    serialized_trip = remove_platform_payment_fields(serialized_trip)
+    
     return serialized_trip
 
 

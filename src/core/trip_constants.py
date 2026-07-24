@@ -142,9 +142,11 @@ TRIP_RESPONSE_OPTIONS = {
         expose_currency_detail=True,
         expose_fleet_detail=True,
         expose_trip_label=True,
-        expose_policy_detail=True,
+        expose_policy_detail=False,
         expose_dispute_details=True,
         expose_trip_review=True,
+        optimize_response=True,
+
 
     ),
      TripResponseView.ADMIN_LIST: TripSerializationOptions(
@@ -153,7 +155,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_currency_detail=True,
         expose_fleet_detail=True,
         expose_trip_label=True,
-        expose_policy_detail=True,
+        expose_policy_detail=False,
         expose_dispute_details=True,
         expose_trip_review=True,
         optimize_response=True,
