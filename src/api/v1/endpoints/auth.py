@@ -8,6 +8,7 @@ from services.customer_email_verification_service import send_email_verification
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.otp_service import (
     OTP_RESEND_INTERVAL_SECONDS,
+    OTPFlow,
     generate_otp,
     resend_otp,
     verify_otp,
@@ -67,7 +68,13 @@ def initiate_onboarding(
     otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
 
-    if send_otp(to_number=phone_number, message=message):
+    if send_otp(
+        to_number=phone_number,
+        message=message,
+        otp=otp,
+        expires_in=str(OTP_EXPIRY_MINUTES),
+        flow=OTPFlow.REGISTRATION,
+    ):
         record_otp_send(phone_number=phone_number, client_ip=client_ip)
         return {
             "message": "OTP sent to phone number.",
@@ -173,7 +180,13 @@ def initiate_login(
     assert_otp_send_allowed(phone_number=phone_number, client_ip=client_ip)
     otp, _, _, last_sent_at = generate_otp(phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to login into your account. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
-    if send_otp(to_number=phone_number, message=message):
+    if send_otp(
+        to_number=phone_number,
+        message=message,
+        otp=otp,
+        expires_in=str(OTP_EXPIRY_MINUTES),
+        flow=OTPFlow.LOGIN,
+    ):
         record_otp_send(phone_number=phone_number, client_ip=client_ip)
         return {
             "message": "OTP sent to phone number.",
@@ -227,7 +240,13 @@ def resend_one_time_password(
     otp, _, _, last_sent_at = resend_otp(payload.phone_number, db)
     message = f"Your {APP_NAME} OTP is {otp}. Please use it to complete your registration. This OTP is valid for {str(OTP_EXPIRY_MINUTES)} minutes."
 
-    if send_otp(to_number=payload.phone_number, message=message):
+    if send_otp(
+        to_number=payload.phone_number,
+        message=message,
+        otp=otp,
+        expires_in=str(OTP_EXPIRY_MINUTES),
+        flow=OTPFlow.RESEND,
+    ):
         record_otp_send(phone_number=payload.phone_number, client_ip=client_ip)
         return {
             "message": "OTP resent to phone number.",

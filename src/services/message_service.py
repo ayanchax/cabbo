@@ -1,6 +1,9 @@
+from functools import lru_cache
 import sys
 from pathlib import Path
+from typing import Union
 
+from services.otp_service import OTP_EXPIRY_MINUTES, OTPFlow
 from utils.redaction import mask_email, mask_phone
 
 parent_dir = Path(__file__).resolve().parent.parent
@@ -20,6 +23,8 @@ from core.config import settings
 from core.constants import APP_NAME, PROJECT_ROOT
 from core.sentry import capture_otp_send_failure
 import logging
+import requests
+
 log = logging.getLogger(__name__)
 EMAIL_VERIFY_EXPIRY_UNIT = 2
 EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
@@ -27,6 +32,9 @@ EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
     "HOURS": "hours",
     "MINUTES": "minutes",
 }
+
+# MSG91 Configuration
+MSG_91_SEND_SMS_URL = "https://control.msg91.com/api/v5/flow"
 
 # Twilio Configuration for sending SMS
 TWILIO_ACCOUNT_SID = settings.TWILLIO_ACCOUNT_SID
@@ -45,8 +53,6 @@ EMAIL_VERIFICATION_FILE = "email_verification.html"
 EMAIL_TEMPLATES_DIR = os.path.join(PROJECT_ROOT, "templates", "emails")
 
 
-
-
 jinja_templates_env = Environment(
     loader=FileSystemLoader(EMAIL_TEMPLATES_DIR),
     autoescape=select_autoescape(["html", "xml"]),
@@ -55,14 +61,19 @@ jinja_templates_env = Environment(
 # Twilio Text Messaging Service
 
 
-def send_otp(to_number: str, message="Hello world") -> bool:
+def send_otp(to_number: str, message="Hello world", **kwargs) -> bool:
     """
     Send OTP using Twilio. Returns True if sent, False otherwise.
     """
+    
+
     if settings.SMS_SERVICE_PROVIDER.lower() == "twilio":
         return _send_twilio_sms(to_number, message)
     elif settings.SMS_SERVICE_PROVIDER.lower() == "mock":
         return _send_mock_sms(to_number, message)
+    elif settings.SMS_SERVICE_PROVIDER.lower() == "msg91":
+        return _send_msg91_sms(to_number, **kwargs)
+
     else:
         log.error(f"Unsupported SMS service provider: {settings.SMS_SERVICE_PROVIDER}")
         capture_otp_send_failure(
@@ -72,15 +83,111 @@ def send_otp(to_number: str, message="Hello world") -> bool:
         return False
 
 
+@lru_cache(maxsize=2000)
+def _get_dlt_template_id(flow:OTPFlow):
+    if flow == OTPFlow.REGISTRATION:
+        return settings.REGISTRATION_OTP_DLT_TEMPLATE_ID
+    if flow ==OTPFlow.LOGIN:
+        return settings.LOGIN_OTP_DLT_TEMPLATE_ID
+    if flow == OTPFlow.RESEND:
+        return settings.RESEND_OTP_DLT_TEMPLATE_ID
+    return None
+
+
+def _send_msg91_sms(to_number: str, **config):
+
+    def _format_msg91_phone_number(phone_number: str) -> str:
+        """
+    Convert an E.164 standard(Numbering plan of the international telephone service) phone number into the format expected by MSG91.
+
+    Example:
+        +919831305667 -> 919831305667
+        +91 9831305667 -> 919831305667
+        """
+        return phone_number.replace("+", "").replace(" ", "")
+    try:
+        flow: OTPFlow = config.get(
+            "flow", None
+        )  # Since MSG91 needs template id based on the message flow, we will evaluate the template_id based on the flow.
+        if not flow:
+            log.error("MSG91 SMS send skipped for %s: missing flow", mask_phone(to_number))
+            return False
+        template_id = _get_dlt_template_id(flow=flow)
+        if not template_id:
+            log.error(
+                "MSG91 SMS send skipped for %s: missing template id for flow %s",
+                mask_phone(to_number),
+                flow,
+            )
+            return False
+        otp = config.get("otp", None)
+        if not otp:
+            log.error("MSG91 SMS send skipped for %s: missing otp", mask_phone(to_number))
+            return False
+        expires_in = config.get("expires_in", str(OTP_EXPIRY_MINUTES))
+        formatted_msg91_phone_number=_format_msg91_phone_number(phone_number=to_number) 
+        payload = {
+            "template_id": template_id,
+            "short_url": "0",
+            "recipients": [
+                {"mobiles": formatted_msg91_phone_number, "number1": otp, "number2": expires_in}
+            ],
+        }
+        headers = {
+            "accept": "application/json",
+            "authkey": settings.SMS_PROVIDER_AUTHKEY,
+            "content-type": "application/json",
+        }
+        response = requests.post(
+            url=MSG_91_SEND_SMS_URL,
+            json=payload,
+            headers=headers,
+            timeout=10,
+        )
+        if 200 <= response.status_code < 300:
+            data = response.json()
+
+            log.info(
+                "MSG91 accepted OTP for %s. response=%s",
+                mask_phone(to_number),
+                data,
+            )
+            return True
+
+        log.error(
+            "MSG91 SMS send failed for %s with status %s: %s",
+            mask_phone(to_number),
+            response.status_code,
+            response.text[:500],
+        )
+        capture_otp_send_failure(
+            provider="msg91",
+            failure_type=f"http_{response.status_code}",
+        )
+        return False
+    except Exception as e:
+        log.error(
+            f"MSG91 SMS send failed for {mask_phone(to_number)}: " f"{type(e).__name__}"
+        )
+        capture_otp_send_failure(
+            provider="msg91",
+            failure_type=type(e).__name__,
+        )
+        return False
+
+
 def _send_mock_sms(to_number: str, message: str) -> bool:
     """
     Mock SMS sending for testing purposes. Always returns True.
     """
-    if settings.ENV==AppEnvironment.LOCAL.value:
-        log.info(f"Mock SMS generated for {mask_phone(to_number)} with message: {message}")
+    if settings.ENV == AppEnvironment.LOCAL.value:
+        log.info(
+            f"Mock SMS generated for {mask_phone(to_number)} with message: {message}"
+        )
     else:
         log.info(f"Mock SMS generated for {mask_phone(to_number)}")
     return True
+
 
 def _send_twilio_sms(to_number: str, message: str) -> bool:
     """
@@ -168,7 +275,9 @@ def _sendgrid_send_email(
             html_content=html_content,
         )
         response = sg_client.send(message)
-        log.info(f"SendGrid email sent to {mask_email(to_email)} with status code {response.status_code}")
+        log.info(
+            f"SendGrid email sent to {mask_email(to_email)} with status code {response.status_code}"
+        )
         return 200 <= response.status_code < 300
     except Exception as e:
         # We will log audit logs later on failures of email sending
@@ -219,7 +328,11 @@ async def _aws_ses_send_email(
 
 
 def render_email_template(
-    template_name: str, for_customer=False, for_driver=False, include_year=True, **kwargs
+    template_name: str,
+    for_customer=False,
+    for_driver=False,
+    include_year=True,
+    **kwargs,
 ) -> str:
     """
     Render an email template with the given context.
@@ -233,15 +346,15 @@ def render_email_template(
     if include_year:
         now = datetime.now(timezone.utc)
         kwargs["current_year"] = now.year
-    
+
     kwargs["app_logo_url"] = settings.APP_LOGO_URL
 
     if "app_name" not in kwargs:
         kwargs["app_name"] = APP_NAME.capitalize()
-    
+
     if "app_url" not in kwargs:
         kwargs["app_url"] = settings.APP_URL
-    
+
     return template.render(**kwargs)
 
 
@@ -263,10 +376,5 @@ def create_email_verification_link(
         expiry = now + timedelta(minutes=expires_in)
     else:
         expiry = now + timedelta(hours=EMAIL_VERIFY_EXPIRY_UNIT)  # fallback
-    verification_url = (
-        f"{settings.APP_URL}/verify-email?ep={endpoint}&id={id}&token={secrets.token_urlsafe(16)}"
-    )
+    verification_url = f"{settings.APP_URL}/verify-email?ep={endpoint}&id={id}&token={secrets.token_urlsafe(16)}"
     return verification_url, expiry
-
-
- 

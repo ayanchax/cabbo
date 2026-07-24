@@ -1,3 +1,4 @@
+from enum import Enum
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -10,6 +11,10 @@ OTP_EXPIRY_MINUTES = settings.OTP_EXPIRY_MINUTES
 OTP_RESEND_INTERVAL_SECONDS = settings.OTP_RESEND_COOLDOWN_SECONDS # Minimum time between OTP sends to prevent abuse
 MAX_ATTEMPTS = settings.OTP_VERIFICATION_MAX_ATTEMPTS # Maximum attempts allowed for OTP verification before invalidating the OTP 
 
+class OTPFlow(str, Enum):
+    REGISTRATION="registration"
+    LOGIN="login"
+    RESEND="resend"
 # Helper to generate a unique 6-digit OTP based on phone number and current time
 # Ensures no repeat for the same phone number
 
@@ -26,6 +31,8 @@ def generate_otp(phone_number: str, db: Session) -> tuple[str, datetime, int, da
 
     # Remove any expired OTPs for this phone number
     delete_expired_otp(phone_number, db)
+    # In case otp is not expired, but attempts got exhausted, then the above delete_expired_otp would do nothing technically - but still we would generate new otp without complaining about invalid otp attempts - because we care for onboarding/login the customer seamlessly and without irrelevant security errors.
+    # We will anyway have a OTP clean up job from PreOnboardingCustomer table to clear any expired OTPs, that will run once everyday.
     # Generate a unique, cryptographically secure 6-digit OTP not in use
     for _ in range(10):  # Try up to 10 times to avoid rare infinite loop
         otp_int = secrets.randbelow(10 ** OTP_LENGTH)  # Generate a random integer with OTP_LENGTH digits
