@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     AWS_SES_FROM_NO_REPLY_EMAIL: Optional[str] =None  # Email address used for sending emails to customers on events of welcome email, booking confirmation, trip updates, etc.
 
     # Brevo SMTP Settings for sending emails
+    BREVO_API_KEY: Optional[str] = None
     BREVO_SMTP_HOST: Optional[str] =None
     BREVO_SMTP_PORT: Optional[int] =None
     BREVO_SMTP_USERNAME: Optional[str] =None
