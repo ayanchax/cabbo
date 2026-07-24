@@ -1,16 +1,16 @@
 from functools import lru_cache
 import sys
 from pathlib import Path
-from typing import Union
-
-from services.otp_service import OTP_EXPIRY_MINUTES, OTPFlow
-from utils.redaction import mask_email, mask_phone
+import asyncio
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from twilio.rest import Client
+from services.otp_service import OTP_EXPIRY_MINUTES, OTPFlow
+from utils.redaction import mask_email, mask_phone
 import sendgrid
 import secrets
+from email.utils import parseaddr
 from sendgrid.helpers.mail import Mail
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -21,7 +21,7 @@ from email.message import EmailMessage
 import aiosmtplib
 from core.config import settings
 from core.constants import APP_NAME, PROJECT_ROOT
-from core.sentry import capture_otp_send_failure
+from core.sentry import capture_email_send_failure, capture_otp_send_failure
 import logging
 import requests
 
@@ -35,6 +35,7 @@ EMAIL_VERIFY_EXPIRY_UNIT_TIME_FRAME = {
 
 # MSG91 Configuration
 MSG_91_SEND_SMS_URL = "https://control.msg91.com/api/v5/flow"
+BREVO_API_SEND_EMAIL_URL = "https://api.brevo.com/v3/smtp/email"
 
 # Twilio Configuration for sending SMS
 TWILIO_ACCOUNT_SID = settings.TWILLIO_ACCOUNT_SID
@@ -65,7 +66,6 @@ def send_otp(to_number: str, message="Hello world", **kwargs) -> bool:
     """
     Send OTP using Twilio. Returns True if sent, False otherwise.
     """
-    
 
     if settings.SMS_SERVICE_PROVIDER.lower() == "twilio":
         return _send_twilio_sms(to_number, message)
@@ -84,10 +84,10 @@ def send_otp(to_number: str, message="Hello world", **kwargs) -> bool:
 
 
 @lru_cache(maxsize=2000)
-def _get_dlt_template_id(flow:OTPFlow):
+def _get_dlt_template_id(flow: OTPFlow):
     if flow == OTPFlow.REGISTRATION:
         return settings.REGISTRATION_OTP_DLT_TEMPLATE_ID
-    if flow ==OTPFlow.LOGIN:
+    if flow == OTPFlow.LOGIN:
         return settings.LOGIN_OTP_DLT_TEMPLATE_ID
     if flow == OTPFlow.RESEND:
         return settings.RESEND_OTP_DLT_TEMPLATE_ID
@@ -98,19 +98,22 @@ def _send_msg91_sms(to_number: str, **config):
 
     def _format_msg91_phone_number(phone_number: str) -> str:
         """
-    Convert an E.164 standard(Numbering plan of the international telephone service) phone number into the format expected by MSG91.
+        Convert an E.164 standard(Numbering plan of the international telephone service) phone number into the format expected by MSG91.
 
-    Example:
-        +919831305667 -> 919831305667
-        +91 9831305667 -> 919831305667
+        Example:
+            +919831305667 -> 919831305667
+            +91 9831305667 -> 919831305667
         """
         return phone_number.replace("+", "").replace(" ", "")
+
     try:
         flow: OTPFlow = config.get(
             "flow", None
         )  # Since MSG91 needs template id based on the message flow, we will evaluate the template_id based on the flow.
         if not flow:
-            log.error("MSG91 SMS send skipped for %s: missing flow", mask_phone(to_number))
+            log.error(
+                "MSG91 SMS send skipped for %s: missing flow", mask_phone(to_number)
+            )
             return False
         template_id = _get_dlt_template_id(flow=flow)
         if not template_id:
@@ -122,15 +125,23 @@ def _send_msg91_sms(to_number: str, **config):
             return False
         otp = config.get("otp", None)
         if not otp:
-            log.error("MSG91 SMS send skipped for %s: missing otp", mask_phone(to_number))
+            log.error(
+                "MSG91 SMS send skipped for %s: missing otp", mask_phone(to_number)
+            )
             return False
         expires_in = config.get("expires_in", str(OTP_EXPIRY_MINUTES))
-        formatted_msg91_phone_number=_format_msg91_phone_number(phone_number=to_number) 
+        formatted_msg91_phone_number = _format_msg91_phone_number(
+            phone_number=to_number
+        )
         payload = {
             "template_id": template_id,
             "short_url": "0",
             "recipients": [
-                {"mobiles": formatted_msg91_phone_number, "number1": otp, "number2": expires_in}
+                {
+                    "mobiles": formatted_msg91_phone_number,
+                    "number1": otp,
+                    "number2": expires_in,
+                }
             ],
         }
         headers = {
@@ -230,8 +241,19 @@ async def send_email(
 async def _brevo_send_email(
     to_email: str, subject: str, html_content: str, from_email: str = None
 ):
+    # 300 emails per day - free
     if not from_email:
         from_email = settings.BREVO_FROM_NO_REPLY_EMAIL
+    if settings.BREVO_API_KEY:
+        # Send email using API
+        return await asyncio.to_thread(
+            _send_brevo_email_via_api,
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+    # Send email using Brevo SMTP SDK.
     try:
         message = EmailMessage()
         message["From"] = from_email
@@ -245,7 +267,8 @@ async def _brevo_send_email(
             message,
             hostname=settings.BREVO_SMTP_HOST,
             port=settings.BREVO_SMTP_PORT,
-            start_tls=True,
+            start_tls=settings.BREVO_SMTP_PORT != 465,
+            use_tls=settings.BREVO_SMTP_PORT == 465,
             username=settings.BREVO_SMTP_USERNAME,
             password=settings.BREVO_SMTP_PASSWORD,
             timeout=20,
@@ -254,10 +277,74 @@ async def _brevo_send_email(
         return True
 
     except Exception as e:
-        # We will log audit logs later on failures of email sending
         log.error(
             f"Brevo email send failed for {mask_email(to_email)}: "
             f"{type(e).__name__}"
+        )
+        capture_email_send_failure(
+            provider="brevo",
+            failure_type=type(e).__name__,
+        )
+        return False
+
+
+def _send_brevo_email_via_api(
+    to_email: str, subject: str, html_content: str, from_email: str
+) -> bool:
+    sender_name, sender_email = parseaddr(from_email or "")
+    if not sender_email:
+        log.error("Brevo API email send skipped: missing sender email")
+        return False
+
+    payload = {
+        "sender": {
+            "name": sender_name or APP_NAME.capitalize(),
+            "email": sender_email,
+        },
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_content,
+    }
+    headers = {
+        "accept": "application/json",
+        "api-key": settings.BREVO_API_KEY,
+        "content-type": "application/json",
+    }
+
+    try:
+        response = requests.post(
+            BREVO_API_SEND_EMAIL_URL,
+            json=payload,
+            headers=headers,
+            timeout=20,
+        )
+        if 200 <= response.status_code < 300:
+            data = response.json()
+            log.info(
+                "Brevo API email accepted for %s. message_id=%s",
+                mask_email(to_email),
+                data.get("messageId"),
+            )
+            return True
+
+        log.error(
+            "Brevo API email send failed for %s with status %s",
+            mask_email(to_email),
+            response.status_code,
+        )
+        capture_email_send_failure(
+            provider="brevo",
+            failure_type=f"http_{response.status_code}",
+        )
+        return False
+    except Exception as e:
+        log.error(
+            f"Brevo API email send failed for {mask_email(to_email)}: "
+            f"{type(e).__name__}"
+        )
+        capture_email_send_failure(
+            provider="brevo",
+            failure_type=type(e).__name__,
         )
         return False
 

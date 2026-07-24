@@ -140,3 +140,11 @@ def capture_otp_send_failure(provider: str, failure_type: str) -> None:
         scope.set_tag("otp.provider", provider)
         scope.set_tag("otp.failure_type", failure_type)
         scope.capture_message("OTP send failure", level="error")
+
+def capture_email_send_failure(provider: str, failure_type: str) -> None:
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("feature", "email")
+        scope.set_tag("email.event", "send_failure")
+        scope.set_tag("email.provider", provider)
+        scope.set_tag("email.failure_type", failure_type)
+        scope.capture_message("Email send failure", level="error")
