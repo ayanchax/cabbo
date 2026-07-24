@@ -31,6 +31,8 @@ def generate_otp(phone_number: str, db: Session) -> tuple[str, datetime, int, da
 
     # Remove any expired OTPs for this phone number
     delete_expired_otp(phone_number, db)
+    # In case otp is not expired, but attempts got exhausted, then the above delete_expired_otp would do nothing technically - but still we would generate new otp without complaining about invalid otp attempts - because we care for onboarding/login the customer seamlessly and without irrelevant security errors.
+    # We will anyway have a OTP clean up job from PreOnboardingCustomer table to clear any expired OTPs, that will run once everyday.
     # Generate a unique, cryptographically secure 6-digit OTP not in use
     for _ in range(10):  # Try up to 10 times to avoid rare infinite loop
         otp_int = secrets.randbelow(10 ** OTP_LENGTH)  # Generate a random integer with OTP_LENGTH digits

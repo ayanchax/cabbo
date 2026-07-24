@@ -72,10 +72,7 @@ def send_otp(to_number: str, message="Hello world", **kwargs) -> bool:
     elif settings.SMS_SERVICE_PROVIDER.lower() == "mock":
         return _send_mock_sms(to_number, message)
     elif settings.SMS_SERVICE_PROVIDER.lower() == "msg91":
-        if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
-            kwargs = kwargs["kwargs"]
-            print(kwargs)
-        return _send_msg91_sms(to_number, kwargs)
+        return _send_msg91_sms(to_number, **kwargs)
 
     else:
         log.error(f"Unsupported SMS service provider: {settings.SMS_SERVICE_PROVIDER}")
@@ -86,7 +83,7 @@ def send_otp(to_number: str, message="Hello world", **kwargs) -> bool:
         return False
 
 
-# @lru_cache(maxsize=2000)
+@lru_cache(maxsize=2000)
 def _get_dlt_template_id(flow:OTPFlow):
     if flow == OTPFlow.REGISTRATION:
         return settings.REGISTRATION_OTP_DLT_TEMPLATE_ID
@@ -97,7 +94,17 @@ def _get_dlt_template_id(flow:OTPFlow):
     return None
 
 
-def _send_msg91_sms(to_number: str, config: dict[str, Union[str, OTPFlow]]):
+def _send_msg91_sms(to_number: str, **config):
+
+    def _format_msg91_phone_number(phone_number: str) -> str:
+        """
+    Convert an E.164 standard(Numbering plan of the international telephone service) phone number into the format expected by MSG91.
+
+    Example:
+        +919831305667 -> 919831305667
+        +91 9831305667 -> 919831305667
+        """
+        return phone_number.replace("+", "").replace(" ", "")
     try:
         flow: OTPFlow = config.get(
             "flow", None
@@ -118,11 +125,12 @@ def _send_msg91_sms(to_number: str, config: dict[str, Union[str, OTPFlow]]):
             log.error("MSG91 SMS send skipped for %s: missing otp", mask_phone(to_number))
             return False
         expires_in = config.get("expires_in", str(OTP_EXPIRY_MINUTES))
+        formatted_msg91_phone_number=_format_msg91_phone_number(phone_number=to_number) 
         payload = {
             "template_id": template_id,
             "short_url": "0",
             "recipients": [
-                {"mobiles": to_number, "number1": otp, "number2": expires_in}
+                {"mobiles": formatted_msg91_phone_number, "number1": otp, "number2": expires_in}
             ],
         }
         headers = {
@@ -136,8 +144,14 @@ def _send_msg91_sms(to_number: str, config: dict[str, Union[str, OTPFlow]]):
             headers=headers,
             timeout=10,
         )
-        print(response.content)
         if 200 <= response.status_code < 300:
+            data = response.json()
+
+            log.info(
+                "MSG91 accepted OTP for %s. response=%s",
+                mask_phone(to_number),
+                data,
+            )
             return True
 
         log.error(

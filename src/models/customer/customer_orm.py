@@ -99,6 +99,7 @@ class Customer(Base):
 
 
 class PreOnboardingCustomer(Base):
+    # Table containing the volatile state of a customer while they login or register with Cabbo.
     __tablename__ = "pre_onboarding_customers"
 
     id = Column(
