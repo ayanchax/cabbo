@@ -57,9 +57,9 @@ app = FastAPI(
     title=f"{APP_NAME.capitalize()} API",
     description=APP_DESCRIPTION,
     version=APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/42",
+    redoc_url=None,
+    openapi_url="/42/openapi.json",
     lifespan=lifespan,
 )
 
