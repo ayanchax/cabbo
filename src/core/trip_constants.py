@@ -82,8 +82,8 @@ COMMON_INCLUSIONS = [
 COMMON_EXCLUSIONS = [
     "Personal expenses",
     "Self sponsored driver meals",
-    "Tolls(if applicable)",
-    "Paid parking(if applicable)",
+    "Tolls (if applicable)",
+    "Paid parking (if applicable)",
 ]
 
 DEFAULT_PRIOR_BOOKING_WINDOW_HOURS = {

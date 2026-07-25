@@ -57,9 +57,9 @@ app = FastAPI(
     title=f"{APP_NAME.capitalize()} API",
     description=APP_DESCRIPTION,
     version=APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/42",
+    redoc_url=None,
+    openapi_url="/42/openapi.json",
     lifespan=lifespan,
 )
 
@@ -102,14 +102,7 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # Count the number of endpoints
-    endpoint_count = sum(1 for route in app.routes if hasattr(route, "endpoint"))
-
-    # Add the endpoint count to the description
-    openapi_schema["info"][
-        "description"
-    ] += f"\n\nThis API has **{endpoint_count} endpoints**."
-
+    
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 

@@ -70,7 +70,7 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
     exclusions.extend(
         [
             "Self sponsored driver accomodation",
-            "Night surcharges(if applicable)",
+            "Night surcharges (if applicable)",
         ]
     )
     if is_interstate:

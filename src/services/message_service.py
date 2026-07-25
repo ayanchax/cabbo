@@ -15,6 +15,7 @@ from sendgrid.helpers.mail import Mail
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from core.constants import Environment as AppEnvironment
+from core.company_info import COMPANY_INFO, PUBLIC_COMPANY_INFO
 
 import os
 from email.message import EmailMessage
@@ -441,6 +442,9 @@ def render_email_template(
 
     if "app_url" not in kwargs:
         kwargs["app_url"] = settings.APP_URL
+
+    kwargs["company"] = COMPANY_INFO
+    kwargs["public_company"] = PUBLIC_COMPANY_INFO
 
     return template.render(**kwargs)
 
