@@ -66,7 +66,8 @@
         <hr style="border:none;border-top:1px solid #eee;margin:32px 0 16px 0;">
         <p style="font-size:11px;color:#aaa;text-align:center;line-height:1.6;">
             This email was sent by <b>{{app_name}}</b><br>
-            Maa Sarada Tours and Travels, Bangalore, India<br>
+            {{ public_company.legal_name }}<br>
+            CIN: {{ public_company.cin }} | GSTIN: {{ public_company.gstin }}<br>
             &copy; {{ current_year }} {{ app_name }}. All rights reserved.
 
         </p>

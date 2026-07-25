@@ -7,6 +7,7 @@ from api.v1.endpoints.admin.geography.geo_routes import router as geography_conf
 from api.v1.endpoints.admin.pricing.pricing_routes import router as pricing_config_ep
 from api.v1.endpoints import (
     auth as auth_ep,
+    company as company_ep,
     location as location_ep,
     geography as geography_ep,
     legal as legal_ep,
@@ -37,6 +38,7 @@ router.include_router(driver_router.router, prefix="/driver", tags=["driver-oper
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
 router.include_router(geography_ep.router, prefix="/geography", tags=["geography"])
 router.include_router(legal_ep.router, prefix="/legal", tags=["legal"])
+router.include_router(company_ep.router, prefix="/company", tags=["company"])
 
 router.include_router(admin_auth_ep.router, prefix="/admin/auth", tags=["admin-auth"])
 router.include_router(
