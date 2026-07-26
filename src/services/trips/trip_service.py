@@ -45,7 +45,10 @@ from services.configuration_service import (
     remove_extra_fields_from_currency,
     serialize_currency,
 )
-from services.customer_service import serialize_customer, serialize_customer_for_admin_retrieval
+from services.customer_service import (
+    serialize_customer,
+    serialize_customer_for_admin_retrieval,
+)
 from services.dispute_service import serialize_dispute
 from services.driver_service import remove_extra_fields_from_driver
 from services.location_service import remove_extra_fields_from_location
@@ -61,6 +64,7 @@ from services.pricing_service import (
     get_parking,
     get_tolls,
 )
+from services.refund_service import serialize_refund
 from services.trip_package_service import (
     remove_extra_fields_from_trip_package,
     serialize_trip_package,
@@ -69,7 +73,9 @@ from services.trip_type_service import (
     remove_extra_fields_from_trip_type,
     serialize_trip_type,
 )
-from services.trips.airport_transfers_service import remove_extra_fields_from_airport_transfer_trip
+from services.trips.airport_transfers_service import (
+    remove_extra_fields_from_airport_transfer_trip,
+)
 from services.trips.local_hourly_rental_service import (
     remove_extra_fields_from_local_hourly_rental_trip,
 )
@@ -85,7 +91,9 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def _coerce_trip_filter_date(value: Optional[Union[date, str]], field_name: str) -> Optional[date]:
+def _coerce_trip_filter_date(
+    value: Optional[Union[date, str]], field_name: str
+) -> Optional[date]:
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -112,6 +120,7 @@ def serialize_trip(
     trip: Trip,
     view: TripResponseView = TripResponseView.ADMIN_DETAIL,
 ) -> dict:
+    
     if not trip:
         raise CabboException(
             "Trip not found",
@@ -126,7 +135,6 @@ def serialize_trip(
             error_code=GENERIC_EXCEPTION,
         )
 
-
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     driver = trip_dict.get("driver")
     trip_type_master = trip_dict.get("trip_type_master")
@@ -136,6 +144,9 @@ def serialize_trip(
     cancellation = trip_dict.get("cancellation")
     dispute = trip_dict.get("dispute")
     rating = trip_dict.get("trip_rating")
+    refund = trip_dict.get("refund")
+     
+
 
     if driver:  # Serialize the driver if it exists
         from services.driver_service import serialize_driver
@@ -157,7 +168,6 @@ def serialize_trip(
         trip_dict["passenger"] = (
             None  # means passenger is itself the customer, so we can populate customer details in the response if expose_customer_details is True
         )
-     
 
     if options.expose_customer_details:
         if customer:
@@ -195,12 +205,16 @@ def serialize_trip(
 
     if options.expose_trip_label:
         trip_dict["label"] = get_trip_label(trip_dict)
-    
+
     if options.expose_trip_review:
         from services.trip_review_service import serialize_rating
+
         trip_dict = serialize_rating(trip_dict=trip_dict)
-           
-            
+
+    if options.expose_trip_refund:
+        if refund:
+            trip_dict = serialize_refund(refund, trip_dict)
+
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
@@ -252,8 +266,10 @@ def serialize_trip(
             elif trip_type == TripTypeEnum.outstation:
                 trip_details = remove_extra_fields_from_outstation_trip(trip_details)
             elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-                trip_details = remove_extra_fields_from_airport_transfer_trip(trip_details, trip_type)
-        
+                trip_details = remove_extra_fields_from_airport_transfer_trip(
+                    trip_details, trip_type
+                )
+
         if trip_details.get("driver"):
             trip_details["driver"] = remove_extra_fields_from_driver(
                 driver_details=trip_details["driver"]
@@ -888,8 +904,7 @@ async def async_get_all_trips_paginated(
     total = count_result.scalar_one()
 
     result = await db.execute(
-        query_stmt
-        .filter(*base_filters)
+        query_stmt.filter(*base_filters)
         .order_by(Trip.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -928,12 +943,7 @@ async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession) -> list
 def serialize_trips(trips: list[Trip], view: TripResponseView) -> list:
     serialized_trips = []
     for trip in trips:
-        serialized_trips.append(
-            serialize_trip(
-                trip, view=view
-                 
-            )
-        )
+        serialized_trips.append(serialize_trip(trip, view=view))
     return serialized_trips
 
 
@@ -951,12 +961,28 @@ def remove_platform_payment_fields(trip: dict):
     return trip
 
 
+def remove_inclusion_exclusion_fields(trip: dict):
+    trip.pop("exclusions", None)
+    trip.pop("inclusions", None)
+
+    return trip
+
+
 def remove_platform_payment_fields_for_admin_trip_operations(
     trips: list[dict],
 ) -> list[dict]:
     """Hide platform payment internals from admin trip operation list responses."""
     for trip in trips:
         trip = remove_platform_payment_fields(trip)
+    return trips
+
+
+def remove_inclusion_exclusion_fields_for_admin_trip_operations(
+    trips: list[dict],
+) -> list[dict]:
+    """Hide exclusions and inclusions from admin trip operation list responses."""
+    for trip in trips:
+        trip = remove_inclusion_exclusion_fields(trip)
     return trips
 
 
@@ -996,7 +1022,9 @@ async def async_get_trips_by_customer_id_paginated(
     """Asynchronously retrieve customer trips by UI bucket with pagination."""
     page = max(page, 1)
     limit = max(limit, 1)
-    offset = (page - 1) * limit # Calculate the offset for pagination, meaning starting from the (page-1)*limit-th record for the current page.
+    offset = (
+        page - 1
+    ) * limit  # Calculate the offset for pagination, meaning starting from the (page-1)*limit-th record for the current page.
 
     current_datetime = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -1058,23 +1086,19 @@ async def async_get_trips_by_customer_id_paginated(
                 TripTypeMaster.trip_type.in_(airport_and_local_types),
                 Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
                 Trip.start_datetime <= current_datetime,
-            ), #stale expired airport and local trips that are still marked as confirmed or created but have a start datetime in the past should be considered past trips
+            ),  # stale expired airport and local trips that are still marked as confirmed or created but have a start datetime in the past should be considered past trips
             and_(
                 TripTypeMaster.trip_type == TripTypeEnum.outstation,
                 Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
                 Trip.start_datetime <= current_datetime,
                 Trip.expected_end_datetime <= current_datetime,
-            ), #stale expired outstation trips that are still marked as confirmed or created but have a start datetime in the past and expected end datetime in the past should be considered past trips
+            ),  # stale expired outstation trips that are still marked as confirmed or created but have a start datetime in the past and expected end datetime in the past should be considered past trips
         )
         order_by = Trip.start_datetime.desc()
 
     j = (TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id)
     f = (*base_filters, bucket_filter)
-    count_result = await db.execute(
-        select(func.count(Trip.id))
-        .join(*j)
-        .filter(*f)
-    )
+    count_result = await db.execute(select(func.count(Trip.id)).join(*j).filter(*f))
     total = count_result.scalar_one()
 
     result = await db.execute(
@@ -1082,8 +1106,12 @@ async def async_get_trips_by_customer_id_paginated(
         .join(*j)
         .filter(*f)
         .order_by(order_by)
-        .offset(offset) #start cursor from offset, which is calculated based on the current page and limit, ensuring that we skip the appropriate number of records for pagination
-        .limit(limit) #upto 'limit' number of records for the current page, ensuring that we only retrieve the desired number of trips for the current page
+        .offset(
+            offset
+        )  # start cursor from offset, which is calculated based on the current page and limit, ensuring that we skip the appropriate number of records for pagination
+        .limit(
+            limit
+        )  # upto 'limit' number of records for the current page, ensuring that we only retrieve the desired number of trips for the current page
     )
     trips = result.scalars().all()
     for trip in trips:
@@ -1125,7 +1153,11 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
         trip
         for trip in trips
         if trip.get("status")
-        in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
+        in [
+            TripStatusEnum.completed.value,
+            TripStatusEnum.cancelled.value,
+            TripStatusEnum.dispute.value,
+        ]
     ]
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
@@ -1380,7 +1412,10 @@ async def update_non_cost_impacting_trip_fields(
         validate_status (bool): Whether to validate the trip status before allowing updates. Defaults to False.
     """
     try:
-        if validate_status and trip.status not in [TripStatusEnum.confirmed, TripStatusEnum.created]:
+        if validate_status and trip.status not in [
+            TripStatusEnum.confirmed,
+            TripStatusEnum.created,
+        ]:
             raise CabboException(
                 f"Trip details can only be updated for trips in confirmed or created status. Current status: {trip.status}",
                 status_code=400,

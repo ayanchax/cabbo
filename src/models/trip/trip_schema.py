@@ -350,6 +350,7 @@ class TripSerializationOptions(BaseModel):
     expose_trip_label: bool = False
     optimize_response: bool = False
     expose_trip_review: bool = False
+    expose_trip_refund:bool=False
 
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")

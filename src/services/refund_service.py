@@ -832,7 +832,6 @@ async def send_refund_credited_notification(
         )
 
 
-
 async def inactivate_refund(refund: RefundORM, db: AsyncSession):
     refund.is_active = False
     db.add(refund)
@@ -841,3 +840,10 @@ async def inactivate_refund(refund: RefundORM, db: AsyncSession):
     log.info(f"Refund {refund.id} has been inactivated")
 
 
+def serialize_refund(refund, trip_dict: dict):
+    refund = RefundSchema.model_validate(refund)
+    refund_data = refund.model_dump()
+    trip_dict["refund"] = refund_data
+    trip_dict["refund"].pop("id", None)
+    trip_dict["refund"].pop("entity_id", None)
+    return trip_dict
