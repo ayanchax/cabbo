@@ -11,6 +11,7 @@ from core.exceptions import (
     DRIVER_NOT_FOUND,
     DRIVER_OPERATION_FAILED,
     DRIVER_PHONE_INVALID,
+    INVALID_DRIVER_STATUS,
     TRIP_ADVANCE_PAYMENT_REQUIRED,
     TRIP_BALANCE_PAYMENT_REQUIRED,
     TRIP_CREATOR_INVALID,
@@ -30,6 +31,7 @@ from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
+    DriverSearchSchema,
     DriverUpdateSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
@@ -136,6 +138,72 @@ def get_all_drivers_by_availability(is_available: bool, db: Session):
     return db.query(Driver).filter(Driver.is_available == is_available).all()
 
 
+def search_drivers_paginated(
+    search_in: DriverSearchSchema,
+    db: Session,
+    page: int = 1,
+    limit: int = 50,
+) -> dict:
+    """Search drivers by name and optional filters with paginated results."""
+    page = max(page, 1)
+    limit = min(max(limit, 1), 10)
+    offset = (page - 1) * limit
+
+    name = search_in.name.strip()
+    filters = [Driver.name.ilike(f"%{name}%")]
+
+    if search_in.phone:
+        filters.append(Driver.phone.ilike(f"%{search_in.phone.strip()}%"))
+    if search_in.email:
+        filters.append(Driver.email.ilike(f"%{search_in.email}%"))
+    if search_in.gender:
+        filters.append(Driver.gender == search_in.gender)
+    if search_in.cab_type:
+        filters.append(Driver.cab_type == search_in.cab_type)
+    if search_in.fuel_type:
+        filters.append(Driver.fuel_type == search_in.fuel_type)
+    if search_in.cab_model_and_make:
+        filters.append(
+            Driver.cab_model_and_make.ilike(
+                f"%{search_in.cab_model_and_make.strip()}%"
+            )
+        )
+    if search_in.cab_registration_number:
+        filters.append(
+            Driver.cab_registration_number.ilike(
+                f"%{search_in.cab_registration_number.strip()}%"
+            )
+        )
+    if search_in.is_active is not None:
+        filters.append(Driver.is_active == search_in.is_active)
+    if search_in.is_available is not None:
+        filters.append(Driver.is_available == search_in.is_available)
+    if search_in.kyc_verified is not None:
+        filters.append(Driver.kyc_verified == search_in.kyc_verified)
+
+    total = db.query(func.count(Driver.id)).filter(*filters).scalar() or 0
+    drivers = (
+        db.query(Driver)
+        .filter(*filters)
+        .order_by(Driver.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "items": drivers,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(drivers) < total,
+            "has_previous": page > 1,
+        },
+    }
+
+
 def get_all_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session):
     """Retrieve all drivers by their active status."""
 
@@ -227,6 +295,7 @@ async def assign_driver_to_trip(
     requestor: User,
     attach_trip_relationships: bool = False,
     validate_time_window: bool = False,
+    view =TripResponseView.CUSTOMER_LIST
 ):
     try:
         # Check Trip is in confirmed status
@@ -357,7 +426,7 @@ async def assign_driver_to_trip(
         )  # Log the trip status audit entry
         if attach_trip_relationships:
             await attach_relationships_to_trip(
-                trip, db, view=TripResponseView.CUSTOMER_LIST
+                trip, db, view=view
             )  # Expose customer details for access in notification task
 
         return trip, driver

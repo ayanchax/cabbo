@@ -318,6 +318,10 @@ async def assign_driver(
 ):
     """Assign a driver to a trip."""
     current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+            raise CabboException(
+                "You do not have permission to assign drivers to trips.", status_code=403, error_code=UNAUTHORIZED
+            )
     trip = await async_get_trip_by_id(trip_id, db)
     if trip is None:
         raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
@@ -325,10 +329,7 @@ async def assign_driver(
 
     if driver is None:
         raise CabboException("Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND)
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        raise CabboException(
-            "You do not have permission to assign drivers to trips.", status_code=403, error_code=UNAUTHORIZED
-        )
+    
 
     assigned_trip, assigned_driver = await assign_driver_to_trip(
         trip=trip,
@@ -337,6 +338,7 @@ async def assign_driver(
         requestor=current_user,
         attach_trip_relationships=True,
         validate_time_window=True,
+        view =TripResponseView.ADMIN_LIST
     )  # Attaching trip relationships with customer details exposed, so that it can be used in the notification task to notify customer about driver assignment and trip confirmation
 
     # Background job to notify customer via email, if email is provided

@@ -1,4 +1,5 @@
 $kind: http-request
+name: create
 url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/create"
 method: POST
 body:
@@ -23,11 +24,13 @@ body:
 
     \  \"religion\": \"Hindu\",\r
 
-    \  \"car_type\": \"Sedan\",\r
+    \  \"cab_type\": \"Sedan\",\r
 
-    \  \"car_model\": \"Maruti Swift Dzire\",\r
+    \  \"fuel_type\": \"diesel\",\r
 
-    \  \"car_registration_number\": \"KA01AB2316\",\r
+    \  \"cab_model_and_make\": \"Maruti Swift Dzire\",\r
+
+    \  \"cab_registration_number\": \"KA01AB2316\",\r
 
     \  \"payment_mode\": \"gpay\",\r
 
@@ -45,19 +48,19 @@ body:
 
     \  },\r
 
-    \  \"address\":{\r
+    \  \"address\": {\r
 
-    \    \"address_line1\":\"St Louis suite\",\r
+    \    \"address_line1\": \"St Louis suite\",\r
 
-    \    \"address_line2\":\"Govindgiri road\",\r
+    \    \"address_line2\": \"Govindgiri road\",\r
 
-    \    \"state\":\"KA\",\r
+    \    \"state\": \"KA\",\r
 
-    \    \"country\":\"India\",\r
+    \    \"country\": \"India\",\r
 
-    \    \"landmark\":\"something\"\r
+    \    \"landmark\": \"something\"\r
 
     \  }\r
 
-    }\r\n"
+    }"
 order: 2000

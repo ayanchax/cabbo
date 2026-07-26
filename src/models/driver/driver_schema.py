@@ -107,6 +107,24 @@ class DriverUpdateSchema(DriverBaseSchema):
 class DriverReadSchema(DriverCreateSchema):
     avg_rating:Optional[float]=Field(0.0, description="Average rating of the driver based on customer feedback")
 
+
+class DriverSearchSchema(BaseModel):
+    name: str = Field(..., min_length=1, description="Driver name to search for")
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    gender: Optional[GenderEnum] = None
+    cab_type: Optional[CarTypeEnum] = None
+    fuel_type: Optional[FuelTypeEnum] = None
+    cab_model_and_make: Optional[str] = None
+    cab_registration_number: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_available: Optional[bool] = None
+    kyc_verified: Optional[bool] = None
+
+    class Config:
+        extra = "forbid"
+
+
 class CustomerSafeDriverReadSchema(BaseModel):
     name: str  # Driver's name
     phone: str  # Driver's phone number
