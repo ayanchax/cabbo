@@ -50,6 +50,7 @@ from services.driver_service import (
     get_average_rating_by_driver_id,
     get_driver_by_id,
     get_trip_earning_for_driver,
+    remove_extra_fields_from_driver_for_admin,
     search_drivers_paginated,
     update_driver,
     update_driver_profile_picture,
@@ -134,7 +135,7 @@ def search_drivers(
         limit=limit,
     )
     serialized_drivers = [
-        DriverReadSchema.model_validate(driver).model_dump()
+        remove_extra_fields_from_driver_for_admin(DriverReadSchema.model_validate(driver).model_dump())
         for driver in drivers.get("items", [])
     ]
     drivers.pop("items", None)

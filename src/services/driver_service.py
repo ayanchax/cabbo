@@ -27,6 +27,7 @@ from models.common import S3ObjectInfo
 from models.customer.customer_schema import CustomerBase
 from models.driver.driver_orm import Driver, DriverEarning, TripRating
 from models.driver.driver_schema import (
+    AdminSafeDriverReadSchema,
     CustomerSafeDriverReadSchema,
     DriverCreateSchema,
     DriverEarningSchema,
@@ -1031,6 +1032,17 @@ def remove_extra_fields_from_driver(driver_details: dict):
         image_info = S3ObjectInfo.model_validate(driver_profile_picture_info)
         driver_details["profile_picture_url"] = image_info.url
     safe_driver = CustomerSafeDriverReadSchema.model_validate(
+        driver_details
+    ).model_dump(exclude_none=True)
+
+    return safe_driver
+
+def remove_extra_fields_from_driver_for_admin(driver_details: dict):
+    driver_profile_picture_info = driver_details.get("s3_image_info", None)
+    if driver_profile_picture_info:
+        image_info = S3ObjectInfo.model_validate(driver_profile_picture_info)
+        driver_details["profile_picture_url"] = image_info.url
+    safe_driver = AdminSafeDriverReadSchema.model_validate(
         driver_details
     ).model_dump(exclude_none=True)
 

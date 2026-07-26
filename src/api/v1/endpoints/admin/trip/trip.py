@@ -308,10 +308,10 @@ async def update_status(
 
 
 # Assign driver to trip
-@router.post("/{trip_id}/assign-driver/{driver_id}", tags=["Admin Trip Management"])
+@router.post("/{booking_id}/assign-driver/{driver_id}", tags=["Admin Trip Management"])
 async def assign_driver(
     background_tasks: BackgroundTasks,
-    trip_id: str,
+    booking_id: str,
     driver_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
@@ -322,7 +322,7 @@ async def assign_driver(
             raise CabboException(
                 "You do not have permission to assign drivers to trips.", status_code=403, error_code=UNAUTHORIZED
             )
-    trip = await async_get_trip_by_id(trip_id, db)
+    trip = await async_get_trip_by_booking_id(booking_id, db)
     if trip is None:
         raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
     driver = await a_get_driver_by_id(driver_id, db)
