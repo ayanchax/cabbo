@@ -6,9 +6,9 @@ body:
   type: json
   content: "{\r
 
-    \  \"name\": \"Nathu Kumar\",\r
+    \  \"name\": \"Bishal Dey\",\r
 
-    \  \"email\": \"ayana9088@gmail.com\",\r
+    \  \"email\": \"ayanchaxs9088@gmail.com\",\r
 
     \  \"phone\": \"+91 9875642219\",\r
 
@@ -16,9 +16,9 @@ body:
 
     \  \"gender\": \"male\",\r
 
-    \  \"emergency_contact_name\": \"Bum Kumar\",\r
+    \  \"emergency_contact_name\": \"Ram Kumar\",\r
 
-    \  \"emergency_contact_number\": \"+919812345678\",\r
+    \  \"emergency_contact_number\": \"+919812345679\",\r
 
     \  \"nationality\": \"Indian\",\r
 
@@ -30,17 +30,17 @@ body:
 
     \  \"cab_model_and_make\": \"Maruti Swift Dzire\",\r
 
-    \  \"cab_registration_number\": \"KA01AB2316\",\r
+    \  \"cab_registration_number\": \"KA14B9113\",\r
 
     \  \"payment_mode\": \"gpay\",\r
 
-    \  \"payment_phone_number\": \"9876543210\",\r
+    \  \"payment_phone_number\": \"9876543215\",\r
 
     \  \"bank_details\": {\r
 
     \    \"account_holder_name\": \"Ravi Kumar\",\r
 
-    \    \"account_number\": \"124567890\",\r
+    \    \"account_number\": \"124567894\",\r
 
     \    \"ifsc_code\": \"SBIN0001234\",\r
 
