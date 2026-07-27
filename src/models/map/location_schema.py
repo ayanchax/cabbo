@@ -52,3 +52,8 @@ class LocationProximity(BaseModel):
     lat: float
     lng: float
     radius_km: Optional[float] = Field(50, description="Radius in kilometers to bias location suggestions")
+
+
+class MapUrl(BaseModel):
+    place_id: str = Field(..., description="Maps place ID")
+    map_url: str = Field(..., description="Maps URL for the place")
