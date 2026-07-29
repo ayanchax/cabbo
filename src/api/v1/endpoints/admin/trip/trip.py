@@ -12,6 +12,7 @@ from models.user.user_orm import User
 from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
 from services.notification_service import notify_customer_booking_confirmed
 from services.orchestration_service import BackgroundTaskOrchestrator
+from services.trips.status_transition_policy import get_allowed_trip_status_transitions
 from services.trips.trip_service import (
     activate_trip,
     async_get_all_trips,
@@ -90,6 +91,10 @@ async def view_trip_details_by_booking_id(
  
     serialized_trip = remove_platform_payment_fields(serialized_trip)
     serialized_trip = remove_inclusion_exclusion_fields(serialized_trip)
+    serialized_trip["allowed_status_transitions"] = get_allowed_trip_status_transitions(
+        trip=trip,
+        current_user=current_user,
+    )
     return serialized_trip
 
 
@@ -269,10 +274,10 @@ async def list_trips_by_status(
 
 
 # Update trip status - super_admin, driver_admin
-@router.patch("/{trip_id}/status/{status}", tags=["Admin Trip Management"])
+@router.patch("/{booking_id}/status/{status}", tags=["Admin Trip Management"])
 async def update_status(
     background_tasks: BackgroundTasks,
-    trip_id: str,
+    booking_id: str,
     status: TripStatusEnum,
     payload: Optional[
         AdditionalDetailsOnTripStatusChange
@@ -288,7 +293,7 @@ async def update_status(
         )
 
     trip_schema, background_task = await update_trip_status(
-        trip_id=trip_id,
+        booking_id=booking_id,
         new_status=status,
         payload=payload,
         db=db,
@@ -301,7 +306,7 @@ async def update_status(
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
-            task_name=f"BackgroundTaskForTrip{trip_id}StatusUpdateTo{status.value}",
+            task_name=f"BackgroundTaskForTrip{booking_id}StatusUpdateTo{status.value}",
             **background_task.kwargs,
         )
     return {"message": f"Trip status updated to {status.value} successfully."}

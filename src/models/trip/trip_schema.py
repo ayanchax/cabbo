@@ -19,6 +19,8 @@ from models.pricing.pricing_schema import (
 )
 from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
+from enum import Enum
+
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -582,6 +584,39 @@ class AdditionalDetailsOnTripStatusChange(BaseModel):
     class Config:
         extra = "forbid"  # Forbid extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
+
+
+class TripStatusPayloadFieldTypeEnum(str, Enum):
+    string = "string"
+    datetime = "datetime"
+    number = "number"
+    enum = "enum"
+    object = "object"
+    array = "array"
+
+
+class TripStatusTransitionPayloadField(BaseModel):
+    name: str = Field(..., description="Dot-path field name in AdditionalDetailsOnTripStatusChange")
+    type: TripStatusPayloadFieldTypeEnum = Field(..., description="Frontend input type")
+    required: bool = Field(False, description="Whether the frontend should require this field")
+    label: Optional[str] = Field(None, description="Human readable field label")
+    description: Optional[str] = Field(None, description="Short explanation for the field")
+    options: Optional[list[str]] = Field(None, description="Allowed values for enum fields")
+    fields: Optional[list["TripStatusTransitionPayloadField"]] = Field(
+        None,
+        description="Nested fields for object or array payload fields",
+    )
+
+
+class TripStatusTransitionAction(BaseModel):
+    target_status: TripStatusEnum = Field(..., description="Target status for the transition")
+    label: str = Field(..., description="Human readable action label")
+    requires_confirmation: bool = Field(True, description="Whether the frontend should show a confirmation step")
+    confirmation_level: str = Field("standard", description="Frontend confirmation weight, e.g. light, standard, strong")
+    payload_fields: list[TripStatusTransitionPayloadField] = Field(
+        default_factory=list,
+        description="Payload fields the frontend should render for this target status",
+    )
 
 
 class TripPackageSchema(BaseModel):

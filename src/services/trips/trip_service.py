@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 import json
 from typing import Literal, Optional, Union
 
-from core.exceptions import CabboException, GENERIC_EXCEPTION
+from core.exceptions import TRIP_NOT_FOUND, CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
@@ -80,6 +80,7 @@ from services.trips.local_hourly_rental_service import (
     remove_extra_fields_from_local_hourly_rental_trip,
 )
 from services.trips.outstation_service import remove_extra_fields_from_outstation_trip
+from services.trips.status_transition_policy import validate_trip_status_transition
 from services.trips.status_service import change_status
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
@@ -951,6 +952,10 @@ def remove_platform_payment_fields(trip: dict):
     trip["cost_to_driver"] = trip.get(
         "balance_payment", 0.0
     )  # Balance payment is the amount left to pay which is the actual driver payment for this trip plus any extras as applicable.
+
+    if trip["cost_to_driver"]<=0: #Cases where trip is completed, then we reconcile cost to driver from the actuals
+        trip["cost_to_driver"] = trip["final_price"] - trip["advance_payment"]
+
     trip.pop("advance_payment", None)
     trip.pop("balance_payment", None)
     trip.pop("base_fare", None)
@@ -1291,35 +1296,25 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
 
 async def update_trip_status(
-    trip_id: str,
+    booking_id: str,
     db: AsyncSession,
     new_status: TripStatusEnum,
     requestor: Union[User, Customer],
     payload: AdditionalDetailsOnTripStatusChange = None,
     validate_time_window: bool = False,
 ):
-    trip = await async_get_trip_by_id(trip_id, db, view=TripResponseView.ADMIN_DETAIL)
+    trip = await async_get_trip_by_booking_id(booking_id, db, view=TripResponseView.ADMIN_DETAIL)
     if trip is None:
         raise CabboException(
-            "Trip not found", status_code=404, error_code=GENERIC_EXCEPTION
+            "Trip not found", status_code=404, error_code=TRIP_NOT_FOUND
         )
 
-    allowed_status_transitions = {
-        TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
-        TripStatusEnum.ongoing: [TripStatusEnum.completed, TripStatusEnum.dispute],
-        TripStatusEnum.completed: [],
-        TripStatusEnum.cancelled: [],
-        TripStatusEnum.dispute: [],
-    }
     # Out of confirmed, ongoing, completed, canceled and dispute, a trip gets confirmed only from the #booking_service.py confirm_trip_booking() method.
-    if new_status not in allowed_status_transitions.get(
-        TripStatusEnum(trip.status), []
-    ):
-        raise CabboException(
-            f"Invalid status transition from {trip.status} to {new_status.value}.",
-            status_code=400,
-            error_code=GENERIC_EXCEPTION,
-        )
+    validate_trip_status_transition(
+        trip=trip,
+        new_status=new_status,
+        requestor=requestor,
+    )
     trip_schema: TripDetailSchema = None
     background_task: Optional[AppBackgroundTask] = None
     try:

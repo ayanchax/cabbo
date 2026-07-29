@@ -252,12 +252,8 @@ async def cancel_trip_by_booking_id_and_customer_id(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-     
-    trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_customer.id, db
-    )
     trip_schema, background_task = await update_trip_status(
-        trip_id=trip.id,
+        booking_id=booking_id,
         new_status=TripStatusEnum.cancelled,
         payload=payload,
         db=db,
@@ -270,7 +266,7 @@ async def cancel_trip_by_booking_id_and_customer_id(
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
-            task_name=f"BackgroundTaskForTrip{trip.id}StatusUpdateTo{TripStatusEnum.cancelled.value}",
+            task_name=f"BackgroundTaskForTrip{booking_id}StatusUpdateTo{TripStatusEnum.cancelled.value}",
             **background_task.kwargs,
         )
     return {"message": f"Trip status updated to {TripStatusEnum.cancelled.value} successfully."}
