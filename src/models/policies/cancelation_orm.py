@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     DateTime,
     ForeignKey,
+    Index,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -70,6 +71,9 @@ class CancellationPolicy(Base):
 
 class Cancellation(Base):
     __tablename__ = "trip_cancellations"
+    __table_args__ = (
+        Index("ix_trip_cancellations_active_created", "is_active", "created_at"),
+    )
 
     id = Column(
         MySQL_CHAR(36),
@@ -79,7 +83,7 @@ class Cancellation(Base):
         index=True,
     )
     entity_id = Column(
-        MySQL_CHAR(36), nullable=False, index=True, unique=True
+        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, index=True, unique=True
     )  # ID of the associated trip for which cancellation record is being created
     canceled_by = Column(
         MySQL_CHAR(36), nullable=False

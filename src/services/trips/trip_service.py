@@ -840,6 +840,68 @@ async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
     return all
 
 
+def _build_trip_label_payload(row) -> dict:
+    return {
+        "id": row.id,
+        "status": row.status,
+        "start_datetime": row.start_datetime,
+        "expected_end_datetime": row.expected_end_datetime,
+        "trip_type": {"trip_type": row.trip_type},
+    }
+
+
+def _build_admin_trip_stats(rows, total: int) -> dict:
+    stats = {
+        "total_trips": int(total or 0),
+        "needs_driver": 0,
+        "needs_review":0,
+        "in_progress": 0,
+        "completed": 0,
+        "upcoming": 0,
+        "dispute":0,
+        "cancelled":0
+    }
+
+    for row in rows:
+        label = get_trip_label(_build_trip_label_payload(row))
+        status = row.status
+        has_driver = row.driver_id is not None
+
+        if label == "upcoming" and status in [
+            TripStatusEnum.confirmed,
+            TripStatusEnum.created,
+        ]: #Truly upcoming and needs or may not need a driver
+            if not has_driver:
+                stats["needs_driver"] += 1
+            if status == TripStatusEnum.confirmed:
+                stats["upcoming"] += 1
+
+        if label == "ongoing":
+            stats["in_progress"] += 1
+
+        if status == TripStatusEnum.completed:
+            stats["completed"] += 1
+
+        is_stale_past_trip = label == "past" and status in [
+                        TripStatusEnum.confirmed,
+                        TripStatusEnum.created,
+                        TripStatusEnum.ongoing,
+                    ]
+        
+        if (
+            is_stale_past_trip or label =="unknown"
+        ):
+            stats["needs_review"] += 1
+
+        if status == TripStatusEnum.dispute:
+            stats["dispute"] += 1
+
+        if status == TripStatusEnum.cancelled:
+            stats["cancelled"] += 1
+
+    return stats
+
+
 async def async_get_all_trips_paginated(
     db: AsyncSession,
     status: Optional[TripStatusEnum] = None,
@@ -849,6 +911,7 @@ async def async_get_all_trips_paginated(
     page: int = 1,
     limit: int = 10,
     view: TripResponseView = TripResponseView.ADMIN_LIST,
+    build_stats = False
 ) -> dict:
     """Asynchronously retrieve all active trips with pagination."""
     page = max(page, 1)
@@ -904,6 +967,22 @@ async def async_get_all_trips_paginated(
     count_result = await db.execute(count_stmt.filter(*base_filters))
     total = count_result.scalar_one()
 
+    stats = None
+    if build_stats:
+        stats_result = await db.execute(
+            select(
+                Trip.id,
+                Trip.status,
+                Trip.driver_id,
+                Trip.start_datetime,
+                Trip.expected_end_datetime,
+                TripTypeMaster.trip_type.label("trip_type"),
+            )
+            .join(TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id)
+            .filter(*base_filters)
+        )
+        stats = _build_admin_trip_stats(stats_result.all(), total)
+
     result = await db.execute(
         query_stmt.filter(*base_filters)
         .order_by(Trip.created_at.desc())
@@ -924,6 +1003,7 @@ async def async_get_all_trips_paginated(
             "has_next": offset + len(trips) < total,
             "has_previous": page > 1,
         },
+        "stats": stats,
     }
 
 

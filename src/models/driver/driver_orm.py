@@ -10,6 +10,7 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
+    Index,
     String,
     Enum,
     Float,
@@ -27,6 +28,10 @@ from datetime import datetime, timezone
 
 class Driver(Base):
     __tablename__ = "drivers"
+    __table_args__ = (
+        Index("ix_drivers_name", "name"),
+        Index("ix_drivers_active_available_created", "is_active", "is_available", "created_at"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -122,8 +127,9 @@ class Driver(Base):
 class DriverEarning(Base):
     __tablename__ = "driver_earnings"
     __table_args__ = (
-    UniqueConstraint("driver_id", "trip_id", name="uq_driver_trip_earning"),
-)
+        UniqueConstraint("driver_id", "trip_id", name="uq_driver_trip_earning"),
+        Index("ix_driver_earnings_driver_active_created", "driver_id", "is_active", "created_at"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -171,6 +177,8 @@ class TripRating(Base):
     __tablename__ = "trip_ratings"
     __table_args__ = (
         UniqueConstraint("driver_id", "trip_id", "customer_id", name="uq_driver_trip_customer_rating"),
+        Index("ix_trip_ratings_driver_flagged", "driver_id", "is_flagged"),
+        Index("ix_trip_ratings_customer_flagged", "customer_id", "is_flagged"),
     )
     id = Column(
         MySQL_CHAR(36),

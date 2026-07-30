@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     DateTime,
+    Index,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -19,9 +20,13 @@ from datetime import datetime, timezone
 # Outstation pricing
 class OutstationCabPricing(Base):
     __tablename__ = "outstation_cab_pricing"
-    __table_args__ = (UniqueConstraint(
-        "state_id", "cab_type_id", "fuel_type_id", name="uq_outstation_state_cab_fuel"
-    ),)
+    __table_args__ = (
+        UniqueConstraint(
+            "state_id", "cab_type_id", "fuel_type_id", name="uq_outstation_state_cab_fuel"
+        ),
+        Index("ix_outstation_pricing_available", "is_available_in_network"),
+        Index("ix_outstation_pricing_state_available", "state_id", "is_available_in_network"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -71,6 +76,8 @@ class LocalCabPricing(Base):
         UniqueConstraint(
             "region_id", "cab_type_id", "fuel_type_id", name="uq_local_region_cab_fuel"
         ),
+        Index("ix_local_pricing_available", "is_available_in_network"),
+        Index("ix_local_pricing_region_available", "region_id", "is_available_in_network"),
     )
     id = Column(
         MySQL_CHAR(36),
@@ -109,9 +116,13 @@ class LocalCabPricing(Base):
 # Airport pricing
 class AirportCabPricing(Base):
     __tablename__ = "airport_cab_pricing"
-    __table_args__ = (UniqueConstraint(
-        "region_id", "cab_type_id", "fuel_type_id", name="uq_airport_region_cab_fuel"
-    ),)
+    __table_args__ = (
+        UniqueConstraint(
+            "region_id", "cab_type_id", "fuel_type_id", name="uq_airport_region_cab_fuel"
+        ),
+        Index("ix_airport_pricing_available", "is_available_in_network"),
+        Index("ix_airport_pricing_region_available", "region_id", "is_available_in_network"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -344,4 +355,5 @@ class PermitFeeConfiguration(Base):
         UniqueConstraint(
             "cab_type_id", "fuel_type_id", "state_id", name="uq_cab_fuel_state"
         ),
+        Index("ix_permit_fee_state", "state_id"),
     )
