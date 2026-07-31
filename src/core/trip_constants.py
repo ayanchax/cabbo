@@ -147,6 +147,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_dispute_details=True,
         expose_trip_review=True,
         optimize_response=True,
+        expose_trip_flags=True
 
 
     ),
@@ -160,6 +161,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_dispute_details=True,
         expose_trip_review=True,
         optimize_response=True,
+        expose_trip_flags=True
 
 
     )

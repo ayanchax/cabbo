@@ -13,11 +13,13 @@ from core.trip_helpers import (
 )
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
+from models.policies.refund_enum import RefundStatus
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import (
+    CancellationSubStatusEnum,
     FuelTypeEnum,
     TripResponseView,
     TripStatusEnum,
@@ -213,9 +215,10 @@ def serialize_trip(
         trip_dict = serialize_rating(trip_dict=trip_dict)
 
     if options.expose_trip_refund:
-        if refund:
-            trip_dict = serialize_refund(refund, trip_dict)
-
+        trip_dict = apply_trip_refund_details(trip_dict=trip_dict, refund=refund)
+            
+    if options.expose_trip_flags:
+        trip_dict = apply_trip_flags(trip_dict=trip_dict, driver=driver)
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
@@ -277,6 +280,122 @@ def serialize_trip(
             )
 
     return remove_none_recursive(trip_details)
+
+
+def _coerce_trip_status(status: Optional[Union[str, TripStatusEnum]]) -> Optional[TripStatusEnum]:
+    if not status:
+        return None
+    if isinstance(status, TripStatusEnum):
+        return status
+    try:
+        return TripStatusEnum(status)
+    except ValueError:
+        return None
+
+
+def _has_assigned_driver(trip_dict: dict, driver=None) -> bool:
+    if driver and getattr(driver, "id", None):
+        return True
+
+    driver_details = trip_dict.get("driver")
+    if isinstance(driver_details, dict) and driver_details.get("id"):
+        return True
+
+    return bool(trip_dict.get("driver_id"))
+
+
+def _is_stale_or_unknown_trip(label: Optional[str], status: Optional[TripStatusEnum]) -> bool:
+    stale_statuses = {
+        TripStatusEnum.confirmed,
+        TripStatusEnum.created,
+        TripStatusEnum.ongoing,
+    }
+    return label == "unknown" or (label == "past" and status in stale_statuses)
+
+
+def _needs_driver_for_operations(
+    label: Optional[str],
+    status: Optional[TripStatusEnum],
+    has_driver: bool,
+) -> bool:
+    if has_driver:
+        return False
+
+    upcoming_driver_statuses = {
+        TripStatusEnum.confirmed,
+        TripStatusEnum.created,
+    }
+    if label == "upcoming" and status in upcoming_driver_statuses:
+        return True
+
+    return _is_stale_or_unknown_trip(label=label, status=status)
+
+
+def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
+    """Attach admin-facing operational flags to a serialized trip dictionary."""
+    label = trip_dict.get("label") or get_trip_label(trip_dict)
+    status = _coerce_trip_status(trip_dict.get("status"))
+    has_driver = _has_assigned_driver(trip_dict=trip_dict, driver=driver)
+
+    trip_dict["label"] = label
+    trip_dict["needs_review"] = _is_stale_or_unknown_trip(label=label, status=status)
+    trip_dict["needs_driver"] = _needs_driver_for_operations(
+        label=label,
+        status=status,
+        has_driver=has_driver,
+    )
+    return trip_dict
+
+
+def _coerce_refund_status(status: Optional[Union[str, RefundStatus]]) -> Optional[RefundStatus]:
+    if not status:
+        return None
+    if isinstance(status, RefundStatus):
+        return status
+    try:
+        return RefundStatus(status)
+    except ValueError:
+        return None
+
+def _coerce_cancellation_sub_status(status: Optional[Union[str, CancellationSubStatusEnum]]) -> Optional[CancellationSubStatusEnum]:
+    if not status:
+        return None
+    if isinstance(status, CancellationSubStatusEnum):
+        return status
+    try:
+        return CancellationSubStatusEnum(status)
+    except ValueError:
+        return None
+
+
+def _can_issue_refund(
+    trip_status: Optional[Union[str, TripStatusEnum]],
+    refund_status: Optional[Union[str, RefundStatus]],
+) -> bool:
+    retryable_refund_statuses = {
+        RefundStatus.pending,
+        RefundStatus.failed,
+        RefundStatus.initiated,
+    }
+
+    return (
+        _coerce_trip_status(trip_status) == TripStatusEnum.cancelled
+        and _coerce_refund_status(refund_status) in retryable_refund_statuses
+    )
+
+
+def apply_trip_refund_details(trip_dict: dict, refund=None) -> dict:
+    if not refund:
+        trip_dict["can_issue_refund"] = False
+        return trip_dict
+
+    trip_dict = serialize_refund(refund, trip_dict)
+    refund_status = (trip_dict.get("refund") or {}).get("refund_status")
+    trip_dict["can_issue_refund"] = _can_issue_refund(
+        trip_status=trip_dict.get("status"),
+        refund_status=refund_status,
+    )
+    return trip_dict
 
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
@@ -850,7 +969,30 @@ def _build_trip_label_payload(row) -> dict:
     }
 
 
-def _build_admin_trip_stats(rows, total: int) -> dict:
+def _build_trip_label_payload_from_trip(trip: Trip) -> dict:
+    trip_type = (
+        trip.trip_type_master.trip_type
+        if getattr(trip, "trip_type_master", None)
+        and getattr(trip.trip_type_master, "trip_type", None)
+        else None
+    )
+    return {
+        "id": trip.id,
+        "status": trip.status,
+        "start_datetime": trip.start_datetime,
+        "expected_end_datetime": trip.expected_end_datetime,
+        "trip_type": {"trip_type": trip_type} if trip_type else None,
+    }
+
+
+def is_stale_or_unknown_trip_for_operations(trip: Trip) -> bool:
+    trip_dict = _build_trip_label_payload_from_trip(trip)
+    label = get_trip_label(trip_dict)
+    status = _coerce_trip_status(trip_dict.get("status"))
+    return _is_stale_or_unknown_trip(label=label, status=status)
+
+
+def _build_trip_stats(rows, total: int) -> dict:
     stats = {
         "total_trips": int(total or 0),
         "needs_driver": 0,
@@ -863,16 +1005,22 @@ def _build_admin_trip_stats(rows, total: int) -> dict:
     }
 
     for row in rows:
-        label = get_trip_label(_build_trip_label_payload(row))
+        trip_flags = _build_trip_label_payload(row)
+        trip_flags["driver_id"] = row.driver_id
+        trip_flags = apply_trip_flags(trip_flags)
+        label = trip_flags.get("label")
         status = row.status
-        has_driver = row.driver_id is not None
+
+        if trip_flags.get("needs_driver"):
+            stats["needs_driver"] += 1
+
+        if trip_flags.get("needs_review"):
+            stats["needs_review"] += 1
 
         if label == "upcoming" and status in [
             TripStatusEnum.confirmed,
             TripStatusEnum.created,
-        ]: #Truly upcoming and needs or may not need a driver
-            if not has_driver:
-                stats["needs_driver"] += 1
+        ]: #Truly upcoming
             if status == TripStatusEnum.confirmed:
                 stats["upcoming"] += 1
 
@@ -882,23 +1030,53 @@ def _build_admin_trip_stats(rows, total: int) -> dict:
         if status == TripStatusEnum.completed:
             stats["completed"] += 1
 
-        is_stale_past_trip = label == "past" and status in [
-                        TripStatusEnum.confirmed,
-                        TripStatusEnum.created,
-                        TripStatusEnum.ongoing,
-                    ]
-        
-        if (
-            is_stale_past_trip or label =="unknown"
-        ):
-            stats["needs_review"] += 1
-
         if status == TripStatusEnum.dispute:
             stats["dispute"] += 1
 
         if status == TripStatusEnum.cancelled:
             stats["cancelled"] += 1
 
+    return stats
+
+
+def _can_view_power_trip_stats(role: Optional[RoleEnum]) -> bool:
+    return role in {RoleEnum.super_admin}
+
+
+async def _get_todays_trips_count(
+    db: AsyncSession,
+    base_filters: list,
+    joins: list,
+) -> int:
+    today = date.today()
+    stmt = select(func.count(Trip.id))
+    for join in joins:
+        stmt = stmt.join(*join)
+
+    result = await db.execute(
+        stmt.filter(
+            *base_filters,
+            func.date(Trip.created_at) == today,
+        )
+    )
+    return int(result.scalar_one() or 0)
+
+
+async def _attach_power_trip_stats(
+    stats: Optional[dict],
+    db: AsyncSession,
+    base_filters: list,
+    joins: list,
+    role: Optional[RoleEnum],
+) -> Optional[dict]:
+    if not stats or not _can_view_power_trip_stats(role):
+        return stats
+
+    stats["todays_trips"] = await _get_todays_trips_count(
+        db=db,
+        base_filters=base_filters,
+        joins=joins,
+    )
     return stats
 
 
@@ -911,7 +1089,8 @@ async def async_get_all_trips_paginated(
     page: int = 1,
     limit: int = 10,
     view: TripResponseView = TripResponseView.ADMIN_LIST,
-    build_stats = False
+    build_stats = False,
+    role:RoleEnum= None
 ) -> dict:
     """Asynchronously retrieve all active trips with pagination."""
     page = max(page, 1)
@@ -981,8 +1160,16 @@ async def async_get_all_trips_paginated(
             .join(TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id)
             .filter(*base_filters)
         )
-        stats = _build_admin_trip_stats(stats_result.all(), total)
+        stats = _build_trip_stats(stats_result.all(), total)
 
+    stats = await _attach_power_trip_stats(
+        stats=stats,
+        db=db,
+        base_filters=base_filters,
+        joins=joins,
+        role=role,
+    )
+        
     result = await db.execute(
         query_stmt.filter(*base_filters)
         .order_by(Trip.created_at.desc())
@@ -1308,9 +1495,10 @@ def get_trip_label(trip: dict):
                     TripStatusEnum.cancelled,
                     TripStatusEnum.confirmed,
                     TripStatusEnum.created,
+                    TripStatusEnum.ongoing,
                 ]
                 and start_datetime <= current_datetime
-            ):  # All trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+            ):  # All trips that have started and are outside the live ongoing buffer should be categorized as past, including stale ongoing/confirmed/created trips.
                 if trip_status == TripStatusEnum.completed:
                     return "completed"
                 elif trip_status == TripStatusEnum.cancelled:
@@ -1338,10 +1526,11 @@ def get_trip_label(trip: dict):
                     TripStatusEnum.cancelled,
                     TripStatusEnum.confirmed,
                     TripStatusEnum.created,
+                    TripStatusEnum.ongoing,
                 ]
                 and start_datetime <= current_datetime
                 and expected_end_datetime <= current_datetime
-            ):  # All outstation trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+            ):  # All outstation trips that have ended and are outside the live ongoing buffer should be categorized as past, including stale ongoing/confirmed/created trips.
                 if trip_status == TripStatusEnum.completed:
                     return "completed"
                 elif trip_status == TripStatusEnum.cancelled:
@@ -1376,18 +1565,14 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
 
 async def update_trip_status(
-    booking_id: str,
+    trip: Trip,
     db: AsyncSession,
     new_status: TripStatusEnum,
     requestor: Union[User, Customer],
     payload: AdditionalDetailsOnTripStatusChange = None,
     validate_time_window: bool = False,
 ):
-    trip = await async_get_trip_by_booking_id(booking_id, db, view=TripResponseView.ADMIN_DETAIL)
-    if trip is None:
-        raise CabboException(
-            "Trip not found", status_code=404, error_code=TRIP_NOT_FOUND
-        )
+    
 
     # Out of confirmed, ongoing, completed, canceled and dispute, a trip gets confirmed only from the #booking_service.py confirm_trip_booking() method.
     validate_trip_status_transition(

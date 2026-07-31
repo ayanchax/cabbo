@@ -68,7 +68,7 @@ app = FastAPI(
 # CORS middleware for API best practices
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.APP_URL, "http://localhost:6173"],
+    allow_origins=[settings.APP_URL, settings.ADMIN_CONSOLE_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

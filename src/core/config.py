@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     # Mandatory application settings for configuring the application behavior, such as app name, description, version, URLs, ports, and other environment-specific settings. These settings are required for all environments to ensure consistent application behavior and proper functioning of the API endpoints.
     APP_URL: str
+    ADMIN_CONSOLE_URL: str = "http://localhost:6173"
     APP_LOGO_URL: str
     ENV: str
     COUNTRY_CODE: str

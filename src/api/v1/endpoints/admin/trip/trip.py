@@ -22,6 +22,7 @@ from services.trips.trip_service import (
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
     delete_trip,
+    is_stale_or_unknown_trip_for_operations,
     remove_inclusion_exclusion_fields,
     remove_inclusion_exclusion_fields_for_admin_trip_operations,
     remove_platform_payment_fields,
@@ -62,7 +63,9 @@ async def get_trip_dashboard(
         end_date=end_date,
         page=page,
         limit=limit,
-        build_stats=True
+        build_stats=True,
+        role=current_user_role
+
     )
     serialized_trips = serialize_trips(trips.get("items", []), view=TripResponseView.ADMIN_LIST)
     trips.pop("items", None)
@@ -291,17 +294,25 @@ async def update_status(
             "You do not have permission to update trip status.", status_code=403, error_code=UNAUTHORIZED
         )
 
+    trip = await async_get_trip_by_booking_id(booking_id, db, view=TripResponseView.ADMIN_DETAIL)
+    if trip is None:
+                raise CabboException(
+                    "Trip not found", status_code=404, error_code=TRIP_NOT_FOUND
+                )
+
+    is_stale_record_correction= is_stale_or_unknown_trip_for_operations(trip)
+
     trip_schema, background_task = await update_trip_status(
-        booking_id=booking_id,
+        trip=trip,
         new_status=status,
         payload=payload,
         db=db,
         requestor=current_user,
-        validate_time_window=True,
+        validate_time_window=not is_stale_record_correction,
     )  # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
     if not trip_schema:
         raise CabboException("Failed to update trip status", status_code=500, error_code=GENERIC_EXCEPTION)
-    if background_task:
+    if background_task and not is_stale_record_correction:
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
@@ -335,23 +346,26 @@ async def assign_driver(
         raise CabboException("Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND)
     
 
+    is_stale_record_correction = is_stale_or_unknown_trip_for_operations(trip)
+
     assigned_trip, assigned_driver = await assign_driver_to_trip(
         trip=trip,
         driver=driver,
         db=db,
         requestor=current_user,
         attach_trip_relationships=True,
-        validate_time_window=True,
-        view =TripResponseView.ADMIN_LIST
+        validate_time_window=not is_stale_record_correction,
+        view =TripResponseView.ADMIN_DETAIL
     )  # Attaching trip relationships with customer details exposed, so that it can be used in the notification task to notify customer about driver assignment and trip confirmation
 
     # Background job to notify customer via email, if email is provided
-    orchestrator = BackgroundTaskOrchestrator(background_tasks)
-    orchestrator.add_task(
-        notify_customer_booking_confirmed,
-        task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
-        booking=assigned_trip,
-    )
+    if not is_stale_record_correction:
+        orchestrator = BackgroundTaskOrchestrator(background_tasks)
+        orchestrator.add_task(
+            notify_customer_booking_confirmed,
+            task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
+            booking=assigned_trip,
+        )
 
     #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
     #  Not implementing extra notification system for driver at the moment to save cost. Driver admin can use the existing communication channels(phone) to inform the driver about the trip details and confirm  their availability before assignment

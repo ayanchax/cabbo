@@ -8,6 +8,7 @@ from models.customer.customer_schema import AdminSafeReadCustomer, CustomerBase,
 from models.driver.driver_schema import CustomerSafeDriverReadSchema, DriverReadSchema
 from models.policies.cancelation_schema import CancelationPolicySchema, CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
+from models.policies.refund_schema import RefundSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
     Currency,
@@ -353,6 +354,7 @@ class TripSerializationOptions(BaseModel):
     optimize_response: bool = False
     expose_trip_review: bool = False
     expose_trip_refund:bool=False
+    expose_trip_flags:bool=False
 
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")
@@ -486,6 +488,13 @@ class TripDetailSchema(BaseModel):
     )
     overages: Optional[Dict] = Field(
         None, description="Details of overages (e.g., extra km charges)"
+    )
+    refund: Optional[RefundSchema] = Field(
+        None, description="Refund details for the trip, if a refund exists"
+    )
+    can_issue_refund: Optional[bool] = Field(
+        None,
+        description="Indicates whether an admin can manually issue or retry a refund for this trip",
     )
     rate_per_min: Optional[float] = None  # For local trips
     rate_per_km: Optional[float] = None  # For outstation , airport and local trips
