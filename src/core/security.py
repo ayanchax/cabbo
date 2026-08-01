@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
 import logging
 JWT_EXPIRY_UNIT = 30
+JWT_EXPIRY_UNIT_ADMIN = 1
+ADMIN_JWT_EXPIRES_IN = JWT_EXPIRY_UNIT_ADMIN * 24 * 60 * 60 #Admin login expires in 24 hours
 JWT_EXPIRES_IN=JWT_EXPIRY_UNIT * 24 * 60 * 60  # Default expiry in seconds (30 days)
 JWT_EXPIRY_UNIT_TIME_FRAME = {
     "DAYS": "days",

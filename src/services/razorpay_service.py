@@ -582,7 +582,7 @@ def is_eligible_razorpay_identifier(id: str):
     )  # Razorpay payment IDs start with "pay_", refund IDs start with "rfnd_"
 
 
-def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str):
+def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str, silently_fail=False):
     return payment_id and payment_id.startswith("pay_")
 
 

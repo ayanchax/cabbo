@@ -4,6 +4,7 @@ parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from functools import lru_cache
 from typing import List, Optional, Union
+from urllib.parse import quote, quote_plus
 from core.config import settings
 from models.map.location_schema import LocationInfo, LocationProximity, MobilityHub
 from utils.utility import log_lru_cache, round_value, safe_request
@@ -11,6 +12,8 @@ import logging
 log = logging.getLogger(__name__)
 GOOGLE_API_KEY = settings.GOOGLE_MAPS_API_KEY
 BASE_URL = "https://maps.googleapis.com/maps/api"
+PLACES_BASE_URL = "https://places.googleapis.com/v1/places"
+PUBLIC_PLACES_URL = "https://www.google.com/maps/search/?api=1"
 AUTOCOMPLETE_API = f"{BASE_URL}/place/autocomplete/json"
 PLACE_API = f"{BASE_URL}/place/details/json"
 DISTANCE_API = f"{BASE_URL}/distancematrix/json"
@@ -249,6 +252,62 @@ def _extract_display_name_from_components(components: list) -> Optional[str]:
 
 # ----------------------------------------
 # PLACE API - END
+# ----------------------------------------
+
+# ----------------------------------------
+# PLACE MAP URL API - CACHE ONLY
+# ----------------------------------------
+
+def _build_maps_search_url(place_id: str) -> str:
+    return (
+        f"{PUBLIC_PLACES_URL}"
+        f"&query={quote_plus('place')}"
+        f"&query_place_id={quote_plus(place_id)}"
+    )
+
+
+@lru_cache(maxsize=2000)
+def _cached_google_maps_uri(place_id: str):
+    url = f"{PLACES_BASE_URL}/{quote(place_id, safe='')}"
+    headers = {
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": "googleMapsUri,googleMapsLinks.placeUri",
+    }
+
+    return safe_request(url, headers=headers)
+
+
+@lru_cache(maxsize=2000)
+def _cached_place_url(place_id: str):
+    params = {
+        "place_id": place_id,
+        "fields": "url",
+        "key": GOOGLE_API_KEY,
+    }
+
+    return safe_request(PLACE_API, params)
+
+
+def get_google_map_url_from_place_id(place_id: str) -> Optional[str]:
+    if not place_id or not place_id.strip():
+        return None
+
+    cleaned_place_id = place_id.strip()
+    data = _cached_google_maps_uri(cleaned_place_id)
+    log_lru_cache("google_maps_uri", _cached_google_maps_uri)
+
+    legacy_data = _cached_place_url(cleaned_place_id)
+    log_lru_cache("place_url", _cached_place_url)
+
+    return (
+        data.get("googleMapsUri")
+        or data.get("googleMapsLinks", {}).get("placeUri")
+        or legacy_data.get("result", {}).get("url")
+        or _build_maps_search_url(cleaned_place_id)
+    )
+
+# ----------------------------------------
+# PLACE MAP URL API - END
 # ----------------------------------------
 
 # ----------------------------------------

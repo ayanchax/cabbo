@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Text,
     ForeignKey,
+    Index,
 )
 from sqlalchemy.dialects.mysql import CHAR
 from db.database import Base
@@ -20,6 +21,10 @@ from datetime import datetime, timezone
 
 class Customer(Base):
     __tablename__ = "customers"
+    __table_args__ = (
+        Index("ix_customers_active_created", "is_active", "created_at"),
+        Index("ix_customers_verification_flags", "is_active", "is_phone_verified", "is_email_verified"),
+    )
 
     id = Column(
         CHAR(36),
@@ -101,6 +106,9 @@ class Customer(Base):
 class PreOnboardingCustomer(Base):
     # Table containing the volatile state of a customer while they login or register with Cabbo.
     __tablename__ = "pre_onboarding_customers"
+    __table_args__ = (
+        Index("ix_pre_onboarding_expires_at", "expires_at"),
+    )
 
     id = Column(
         CHAR(36),
@@ -110,7 +118,7 @@ class PreOnboardingCustomer(Base):
         nullable=False,
     )
     phone_number = Column(String(20), unique=True, index=True, nullable=False)
-    otp_hash = Column(String(128), nullable=False)
+    otp_hash = Column(String(128), nullable=False, index=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

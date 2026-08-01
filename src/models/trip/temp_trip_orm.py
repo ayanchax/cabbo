@@ -14,6 +14,7 @@ from sqlalchemy import (
     Float,
     DateTime,
     Boolean,
+    Index,
 )
 from sqlalchemy.sql import func
 from db.database import Base
@@ -21,6 +22,9 @@ from datetime import datetime, timezone
 from core.config import settings
 class TempTrip(Base):
     __tablename__ = "temp_trips"
+    __table_args__ = (
+        Index("ix_temp_trips_creator_created", "creator_id", "created_at"),
+    )
 
     id = Column(
         MySQL_CHAR(36),

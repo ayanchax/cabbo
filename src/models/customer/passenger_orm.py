@@ -4,6 +4,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     ForeignKey,
+    Index,
 )
 from core.security import RoleEnum
 from db.database import Base
@@ -17,6 +18,9 @@ from datetime import datetime, timezone
 
 class Passenger(Base):
     __tablename__ = "passengers"
+    __table_args__ = (
+        Index("ix_passengers_customer_active", "customer_id", "is_active"),
+    )
 
     id = Column(
         MySQL_CHAR(36),

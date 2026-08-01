@@ -27,6 +27,20 @@ from core.config import settings
 
 class Trip(Base):
     __tablename__ = "trips"
+    __table_args__ = (
+        Index("ix_trips_active_created", "is_active", "created_at"),
+        Index("ix_trips_active_status_created", "is_active", "status", "created_at"),
+        Index(
+            "ix_trips_customer_bucket",
+            "creator_id",
+            "creator_type",
+            "is_active",
+            "status",
+            "start_datetime",
+        ),
+        Index("ix_trips_driver_status", "driver_id", "is_active", "status"),
+        Index("ix_trips_type_status_start", "trip_type_id", "status", "start_datetime"),
+    )
 
     id = Column(
         MySQL_CHAR(36),
@@ -301,6 +315,9 @@ class Trip(Base):
 
 class TripStatusAudit(Base):
     __tablename__ = "trip_status_audits"
+    __table_args__ = (
+        Index("ix_trip_status_audits_trip_timestamp", "trip_id", "timestamp"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,

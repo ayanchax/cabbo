@@ -18,7 +18,7 @@ from core.exceptions import (
     PHONE_ALREADY_EXISTS,
     USER_PASSWORD_NOT_SET,
 )
-from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
+from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_ADMIN, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from core.config import settings
@@ -44,7 +44,7 @@ def persist_bearer_token(user: User, token: str, db: Session) -> str:
 
 def generate_user_jwt(
     user: User,
-    expires_in=JWT_EXPIRY_UNIT,
+    expires_in=JWT_EXPIRY_UNIT_ADMIN,
     expires_unit=JWT_EXPIRY_UNIT_TIME_FRAME.get("DAYS"),
 ) -> str:
     payload = generate_jwt_payload(

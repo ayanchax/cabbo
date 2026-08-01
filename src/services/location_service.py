@@ -88,6 +88,20 @@ def get_location_from_place_id(place_id: str, session_token:Optional[str]=None) 
         return google_place_details(place_id, session_token=session_token)
     return None
 
+
+def get_map_url_from_place_id(place_id: str) -> Optional[str]:
+    """
+    Given a Google place_id, return a Google Maps URL for that place.
+    """
+    if provider == "google":
+        from services.google_map_service import (
+            get_google_map_url_from_place_id as google_map_url,
+        )
+
+        return google_map_url(place_id)
+    return None
+
+
 def remove_extra_fields_from_location(location_details: dict):
     keys_to_remove = ["country", "region", "state", "postal_code"]
     for key in keys_to_remove:

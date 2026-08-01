@@ -229,6 +229,9 @@ async def attach_relationships_to_trip(
         relationship_names.append("dispute")
     if options and options.expose_trip_review:
         relationship_names.append("trip_rating")
+    if options and options.expose_trip_refund:
+        relationship_names.append("refund")
+
 
     for relationship_name in relationship_names:
         await db.refresh(trip, attribute_names=[relationship_name])

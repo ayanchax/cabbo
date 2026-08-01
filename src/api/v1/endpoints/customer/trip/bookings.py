@@ -22,6 +22,7 @@ from services.dispute_service import add_comment_to_dispute_by_trip_id
 from services.orchestration_service import BackgroundTaskOrchestrator
 from services.support_service import get_best_support_contact, get_support_geography_ids
 from services.trips.trip_service import (
+    async_get_trip_by_booking_id,
     async_get_trip_by_booking_id_customer_id,
     async_get_trips_by_customer_id,
     async_get_trips_by_customer_id_paginated,
@@ -252,12 +253,14 @@ async def cancel_trip_by_booking_id_and_customer_id(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-     
-    trip = await async_get_trip_by_booking_id_customer_id(
-        booking_id, current_customer.id, db
-    )
+
+    trip = await async_get_trip_by_booking_id(booking_id, db, view=TripResponseView.CUSTOMER_DETAIL)
+    if trip is None:
+            raise CabboException(
+                "Trip not found", status_code=404, error_code=TRIP_NOT_FOUND
+            )
     trip_schema, background_task = await update_trip_status(
-        trip_id=trip.id,
+        trip=trip,
         new_status=TripStatusEnum.cancelled,
         payload=payload,
         db=db,
@@ -270,7 +273,7 @@ async def cancel_trip_by_booking_id_and_customer_id(
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
-            task_name=f"BackgroundTaskForTrip{trip.id}StatusUpdateTo{TripStatusEnum.cancelled.value}",
+            task_name=f"BackgroundTaskForTrip{booking_id}StatusUpdateTo{TripStatusEnum.cancelled.value}",
             **background_task.kwargs,
         )
     return {"message": f"Trip status updated to {TripStatusEnum.cancelled.value} successfully."}

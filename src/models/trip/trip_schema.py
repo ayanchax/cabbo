@@ -4,10 +4,11 @@ from datetime import datetime
 from core.exceptions import INVALID_TRIP_TYPE, CabboException
 from models.cab.cab_schema import VehicleCapacitySchema
 from models.common import AmenitiesSchema
-from models.customer.customer_schema import CustomerBase, CustomerRead
+from models.customer.customer_schema import AdminSafeReadCustomer, CustomerBase, CustomerRead, CustomerSafeRead
 from models.driver.driver_schema import CustomerSafeDriverReadSchema, DriverReadSchema
 from models.policies.cancelation_schema import CancelationPolicySchema, CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
+from models.policies.refund_schema import RefundSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
     Currency,
@@ -19,6 +20,8 @@ from models.pricing.pricing_schema import (
 )
 from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
+from enum import Enum
+
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -350,13 +353,15 @@ class TripSerializationOptions(BaseModel):
     expose_trip_label: bool = False
     optimize_response: bool = False
     expose_trip_review: bool = False
+    expose_trip_refund:bool=False
+    expose_trip_flags:bool=False
 
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
 
     # Creator information
-    customer: Optional[CustomerRead] = Field(
+    customer: Optional[Union[CustomerRead]] = Field(
         None,
         description="Customer details of the trip creator, included only if the creator is a customer and if the requesting user has permission to view customer details",
     )
@@ -484,6 +489,13 @@ class TripDetailSchema(BaseModel):
     overages: Optional[Dict] = Field(
         None, description="Details of overages (e.g., extra km charges)"
     )
+    refund: Optional[RefundSchema] = Field(
+        None, description="Refund details for the trip, if a refund exists"
+    )
+    can_issue_refund: Optional[bool] = Field(
+        None,
+        description="Indicates whether an admin can manually issue or retry a refund for this trip",
+    )
     rate_per_min: Optional[float] = None  # For local trips
     rate_per_km: Optional[float] = None  # For outstation , airport and local trips
     
@@ -581,6 +593,39 @@ class AdditionalDetailsOnTripStatusChange(BaseModel):
     class Config:
         extra = "forbid"  # Forbid extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
+
+
+class TripStatusPayloadFieldTypeEnum(str, Enum):
+    string = "string"
+    datetime = "datetime"
+    number = "number"
+    enum = "enum"
+    object = "object"
+    array = "array"
+
+
+class TripStatusTransitionPayloadField(BaseModel):
+    name: str = Field(..., description="Dot-path field name in AdditionalDetailsOnTripStatusChange")
+    type: TripStatusPayloadFieldTypeEnum = Field(..., description="Frontend input type")
+    required: bool = Field(False, description="Whether the frontend should require this field")
+    label: Optional[str] = Field(None, description="Human readable field label")
+    description: Optional[str] = Field(None, description="Short explanation for the field")
+    options: Optional[list[str]] = Field(None, description="Allowed values for enum fields")
+    fields: Optional[list["TripStatusTransitionPayloadField"]] = Field(
+        None,
+        description="Nested fields for object or array payload fields",
+    )
+
+
+class TripStatusTransitionAction(BaseModel):
+    target_status: TripStatusEnum = Field(..., description="Target status for the transition")
+    label: str = Field(..., description="Human readable action label")
+    requires_confirmation: bool = Field(True, description="Whether the frontend should show a confirmation step")
+    confirmation_level: str = Field("standard", description="Frontend confirmation weight, e.g. light, standard, strong")
+    payload_fields: list[TripStatusTransitionPayloadField] = Field(
+        default_factory=list,
+        description="Payload fields the frontend should render for this target status",
+    )
 
 
 class TripPackageSchema(BaseModel):

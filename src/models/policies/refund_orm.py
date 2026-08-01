@@ -5,6 +5,8 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    ForeignKey,
+    Index,
     String,
     Float,
     DateTime,
@@ -19,6 +21,9 @@ from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundTri
 
 class Refund(Base):
     __tablename__ = "refunds"
+    __table_args__ = (
+        Index("ix_refunds_active_status_created", "is_active", "refund_status", "created_at"),
+    )
 
     id = Column(
         MySQL_CHAR(36),
@@ -28,7 +33,7 @@ class Refund(Base):
         index=True,
     )
     entity_id = Column(
-        String(255), nullable=False, index=True, unique=True
+        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, index=True, unique=True
     )  # ID of the entity for which the refund is being processed, e.g., trip ID, booking ID, etc.
     policy_id = Column( 
         String(255), nullable=True, index=True, unique=False

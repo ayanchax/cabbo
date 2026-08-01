@@ -92,12 +92,20 @@ class UserPasswordResetSchema(UserBaseSchema):
             raise CabboException("Password must be at least 8 characters long", status_code=400, error_code=USER_PASSWORD_NOT_SET)
         return v
 
-class UserReadSchema(BaseModel):
+
+
+class UserReadBaseSchema(BaseModel):
     name: Optional[str] = None  # User's name
-    username: str  # User's username
     email: Optional[EmailStr] = None  # User's email address
-    phone_number: str  # User's phone number
     role: RoleEnum  # User's role
+
+    class Config:
+        from_attributes = True
+        extra= "allow"
+
+class UserReadSchema(UserReadBaseSchema):
+    username: str  # User's username
+    phone_number: str  # User's phone number
     is_active: bool  # Active status of the user
 
     class Config:
@@ -114,14 +122,21 @@ class UserLoginRequest(BaseModel):
             raise ValueError("Password must be at least 8 characters long")
         return v 
 
-class UserLoginResponse(BaseModel):
+class UserLoginBaseResponse(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
+    role: RoleEnum  # User's role for the logged-in user
+
+
+
+class UserLoginResponse(UserLoginBaseResponse):
+     
     user_id: str
     first_time_login: Optional[bool] = None
-    role: RoleEnum  # User's role for the logged-in user
  
+
+
 
     
 

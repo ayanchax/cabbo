@@ -3,10 +3,12 @@ from typing import Optional
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    Body,
     Depends,
     Form,
     Form,
     Path,
+    Query,
     UploadFile,
     File,
 )
@@ -20,6 +22,7 @@ from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
+    DriverSearchSchema,
     DriverUpdateSchema,
 )
 from models.trip.trip_enums import TripStatusEnum
@@ -47,6 +50,8 @@ from services.driver_service import (
     get_average_rating_by_driver_id,
     get_driver_by_id,
     get_trip_earning_for_driver,
+    remove_extra_fields_from_driver_for_admin,
+    search_drivers_paginated,
     update_driver,
     update_driver_profile_picture,
 )
@@ -105,6 +110,40 @@ def edit_driver(
         driver = update_driver(driver_id=driver_id, payload=payload, db=db)
         return DriverBaseSchema.model_validate(driver)
     raise CabboException("You do not have permission to edit drivers.", status_code=403, error_code=UNAUTHORIZED)
+
+
+# Search all drivers by driver name and get paginated results, max upto 10 in one page
+@router.get("/search/driver", response_model=dict)
+def search_drivers(
+    search_in: DriverSearchSchema = Depends(),
+    page: int = Query(1, ge=1, description="Page number for pagination, starting from 1"),
+    limit: int = Query(50, ge=1, le=50, description="Number of drivers per page for pagination, maximum 50"),
+    db: Session = Depends(yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Search all drivers."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to search drivers.", status_code=403, error_code=UNAUTHORIZED
+        )
+
+    drivers = search_drivers_paginated(
+        search_in=search_in,
+        db=db,
+        page=page,
+        limit=limit,
+    )
+    serialized_drivers = [
+        remove_extra_fields_from_driver_for_admin(DriverReadSchema.model_validate(driver).model_dump())
+        for driver in drivers.get("items", [])
+    ]
+    drivers.pop("items", None)
+
+    return {
+        **drivers,
+        "drivers": serialized_drivers,
+    }
 
 
 # Upload driver profile picture

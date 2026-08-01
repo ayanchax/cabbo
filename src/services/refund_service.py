@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
 
 from core.exceptions import GENERIC_EXCEPTION, TRIP_NOT_FOUND, CabboException
 from core.security import RoleEnum
@@ -513,6 +513,7 @@ async def fetch_refund_detail_by_booking_id_and_customer_id(
         log.error(f"Error in fetch_refund_detail_by_booking_id_and_customer_id: {e}")
         return None
 
+ 
 
 async def fetch_refund_details_by_customer_id(
     customer_id: str, db: AsyncSession
@@ -598,8 +599,8 @@ async def fetch_refund_detail_by_refund_id(
 
 
 async def fetch_refund_detail_by_booking_id(
-    booking_id: str, db: AsyncSession
-) -> Optional[RefundSchema]:
+    booking_id: str, db: AsyncSession, use_orm = False
+) -> Optional[Union[RefundSchema, RefundORM]]:
     try:
         result = await db.execute(
             select(RefundORM)
@@ -614,6 +615,8 @@ async def fetch_refund_detail_by_booking_id(
             result.scalar_one_or_none()
         )  # One trip can have only one refund record based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table, so we are using scalar_one_or_none which will return None if no record is found, or the record if found. It will raise an exception if multiple records are found, but that should not happen as we should have only one refund record for a trip based on our current design where we create/update refund record for a trip based on the trip id in the entity_id field of the refunds table.
         if refund_record:
+            if use_orm:
+                return refund_record
             return RefundSchema.model_validate(
                 {
                     c.key: getattr(refund_record, c.key)
@@ -832,7 +835,6 @@ async def send_refund_credited_notification(
         )
 
 
-
 async def inactivate_refund(refund: RefundORM, db: AsyncSession):
     refund.is_active = False
     db.add(refund)
@@ -841,3 +843,10 @@ async def inactivate_refund(refund: RefundORM, db: AsyncSession):
     log.info(f"Refund {refund.id} has been inactivated")
 
 
+def serialize_refund(refund, trip_dict: dict):
+    refund = RefundSchema.model_validate(refund)
+    refund_data = refund.model_dump()
+    trip_dict["refund"] = refund_data
+    trip_dict["refund"].pop("id", None)
+    trip_dict["refund"].pop("entity_id", None)
+    return trip_dict

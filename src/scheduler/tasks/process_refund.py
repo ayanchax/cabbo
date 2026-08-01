@@ -52,7 +52,7 @@ async def _run_refund_status_sync():
 
             for refund in refunds:
                 try:
-                    await _process_single_refund(db, refund)
+                    await process_single_refund(db, refund)
                 except Exception as e:
                     
                     log.error(
@@ -93,7 +93,7 @@ async def _fetch_actionable_refunds(db: AsyncSession) -> list[RefundORM]:
         return []
 
 
-async def _process_single_refund(db: AsyncSession, refund: RefundORM):
+async def process_single_refund(db: AsyncSession, refund: RefundORM):
     
     """
     For each refund, we first check if it has a valid provider refund ID in refund_details to determine if we can poll for status updates. 

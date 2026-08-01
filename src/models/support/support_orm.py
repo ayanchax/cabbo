@@ -7,6 +7,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -22,6 +23,9 @@ from models.support.support_enum import SupportScopeEnum, SupportTypeEnum
 
 class SupportContact(Base):
     __tablename__ = "support_contacts"
+    __table_args__ = (
+        Index("ix_support_contacts_active_type_created", "is_active", "support_type", "created_at"),
+    )
 
     id = Column(
         MySQL_CHAR(36),
@@ -160,5 +164,13 @@ class SupportRoutingRule(Base):
             "scope_id",
             "trip_type_scope",
             name="uq_support_contact_scope_trip_type",
+        ),
+        Index(
+            "ix_support_rule_lookup",
+            "is_active",
+            "scope_type",
+            "scope_id",
+            "trip_type_scope",
+            "priority",
         ),
     )

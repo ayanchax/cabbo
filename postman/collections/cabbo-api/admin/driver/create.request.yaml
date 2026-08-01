@@ -1,13 +1,14 @@
 $kind: http-request
+name: create
 url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/create"
 method: POST
 body:
   type: json
   content: "{\r
 
-    \  \"name\": \"Nathu Kumar\",\r
+    \  \"name\": \"Bishal Dey\",\r
 
-    \  \"email\": \"ayana9088@gmail.com\",\r
+    \  \"email\": \"ayanchaxs9088@gmail.com\",\r
 
     \  \"phone\": \"+91 9875642219\",\r
 
@@ -15,29 +16,31 @@ body:
 
     \  \"gender\": \"male\",\r
 
-    \  \"emergency_contact_name\": \"Bum Kumar\",\r
+    \  \"emergency_contact_name\": \"Ram Kumar\",\r
 
-    \  \"emergency_contact_number\": \"+919812345678\",\r
+    \  \"emergency_contact_number\": \"+919812345679\",\r
 
     \  \"nationality\": \"Indian\",\r
 
     \  \"religion\": \"Hindu\",\r
 
-    \  \"car_type\": \"Sedan\",\r
+    \  \"cab_type\": \"Sedan\",\r
 
-    \  \"car_model\": \"Maruti Swift Dzire\",\r
+    \  \"fuel_type\": \"diesel\",\r
 
-    \  \"car_registration_number\": \"KA01AB2316\",\r
+    \  \"cab_model_and_make\": \"Maruti Swift Dzire\",\r
+
+    \  \"cab_registration_number\": \"KA14B9113\",\r
 
     \  \"payment_mode\": \"gpay\",\r
 
-    \  \"payment_phone_number\": \"9876543210\",\r
+    \  \"payment_phone_number\": \"9876543215\",\r
 
     \  \"bank_details\": {\r
 
     \    \"account_holder_name\": \"Ravi Kumar\",\r
 
-    \    \"account_number\": \"124567890\",\r
+    \    \"account_number\": \"124567894\",\r
 
     \    \"ifsc_code\": \"SBIN0001234\",\r
 
@@ -45,19 +48,19 @@ body:
 
     \  },\r
 
-    \  \"address\":{\r
+    \  \"address\": {\r
 
-    \    \"address_line1\":\"St Louis suite\",\r
+    \    \"address_line1\": \"St Louis suite\",\r
 
-    \    \"address_line2\":\"Govindgiri road\",\r
+    \    \"address_line2\": \"Govindgiri road\",\r
 
-    \    \"state\":\"KA\",\r
+    \    \"state\": \"KA\",\r
 
-    \    \"country\":\"India\",\r
+    \    \"country\": \"India\",\r
 
-    \    \"landmark\":\"something\"\r
+    \    \"landmark\": \"something\"\r
 
     \  }\r
 
-    }\r\n"
+    }"
 order: 2000

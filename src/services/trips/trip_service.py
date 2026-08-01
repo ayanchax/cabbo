@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 from typing import Literal, Optional, Union
 
-from core.exceptions import CabboException, GENERIC_EXCEPTION
+from core.exceptions import TRIP_NOT_FOUND, CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
@@ -13,11 +13,13 @@ from core.trip_helpers import (
 )
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
+from models.policies.refund_enum import RefundStatus
 from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import (
+    CancellationSubStatusEnum,
     FuelTypeEnum,
     TripResponseView,
     TripStatusEnum,
@@ -45,7 +47,10 @@ from services.configuration_service import (
     remove_extra_fields_from_currency,
     serialize_currency,
 )
-from services.customer_service import serialize_customer
+from services.customer_service import (
+    serialize_customer,
+    serialize_customer_for_admin_retrieval,
+)
 from services.dispute_service import serialize_dispute
 from services.driver_service import remove_extra_fields_from_driver
 from services.location_service import remove_extra_fields_from_location
@@ -61,6 +66,7 @@ from services.pricing_service import (
     get_parking,
     get_tolls,
 )
+from services.refund_service import serialize_refund
 from services.trip_package_service import (
     remove_extra_fields_from_trip_package,
     serialize_trip_package,
@@ -69,11 +75,14 @@ from services.trip_type_service import (
     remove_extra_fields_from_trip_type,
     serialize_trip_type,
 )
-from services.trips.airport_transfers_service import remove_extra_fields_from_airport_transfer_trip
+from services.trips.airport_transfers_service import (
+    remove_extra_fields_from_airport_transfer_trip,
+)
 from services.trips.local_hourly_rental_service import (
     remove_extra_fields_from_local_hourly_rental_trip,
 )
 from services.trips.outstation_service import remove_extra_fields_from_outstation_trip
+from services.trips.status_transition_policy import validate_trip_status_transition
 from services.trips.status_service import change_status
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
@@ -85,10 +94,36 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def _coerce_trip_filter_date(
+    value: Optional[Union[date, str]], field_name: str
+) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            raise CabboException(
+                f"Invalid {field_name}. Expected date in YYYY-MM-DD format.",
+                status_code=400,
+                error_code=GENERIC_EXCEPTION,
+            )
+    raise CabboException(
+        f"Invalid {field_name}. Expected date in YYYY-MM-DD format.",
+        status_code=400,
+        error_code=GENERIC_EXCEPTION,
+    )
+
+
 def serialize_trip(
     trip: Trip,
     view: TripResponseView = TripResponseView.ADMIN_DETAIL,
 ) -> dict:
+    
     if not trip:
         raise CabboException(
             "Trip not found",
@@ -103,7 +138,6 @@ def serialize_trip(
             error_code=GENERIC_EXCEPTION,
         )
 
-
     trip_dict = trip.__dict__.copy()  # Convert ORM object to a dictionary
     driver = trip_dict.get("driver")
     trip_type_master = trip_dict.get("trip_type_master")
@@ -113,6 +147,9 @@ def serialize_trip(
     cancellation = trip_dict.get("cancellation")
     dispute = trip_dict.get("dispute")
     rating = trip_dict.get("trip_rating")
+    refund = trip_dict.get("refund")
+     
+
 
     if driver:  # Serialize the driver if it exists
         from services.driver_service import serialize_driver
@@ -134,11 +171,14 @@ def serialize_trip(
         trip_dict["passenger"] = (
             None  # means passenger is itself the customer, so we can populate customer details in the response if expose_customer_details is True
         )
-     
 
     if options.expose_customer_details:
         if customer:
-            trip_dict = serialize_customer(customer, trip_dict)
+            if view in [TripResponseView.ADMIN_LIST, TripResponseView.ADMIN_DETAIL]:
+                trip_dict = serialize_customer_for_admin_retrieval(customer, trip_dict)
+            else:
+                trip_dict = serialize_customer(customer, trip_dict)
+
         else:
             trip_dict["customer"] = None
     if options.expose_cancellation_detail:
@@ -168,12 +208,17 @@ def serialize_trip(
 
     if options.expose_trip_label:
         trip_dict["label"] = get_trip_label(trip_dict)
-    
+
     if options.expose_trip_review:
         from services.trip_review_service import serialize_rating
+
         trip_dict = serialize_rating(trip_dict=trip_dict)
-           
+
+    if options.expose_trip_refund:
+        trip_dict = apply_trip_refund_details(trip_dict=trip_dict, refund=refund)
             
+    if options.expose_trip_flags:
+        trip_dict = apply_trip_flags(trip_dict=trip_dict, driver=driver)
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
@@ -225,14 +270,132 @@ def serialize_trip(
             elif trip_type == TripTypeEnum.outstation:
                 trip_details = remove_extra_fields_from_outstation_trip(trip_details)
             elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
-                trip_details = remove_extra_fields_from_airport_transfer_trip(trip_details, trip_type)
-        
+                trip_details = remove_extra_fields_from_airport_transfer_trip(
+                    trip_details, trip_type
+                )
+
         if trip_details.get("driver"):
             trip_details["driver"] = remove_extra_fields_from_driver(
                 driver_details=trip_details["driver"]
             )
 
     return remove_none_recursive(trip_details)
+
+
+def _coerce_trip_status(status: Optional[Union[str, TripStatusEnum]]) -> Optional[TripStatusEnum]:
+    if not status:
+        return None
+    if isinstance(status, TripStatusEnum):
+        return status
+    try:
+        return TripStatusEnum(status)
+    except ValueError:
+        return None
+
+
+def _has_assigned_driver(trip_dict: dict, driver=None) -> bool:
+    if driver and getattr(driver, "id", None):
+        return True
+
+    driver_details = trip_dict.get("driver")
+    if isinstance(driver_details, dict) and driver_details.get("id"):
+        return True
+
+    return bool(trip_dict.get("driver_id"))
+
+
+def _is_stale_or_unknown_trip(label: Optional[str], status: Optional[TripStatusEnum]) -> bool:
+    stale_statuses = {
+        TripStatusEnum.confirmed,
+        TripStatusEnum.created,
+        TripStatusEnum.ongoing,
+    }
+    return label == "unknown" or (label == "past" and status in stale_statuses)
+
+
+def _needs_driver_for_operations(
+    label: Optional[str],
+    status: Optional[TripStatusEnum],
+    has_driver: bool,
+) -> bool:
+    if has_driver:
+        return False
+
+    upcoming_driver_statuses = {
+        TripStatusEnum.confirmed,
+        TripStatusEnum.created,
+    }
+    if label == "upcoming" and status in upcoming_driver_statuses:
+        return True
+
+    return _is_stale_or_unknown_trip(label=label, status=status)
+
+
+def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
+    """Attach admin-facing operational flags to a serialized trip dictionary."""
+    label = trip_dict.get("label") or get_trip_label(trip_dict)
+    status = _coerce_trip_status(trip_dict.get("status"))
+    has_driver = _has_assigned_driver(trip_dict=trip_dict, driver=driver)
+
+    trip_dict["label"] = label
+    trip_dict["needs_review"] = _is_stale_or_unknown_trip(label=label, status=status)
+    trip_dict["needs_driver"] = _needs_driver_for_operations(
+        label=label,
+        status=status,
+        has_driver=has_driver,
+    )
+    return trip_dict
+
+
+def _coerce_refund_status(status: Optional[Union[str, RefundStatus]]) -> Optional[RefundStatus]:
+    if not status:
+        return None
+    if isinstance(status, RefundStatus):
+        return status
+    try:
+        return RefundStatus(status)
+    except ValueError:
+        return None
+
+def _coerce_cancellation_sub_status(status: Optional[Union[str, CancellationSubStatusEnum]]) -> Optional[CancellationSubStatusEnum]:
+    if not status:
+        return None
+    if isinstance(status, CancellationSubStatusEnum):
+        return status
+    try:
+        return CancellationSubStatusEnum(status)
+    except ValueError:
+        return None
+
+
+def _can_issue_refund(
+    trip_status: Optional[Union[str, TripStatusEnum]],
+    refund_status: Optional[Union[str, RefundStatus]],
+) -> bool:
+    retryable_refund_statuses = {
+        RefundStatus.pending,
+        RefundStatus.failed,
+        RefundStatus.initiated,
+    }
+
+    return (
+        _coerce_trip_status(trip_status) == TripStatusEnum.cancelled
+        and _coerce_refund_status(refund_status) in retryable_refund_statuses
+    )
+
+
+def apply_trip_refund_details(trip_dict: dict, refund=None) -> dict:
+    if not refund:
+        trip_dict["can_issue_refund"] = False
+        return trip_dict
+
+    trip_dict = serialize_refund(refund, trip_dict)
+    refund_status = (trip_dict.get("refund") or {}).get("refund_status")
+    trip_dict["can_issue_refund"] = _can_issue_refund(
+        trip_status=trip_dict.get("status"),
+        refund_status=refund_status,
+    )
+    return trip_dict
 
 
 def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
@@ -796,6 +959,241 @@ async def async_get_all_trips(db: AsyncSession) -> list[Trip]:
     return all
 
 
+def _build_trip_label_payload(row) -> dict:
+    return {
+        "id": row.id,
+        "status": row.status,
+        "start_datetime": row.start_datetime,
+        "expected_end_datetime": row.expected_end_datetime,
+        "trip_type": {"trip_type": row.trip_type},
+    }
+
+
+def _build_trip_label_payload_from_trip(trip: Trip) -> dict:
+    trip_type = (
+        trip.trip_type_master.trip_type
+        if getattr(trip, "trip_type_master", None)
+        and getattr(trip.trip_type_master, "trip_type", None)
+        else None
+    )
+    return {
+        "id": trip.id,
+        "status": trip.status,
+        "start_datetime": trip.start_datetime,
+        "expected_end_datetime": trip.expected_end_datetime,
+        "trip_type": {"trip_type": trip_type} if trip_type else None,
+    }
+
+
+def is_stale_or_unknown_trip_for_operations(trip: Trip) -> bool:
+    trip_dict = _build_trip_label_payload_from_trip(trip)
+    label = get_trip_label(trip_dict)
+    status = _coerce_trip_status(trip_dict.get("status"))
+    return _is_stale_or_unknown_trip(label=label, status=status)
+
+
+def _build_trip_stats(rows, total: int) -> dict:
+    stats = {
+        "total_trips": int(total or 0),
+        "needs_driver": 0,
+        "needs_review":0,
+        "in_progress": 0,
+        "completed": 0,
+        "upcoming": 0,
+        "dispute":0,
+        "cancelled":0
+    }
+
+    for row in rows:
+        trip_flags = _build_trip_label_payload(row)
+        trip_flags["driver_id"] = row.driver_id
+        trip_flags = apply_trip_flags(trip_flags)
+        label = trip_flags.get("label")
+        status = row.status
+
+        if trip_flags.get("needs_driver"):
+            stats["needs_driver"] += 1
+
+        if trip_flags.get("needs_review"):
+            stats["needs_review"] += 1
+
+        if label == "upcoming" and status in [
+            TripStatusEnum.confirmed,
+            TripStatusEnum.created,
+        ]: #Truly upcoming
+            if status == TripStatusEnum.confirmed:
+                stats["upcoming"] += 1
+
+        if label == "ongoing":
+            stats["in_progress"] += 1
+
+        if status == TripStatusEnum.completed:
+            stats["completed"] += 1
+
+        if status == TripStatusEnum.dispute:
+            stats["dispute"] += 1
+
+        if status == TripStatusEnum.cancelled:
+            stats["cancelled"] += 1
+
+    return stats
+
+
+def _can_view_power_trip_stats(role: Optional[RoleEnum]) -> bool:
+    return role in {RoleEnum.super_admin}
+
+
+async def _get_todays_trips_count(
+    db: AsyncSession,
+    base_filters: list,
+    joins: list,
+) -> int:
+    today = date.today()
+    stmt = select(func.count(Trip.id))
+    for join in joins:
+        stmt = stmt.join(*join)
+
+    result = await db.execute(
+        stmt.filter(
+            *base_filters,
+            func.date(Trip.created_at) == today,
+        )
+    )
+    return int(result.scalar_one() or 0)
+
+
+async def _attach_power_trip_stats(
+    stats: Optional[dict],
+    db: AsyncSession,
+    base_filters: list,
+    joins: list,
+    role: Optional[RoleEnum],
+) -> Optional[dict]:
+    if not stats or not _can_view_power_trip_stats(role):
+        return stats
+
+    stats["todays_trips"] = await _get_todays_trips_count(
+        db=db,
+        base_filters=base_filters,
+        joins=joins,
+    )
+    return stats
+
+
+async def async_get_all_trips_paginated(
+    db: AsyncSession,
+    status: Optional[TripStatusEnum] = None,
+    trip_type: Optional[TripTypeEnum] = None,
+    start_date: Optional[Union[date, str]] = None,
+    end_date: Optional[Union[date, str]] = None,
+    page: int = 1,
+    limit: int = 10,
+    view: TripResponseView = TripResponseView.ADMIN_LIST,
+    build_stats = False,
+    role:RoleEnum= None
+) -> dict:
+    """Asynchronously retrieve all active trips with pagination."""
+    page = max(page, 1)
+    limit = max(limit, 1)
+    offset = (page - 1) * limit
+
+    base_filters = [Trip.is_active == True]
+    joins = []
+
+    if status:
+        base_filters.append(Trip.status == status)
+
+    if trip_type:
+        joins.append((TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id))
+        base_filters.append(TripTypeMaster.trip_type == trip_type)
+
+    from_date = _coerce_trip_filter_date(start_date, "start_date")
+    to_date = _coerce_trip_filter_date(end_date, "end_date")
+
+    if from_date and not to_date:
+        base_filters.append(
+            Trip.start_datetime >= datetime.combine(from_date, datetime.min.time())
+        )
+    elif to_date and not from_date:
+        day_start = datetime.combine(to_date, datetime.min.time())
+        base_filters.extend(
+            [
+                Trip.start_datetime >= day_start,
+                Trip.start_datetime < day_start + timedelta(days=1),
+            ]
+        )
+    elif from_date and to_date:
+        if from_date > to_date:
+            raise CabboException(
+                "start_date cannot be after end_date.",
+                status_code=400,
+                error_code=GENERIC_EXCEPTION,
+            )
+        base_filters.extend(
+            [
+                Trip.start_datetime >= datetime.combine(from_date, datetime.min.time()),
+                Trip.start_datetime
+                < datetime.combine(to_date + timedelta(days=1), datetime.min.time()),
+            ]
+        )
+
+    count_stmt = select(func.count(Trip.id))
+    query_stmt = select(Trip)
+    for join in joins:
+        count_stmt = count_stmt.join(*join)
+        query_stmt = query_stmt.join(*join)
+
+    count_result = await db.execute(count_stmt.filter(*base_filters))
+    total = count_result.scalar_one()
+
+    stats = None
+    if build_stats:
+        stats_result = await db.execute(
+            select(
+                Trip.id,
+                Trip.status,
+                Trip.driver_id,
+                Trip.start_datetime,
+                Trip.expected_end_datetime,
+                TripTypeMaster.trip_type.label("trip_type"),
+            )
+            .join(TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id)
+            .filter(*base_filters)
+        )
+        stats = _build_trip_stats(stats_result.all(), total)
+
+    stats = await _attach_power_trip_stats(
+        stats=stats,
+        db=db,
+        base_filters=base_filters,
+        joins=joins,
+        role=role,
+    )
+        
+    result = await db.execute(
+        query_stmt.filter(*base_filters)
+        .order_by(Trip.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    trips = result.scalars().all()
+    for trip in trips:
+        await attach_relationships_to_trip(trip, db, view=view)
+
+    return {
+        "items": trips,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(trips) < total,
+            "has_previous": page > 1,
+        },
+        "stats": stats,
+    }
+
+
 async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession) -> list[Trip]:
     """Asynchronously retrieve trips by driver ID."""
     query = select(Trip).filter(
@@ -813,13 +1211,51 @@ async def async_get_trips_by_driver_id(driver_id: str, db: AsyncSession) -> list
 def serialize_trips(trips: list[Trip], view: TripResponseView) -> list:
     serialized_trips = []
     for trip in trips:
-        serialized_trips.append(
-            serialize_trip(
-                trip, view=view
-                 
-            )
-        )
+        serialized_trips.append(serialize_trip(trip, view=view))
     return serialized_trips
+
+
+def remove_platform_payment_fields(trip: dict):
+    trip["cost_to_driver"] = trip.get(
+        "balance_payment", 0.0
+    )  # Balance payment is the amount left to pay which is the actual driver payment for this trip plus any extras as applicable.
+
+    if trip["cost_to_driver"]<=0: #Cases where trip is completed, then we reconcile cost to driver from the actuals
+        trip["cost_to_driver"] = trip["final_price"] - trip["advance_payment"]
+
+    trip.pop("advance_payment", None)
+    trip.pop("balance_payment", None)
+    trip.pop("base_fare", None)
+    trip.pop("final_price", None)
+    price_breakdown = trip.get("price_breakdown")
+    if isinstance(price_breakdown, dict):
+        price_breakdown.pop("platform_fee", None)
+    return trip
+
+
+def remove_inclusion_exclusion_fields(trip: dict):
+    trip.pop("exclusions", None)
+    trip.pop("inclusions", None)
+
+    return trip
+
+
+def remove_platform_payment_fields_for_admin_trip_operations(
+    trips: list[dict],
+) -> list[dict]:
+    """Hide platform payment internals from admin trip operation list responses."""
+    for trip in trips:
+        trip = remove_platform_payment_fields(trip)
+    return trips
+
+
+def remove_inclusion_exclusion_fields_for_admin_trip_operations(
+    trips: list[dict],
+) -> list[dict]:
+    """Hide exclusions and inclusions from admin trip operation list responses."""
+    for trip in trips:
+        trip = remove_inclusion_exclusion_fields(trip)
+    return trips
 
 
 async def async_get_trips_by_customer_id(
@@ -858,7 +1294,9 @@ async def async_get_trips_by_customer_id_paginated(
     """Asynchronously retrieve customer trips by UI bucket with pagination."""
     page = max(page, 1)
     limit = max(limit, 1)
-    offset = (page - 1) * limit # Calculate the offset for pagination, meaning starting from the (page-1)*limit-th record for the current page.
+    offset = (
+        page - 1
+    ) * limit  # Calculate the offset for pagination, meaning starting from the (page-1)*limit-th record for the current page.
 
     current_datetime = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -920,23 +1358,19 @@ async def async_get_trips_by_customer_id_paginated(
                 TripTypeMaster.trip_type.in_(airport_and_local_types),
                 Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
                 Trip.start_datetime <= current_datetime,
-            ), #stale expired airport and local trips that are still marked as confirmed or created but have a start datetime in the past should be considered past trips
+            ),  # stale expired airport and local trips that are still marked as confirmed or created but have a start datetime in the past should be considered past trips
             and_(
                 TripTypeMaster.trip_type == TripTypeEnum.outstation,
                 Trip.status.in_([TripStatusEnum.confirmed, TripStatusEnum.created]),
                 Trip.start_datetime <= current_datetime,
                 Trip.expected_end_datetime <= current_datetime,
-            ), #stale expired outstation trips that are still marked as confirmed or created but have a start datetime in the past and expected end datetime in the past should be considered past trips
+            ),  # stale expired outstation trips that are still marked as confirmed or created but have a start datetime in the past and expected end datetime in the past should be considered past trips
         )
         order_by = Trip.start_datetime.desc()
 
     j = (TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id)
     f = (*base_filters, bucket_filter)
-    count_result = await db.execute(
-        select(func.count(Trip.id))
-        .join(*j)
-        .filter(*f)
-    )
+    count_result = await db.execute(select(func.count(Trip.id)).join(*j).filter(*f))
     total = count_result.scalar_one()
 
     result = await db.execute(
@@ -944,8 +1378,12 @@ async def async_get_trips_by_customer_id_paginated(
         .join(*j)
         .filter(*f)
         .order_by(order_by)
-        .offset(offset) #start cursor from offset, which is calculated based on the current page and limit, ensuring that we skip the appropriate number of records for pagination
-        .limit(limit) #upto 'limit' number of records for the current page, ensuring that we only retrieve the desired number of trips for the current page
+        .offset(
+            offset
+        )  # start cursor from offset, which is calculated based on the current page and limit, ensuring that we skip the appropriate number of records for pagination
+        .limit(
+            limit
+        )  # upto 'limit' number of records for the current page, ensuring that we only retrieve the desired number of trips for the current page
     )
     trips = result.scalars().all()
     for trip in trips:
@@ -969,7 +1407,6 @@ async def async_get_trips_by_customer_id_paginated(
     }
 
 
-
 def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dict:
     if validate_by_tz:
         log.info("Grouping trips by status with timezone validation")
@@ -988,7 +1425,11 @@ def group_by_trip_status(trips: list[dict], validate_by_tz: bool = False) -> dic
         trip
         for trip in trips
         if trip.get("status")
-        in [TripStatusEnum.completed.value, TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
+        in [
+            TripStatusEnum.completed.value,
+            TripStatusEnum.cancelled.value,
+            TripStatusEnum.dispute.value,
+        ]
     ]
     return {"upcoming": upcoming_trips, "ongoing": ongoing_trips, "past": past_trips}
 
@@ -1054,9 +1495,10 @@ def get_trip_label(trip: dict):
                     TripStatusEnum.cancelled,
                     TripStatusEnum.confirmed,
                     TripStatusEnum.created,
+                    TripStatusEnum.ongoing,
                 ]
                 and start_datetime <= current_datetime
-            ):  # All trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+            ):  # All trips that have started and are outside the live ongoing buffer should be categorized as past, including stale ongoing/confirmed/created trips.
                 if trip_status == TripStatusEnum.completed:
                     return "completed"
                 elif trip_status == TripStatusEnum.cancelled:
@@ -1084,10 +1526,11 @@ def get_trip_label(trip: dict):
                     TripStatusEnum.cancelled,
                     TripStatusEnum.confirmed,
                     TripStatusEnum.created,
+                    TripStatusEnum.ongoing,
                 ]
                 and start_datetime <= current_datetime
                 and expected_end_datetime <= current_datetime
-            ):  # All outstation trips that have started but are not ongoing should be categorized as past, including those that are completed, cancelled, or even those that are still marked as confirmed or created but have a start datetime in the past. This accounts for real-world scenarios where there might be delays in status updates or early arrivals.
+            ):  # All outstation trips that have ended and are outside the live ongoing buffer should be categorized as past, including stale ongoing/confirmed/created trips.
                 if trip_status == TripStatusEnum.completed:
                     return "completed"
                 elif trip_status == TripStatusEnum.cancelled:
@@ -1122,35 +1565,21 @@ def _group_by_trip_status_with_timezone_validation(trips: list[dict]) -> dict:
 
 
 async def update_trip_status(
-    trip_id: str,
+    trip: Trip,
     db: AsyncSession,
     new_status: TripStatusEnum,
     requestor: Union[User, Customer],
     payload: AdditionalDetailsOnTripStatusChange = None,
     validate_time_window: bool = False,
 ):
-    trip = await async_get_trip_by_id(trip_id, db, view=TripResponseView.ADMIN_DETAIL)
-    if trip is None:
-        raise CabboException(
-            "Trip not found", status_code=404, error_code=GENERIC_EXCEPTION
-        )
+    
 
-    allowed_status_transitions = {
-        TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
-        TripStatusEnum.ongoing: [TripStatusEnum.completed, TripStatusEnum.dispute],
-        TripStatusEnum.completed: [],
-        TripStatusEnum.cancelled: [],
-        TripStatusEnum.dispute: [],
-    }
     # Out of confirmed, ongoing, completed, canceled and dispute, a trip gets confirmed only from the #booking_service.py confirm_trip_booking() method.
-    if new_status not in allowed_status_transitions.get(
-        TripStatusEnum(trip.status), []
-    ):
-        raise CabboException(
-            f"Invalid status transition from {trip.status} to {new_status.value}.",
-            status_code=400,
-            error_code=GENERIC_EXCEPTION,
-        )
+    validate_trip_status_transition(
+        trip=trip,
+        new_status=new_status,
+        requestor=requestor,
+    )
     trip_schema: TripDetailSchema = None
     background_task: Optional[AppBackgroundTask] = None
     try:
@@ -1243,7 +1672,10 @@ async def update_non_cost_impacting_trip_fields(
         validate_status (bool): Whether to validate the trip status before allowing updates. Defaults to False.
     """
     try:
-        if validate_status and trip.status not in [TripStatusEnum.confirmed, TripStatusEnum.created]:
+        if validate_status and trip.status not in [
+            TripStatusEnum.confirmed,
+            TripStatusEnum.created,
+        ]:
             raise CabboException(
                 f"Trip details can only be updated for trips in confirmed or created status. Current status: {trip.status}",
                 status_code=400,

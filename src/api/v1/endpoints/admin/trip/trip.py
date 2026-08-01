@@ -1,24 +1,32 @@
-from typing import Optional
+from datetime import date
+from typing import Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_NOT_FOUND, DRIVER_NOT_FOUND
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
-from models.trip.trip_enums import TripResponseView, TripStatusEnum
+from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange
 from models.user.user_orm import User
 from services.driver_service import a_get_driver_by_id, assign_driver_to_trip
 from services.notification_service import notify_customer_booking_confirmed
 from services.orchestration_service import BackgroundTaskOrchestrator
+from services.trips.status_transition_policy import get_allowed_trip_status_transitions
 from services.trips.trip_service import (
     activate_trip,
     async_get_all_trips,
+    async_get_all_trips_paginated,
     async_get_trip_by_booking_id,
     async_get_trip_by_id,
     async_get_trips_by_customer_id,
     async_get_trips_by_driver_id,
     delete_trip,
+    is_stale_or_unknown_trip_for_operations,
+    remove_inclusion_exclusion_fields,
+    remove_inclusion_exclusion_fields_for_admin_trip_operations,
+    remove_platform_payment_fields,
+    remove_platform_payment_fields_for_admin_trip_operations,
     serialize_trip,
     serialize_trips,
     update_trip_status,
@@ -27,6 +35,51 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import reviews, refunds, dispute, cancellations, recovery
 
 router = APIRouter()
+
+
+# Trip dashboard with paginated trips and aggregate stats
+@router.get("/dashboard", response_model=dict, tags=["Admin Trip Management"])
+async def get_trip_dashboard(
+    page: int = Query(1, ge=1, description="Page number for pagination, starting from 1"),
+    limit: int = Query(10, ge=1, le=50, description="Number of trips per page for pagination, maximum 50"),
+    status:Optional[TripStatusEnum]=Query(None, description="Filter by status"),
+    trip_type:Optional[TripTypeEnum]=Query(None, description="Filter by trip type"),
+    start_date:Optional[Union[date, str]]= Query(None, description="Filter by trips from a specific date" ),
+    end_date:Optional[Union[date, str]]= Query(None, description="Filter by trips upto a specific date" ),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Get paginated trips and aggregate dashboard stats for the system."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to view trips in dashboard.", status_code=403, error_code=UNAUTHORIZED
+        )
+    trips = await async_get_all_trips_paginated(
+        db=db,
+        status=status,
+        trip_type=trip_type,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        limit=limit,
+        build_stats=True,
+        role=current_user_role
+
+    )
+    serialized_trips = serialize_trips(trips.get("items", []), view=TripResponseView.ADMIN_LIST)
+    trips.pop("items", None)
+    serialized_trips = remove_platform_payment_fields_for_admin_trip_operations(
+        serialized_trips
+    )
+    serialized_trips = remove_inclusion_exclusion_fields_for_admin_trip_operations(
+            serialized_trips
+        )
+
+    return {
+        **trips,
+        "trips": serialized_trips,
+    }
 
 
 # View trip details by trip_id
@@ -81,25 +134,14 @@ async def view_trip_details_by_booking_id(
         serialized_trip.pop(
             "id"
         )  # Remove internal trip ID from the response for security reasons
+ 
+    serialized_trip = remove_platform_payment_fields(serialized_trip)
+    serialized_trip = remove_inclusion_exclusion_fields(serialized_trip)
+    serialized_trip["allowed_status_transitions"] = get_allowed_trip_status_transitions(
+        trip=trip,
+        current_user=current_user,
+    )
     return serialized_trip
-
-
-# List all trips in system
-@router.get("/list/all", response_model=list, tags=["Admin Trip Management"])
-async def list_all_trips(
-    db: AsyncSession = Depends(a_yield_mysql_session),
-    current_user: User = Depends(validate_user_token),
-):
-    """List all trips in the system."""
-    current_user_role = current_user.role
-    if current_user_role not in [RoleEnum.super_admin]:
-        raise CabboException(
-            "You do not have permission to view all trips.", status_code=403, error_code=UNAUTHORIZED
-        )
-    trips = await async_get_all_trips(db)
-    if not trips:
-        raise CabboException("No trips found in the system", status_code=404, error_code=TRIP_NOT_FOUND)
-    return serialize_trips(trips, view=TripResponseView.ADMIN_LIST)
 
 
 # List trips by driver_id - this will be used by driver admin to see all trips that belong to a particular driver, and also by super admin for any driver
@@ -234,10 +276,10 @@ async def list_trips_by_status(
 
 
 # Update trip status - super_admin, driver_admin
-@router.patch("/{trip_id}/status/{status}", tags=["Admin Trip Management"])
+@router.patch("/{booking_id}/status/{status}", tags=["Admin Trip Management"])
 async def update_status(
     background_tasks: BackgroundTasks,
-    trip_id: str,
+    booking_id: str,
     status: TripStatusEnum,
     payload: Optional[
         AdditionalDetailsOnTripStatusChange
@@ -252,48 +294,59 @@ async def update_status(
             "You do not have permission to update trip status.", status_code=403, error_code=UNAUTHORIZED
         )
 
+    trip = await async_get_trip_by_booking_id(booking_id, db, view=TripResponseView.ADMIN_DETAIL)
+    if trip is None:
+                raise CabboException(
+                    "Trip not found", status_code=404, error_code=TRIP_NOT_FOUND
+                )
+
+    is_stale_record_correction= is_stale_or_unknown_trip_for_operations(trip)
+
     trip_schema, background_task = await update_trip_status(
-        trip_id=trip_id,
+        trip=trip,
         new_status=status,
         payload=payload,
         db=db,
         requestor=current_user,
-        validate_time_window=True,
+        validate_time_window=not is_stale_record_correction,
     )  # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
     if not trip_schema:
         raise CabboException("Failed to update trip status", status_code=500, error_code=GENERIC_EXCEPTION)
-    if background_task:
+    if background_task and not is_stale_record_correction:
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
-            task_name=f"BackgroundTaskForTrip{trip_id}StatusUpdateTo{status.value}",
+            task_name=f"BackgroundTaskForTrip{booking_id}StatusUpdateTo{status.value}",
             **background_task.kwargs,
         )
     return {"message": f"Trip status updated to {status.value} successfully."}
 
 
 # Assign driver to trip
-@router.post("/{trip_id}/assign-driver/{driver_id}", tags=["Admin Trip Management"])
+@router.post("/{booking_id}/assign-driver/{driver_id}", tags=["Admin Trip Management"])
 async def assign_driver(
     background_tasks: BackgroundTasks,
-    trip_id: str,
+    booking_id: str,
     driver_id: str,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """Assign a driver to a trip."""
     current_user_role = current_user.role
-    trip = await async_get_trip_by_id(trip_id, db)
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+            raise CabboException(
+                "You do not have permission to assign drivers to trips.", status_code=403, error_code=UNAUTHORIZED
+            )
+    trip = await async_get_trip_by_booking_id(booking_id, db)
     if trip is None:
         raise CabboException("Trip not found", status_code=404, error_code=TRIP_NOT_FOUND)
     driver = await a_get_driver_by_id(driver_id, db)
 
     if driver is None:
         raise CabboException("Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND)
-    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        raise CabboException(
-            "You do not have permission to assign drivers to trips.", status_code=403, error_code=UNAUTHORIZED
-        )
+    
+
+    is_stale_record_correction = is_stale_or_unknown_trip_for_operations(trip)
 
     assigned_trip, assigned_driver = await assign_driver_to_trip(
         trip=trip,
@@ -301,16 +354,18 @@ async def assign_driver(
         db=db,
         requestor=current_user,
         attach_trip_relationships=True,
-        validate_time_window=True,
+        validate_time_window=not is_stale_record_correction,
+        view =TripResponseView.ADMIN_DETAIL
     )  # Attaching trip relationships with customer details exposed, so that it can be used in the notification task to notify customer about driver assignment and trip confirmation
 
     # Background job to notify customer via email, if email is provided
-    orchestrator = BackgroundTaskOrchestrator(background_tasks)
-    orchestrator.add_task(
-        notify_customer_booking_confirmed,
-        task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
-        booking=assigned_trip,
-    )
+    if not is_stale_record_correction:
+        orchestrator = BackgroundTaskOrchestrator(background_tasks)
+        orchestrator.add_task(
+            notify_customer_booking_confirmed,
+            task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
+            booking=assigned_trip,
+        )
 
     #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
     #  Not implementing extra notification system for driver at the moment to save cost. Driver admin can use the existing communication channels(phone) to inform the driver about the trip details and confirm  their availability before assignment

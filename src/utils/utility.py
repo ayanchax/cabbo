@@ -115,9 +115,9 @@ def convert_based_on_currency(
         )
         return amount
     
-def safe_request(url, params, timeout=3):
+def safe_request(url, params=None, headers=None, timeout=3):
     try:
-        response = requests.get(url, params=params, timeout=timeout)
+        response = requests.get(url, params=params, headers=headers, timeout=timeout)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -138,10 +138,6 @@ def round_value(val: float, precision: int = 4):
 
 def to_timezone_aware_datetime(dt:datetime):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-
-
 
 def format_trip_datetime(dt:datetime, timezone:str):
     trip_tz = ZoneInfo(timezone or "UTC")

@@ -139,23 +139,30 @@ TRIP_RESPONSE_OPTIONS = {
     TripResponseView.ADMIN_DETAIL: TripSerializationOptions(
         expose_customer_details=True,
         expose_cancellation_detail=True,
+        expose_trip_refund=True,
         expose_currency_detail=True,
         expose_fleet_detail=True,
         expose_trip_label=True,
-        expose_policy_detail=True,
+        expose_policy_detail=False,
         expose_dispute_details=True,
         expose_trip_review=True,
+        optimize_response=True,
+        expose_trip_flags=True
+
 
     ),
      TripResponseView.ADMIN_LIST: TripSerializationOptions(
         expose_customer_details=True,
-        expose_cancellation_detail=True,
+        expose_cancellation_detail=False,
         expose_currency_detail=True,
         expose_fleet_detail=True,
         expose_trip_label=True,
-        expose_policy_detail=True,
+        expose_policy_detail=False,
         expose_dispute_details=True,
         expose_trip_review=True,
+        optimize_response=True,
+        expose_trip_flags=True
+
 
     )
 }
