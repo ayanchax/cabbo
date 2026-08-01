@@ -1,4 +1,3 @@
-
 import sys
 from pathlib import Path
 parent_dir = Path(__file__).resolve().parent.parent
@@ -18,11 +17,11 @@ from core.exceptions import (
     PHONE_ALREADY_EXISTS,
     USER_PASSWORD_NOT_SET,
 )
-from core.security import JWT_EXPIRY_UNIT, JWT_EXPIRY_UNIT_ADMIN, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
+from core.security import JWT_EXPIRY_UNIT_ADMIN, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from core.config import settings
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from models.user.user_schema import UserCreateSchema, UserUpdateSchema
 import logging
 
@@ -83,7 +82,7 @@ def delete_bearer_token(user: User, db: Session) -> bool:
             status_code=500,
             include_traceback=True,
         )
-    
+
 def get_user_by_username(username: str,db: Session ):
     """Get user by username."""
     return db.query(User).filter(User.username == username).first()
@@ -129,7 +128,7 @@ def is_user_exists(user: UserCreateSchema, db: Session) -> bool:
         filters.append(User.email == user.email)
     existing_user = db.query(User).filter(or_(*filters)).first()
     return existing_user is not None
-   
+
 def activate_user(user: User, db: Session) -> User:
     """Activate a user."""
     user.is_active = True
@@ -227,7 +226,7 @@ def update_user(user: User, data: UserUpdateSchema, db: Session) -> User:
             status_code=500,
             include_traceback=True,
         )
-    
+
 
 def change_user_password(user: User, new_password: str, db: Session) -> User:
     """Change user password."""
@@ -235,6 +234,40 @@ def change_user_password(user: User, new_password: str, db: Session) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+
+async def create_users_in_bulk(payload:list[UserCreateSchema], db: AsyncSession):
+    try:
+        users = []
+        for user_data in payload:
+            user = User(
+                name=user_data.name.strip()
+                or "",  # Default to empty string if name is None
+                username=user_data.username.strip(),
+                email=(
+                    user_data.email.strip() if user_data.email else None
+                ),  # Default to None if email is not provided
+                phone_number=user_data.phone_number.strip(),
+                password_hash=(
+                    generate_password_hash(user_data.password)
+                    if user_data.password
+                    else settings.CABBO_USER_DEFAULT_PASSWORD
+                ),  # Assuming password is hashed before passing
+                role=user_data.role.strip(),
+            )
+            users.append(user)
+        db.add_all(users)
+        await db.commit()
+        for user in users:
+            await db.refresh(user)
+        return users
+    except Exception as e:
+        await db.rollback()
+        raise CabboException(
+            f"Error creating users in bulk: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+        )
 
 def create_user(data:UserCreateSchema, db: Session) -> User:
     """Create a new user."""
@@ -281,4 +314,3 @@ def create_super_admin_user(db:Session):
     )
     db.add(super_admin)
     db.flush()  # Flush to assign an ID to the super admin
-         

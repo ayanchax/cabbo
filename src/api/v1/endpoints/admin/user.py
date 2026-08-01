@@ -16,23 +16,18 @@ router = APIRouter()
 def create_admin_user(payload: UserCreateSchema = Depends(validate_system_user_payload), db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token)):
     """Create a new administrative user."""
-    
-    requested_role = payload.role
     current_user_role = current_user.role
 
-    #If the current user is not a super admin, they can only create users with their own role
-    if current_user_role!=RoleEnum.super_admin and requested_role!=current_user_role:
+    if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException("You do not have permission to create users with this role.", status_code=403, error_code=UNAUTHORIZED)
     
     #For similar roles or a super admin, allow creation
-    if current_user_role==RoleEnum.super_admin or requested_role==current_user_role:
-        if is_user_exists(user=payload, db=db):
+    if is_user_exists(user=payload, db=db):
             raise CabboException("User with this username or phone number or email already exists.", status_code=400, error_code=GENERIC_EXCEPTION)
-        user = create_user(data=payload, db=db)
-        user_schema =UserReadSchema.model_validate(user)
-        #Return the created user schema with 201 status code
-        return user_schema
-    raise CabboException("You do not have permission to create users with this role.", status_code=403, error_code=UNAUTHORIZED)
+    user = create_user(data=payload, db=db)
+    user_schema =UserReadSchema.model_validate(user)
+    #Return the created user schema with 201 status code
+    return user_schema
 
 # Get admin user details by id
 @router.get("/{user_id}",response_model=UserReadSchema)

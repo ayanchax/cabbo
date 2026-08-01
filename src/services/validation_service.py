@@ -1683,7 +1683,7 @@ def validate_driver_payload(
                 "Country configuration not found in system", status_code=500
             )
 
-    if isinstance(payload, DriverCreateSchema):
+    if isinstance(payload, (DriverCreateSchema, DriverReadSchema)) :
         if not payload.phone or payload.phone.strip() == "":
             raise CabboException("Phone number is required for driver", status_code=400)
 
@@ -1833,9 +1833,7 @@ def validate_customer_login_payload(
     return payload
 
 
-def validate_system_user_payload(
-    payload: Union[UserCreateSchema, UserUpdateSchema] = Body(...),
-):
+def validate_system_user_payloads(payloads:List[UserCreateSchema]):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
@@ -1843,6 +1841,21 @@ def validate_system_user_payload(
         raise CabboException(
             "Country configuration not found in system", status_code=500
         )
+    for payload in payloads:
+        validate_system_user_payload(payload=payload, country=country)
+
+def validate_system_user_payload(
+    payload: Union[UserCreateSchema, UserUpdateSchema] = Body(...),
+    country: CountrySchema = None,
+):
+    if not country:
+        db = get_mysql_local_session()
+        config_store: ConfigStore = settings.get_config_store(db)
+        country = config_store.geographies.country_server
+        if not country:
+            raise CabboException(
+                "Country configuration not found in system", status_code=500
+            )
 
     # Validate system user age
     if payload.dob:

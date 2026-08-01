@@ -15,6 +15,7 @@ Examples:
 sh scripts/db/backup.sh dev
 sh scripts/db/migration.sh prod
 sh scripts/db/seed.sh local
+sh scripts/db/bulk_onboard_system_users.sh local
 sh scripts/db/bulk_onboard_drivers.sh local
 sh scripts/db/restore.sh dev backups/db/dev-cabbo_dev-YYYYMMDD-HHMMSS.sql
 ```
@@ -61,6 +62,44 @@ sh scripts/db/seed.sh dev
 sh scripts/db/seed.sh prod
 ```
 
+## Bulk System User Onboarding
+
+Use this only for the curated v1 system-user onboarding batch when admin users
+need to be created operationally outside the normal recurring seed flow. The
+script reads `scripts/data/v1_system_users.yaml`, validates rows through
+`UserCreateSchema` and `validate_system_user_payloads`, and calls the bulk user
+creation service.
+
+This is intentionally separate from `seed.py`. Seed data should be repeatable
+system/master data, while this batch is operational access data for real admin
+users, phone numbers, usernames, and roles. It should be run deliberately by an
+operator, not replayed automatically as part of normal environment bootstrap.
+
+Dry-run first:
+
+```sh
+sh scripts/db/bulk_onboard_system_users.sh local
+sh scripts/db/bulk_onboard_system_users.sh dev
+```
+
+Insert after reviewing the dry-run output:
+
+```sh
+sh scripts/db/bulk_onboard_system_users.sh local --execute
+sh scripts/db/bulk_onboard_system_users.sh dev --execute
+```
+
+Use a custom YAML file if needed:
+
+```sh
+sh scripts/db/bulk_onboard_system_users.sh local --file scripts/data/v1_system_users.yaml --execute
+```
+
+Do not run this as a normal recurring seed. Database uniqueness constraints on
+system-user usernames, emails, and phone numbers are the source of truth for
+duplicate protection; duplicate rows will fail through the normal service/DB
+exception path which is expected.
+
 ## Bulk Driver Onboarding
 
 Use this only for the curated v1 driver onboarding batch when the admin console
@@ -96,7 +135,7 @@ sh scripts/db/bulk_onboard_drivers.sh local --file scripts/data/v1_drivers.yaml 
 Do not run this as a normal recurring seed. Database uniqueness constraints on
 driver phone, secondary phone, and cab registration are the source of truth for
 duplicate protection; duplicate rows will fail through the normal service/DB
-exception path.
+exception path which is expected.
 
 ## Restore
 
@@ -114,10 +153,12 @@ For local/dev migration testing:
 1. Run `sh scripts/db/backup.sh dev`.
 2. Run `sh scripts/db/migration.sh dev`.
 3. Run `sh scripts/db/seed.sh dev` only if the migration needs new seed data.
-4. Run `sh scripts/db/bulk_onboard_drivers.sh dev --execute` only for the v1
+4. Run `sh scripts/db/bulk_onboard_system_users.sh dev --execute` only for the
+   v1 system-user onboarding batch after a dry-run review.
+5. Run `sh scripts/db/bulk_onboard_drivers.sh dev --execute` only for the v1
    driver onboarding batch after a dry-run review.
-5. Smoke test the app against dev.
-6. If needed, run `sh scripts/db/restore.sh dev <backup-file>`.
+6. Smoke test the app against dev.
+7. If needed, run `sh scripts/db/restore.sh dev <backup-file>`.
 
 For prod:
 
@@ -125,10 +166,12 @@ For prod:
 2. Run `sh scripts/db/backup.sh prod`.
 3. Run `sh scripts/db/migration.sh prod`.
 4. Run `sh scripts/db/seed.sh prod` only if required.
-5. Run `sh scripts/db/bulk_onboard_drivers.sh prod --execute` only if the v1
+5. Run `sh scripts/db/bulk_onboard_system_users.sh prod --execute` only if the
+   v1 system-user onboarding batch has already been tested in dev and reviewed.
+6. Run `sh scripts/db/bulk_onboard_drivers.sh prod --execute` only if the v1
    driver onboarding batch has already been tested in dev and reviewed.
-6. Smoke test the production app.
-7. If rollback is needed, run `sh scripts/db/restore.sh prod <backup-file>`.
+7. Smoke test the production app.
+8. If rollback is needed, run `sh scripts/db/restore.sh prod <backup-file>`.
 
 For restore testing:
 
