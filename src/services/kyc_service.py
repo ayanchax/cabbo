@@ -17,7 +17,6 @@ log = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = [".pdf"]
 
 
-
 def update_driver_kyc_documents(
     driver: Driver,
     files: list[UploadFile],
@@ -153,6 +152,11 @@ def create_master_kyc_data(db: Session):
             document_type=KYCDocumentTypeEnum.utility_bill,
             document_alias="Utility Bill",
             document_description="Recent bill from a utility provider (electricity, water, gas) showing the customer's name and address.",
+        ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.fitness_certificate,
+            document_alias="Fitness Certificate",
+            document_description="Certificate proving that a vehicle meets fitness standards.",
         ),
     ]
     db.add_all(kyc_document_types)
@@ -350,7 +354,7 @@ async def async_update_kyc_document_record(document_id: str, payload: KYCDocumen
         await db.rollback()
         log.error(f"Error updating KYC document record: {e}")
         return None, str(e)
-    
+
 async def async_activate_kyc_document_record(document_id:str, db:AsyncSession) -> tuple[bool, str | None]:
     """Async function to activate a KYC document record in the database."""
     try:
