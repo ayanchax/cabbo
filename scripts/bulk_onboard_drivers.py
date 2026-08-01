@@ -131,4 +131,12 @@ async def run(env_name: str, file_path: str, execute: bool):
 
 if __name__ == "__main__":
     args = parse_args()
-    asyncio.run(run(args.env_name, args.file, args.execute))
+    if sys.platform.startswith("win"):
+        loop = asyncio.SelectorEventLoop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(run(args.env_name, args.file, args.execute))
+        finally:
+            loop.close()
+    else:
+        asyncio.run(run(args.env_name, args.file, args.execute))
