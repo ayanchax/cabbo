@@ -9,6 +9,7 @@ dependencies = [
   "fastapi",
   "uvicorn",
   "python-dotenv",
+  "PyYAML",
   "sqlalchemy",
   "mysql-connector-python",
   "aiomysql",

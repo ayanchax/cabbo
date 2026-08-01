@@ -15,6 +15,7 @@ Examples:
 sh scripts/db/backup.sh dev
 sh scripts/db/migration.sh prod
 sh scripts/db/seed.sh local
+sh scripts/db/bulk_onboard_drivers.sh local
 sh scripts/db/restore.sh dev backups/db/dev-cabbo_dev-YYYYMMDD-HHMMSS.sql
 ```
 
@@ -60,6 +61,43 @@ sh scripts/db/seed.sh dev
 sh scripts/db/seed.sh prod
 ```
 
+## Bulk Driver Onboarding
+
+Use this only for the curated v1 driver onboarding batch when the admin console
+does not yet expose driver CRUD. The script reads `scripts/data/v1_drivers.yaml`,
+validates the rows through `DriverCreateSchema`, and calls the bulk driver
+creation service.
+
+This is intentionally separate from `seed.py`. Seed data should be repeatable
+system/master data, while this batch is operational onboarding data for real
+drivers, phone numbers, and cab registrations. It should be run deliberately by
+an operator, not replayed automatically as part of normal environment bootstrap.
+
+Dry-run first:
+
+```sh
+sh scripts/db/bulk_onboard_drivers.sh local
+sh scripts/db/bulk_onboard_drivers.sh dev
+```
+
+Insert after reviewing the dry-run output:
+
+```sh
+sh scripts/db/bulk_onboard_drivers.sh local --execute
+sh scripts/db/bulk_onboard_drivers.sh dev --execute
+```
+
+Use a custom YAML file if needed:
+
+```sh
+sh scripts/db/bulk_onboard_drivers.sh local --file scripts/data/v1_drivers.yaml --execute
+```
+
+Do not run this as a normal recurring seed. Database uniqueness constraints on
+driver phone, secondary phone, and cab registration are the source of truth for
+duplicate protection; duplicate rows will fail through the normal service/DB
+exception path.
+
 ## Restore
 
 ```sh
@@ -76,8 +114,10 @@ For local/dev migration testing:
 1. Run `sh scripts/db/backup.sh dev`.
 2. Run `sh scripts/db/migration.sh dev`.
 3. Run `sh scripts/db/seed.sh dev` only if the migration needs new seed data.
-4. Smoke test the app against dev.
-5. If needed, run `sh scripts/db/restore.sh dev <backup-file>`.
+4. Run `sh scripts/db/bulk_onboard_drivers.sh dev --execute` only for the v1
+   driver onboarding batch after a dry-run review.
+5. Smoke test the app against dev.
+6. If needed, run `sh scripts/db/restore.sh dev <backup-file>`.
 
 For prod:
 
@@ -85,8 +125,10 @@ For prod:
 2. Run `sh scripts/db/backup.sh prod`.
 3. Run `sh scripts/db/migration.sh prod`.
 4. Run `sh scripts/db/seed.sh prod` only if required.
-5. Smoke test the production app.
-6. If rollback is needed, run `sh scripts/db/restore.sh prod <backup-file>`.
+5. Run `sh scripts/db/bulk_onboard_drivers.sh prod --execute` only if the v1
+   driver onboarding batch has already been tested in dev and reviewed.
+6. Smoke test the production app.
+7. If rollback is needed, run `sh scripts/db/restore.sh prod <backup-file>`.
 
 For restore testing:
 

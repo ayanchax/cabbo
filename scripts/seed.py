@@ -32,7 +32,7 @@ def parse_args():
 def run(env_name: str = Environment.LOCAL.value):
     env_name = env_name.lower()
     os.environ["ENV"] = env_name
-    load_env(load_env_file=True)  # Load the environment variables from the .env file
+    load_env(load_env_file=True)  # Load the environment variables from the .env.<env_name> file
 
     from db.database import get_mysql_local_session
     from services.seed_data_service import run_seed_registry

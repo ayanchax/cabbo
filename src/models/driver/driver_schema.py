@@ -18,6 +18,7 @@ class DriverBaseSchema(BaseModel):
     name: str  # Driver's name
     email: Optional[EmailStr] = None  # Driver's email address
     phone: str  # Driver's phone number
+    secondary_phone: Optional[str] = None  # Alternate phone number for the driver, if provided, we will use this as the secondary internal phone number to connect to the driver from admin backend - this will not be exposed to the customer, and will be used for internal purposes only. If not provided, we will use the primary phone number for internal purposes as well.
     dob: Optional[datetime] = None  # Date of birth
     gender: Optional[GenderEnum] = None  # Driver's gender
     emergency_contact_name: Optional[str] = None
@@ -38,6 +39,9 @@ class DriverCreateSchema(DriverBaseSchema):
     fuel_type: FuelTypeEnum  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
     cab_model_and_make: str  # Model of the car (e.g., Maruti Swift)
     cab_registration_number: str  # Registration number of the car
+    capacity: Optional[str] = "4+1"  # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
+    color: Optional[str] = None  # Cab color (e.g., White, Black, Silver, Polar White etc.)
+    roof_carrier_available: Optional[bool] = False  # Whether the cab has a roof carrier available for luggage or not
     cab_amenities:Optional[AmenitiesSchema]=None # Cab amenities details
     payment_mode: PaymentModeEnum  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str]  # Alternate payment phone number for UPI payments
@@ -73,6 +77,9 @@ class DriverUpdateSchema(DriverBaseSchema):
     fuel_type: Optional[FuelTypeEnum] = None  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
     cab_model_and_make: Optional[str] = None  # Model of the car (e.g., Maruti Swift)
     cab_registration_number: Optional[str] = None  # Registration number of the car
+    capacity: Optional[str] = "4+1"  # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
+    color: Optional[str] = None  # Cab color (e.g., White, Black, Silver, Polar White etc.)
+    roof_carrier_available: Optional[bool] = False  # Whether the cab has a roof carrier available for luggage or not
     cab_amenities:Optional[AmenitiesSchema]=None # Cab amenities details
     payment_mode: Optional[PaymentModeEnum] = None  # Payment mode (e.g., gpay, phonepe, paytm)
     payment_phone_number: Optional[str] = None  # Alternate payment phone number for UPI payments
@@ -111,10 +118,14 @@ class DriverReadSchema(DriverCreateSchema):
 class DriverSearchSchema(BaseModel):
     name: str = Field(..., min_length=1, description="Driver name to search for")
     phone: Optional[str] = None
+    secondary_phone: Optional[str] = None
     email: Optional[EmailStr] = None
     gender: Optional[GenderEnum] = None
     cab_type: Optional[CarTypeEnum] = None
     fuel_type: Optional[FuelTypeEnum] = None
+    capacity: Optional[str] = None
+    color: Optional[str] = None
+    roof_carrier_available: Optional[bool] = None
     cab_model_and_make: Optional[str] = None
     cab_registration_number: Optional[str] = None
     is_active: Optional[bool] = None
@@ -136,11 +147,15 @@ class CustomerSafeDriverReadSchema(BaseModel):
     fuel_type: FuelTypeEnum  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
     cab_model_and_make: Optional[str] = None  # Model of the car (e.g., Maruti Swift)
     #gender:Optional[GenderEnum] = None  # Driver's gender
-	
+    capacity: Optional[str] = "4+1"  # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
+    color: Optional[str] = None  # Cab color (e.g., White, Black etc.)
+    roof_carrier_available: Optional[bool] = False  # Whether the cab has a roof carrier available for luggage or not
+
 class AdminSafeDriverReadSchema(BaseModel):
     id:str
     name: str  # Driver's name
     phone: str  # Driver's phone number
+    secondary_phone: Optional[str] = None  # Alternate phone number for the driver, if provided, we will use this as the secondary internal phone number to connect to the driver from admin backend - this will not be exposed to the customer, and will be used for internal purposes only. If not provided, we will use the primary phone number for internal purposes as well.
     #email: Optional[EmailStr] = None  # Driver's email address
     profile_picture_url: Optional[str] = None  # Driver's profile picture url
     avg_rating: Optional[float]= Field(0.0, description="Average rating of the driver based on customer feedback")
@@ -148,6 +163,9 @@ class AdminSafeDriverReadSchema(BaseModel):
     cab_type: CarTypeEnum  # Type of car (e.g., sedan, SUV)
     fuel_type: FuelTypeEnum  # Fuel type of the car (e.g., petrol, diesel, electric, hybrid)
     cab_model_and_make: Optional[str] = None  # Model of the car (e.g., Maruti Swift)
+    capacity: Optional[str] = "4+1"  # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
+    color: Optional[str] = None  # Cab color (e.g., White, Black etc.)
+    roof_carrier_available: Optional[bool] = False  # Whether the cab has a roof carrier available for luggage or not
     #gender:Optional[GenderEnum] = None  # Driver's gender
 	
 

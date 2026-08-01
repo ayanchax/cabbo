@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 import logging
-from typing import Optional
+from typing import List, Optional, Union
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from core.buffers import TRIP_START_LATE_BUFFER_MINUTES
@@ -64,9 +64,9 @@ def create_driver(
     try:
 
         driver = Driver(
-            id=str(uuid.uuid4()),
             name=payload.name,
             phone=payload.phone,
+            secondary_phone=payload.secondary_phone,
             email=payload.email,
             gender=payload.gender,
             dob=payload.dob,
@@ -78,6 +78,8 @@ def create_driver(
             cab_type=payload.cab_type,
             cab_model_and_make=payload.cab_model_and_make,
             cab_registration_number=payload.cab_registration_number,
+            capacity=payload.capacity,
+            color=payload.color,
             cab_amenities=(
                 payload.cab_amenities.model_dump() if payload.cab_amenities else None
             ),
@@ -87,8 +89,9 @@ def create_driver(
                 payload.bank_details.model_dump() if payload.bank_details else None
             ),
             address=payload.address.model_dump() if payload.address else None,
-            is_active=True,
+            is_active=True, #On v2 when we integrate/automate KYC verification of drivers, we will have this field default to False, and as along as the driver does not become kyc_verified, we would not activate them.
             is_available=True,
+            roof_carrier_available=payload.roof_carrier_available,
             created_by=created_by,
         )
         db.add(driver)
@@ -100,6 +103,53 @@ def create_driver(
         log.error(f"Error creating driver: {str(e)}")
         raise CabboException(
             f"Error creating driver: {str(e)}", status_code=500, include_traceback=True
+        )
+
+async def create_drivers_in_bulk(payload: Union[List[DriverCreateSchema], List[DriverReadSchema]], db: AsyncSession, created_by: RoleEnum = RoleEnum.driver_admin) -> List[Driver]:
+    """Create multiple drivers in bulk."""
+    try:
+        drivers = []
+        for driver_payload in payload:
+            driver = Driver(
+                name=driver_payload.name,
+                cab_registration_number=driver_payload.cab_registration_number,
+                avg_rating=driver_payload.avg_rating if isinstance(driver_payload, DriverReadSchema) and  hasattr(driver_payload, "avg_rating") else None,
+                cab_model_and_make=driver_payload.cab_model_and_make,
+                cab_type=driver_payload.cab_type,
+                fuel_type=driver_payload.fuel_type,
+                phone=driver_payload.phone,
+                secondary_phone=driver_payload.secondary_phone,
+                color=driver_payload.color,
+                capacity=driver_payload.capacity,
+                payment_mode=driver_payload.payment_mode,
+                payment_phone_number=driver_payload.payment_phone_number,
+                bank_details=(
+                    driver_payload.bank_details.model_dump()
+                    if driver_payload.bank_details
+                    else None
+                ),
+                address=(
+                    driver_payload.address.model_dump()
+                    if driver_payload.address
+                    else None
+                ),
+                is_active=True, #On v2 when we integrate/automate KYC verification of drivers, we will have this field default to False, and as along as the driver does not become kyc_verified, we would not activate them.
+                is_available=True,
+                roof_carrier_available=driver_payload.roof_carrier_available,
+                created_by=created_by,
+            )
+            drivers.append(driver)
+
+        db.add_all(drivers)
+        await db.commit()
+        for driver in drivers:
+            await db.refresh(driver)
+        return drivers
+    except Exception as e:
+        await db.rollback()
+        log.error(f"Error creating drivers in bulk: {str(e)}")
+        raise CabboException(
+            f"Error creating drivers in bulk: {str(e)}", status_code=500, include_traceback=True
         )
 
 
@@ -151,7 +201,7 @@ def search_drivers_paginated(
     offset = (page - 1) * limit
 
     name = search_in.name.strip()
-    filters = [Driver.name.ilike(f"%{name}%")]
+    filters = [Driver.name.ilike(f"%{name}%")] #In v2 when searching for drivers - by defaultw e will look for active drivers only, as that time we will have our kyc verified and so only looking for active drivers make sense.
 
     if search_in.phone:
         filters.append(Driver.phone.ilike(f"%{search_in.phone.strip()}%"))
@@ -175,6 +225,12 @@ def search_drivers_paginated(
                 f"%{search_in.cab_registration_number.strip()}%"
             )
         )
+    if search_in.capacity:
+        filters.append(Driver.capacity == search_in.capacity.strip())
+    if search_in.color:
+        filters.append(Driver.color.ilike(f"%{search_in.color.strip()}%"))
+    if search_in.roof_carrier_available is not None:
+        filters.append(Driver.roof_carrier_available == search_in.roof_carrier_available)
     if search_in.is_active is not None:
         filters.append(Driver.is_active == search_in.is_active)
     if search_in.is_available is not None:

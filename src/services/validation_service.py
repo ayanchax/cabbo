@@ -66,7 +66,7 @@ from models.customer.customer_schema import (
     CustomerUpdate,
 )
 from models.customer.passenger_schema import PassengerCreate, PassengerUpdate
-from models.driver.driver_schema import DriverCreateSchema, DriverUpdateSchema
+from models.driver.driver_schema import DriverCreateSchema, DriverReadSchema, DriverUpdateSchema
 from models.geography.country_schema import CountrySchema
 from models.geography.state_schema import StateSchema
 from models.map.location_schema import LocationInfo
@@ -1659,26 +1659,40 @@ def validate_system_user_age_by_country(age: int, country: CountrySchema):
         )
 
 
-def validate_driver_payload(
-    payload: Union[DriverUpdateSchema, DriverCreateSchema] = Body(...),
-):
+def validate_driver_payloads(payloads:Union[List[DriverCreateSchema], List[DriverReadSchema]] = Body(...), basic_validation: bool = True):
     db = get_mysql_local_session()
     config_store: ConfigStore = settings.get_config_store(db)
     country = config_store.geographies.country_server
     if not country:
-        raise CabboException(
-            "Country configuration not found in system", status_code=500
-        )
+            raise CabboException(
+                "Country configuration not found in system", status_code=500
+            )
+    for payload in payloads:
+        validate_driver_payload(payload=payload, country=country, basic_validation=basic_validation)
+
+
+def validate_driver_payload(
+    payload: Union[DriverUpdateSchema, DriverCreateSchema, DriverReadSchema] = Body(...), country: CountrySchema = None, basic_validation=False
+):
+    if not country:
+        db = get_mysql_local_session()
+        config_store: ConfigStore = settings.get_config_store(db)
+        country = config_store.geographies.country_server
+        if not country:
+            raise CabboException(
+                "Country configuration not found in system", status_code=500
+            )
 
     if isinstance(payload, DriverCreateSchema):
         if not payload.phone or payload.phone.strip() == "":
             raise CabboException("Phone number is required for driver", status_code=400)
 
-        if not payload.dob:
-            raise CabboException(
-                "Please enter the driver's date of birth so we can check if they meet the minimum age requirement.",
-                status_code=400,
-            )
+        if not basic_validation:
+            if not payload.dob:
+                raise CabboException(
+                    "Please enter the driver's date of birth so we can check if they meet the minimum age requirement.",
+                    status_code=400,
+                )
 
     # Validate driver age
     if payload.dob:
@@ -1688,6 +1702,11 @@ def validate_driver_payload(
 
     # Validate phone number
     payload.phone = validate_phone_by_country(phone=payload.phone, country=country)
+    # Validate secondary phone number if provided
+    if payload.secondary_phone:
+        payload.secondary_phone = validate_phone_by_country(
+            phone=payload.secondary_phone, country=country
+        )
     # Validate payment phone number
     if payload.payment_phone_number:
         payload.payment_phone_number = validate_phone_by_country(
