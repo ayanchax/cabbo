@@ -83,6 +83,7 @@ from services.trips.local_hourly_rental_service import (
 from services.trips.outstation_service import remove_extra_fields_from_outstation_trip
 from services.trips.status_transition_policy import validate_trip_status_transition
 from services.trips.status_service import change_status
+from services.trips.upgradation_service import serialize_trip_upgradtion
 from services.validation_service import validate_serviceable_area, validate_trip_type
 from utils.coercions import coerce_refund_status, coerce_trip_filter_date, coerce_trip_status
 from utils.utility import remove_none_recursive, validate_date_time
@@ -124,6 +125,7 @@ def serialize_trip(
     dispute = trip_dict.get("dispute")
     rating = trip_dict.get("trip_rating")
     refund = trip_dict.get("refund")
+    upgradation_information = trip_dict.get("upgradation_information")
      
 
 
@@ -195,11 +197,19 @@ def serialize_trip(
             
     if options.expose_trip_flags:
         trip_dict = apply_trip_flags(trip_dict=trip_dict, driver=driver)
+
+    if options.expose_upgradation_information and upgradation_information:
+        trip_dict["upgradation_information"] = upgradation_information
+        trip_dict["upgradation_information"] = serialize_trip_upgradtion(trip_dict=trip_dict)
+    else:
+        trip_dict["upgradation_information"] = None
+
     # Remove SQLAlchemy instance state which is not serializable and can cause issues during response serialization
     trip_dict.pop("_sa_instance_state", None)
     trip_details = TripDetailSchema.model_validate(trip_dict).model_dump(
         exclude_none=True
     )
+
     if options.optimize_response:
         if trip_type:
             trip_type = TripTypeEnum(trip_type)

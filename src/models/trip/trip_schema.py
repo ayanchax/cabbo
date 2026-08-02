@@ -355,6 +355,7 @@ class TripSerializationOptions(BaseModel):
     expose_trip_review: bool = False
     expose_trip_refund:bool=False
     expose_trip_flags:bool=False
+    expose_upgradation_information: bool = False
 
 
 class TripUpgradationInformationSchema(BaseModel):

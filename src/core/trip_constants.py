@@ -107,6 +107,7 @@ TRIP_RESPONSE_OPTIONS = {
         optimize_response=True,
         expose_policy_detail=True,
         expose_trip_review=True,
+        expose_upgradation_information=True,
 
     ),
     TripResponseView.CUSTOMER_LIST: TripSerializationOptions(

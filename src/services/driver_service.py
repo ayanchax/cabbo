@@ -543,6 +543,40 @@ async def assign_driver_to_trip(
     view =TripResponseView.CUSTOMER_LIST
 ):
     try:
+        # Check Trip has a valid creator_id
+        if not trip.creator_id:
+                    raise CabboException(
+                        "Trip does not have a valid creator to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_CREATOR_INVALID,
+                    )
+                # Check Trip creator is a customer
+        if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
+                    raise CabboException(
+                        "Trip creator must be a customer to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_CREATOR_NOT_CUSTOMER,
+                    )
+                # Check trip has a non-zero balance_payment, so that customer has paid advance and there is balance to be paid to driver
+        if trip.balance_payment <= 0:
+                    raise CabboException(
+                        "Trip must have a non-zero balance payment to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_BALANCE_PAYMENT_REQUIRED,
+                    )
+        if trip.advance_payment <= 0:
+                    raise CabboException(
+                        "Trip must have a non-zero advance payment to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_ADVANCE_PAYMENT_REQUIRED,
+                    )
+                # Check Driver is not already assigned to the trip
+        if trip.driver_id == driver.id:
+                    raise CabboException(
+                        "Driver is already assigned to this trip.",
+                        status_code=400,
+                        error_code=DRIVER_ALREADY_ASSIGNED,
+                    )
         # Check Trip is in confirmed status
         if trip.status != TripStatusEnum.confirmed.value:
             raise CabboException(
@@ -550,11 +584,35 @@ async def assign_driver_to_trip(
                 status_code=400,
                 error_code=TRIP_NOT_CONFIRMED,
             )
+
+        # Check Driver is active
+        if not driver.is_active:
+                    raise CabboException(
+                        "Driver is not active.", status_code=400, error_code=DRIVER_NOT_ACTIVE
+                    )
+        
+        # Check Driver is available
+        if not driver.is_available:
+                    raise CabboException(
+                        "Driver is not available.",
+                        status_code=400,
+                        error_code=DRIVER_NOT_AVAILABLE,
+                    )
+
+        # Check Driver has a valid phone number
+        if not driver.phone or driver.phone.strip() == "":
+                    raise CabboException(
+                        "Driver does not have a valid phone number.",
+                        status_code=400,
+                        error_code=DRIVER_PHONE_INVALID,
+                    )
+        
         trip_type = (
             trip.trip_type_master.trip_type
             if hasattr(trip.trip_type_master, "trip_type")
             else None
         )
+        #Check Trip has a valid trip_type
         if not trip_type:
             raise CabboException(
                 "Trip type not found for the trip to assign driver.",
@@ -562,9 +620,12 @@ async def assign_driver_to_trip(
                 error_code=TRIP_TYPE_ID_NOT_FOUND,
             )
         trip_type = TripTypeEnum(trip_type)
+
+        # When we automate the driver KYC verification process through External Service API, we will also check if the driver is kyc_verified or not.
         
         start_datetime =validate_date_time(trip.start_datetime, timezone_str = trip.timezone)
         expected_end_datetime = validate_date_time(trip.expected_end_datetime, timezone_str = trip.timezone)
+        #Check if the trip is in the past, and if so, raise an exception to prevent assigning a driver to a trip that has already started or ended.
         if validate_time_window:
             now = datetime.now(timezone.utc)
             latest_assignment_time = _get_latest_driver_assignment_time(
@@ -578,41 +639,6 @@ async def assign_driver_to_trip(
                     status_code=400,
                     error_code=TRIP_IN_PAST,
                 )
-        # Check Trip has a valid creator_id
-        if not trip.creator_id:
-            raise CabboException(
-                "Trip does not have a valid creator to assign a driver.",
-                status_code=400,
-                error_code=TRIP_CREATOR_INVALID,
-            )
-        # Check Trip creator is a customer
-        if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
-            raise CabboException(
-                "Trip creator must be a customer to assign a driver.",
-                status_code=400,
-                error_code=TRIP_CREATOR_NOT_CUSTOMER,
-            )
-        # Check trip has a non-zero balance_payment, so that customer has paid advance and there is balance to be paid to driver
-        if trip.balance_payment <= 0:
-            raise CabboException(
-                "Trip must have a non-zero balance payment to assign a driver.",
-                status_code=400,
-                error_code=TRIP_BALANCE_PAYMENT_REQUIRED,
-            )
-        if trip.advance_payment <= 0:
-            raise CabboException(
-                "Trip must have a non-zero advance payment to assign a driver.",
-                status_code=400,
-                error_code=TRIP_ADVANCE_PAYMENT_REQUIRED,
-            )
-        # Check Driver is not already assigned to the trip
-        if trip.driver_id == driver.id:
-            raise CabboException(
-                "Driver is already assigned to this trip.",
-                status_code=400,
-                error_code=DRIVER_ALREADY_ASSIGNED,
-            )
-
         # Free up the currently assigned driver (if any)
         if trip.driver_id:
             current_driver = await db.execute(
@@ -627,34 +653,12 @@ async def assign_driver_to_trip(
                 )
                 db.add(current_driver)  # Add the updated driver back to the session
 
-        # Check Driver is active
-        if not driver.is_active:
-            raise CabboException(
-                "Driver is not active.", status_code=400, error_code=DRIVER_NOT_ACTIVE
-            )
-
-        # Check Driver is available
-        if not driver.is_available:
-            raise CabboException(
-                "Driver is not available.",
-                status_code=400,
-                error_code=DRIVER_NOT_AVAILABLE,
-            )
-
-        # Check Driver has a valid phone number
-        if not driver.phone or driver.phone.strip() == "":
-            raise CabboException(
-                "Driver does not have a valid phone number.",
-                status_code=400,
-                error_code=DRIVER_PHONE_INVALID,
-            )
-
-        # When we automate the driver KYC verification process through External Service API, we will also check if the driver is kyc_verified or not.
-
+        # Build upgradation information for the trip assignment
         upgradation_information = build_trip_upgradation_information(
             trip=trip,
             driver=driver,
             requestor=requestor,
+            reason="allowed_free_upgrade_on_assignment",
         )
 
         # Assign Driver to Trip
@@ -673,11 +677,18 @@ async def assign_driver_to_trip(
         await db.commit()
         await db.refresh(trip)
         await db.refresh(driver)
+        audit_reason = f"Driver {driver.name} assigned to trip."
+        if upgradation_information:
+            audit_reason = (
+                f"{audit_reason} Free upgrade applied: "
+                f"{upgradation_information.short_text}."
+            )
+
         await a_log_trip_audit(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor.id,
-            reason=f"Driver {driver.name} assigned to trip.",
+            reason=audit_reason,
             db=db,
         )  # Log the trip status audit entry
         if attach_trip_relationships:
