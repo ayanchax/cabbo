@@ -356,6 +356,27 @@ class TripSerializationOptions(BaseModel):
     expose_trip_refund:bool=False
     expose_trip_flags:bool=False
 
+
+class TripUpgradationInformationSchema(BaseModel):
+    upgraded: bool = Field(False, description="Indicates whether Cabbo upgraded the assigned cab/fuel experience for the customer")
+    upgrade_types: List[str] = Field(default_factory=list, description="Types of upgrades applied, e.g. fuel_upgrade, cab_type_upgrade")
+    from_cab_type: Optional[CarTypeEnum] = Field(None, description="Customer's booked/preferred cab type")
+    from_fuel_type: Optional[FuelTypeEnum] = Field(None, description="Customer's booked/preferred fuel type")
+    to_cab_type: Optional[CarTypeEnum] = Field(None, description="Assigned driver's cab type")
+    to_fuel_type: Optional[FuelTypeEnum] = Field(None, description="Assigned driver's fuel type")
+    additional_charges: float = Field(0.0, description="Additional charges for the customer. Cabbo v1 upgrades should be free.")
+    short_text: Optional[str] = Field(None, description="Short customer-facing upgrade explanation")
+    long_text: Optional[str] = Field(None, description="Detailed customer-facing upgrade explanation")
+    reason: Optional[str] = Field(None, description="Operational reason for the upgrade")
+    is_free_upgradation: bool = Field(True, description="Indicates whether the upgrade is free for the customer")
+    upgradation_timestamp: Optional[datetime] = Field(None, description="Timestamp when the upgrade was applied")
+    upgraded_by_id: Optional[str] = Field(None, description="Identifier of the admin/system user that applied the upgrade")
+
+    class Config:
+        from_attributes = True
+        extra = "forbid"
+
+
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
@@ -440,6 +461,10 @@ class TripDetailSchema(BaseModel):
     )
     preferred_fuel_type: Optional[FuelTypeEnum] = Field(
         None, description="Preferred fuel type"
+    )
+    upgradation_information: Optional[TripUpgradationInformationSchema] = Field(
+        None,
+        description="Cab/fuel upgrade information when assigned vehicle improves on the booked preference",
     )
     in_car_amenities: Optional[AmenitiesSchema] = Field(
         None, description="Dictionary of in-car amenities"
@@ -873,3 +898,4 @@ class TripClassificationResult(NamedTuple):
     distance_diff_km: Optional[float] = (
         None  # Optional field to indicate how much the distance exceeds the max included km, if applicable
     )
+

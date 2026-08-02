@@ -4,7 +4,6 @@ from core.exceptions import (
     INVALID_TRIP_STATUS_TRANSITION,
     UNAUTHORIZED,
     CabboException,
-    GENERIC_EXCEPTION,
 )
 from core.security import RoleEnum
 from models.customer.customer_orm import Customer
@@ -17,6 +16,7 @@ from models.trip.trip_schema import (
     TripStatusTransitionPayloadField,
 )
 from models.user.user_orm import User
+from utils.coercions import coerce_trip_status
 
 ALLOWED_STATUS_TRANSITIONS: dict[TripStatusEnum, list[TripStatusEnum]] = {
     TripStatusEnum.confirmed: [TripStatusEnum.ongoing, TripStatusEnum.cancelled],
@@ -294,14 +294,12 @@ TRANSITION_ACTIONS: dict[TripStatusEnum, TripStatusTransitionAction] = {
 }
 
 
-def _coerce_trip_status(status: Union[str, TripStatusEnum]) -> TripStatusEnum:
-    return status if isinstance(status, TripStatusEnum) else TripStatusEnum(status)
-
+ 
 
 def get_allowed_target_statuses(
     current_status: Union[str, TripStatusEnum],
 ) -> list[TripStatusEnum]:
-    status = _coerce_trip_status(current_status)
+    status = coerce_trip_status(current_status)
     return ALLOWED_STATUS_TRANSITIONS.get(status, [])
 
 
@@ -324,7 +322,7 @@ def validate_trip_status_transition(
     new_status: TripStatusEnum,
     requestor: Union[User, Customer],
 ) -> None:
-    current_status = _coerce_trip_status(trip.status)
+    current_status = coerce_trip_status(trip.status)
     if isinstance(requestor, User) and requestor.role not in ADMIN_STATUS_ACTION_ROLES:
         raise CabboException(
             "You do not have permission to update trip status.",

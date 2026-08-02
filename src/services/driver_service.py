@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 import logging
 from typing import List, Optional, Union
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from core.buffers import TRIP_START_LATE_BUFFER_MINUTES
 from core.exceptions import (
@@ -29,6 +29,9 @@ from models.driver.driver_orm import Driver, DriverEarning, TripRating
 from models.driver.driver_schema import (
     AdminSafeDriverReadSchema,
     CustomerSafeDriverReadSchema,
+    DriverAssignmentCriteriaSchema,
+    DriverAssignmentFitLevelEnum,
+    DriverAssignmentFitSignalEnum,
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
@@ -36,9 +39,12 @@ from models.driver.driver_schema import (
     DriverUpdateSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
-import uuid
 
-from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import (
+    TripResponseView,
+    TripStatusEnum,
+    TripTypeEnum,
+)
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
@@ -50,9 +56,12 @@ from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from services.trips.upgradation_service import build_trip_upgradation_information
 from utils.utility import validate_date_time
 
 log = logging.getLogger(__name__)
+
+
  
 
 def create_driver(
@@ -201,7 +210,7 @@ def search_drivers_paginated(
     offset = (page - 1) * limit
 
     name = search_in.name.strip()
-    filters = [Driver.name.ilike(f"%{name}%")] #In v2 when searching for drivers - by defaultw e will look for active drivers only, as that time we will have our kyc verified and so only looking for active drivers make sense.
+    filters = [Driver.name.ilike(f"%{name}%")]
 
     if search_in.phone:
         filters.append(Driver.phone.ilike(f"%{search_in.phone.strip()}%"))
@@ -259,6 +268,185 @@ def search_drivers_paginated(
             "has_previous": page > 1,
         },
     }
+
+
+def search_assignable_drivers_paginated(
+    search_in: DriverSearchSchema,
+    db: Session,
+    page: int = 1,
+    limit: int = 50,
+) -> dict:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 10)
+    offset = (page - 1) * limit
+    matching_criteria = get_driver_assignment_criteria(search_in)
+    search_in = search_in.model_copy(
+        update={
+            "is_active": True,
+            "is_available": True,
+            "cab_type": None,
+            "fuel_type": None,
+            "capacity": None,
+        }
+    )
+
+    name = search_in.name.strip()
+    filters = [
+        Driver.name.ilike(f"%{name}%"),
+        Driver.is_active == True,
+        Driver.is_available == True,
+    ]
+
+    if search_in.phone:
+        filters.append(Driver.phone.ilike(f"%{search_in.phone.strip()}%"))
+    if search_in.email:
+        filters.append(Driver.email.ilike(f"%{search_in.email}%"))
+    if search_in.gender:
+        filters.append(Driver.gender == search_in.gender)
+    if search_in.cab_model_and_make:
+        filters.append(
+            Driver.cab_model_and_make.ilike(
+                f"%{search_in.cab_model_and_make.strip()}%"
+            )
+        )
+    if search_in.cab_registration_number:
+        filters.append(
+            Driver.cab_registration_number.ilike(
+                f"%{search_in.cab_registration_number.strip()}%"
+            )
+        )
+    if search_in.color:
+        filters.append(Driver.color.ilike(f"%{search_in.color.strip()}%"))
+    if search_in.roof_carrier_available is not None:
+        filters.append(Driver.roof_carrier_available == search_in.roof_carrier_available)
+    if search_in.kyc_verified is not None:
+        filters.append(Driver.kyc_verified == search_in.kyc_verified)
+
+    total = db.query(func.count(Driver.id)).filter(*filters).scalar() or 0
+    query = db.query(Driver).filter(*filters)
+    if matching_criteria:
+        fit_score = _build_driver_assignment_fit_score_expression(matching_criteria) #Used for ordering the drivers by their fit score for the given criteria. This is used to sort the drivers in descending order of their fit score, so that the best matching drivers are returned first.
+        query = query.order_by(fit_score.desc(), Driver.created_at.desc())
+    else:
+        query = query.order_by(Driver.created_at.desc())
+
+    drivers = query.offset(offset).limit(limit).all()
+
+    return {
+        "items": drivers,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(drivers) < total,
+            "has_previous": page > 1,
+        },
+    }
+
+
+def get_driver_assignment_criteria(
+    search_in: DriverSearchSchema,
+) -> Optional[DriverAssignmentCriteriaSchema]:
+    if not any([search_in.cab_type, search_in.fuel_type, search_in.capacity]):
+        return None
+    return DriverAssignmentCriteriaSchema(
+        cab_type=search_in.cab_type,
+        fuel_type=search_in.fuel_type,
+        capacity=search_in.capacity,
+    )
+
+
+def _build_driver_assignment_fit_score_expression(
+    criteria: DriverAssignmentCriteriaSchema,
+):
+    score_parts = []
+    if criteria.cab_type is not None:
+        score_parts.append(case((Driver.cab_type == criteria.cab_type, 1), else_=0))
+    if criteria.fuel_type is not None:
+        score_parts.append(case((Driver.fuel_type == criteria.fuel_type, 1), else_=0))
+    if criteria.capacity is not None:
+        score_parts.append(
+            case((Driver.capacity == criteria.capacity.strip(), 1), else_=0)
+        )
+
+    score = score_parts[0]
+    for score_part in score_parts[1:]:
+        score += score_part
+    return score
+
+
+def _driver_field_matches(driver_value, criteria_value) -> bool:
+    if criteria_value is None:
+        return True # If no criteria is specified for a field, we consider it a match by default.
+    if driver_value is None:
+        return False
+    return str(driver_value).strip().lower() == str(criteria_value).strip().lower()
+
+
+def apply_driver_assignment_fit_signals(
+    driver_dict: dict,
+    criteria: Optional[DriverAssignmentCriteriaSchema] = None
+) -> dict:
+    
+    if not criteria:
+        driver_dict["assignment_fit"] = {
+            "level": DriverAssignmentFitLevelEnum.no_criteria,
+            "signals": [],
+            "score": 0,
+            "max_score": 0,
+        }
+        return driver_dict
+
+    checks = [
+        (
+            "cab_type",
+            criteria.cab_type,
+            DriverAssignmentFitSignalEnum.cab_type_mismatch,
+        ),
+        (
+            "fuel_type",
+            criteria.fuel_type,
+            DriverAssignmentFitSignalEnum.fuel_type_mismatch,
+        ),
+        (
+            "capacity",
+            criteria.capacity,
+            DriverAssignmentFitSignalEnum.capacity_mismatch,
+        ),
+    ]
+    active_checks = [
+        (field_name, expected_value, mismatch_signal)
+        for field_name, expected_value, mismatch_signal in checks
+        if expected_value is not None
+    ]
+
+    score = 0
+    signals = []
+    for field_name, expected_value, mismatch_signal in active_checks:
+        if _driver_field_matches(driver_dict.get(field_name), expected_value):
+            score += 1
+        else:
+            signals.append(mismatch_signal)
+
+    max_score = len(active_checks)
+    if max_score == 0:
+        level = DriverAssignmentFitLevelEnum.no_criteria
+    elif score == max_score:
+        level = DriverAssignmentFitLevelEnum.best_fit
+        signals.append(DriverAssignmentFitSignalEnum.good_fit)
+    elif score >= max_score - 1:
+        level = DriverAssignmentFitLevelEnum.good_fit
+    else:
+        level = DriverAssignmentFitLevelEnum.review_fit
+
+    driver_dict["assignment_fit"] = {
+        "level": level,
+        "signals": signals,
+        "score": score,
+        "max_score": max_score,
+    }
+    return driver_dict
 
 
 def get_all_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session):
@@ -344,7 +532,7 @@ def update_driver_profile_picture(
     db.refresh(driver)
     return driver
 
-
+ 
 async def assign_driver_to_trip(
     trip: Trip,
     driver: Driver,
@@ -461,13 +649,24 @@ async def assign_driver_to_trip(
                 error_code=DRIVER_PHONE_INVALID,
             )
 
-        # When we have the driver app we will also check if the driver is kyc_verified or not.
+        # When we automate the driver KYC verification process through External Service API, we will also check if the driver is kyc_verified or not.
+
+        upgradation_information = build_trip_upgradation_information(
+            trip=trip,
+            driver=driver,
+            requestor=requestor,
+        )
 
         # Assign Driver to Trip
         # Once driver is assigned to trip, the trip status will still be confirmed until the driver admin marks the trip as ongoing after the driver informs the admin on trip start.
         # Since we have the driver_id assigned to a confirmed trip, we can easily find assigned trips for a driver without needing a sub status like 'assigned'. Moreover, we are logging this event in the trip audit log.
         # Later when we have the driver app, the driver can mark the trip as ongoing (post otp from customer) from the app which will update the trip status to ongoing. This will be done same way like Uber, Ola etc.
         trip.driver_id = driver.id
+        trip.upgradation_information = (
+            upgradation_information.model_dump(mode="json", exclude_none=True)
+            if upgradation_information
+            else None
+        )
         # Update Driver availability to False
         driver.is_available = False
 
@@ -498,9 +697,6 @@ async def assign_driver_to_trip(
             include_traceback=True,
             error_code=DRIVER_OPERATION_FAILED,
         )
-
-
- 
 
 
 def _get_latest_driver_assignment_time(

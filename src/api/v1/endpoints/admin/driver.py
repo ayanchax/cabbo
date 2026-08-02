@@ -37,6 +37,7 @@ from services.kyc_service import (
 from services.driver_service import (
     activate_driver,
     add_driver_earning_record_manually,
+    apply_driver_assignment_fit_signals,
     create_driver,
     create_drivers_in_bulk,
     deactivate_driver,
@@ -49,9 +50,10 @@ from services.driver_service import (
     get_all_earnings_for_driver,
     get_average_rating_by_driver_id,
     get_driver_by_id,
+    get_driver_assignment_criteria,
     get_trip_earning_for_driver,
     remove_extra_fields_from_driver_for_admin,
-    search_drivers_paginated,
+    search_assignable_drivers_paginated,
     update_driver,
     update_driver_profile_picture,
 )
@@ -142,7 +144,7 @@ def edit_driver(
     )
 
 
-# Search all drivers by driver name and get paginated results, max upto 10 in one page
+# Search assignable drivers by driver name and get paginated results, max upto 10 in one page
 @router.get("/search/driver", response_model=dict)
 def search_drivers(
     search_in: DriverSearchSchema = Depends(),
@@ -150,15 +152,15 @@ def search_drivers(
         1, ge=1, description="Page number for pagination, starting from 1"
     ),
     limit: int = Query(
-        50,
+        10,
         ge=1,
-        le=50,
-        description="Number of drivers per page for pagination, maximum 50",
+        le=10,
+        description="Number of drivers per page for pagination, maximum 10",
     ),
     db: Session = Depends(yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
-    """Search all drivers."""
+    """Search active and available drivers for assignment."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
@@ -167,15 +169,20 @@ def search_drivers(
             error_code=UNAUTHORIZED,
         )
 
-    drivers = search_drivers_paginated(
+    drivers = search_assignable_drivers_paginated(
         search_in=search_in,
         db=db,
         page=page,
         limit=limit,
     )
+    matching_criterion = get_driver_assignment_criteria(search_in)
+
     serialized_drivers = [
-        remove_extra_fields_from_driver_for_admin(
-            DriverReadSchema.model_validate(driver).model_dump()
+        apply_driver_assignment_fit_signals(
+            driver_dict=remove_extra_fields_from_driver_for_admin(
+                DriverReadSchema.model_validate(driver).model_dump()
+            ),
+            criteria=matching_criterion,
         )
         for driver in drivers.get("items", [])
     ]

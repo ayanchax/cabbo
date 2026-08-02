@@ -34,7 +34,7 @@ drivers:
     avg_rating: 4.0
     cab_registration_number: KA05AG5026
     cab_model_and_make: Nissan Sunny
-    cab_type: Sedan
+    cab_type: Premium Sedan
     fuel_type: petrol
     capacity: "4+1"
     color: Silver
@@ -180,7 +180,7 @@ drivers:
     avg_rating: 4.5
     cab_registration_number: KA14B9113
     cab_model_and_make: Toyota Etios
-    cab_type: Sedan
+    cab_type: Premium Sedan
     fuel_type: diesel
     capacity: "4+1"
     color: White

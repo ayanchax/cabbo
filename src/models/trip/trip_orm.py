@@ -247,6 +247,10 @@ class Trip(Base):
         comment="FK to passengers table; null if trip is for self",
     )
 
+    upgradation_information = Column(
+        JSON, nullable=True, comment="JSON/text for upgradation information, if any. This is applicable for scenarios where Cabbo upgrades the trip to a higher car type and/or fuel type or others. The upgradation information will be stored in this field as a JSON object with details of the upgradation and the additional charges, if any."
+    )
+
     is_active = Column(
         Boolean, nullable=False, default=True
     )  # Soft delete flag for trip record, which only super admins can toggle to false in case of any fraudulent or test trips that need to be deactivated, but we don't want to delete the record from the database for data integrity and audit purposes. When a trip is marked as inactive, it will be excluded from all active trip listings and queries in the system, but the record will still exist in the database with is_active set to false.

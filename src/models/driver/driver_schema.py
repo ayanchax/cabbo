@@ -1,8 +1,8 @@
-
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from core.exceptions import BANK_DETAILS_REQUIRED, PAYMENT_PHONE_NUMBER_REQUIRED, CabboException, GENERIC_EXCEPTION
 from models.common import AmenitiesSchema, S3ObjectInfo
+from models.driver.driver_enum import DriverAssignmentFitLevelEnum, DriverAssignmentFitSignalEnum
 from models.financial.payments_enum import PaymentModeEnum
 from models.financial.payments_schema import BankDetailsSchema
 from models.map.location_schema import Address
@@ -115,6 +115,23 @@ class DriverReadSchema(DriverCreateSchema):
     avg_rating:Optional[float]=Field(0.0, description="Average rating of the driver based on customer feedback")
 
 
+
+class DriverAssignmentCriteriaSchema(BaseModel):
+    cab_type: Optional[CarTypeEnum] = None
+    fuel_type: Optional[FuelTypeEnum] = None
+    capacity: Optional[str] = None
+
+
+CustomerMatchingCriterionSchema = DriverAssignmentCriteriaSchema
+
+
+
+class DriverAssignmentFitSchema(BaseModel):
+    level: DriverAssignmentFitLevelEnum = DriverAssignmentFitLevelEnum.no_criteria
+    signals: List[DriverAssignmentFitSignalEnum] = Field(default_factory=list)
+    score: int = 0
+    max_score: int = 0
+
 class DriverSearchSchema(BaseModel):
     name: str = Field(..., min_length=1, description="Driver name to search for")
     phone: Optional[str] = None
@@ -131,9 +148,9 @@ class DriverSearchSchema(BaseModel):
     is_active: Optional[bool] = None
     is_available: Optional[bool] = None
     kyc_verified: Optional[bool] = None
-
     class Config:
         extra = "forbid"
+
 
 
 class CustomerSafeDriverReadSchema(BaseModel):
@@ -166,6 +183,7 @@ class AdminSafeDriverReadSchema(BaseModel):
     capacity: Optional[str] = "4+1"  # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
     color: Optional[str] = None  # Cab color (e.g., White, Black etc.)
     roof_carrier_available: Optional[bool] = False  # Whether the cab has a roof carrier available for luggage or not
+    assignment_fit: Optional[DriverAssignmentFitSchema] = None
     #gender:Optional[GenderEnum] = None  # Driver's gender
 	
 

@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 import json
 from typing import Literal, Optional, Union
 
-from core.exceptions import TRIP_NOT_FOUND, CabboException, GENERIC_EXCEPTION
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
@@ -19,7 +19,6 @@ from models.pricing.pricing_schema import (
 )
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import (
-    CancellationSubStatusEnum,
     FuelTypeEnum,
     TripResponseView,
     TripStatusEnum,
@@ -85,6 +84,7 @@ from services.trips.outstation_service import remove_extra_fields_from_outstatio
 from services.trips.status_transition_policy import validate_trip_status_transition
 from services.trips.status_service import change_status
 from services.validation_service import validate_serviceable_area, validate_trip_type
+from utils.coercions import coerce_refund_status, coerce_trip_filter_date, coerce_trip_status
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, func, or_, select
@@ -94,31 +94,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def _coerce_trip_filter_date(
-    value: Optional[Union[date, str]], field_name: str
-) -> Optional[date]:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    if isinstance(value, str):
-        try:
-            return date.fromisoformat(value.strip())
-        except ValueError:
-            raise CabboException(
-                f"Invalid {field_name}. Expected date in YYYY-MM-DD format.",
-                status_code=400,
-                error_code=GENERIC_EXCEPTION,
-            )
-    raise CabboException(
-        f"Invalid {field_name}. Expected date in YYYY-MM-DD format.",
-        status_code=400,
-        error_code=GENERIC_EXCEPTION,
-    )
-
-
+ 
 def serialize_trip(
     trip: Trip,
     view: TripResponseView = TripResponseView.ADMIN_DETAIL,
@@ -282,15 +258,7 @@ def serialize_trip(
     return remove_none_recursive(trip_details)
 
 
-def _coerce_trip_status(status: Optional[Union[str, TripStatusEnum]]) -> Optional[TripStatusEnum]:
-    if not status:
-        return None
-    if isinstance(status, TripStatusEnum):
-        return status
-    try:
-        return TripStatusEnum(status)
-    except ValueError:
-        return None
+
 
 
 def _has_assigned_driver(trip_dict: dict, driver=None) -> bool:
@@ -334,7 +302,7 @@ def _needs_driver_for_operations(
 def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
     """Attach admin-facing operational flags to a serialized trip dictionary."""
     label = trip_dict.get("label") or get_trip_label(trip_dict)
-    status = _coerce_trip_status(trip_dict.get("status"))
+    status = coerce_trip_status(trip_dict.get("status"))
     has_driver = _has_assigned_driver(trip_dict=trip_dict, driver=driver)
 
     trip_dict["label"] = label
@@ -345,28 +313,6 @@ def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
         has_driver=has_driver,
     )
     return trip_dict
-
-
-def _coerce_refund_status(status: Optional[Union[str, RefundStatus]]) -> Optional[RefundStatus]:
-    if not status:
-        return None
-    if isinstance(status, RefundStatus):
-        return status
-    try:
-        return RefundStatus(status)
-    except ValueError:
-        return None
-
-def _coerce_cancellation_sub_status(status: Optional[Union[str, CancellationSubStatusEnum]]) -> Optional[CancellationSubStatusEnum]:
-    if not status:
-        return None
-    if isinstance(status, CancellationSubStatusEnum):
-        return status
-    try:
-        return CancellationSubStatusEnum(status)
-    except ValueError:
-        return None
-
 
 def _can_issue_refund(
     trip_status: Optional[Union[str, TripStatusEnum]],
@@ -379,8 +325,8 @@ def _can_issue_refund(
     }
 
     return (
-        _coerce_trip_status(trip_status) == TripStatusEnum.cancelled
-        and _coerce_refund_status(refund_status) in retryable_refund_statuses
+        coerce_trip_status(trip_status) == TripStatusEnum.cancelled
+        and coerce_refund_status(refund_status) in retryable_refund_statuses
     )
 
 
@@ -988,7 +934,7 @@ def _build_trip_label_payload_from_trip(trip: Trip) -> dict:
 def is_stale_or_unknown_trip_for_operations(trip: Trip) -> bool:
     trip_dict = _build_trip_label_payload_from_trip(trip)
     label = get_trip_label(trip_dict)
-    status = _coerce_trip_status(trip_dict.get("status"))
+    status = coerce_trip_status(trip_dict.get("status"))
     return _is_stale_or_unknown_trip(label=label, status=status)
 
 
@@ -1107,8 +1053,8 @@ async def async_get_all_trips_paginated(
         joins.append((TripTypeMaster, Trip.trip_type_id == TripTypeMaster.id))
         base_filters.append(TripTypeMaster.trip_type == trip_type)
 
-    from_date = _coerce_trip_filter_date(start_date, "start_date")
-    to_date = _coerce_trip_filter_date(end_date, "end_date")
+    from_date = coerce_trip_filter_date(start_date, "start_date")
+    to_date = coerce_trip_filter_date(end_date, "end_date")
 
     if from_date and not to_date:
         base_filters.append(
