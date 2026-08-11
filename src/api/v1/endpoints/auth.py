@@ -5,7 +5,7 @@ from core.security import (
 )
 from db.database import a_yield_mysql_session
 from services.auth.auth_service import create_session, get_existing_active_session
-from services.auth.customer_session_service import CUSTOMER_SESSION_COOKIE_NAME, CUSTOMER_SESSION_LIFETIME
+from services.auth.session_constants import CUSTOMER_SESSION_COOKIE_NAME, CUSTOMER_SESSION_LIFETIME
 from services.customer_service import (
     a_create_customer,
     a_get_customer_by_phone_number,

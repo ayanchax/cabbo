@@ -16,7 +16,7 @@ from models.user.user_schema import (
     UserReadSchema,
     UserUpdateSchema,
 )
-from services.auth.system_user_session_service import SYSTEM_USER_SESSION_COOKIE_NAME
+from services.auth.session_constants import SYSTEM_USER_SESSION_COOKIE_NAME
 from services.user_service import (
     a_auto_logoff_user_after_password_change,
     a_change_user_password,

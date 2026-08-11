@@ -6,7 +6,7 @@ from db.database import a_yield_mysql_session
 from models.user.user_orm import User
 from models.user.user_schema import UserReadBaseSchema
 from services.auth.auth_service import revoke_session
-from services.auth.system_user_session_service import SYSTEM_USER_SESSION_COOKIE_NAME
+from services.auth.session_constants import SYSTEM_USER_SESSION_COOKIE_NAME
 from services.user_service import a_get_user_by_id
 from sqlalchemy.ext.asyncio import AsyncSession
 

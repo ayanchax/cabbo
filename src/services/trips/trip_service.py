@@ -8,6 +8,7 @@ from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
 from core.trip_helpers import (
     TRIP_BOOKING_SECRET_KEY,
+    a_get_trip_type_id_by_trip_type,
     attach_relationships_to_trip,
     generate_trip_field_dictionary,
     get_trip_type_id_by_trip_type,
@@ -55,6 +56,8 @@ from services.dispute_service import serialize_dispute
 from services.driver_service import remove_extra_fields_from_driver
 from services.location_service import remove_extra_fields_from_location
 from services.passenger_service import (
+    a_get_passenger_by_id,
+    a_validate_passenger_id,
     get_passenger_id_from_preferences,
     populate_passenger_details,
     serialize_passenger,
@@ -89,7 +92,7 @@ from services.validation_service import validate_serviceable_area, validate_trip
 from utils.coercions import coerce_refund_status, coerce_trip_filter_date, coerce_trip_status
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from core.config import settings
 import logging
 
@@ -378,6 +381,25 @@ def _get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEn
     return TripTypeEnum(trip_type_obj.trip_type)
 
 
+async def a_get_trip_type_by_trip_type_id(
+    trip_type_id: str, db: AsyncSession
+) -> TripTypeEnum:
+    """
+    Async version of _get_trip_type_by_trip_type_id.
+    """
+    result = await db.execute(
+        select(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id)
+    )
+    trip_type_obj = result.scalars().first()
+    if not trip_type_obj:
+        raise CabboException(
+            f"Trip type with ID {trip_type_id} not found",
+            status_code=404,
+            error_code=GENERIC_EXCEPTION,
+        )
+    return TripTypeEnum(trip_type_obj.trip_type)
+
+
 def _retrieve_trip_package_by_id(
     package_id: str,
     db: Session,
@@ -396,6 +418,46 @@ def _retrieve_trip_package_by_id(
         .filter(TripPackageConfig.id == package_id, TripPackageConfig.is_active == True)
         .first()
     )
+    if not package:
+        return TripPackageConfigSchema(
+            included_hours=fallback_duration,
+            included_km=fallback_km,
+            package_label=fallback_label,
+        )
+    package_schema = TripPackageConfigSchema.model_validate(package)
+    return (
+        package_schema
+        if package_schema.included_hours and package_schema.included_hours > 0
+        else TripPackageConfigSchema(
+            included_hours=fallback_duration,
+            included_km=fallback_km,
+            package_label=fallback_label,
+        )
+    )
+
+
+async def a_retrieve_trip_package_by_id(
+    package_id: str,
+    db: AsyncSession,
+    fallback_duration: int = 4,
+    fallback_km: int = 40,
+    fallback_label: str = "4Hours / 40KM",
+):
+    """
+    Async version of _retrieve_trip_package_by_id.
+    """
+    if not package_id:
+        return TripPackageConfigSchema(
+            included_hours=fallback_duration,
+            included_km=fallback_km,
+            package_label=fallback_label,
+        )
+    result = await db.execute(
+        select(TripPackageConfig).filter(
+            TripPackageConfig.id == package_id, TripPackageConfig.is_active == True
+        )
+    )
+    package = result.scalars().first()
     if not package:
         return TripPackageConfigSchema(
             included_hours=fallback_duration,
@@ -435,6 +497,39 @@ def _calculate_expected_trip_end_datetime(
         # For local trips, retrieve the package duration if available, otherwise default to 6 hours
         if package_id:
             package = _retrieve_trip_package_by_id(package_id=package_id, db=db)
+            if package and package.included_hours:
+                return start_date + timedelta(hours=package.included_hours)
+        return start_date + timedelta(hours=4)  # Default to 4 hours for local trips
+
+    elif trip_type == TripTypeEnum.outstation:
+        # For outstation trips, use the provided end date
+        return end_date
+
+    elif trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
+        # For airport trips, we can assume a short duration
+        return start_date + timedelta(hours=1)  # Default to 1 hour for airport trips
+    else:
+        raise CabboException(
+            f"Trip type {trip_type} is not supported for expected end datetime calculation",
+            status_code=501,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+
+async def a_calculate_expected_trip_end_datetime(
+    trip_type: TripTypeEnum,
+    start_date: datetime,
+    end_date: datetime,
+    db: AsyncSession,
+    package_id: str = None,
+) -> datetime:
+    """
+    Async version of _calculate_expected_trip_end_datetime.
+    """
+    if trip_type == TripTypeEnum.local:
+        # For local trips, retrieve the package duration if available, otherwise default to 6 hours
+        if package_id:
+            package = await a_retrieve_trip_package_by_id(package_id=package_id, db=db)
             if package and package.included_hours:
                 return start_date + timedelta(hours=package.included_hours)
         return start_date + timedelta(hours=4)  # Default to 4 hours for local trips
@@ -530,18 +625,18 @@ def verify_trip_hash(booking_request: TripBookRequest):
         )
 
 
-def validate_trip_search(
-    search_in: TripSearchRequest, requestor: str, db: Session, config_store: ConfigStore
+async def validate_trip_search(
+    search_in: TripSearchRequest, requestor: str, db: AsyncSession, config_store: ConfigStore
 ):
 
     # Validate passenger ID if provided
-    validate_passenger_id(search_in, requestor, db)
+    await a_validate_passenger_id(search_in, requestor, db)
 
     # Ensure all required trip search preferences have sensible defaults
     _set_default_preferences(search_in)
 
     # Enforce serviceable area boundaries
-    validate_serviceable_area(search_in=search_in, config_store=config_store, db=db)
+    validate_serviceable_area(search_in=search_in, config_store=config_store)
 
     trip_type = search_in.trip_type
     # Validate trip type
@@ -570,23 +665,33 @@ def delete_temp_trip(requestor: str, db: Session):
         )
 
 
-def create_temporary_trip(
-    booking_request: TripBookRequest, requestor: str, db: Session
+async def a_delete_temp_trip(requestor: str, db: AsyncSession):
+    """
+    Async version of delete_temp_trip.
+    """
+    try:
+        # Delete all temporary trip records for the requestor
+        await db.execute(delete(TempTrip).where(TempTrip.creator_id == requestor))
+        await db.commit()
+        log.info(f"Temporary trip details deleted for requestor: {requestor}")
+    except Exception as e:
+        await db.rollback()
+        raise CabboException(
+            f"Failed to delete temporary trip details: {str(e)}",
+            status_code=500,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+
+ 
+
+async def a_create_temporary_trip(
+    booking_request: TripBookRequest, requestor: str, db: AsyncSession
 ) -> TempTrip:
     """
-
-    Creates a temporary trip record in the database based on the booking request.
-    This function validates the booking request, calculates necessary fields, and stores the trip details.
-    Args:
-        booking_request (TripBookRequest): The trip booking request containing preferences and options.
-        requestor (str): The user or system initiating the trip creation.
-        db (Session): The database session for ORM operations.
-    Returns:
-        TempTrip: The created temporary trip record.
-    Raises:
-        CabboException: If the booking request is invalid or if any database operation fails.
+    Async version of create_temporary_trip.
     """
-    trip_type_id = get_trip_type_id_by_trip_type(
+    trip_type_id = await a_get_trip_type_id_by_trip_type(
         booking_request.preferences.trip_type, db=db
     )
     validated_start_date = validate_date_time(
@@ -656,7 +761,7 @@ def create_temporary_trip(
         ),
         start_datetime=validated_start_date,
         end_datetime=validated_end_date,
-        expected_end_datetime=_calculate_expected_trip_end_datetime(
+        expected_end_datetime=await a_calculate_expected_trip_end_datetime(
             booking_request.preferences.trip_type,
             validated_start_date,
             validated_end_date,
@@ -805,12 +910,12 @@ def create_temporary_trip(
     )
     try:
         db.add(temp_trip)
-        db.commit()
-        db.refresh(temp_trip)
+        await db.commit()
+        await db.refresh(temp_trip)
         log.info(f"Temporary trip created for requestor: {requestor}")
         return temp_trip
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise CabboException(
             f"Failed to create temporary trip: {str(e)}",
             status_code=500,
@@ -827,6 +932,32 @@ def populate_trip_schema(trip: Union[Trip, TempTrip], db: Session) -> TripDetail
     )
 
     passenger = populate_passenger_details(passenger_id=trip.passenger_id, db=db)
+    if passenger:
+        trip_schema.passenger = passenger
+    result = trip_schema.model_dump(
+        exclude_none=True
+    )  # Return the trip schema as a dictionary excluding None values
+    return remove_none_recursive(result)
+
+
+async def a_populate_trip_schema(trip: Union[Trip, TempTrip], db: AsyncSession) -> TripDetails:
+    """
+    Async version of populate_trip_schema.
+    """
+    trip_schema = TripDetails.model_validate(
+        trip
+    )  # Convert Trip object to TripDetail schema
+    trip_schema.trip_type = await a_get_trip_type_by_trip_type_id(
+        trip_type_id=trip.trip_type_id, db=db
+    )
+
+    passenger = None
+    if trip.passenger_id:
+        passenger_obj = await a_get_passenger_by_id(passenger_id=trip.passenger_id, db=db)
+        if passenger_obj:
+            from models.customer.passenger_schema import PassengerRequest
+
+            passenger = PassengerRequest.model_validate(passenger_obj)
     if passenger:
         trip_schema.passenger = passenger
     result = trip_schema.model_dump(

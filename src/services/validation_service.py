@@ -3,6 +3,7 @@ import json
 import math
 import re
 from typing import List, Union
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import Body
 from core.exceptions import (
@@ -56,7 +57,6 @@ from core.config import settings
 from core.store import ConfigStore
 from core.trip_constants import DEFAULT_PRIOR_BOOKING_WINDOW_HOURS, OUTSTATION_DEFAULTS
 from core.trip_helpers import get_prior_booking_window_hours
-from db.database import get_mysql_local_session
 from models.airport.airport_schema import AirportSchema
 from models.customer.customer_schema import (
     CustomerCreate,
@@ -94,16 +94,16 @@ from utils.utility import (
     to_timezone_aware_datetime,
     validate_date_time,
 )
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 import logging
 
 log = logging.getLogger(__name__)
 
-
-def _validate_duplicate_local_bookings(
+async def a_validate_duplicate_local_bookings(
     booking_request: TripBookRequest,
     requestor: str,
-    db: Session,
+    db: AsyncSession,
     overlap_hours: int = 12,
 ):
     start_date = validate_date_time(date_time=booking_request.preferences.start_date, timezone_str=booking_request.metadata.timezone)
@@ -111,8 +111,8 @@ def _validate_duplicate_local_bookings(
     end_date = start_date + timedelta(
         hours=overlap_hours
     )  # Check for bookings within the next 12 hours
-    existing_bookings = (
-        db.query(Trip)
+    result = await db.execute(
+        select(Trip)
         .join(TripTypeMaster)
         .filter(
             Trip.trip_type_id == TripTypeMaster.id,
@@ -121,8 +121,8 @@ def _validate_duplicate_local_bookings(
             Trip.start_datetime <= end_date,
             Trip.status != TripStatusEnum.cancelled,
         )
-        .all()
     )
+    existing_bookings = result.scalars().all()
     if existing_bookings:
         raise CabboException(
             "You already have a booking for this time slot",
@@ -130,17 +130,16 @@ def _validate_duplicate_local_bookings(
             error_code=ALREADY_BOOKED_ON_THIS_SLOT,
         )
 
-
-def _validate_duplicate_outstation_bookings(
-    booking_request: TripBookRequest, requestor: str, db: Session
+async def a_validate_duplicate_outstation_bookings(
+    booking_request: TripBookRequest, requestor: str, db: AsyncSession
 ):
     timezone = booking_request.metadata.timezone if booking_request.metadata and booking_request.metadata.timezone else settings.CABBO_DEFAULT_TIMEZONE
     start_date = validate_date_time(date_time=booking_request.preferences.start_date, timezone_str=timezone)
 
     end_date = validate_date_time(date_time=booking_request.preferences.end_date, timezone_str=timezone)
 
-    existing_bookings = (
-        db.query(Trip)
+    result = await db.execute(
+        select(Trip)
         .join(TripTypeMaster)
         .filter(
             Trip.trip_type_id == TripTypeMaster.id,
@@ -149,8 +148,8 @@ def _validate_duplicate_outstation_bookings(
             Trip.start_datetime <= end_date,
             Trip.end_datetime >= start_date,
         )
-        .all()
     )
+    existing_bookings = result.scalars().all()
     if existing_bookings:
         raise CabboException(
             "You already have a booking for this time slot",
@@ -158,11 +157,12 @@ def _validate_duplicate_outstation_bookings(
             error_code=ALREADY_BOOKED_ON_THIS_SLOT,
         )
 
+ 
 
-def _validate_airport_bookings(
+async def a_validate_airport_bookings(
     booking_request: TripBookRequest,
     requestor: str,
-    db: Session,
+    db: AsyncSession,
     overlap_hours: int = 4,
 ):
     timezone = booking_request.metadata.timezone if booking_request.metadata and booking_request.metadata.timezone else settings.CABBO_DEFAULT_TIMEZONE
@@ -171,8 +171,8 @@ def _validate_airport_bookings(
     end_date = start_date + timedelta(
         hours=overlap_hours
     )  # Check for bookings within the next 6 hours
-    existing_bookings = (
-        db.query(Trip)
+    result = await db.execute(
+        select(Trip)
         .join(TripTypeMaster)
         .filter(
             Trip.trip_type_id == TripTypeMaster.id,
@@ -181,8 +181,8 @@ def _validate_airport_bookings(
             Trip.start_datetime <= end_date,
             Trip.status != TripStatusEnum.cancelled,
         )
-        .all()
     )
+    existing_bookings = result.scalars().all()
     if existing_bookings:
         raise CabboException(
             "You already have a booking for this time slot",
@@ -191,8 +191,11 @@ def _validate_airport_bookings(
         )
 
 
-def _validate_booking_request_hash(
-    booking_request: TripBookRequest, requestor: str, db: Session, allow_removal_of_existing: bool = False
+async def a_validate_booking_request_hash(
+    booking_request: TripBookRequest,
+    requestor: str,
+    db: AsyncSession,
+    allow_removal_of_existing: bool = False,
 ):
     if not booking_request.option.hash:
         raise CabboException(
@@ -202,25 +205,23 @@ def _validate_booking_request_hash(
         )
 
     if booking_request.option.hash:
-        existing_temp_trip = (
-            db.query(TempTrip)
-            .filter(
+        result = await db.execute(
+            select(TempTrip).filter(
                 TempTrip.hash == booking_request.option.hash,
                 TempTrip.creator_id == requestor,
             )
-            .first()
         )
+        existing_temp_trip = result.scalars().first()
         if existing_temp_trip:
             # Ensure both datetimes are timezone-aware (UTC)
             created_at = existing_temp_trip.created_at
             if created_at.tzinfo is None:
                 created_at = created_at.replace(tzinfo=timezone.utc)
-            
 
             if created_at < datetime.now(timezone.utc) - timedelta(minutes=29):
                 # If the temp trip is older than 29 minutes, we consider it expired and remove it to allow fresh booking attempts, since Razorpay orders typically expire after 30 minutes, so a temp trip older than 29 minutes is unlikely to be valid.
-                db.delete(existing_temp_trip)
-                db.commit()
+                await db.delete(existing_temp_trip)
+                await db.commit()
                 return None, None
 
             # Check if the existing temp trip has payment provider metadata and a valid Razorpay order id, if not, we consider it invalid and remove it to allow fresh booking attempts, since without a valid Razorpay order id, there is no way to validate the temp trip and it could be a stale entry from an abandoned booking attempt. This is an important check to prevent blocking users from making new booking attempts due to stale temp trip entries that do not have valid payment provider metadata and order ids, which can happen if there were issues during temp trip creation or if the user abandoned the booking process before completing payment.
@@ -231,27 +232,24 @@ def _validate_booking_request_hash(
                 order_id = ppm.get(key) if isinstance(ppm, dict) else getattr(ppm, key, None)
             if not order_id:
                 # If there is no payment provider metadata or order id, we consider this temp trip as invalid and remove it to allow fresh booking attempts, since without payment provider metadata and order id, there is no way to validate the temp trip and it could be a stale entry from an abandoned booking attempt.
-                db.delete(existing_temp_trip)
-                db.commit()
+                await db.delete(existing_temp_trip)
+                await db.commit()
                 return None, None
 
-            
-
-            
             if allow_removal_of_existing:
-                db.delete(existing_temp_trip)
-                db.commit()
+                await db.delete(existing_temp_trip)
+                await db.commit()
                 return None, None
 
             return existing_temp_trip, order_id
         return None, None
 
 
-def validate_booking_request(
-    booking_request: TripBookRequest, requestor: str, db: Session
+async def validate_booking_request(
+    booking_request: TripBookRequest, requestor: str, db: AsyncSession
 ):
     # case 0: Check if the booking request is a valid request with an unique hash
-    existing_trip_details, order_id = _validate_booking_request_hash(
+    existing_trip_details, order_id = await a_validate_booking_request_hash(
         booking_request=booking_request, requestor=requestor, db=db
     )
 
@@ -260,14 +258,14 @@ def validate_booking_request(
     # case 1: If the trip is local, check for existing bookings for the same customer with the same start date within the next 24 hours
 
     if booking_request.preferences.trip_type == TripTypeEnum.local:
-        _validate_duplicate_local_bookings(
+        await a_validate_duplicate_local_bookings(
             booking_request=booking_request, requestor=requestor, db=db
         )
 
     # case 2: If the trip is outstation, check for existing bookings for the same customer between the start and end dates
 
     elif booking_request.preferences.trip_type == TripTypeEnum.outstation:
-        _validate_duplicate_outstation_bookings(
+        await a_validate_duplicate_outstation_bookings(
             booking_request=booking_request, requestor=requestor, db=db
         )
 
@@ -276,7 +274,7 @@ def validate_booking_request(
         TripTypeEnum.airport_pickup,
         TripTypeEnum.airport_drop,
     ]:
-        _validate_airport_bookings(
+        await a_validate_airport_bookings(
             booking_request=booking_request, requestor=requestor, db=db
         )
 
@@ -288,8 +286,9 @@ def validate_booking_request(
         )
     return existing_trip_details, order_id
 
+
 def validate_serviceable_area(
-    search_in: TripSearchRequest, config_store: ConfigStore, db: Session
+    search_in: TripSearchRequest, config_store: ConfigStore
 ):
     """
     Validates if the trip search request is within the serviceable area for the given trip type.
@@ -1469,7 +1468,7 @@ def validate_outstation_trip_schedule(search_in: TripSearchRequest):
             error_code=OUTSTATION_START_DATE_AFTER_END_DATE,
         )
     # Calculate total number of trip days (inclusive, ceil if fractional)
-    config_store = settings.get_config_store(get_mysql_local_session())
+    config_store = settings.get_config_store()
     outstation_config = config_store.outstation.get(state_code, None)  # This is just to check if the state_code is configured for outstation trips, it will raise an exception if not configured
     min_allowed_days = OUTSTATION_DEFAULTS["min_days_allowed"]
     max_allowed_days = OUTSTATION_DEFAULTS["max_days_allowed"]
@@ -1548,7 +1547,6 @@ def validate_airport_schedule(search_in: TripSearchRequest):
     
     search_in.start_date = to_timezone_aware_datetime(start_date) # Format start date with timezone info for consistency, so that client can rely on the format in the response and does not have to do additional parsing to get timezone info if needed, plus can convert to local timezone if needed based on the timezone info in the string
     
-
 
 def validate_trip_type(trip_type: TripTypeEnum, config_store: ConfigStore):
     """
@@ -1660,8 +1658,7 @@ def validate_system_user_age_by_country(age: int, country: CountrySchema):
 
 
 def validate_driver_payloads(payloads:Union[List[DriverCreateSchema], List[DriverReadSchema]] = Body(...), basic_validation: bool = True):
-    db = get_mysql_local_session()
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
     country = config_store.geographies.country_server
     if not country:
             raise CabboException(
@@ -1675,8 +1672,7 @@ def validate_driver_payload(
     payload: Union[DriverUpdateSchema, DriverCreateSchema, DriverReadSchema] = Body(...), country: CountrySchema = None, basic_validation=False
 ):
     if not country:
-        db = get_mysql_local_session()
-        config_store: ConfigStore = settings.get_config_store(db)
+        config_store: ConfigStore = settings.get_config_store()
         country = config_store.geographies.country_server
         if not country:
             raise CabboException(
@@ -1729,8 +1725,7 @@ def validate_driver_payload(
 def validate_customer_payload(
     payload: Union[CustomerUpdate, CustomerCreate] = Body(...),
 ):
-    db = get_mysql_local_session()
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -1768,8 +1763,7 @@ def validate_customer_payload(
 def validate_passenger_payload(
     payload: Union[PassengerUpdate, PassengerCreate] = Body(...),
 ):
-    db = get_mysql_local_session()
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -1788,8 +1782,7 @@ def validate_passenger_payload(
 def validate_customer_onboarding_payload(
     payload: Union[CustomerOTPRequest, CustomerOnboardInitiationRequest] = Body(...),
 ):
-    db = get_mysql_local_session()
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -1812,8 +1805,7 @@ def validate_customer_onboarding_payload(
 def validate_customer_login_payload(
     payload: Union[CustomerLoginRequest, CustomerOnboardInitiationRequest] = Body(...),
 ):
-    db = get_mysql_local_session()
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -1834,8 +1826,7 @@ def validate_customer_login_payload(
 
 
 def validate_system_user_payloads(payloads:List[UserCreateSchema]):
-    db = get_mysql_local_session()
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
     country = config_store.geographies.country_server
     if not country:
         raise CabboException(
@@ -1849,8 +1840,7 @@ def validate_system_user_payload(
     country: CountrySchema = None,
 ):
     if not country:
-        db = get_mysql_local_session()
-        config_store: ConfigStore = settings.get_config_store(db)
+        config_store: ConfigStore = settings.get_config_store()
         country = config_store.geographies.country_server
         if not country:
             raise CabboException(

@@ -3,11 +3,9 @@ from pydantic_core import ValidationError
 import json
 from typing import Optional
 from pydantic import ValidationError
-from requests import session
 from sqlalchemy.orm import Session
 from core.exceptions import PLACE_NOT_FOUND, CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum
-from db.database import get_mysql_local_session
 from models.geography.country_orm import CountryModel
 from models.geography.country_schema import CountryReadSchema, CountrySchema, CountryUpdateSchema
 from models.geography.region_orm import RegionModel
@@ -1010,7 +1008,23 @@ async def async_add_country(
 async def async_get_all_countries(db: AsyncSession) -> list[CountrySchema]:
     """Asynchronously fetch all countries as a list of CountrySchema."""
     result = await db.execute(select(CountryModel))
-    country_models = result.scalars().all()
+    country_models = result.unique().scalars().all()
+    country_schemas = []
+    for c_model in country_models:
+        try:
+            country_schema = CountrySchema.model_validate(c_model)
+            country_schemas.append(country_schema)
+        except ValidationError:
+            continue
+    return country_schemas
+
+
+async def a_get_all_countries(db: AsyncSession) -> list[CountrySchema]:
+    """Async variant of get_all_countries for ConfigStore loading."""
+    result = await db.execute(
+        select(CountryModel).filter(CountryModel.is_serviceable == True)
+    )
+    country_models = result.unique().scalars().all()
     country_schemas = []
     for c_model in country_models:
         try:
@@ -1153,7 +1167,23 @@ async def async_add_state(
 async def async_get_all_states(db: AsyncSession) -> list[StateSchema]:
     """Asynchronously fetch all states as a list of StateSchema."""
     result = await db.execute(select(StateModel))
-    state_models = result.scalars().all()
+    state_models = result.unique().scalars().all()
+    state_schemas = []
+    for s_model in state_models:
+        try:
+            state_schema = StateSchema.model_validate(s_model)
+            state_schemas.append(state_schema)
+        except ValidationError:
+            continue
+    return state_schemas
+
+
+async def a_get_all_states(db: AsyncSession) -> list[StateSchema]:
+    """Async variant of get_all_states for ConfigStore loading."""
+    result = await db.execute(
+        select(StateModel).filter(StateModel.is_serviceable == True)
+    )
+    state_models = result.unique().scalars().all()
     state_schemas = []
     for s_model in state_models:
         try:
@@ -1171,6 +1201,24 @@ async def async_get_state_by_id(
     Returns None if not found.
     """
     result = await db.execute(select(StateModel).filter(StateModel.id == state_id))
+    state_model = result.scalars().first()
+    if state_model:
+        try:
+            state_schema = StateSchema.model_validate(state_model)
+            return state_schema
+        except ValidationError:
+            return None
+    return None
+
+async def a_get_state_by_id(
+    state_id: str, db: AsyncSession
+) -> Optional[StateSchema]:
+    """Async variant of get_state_by_id for ConfigStore loading."""
+    result = await db.execute(
+        select(StateModel).filter(
+            StateModel.id == state_id, StateModel.is_serviceable == True
+        )
+    )
     state_model = result.scalars().first()
     if state_model:
         try:
@@ -1323,7 +1371,7 @@ async def async_add_region(
 async def async_get_all_regions(db: AsyncSession) -> list[RegionSchema]:
     """Asynchronously fetch all regions as a list of RegionSchema."""
     result = await db.execute(select(RegionModel))
-    region_models = result.scalars().all()
+    region_models = result.unique().scalars().all()
     region_schemas = []
     for r_model in region_models:
         try:
@@ -1336,6 +1384,50 @@ async def async_get_all_regions(db: AsyncSession) -> list[RegionSchema]:
                     if r_model.alt_region_names
                     else None
                 ),
+                state_id=r_model.state_id,
+                country_id=r_model.country_id,
+                trip_types=(
+                    json.loads(r_model.trip_types) if r_model.trip_types else None
+                ),
+                fuel_types=(
+                    json.loads(r_model.fuel_types) if r_model.fuel_types else None
+                ),
+                car_types=json.loads(r_model.car_types) if r_model.car_types else None,
+                airport_locations=(
+                    json.loads(r_model.airport_locations)
+                    if r_model.airport_locations
+                    else None
+                ),
+            )
+            region_schemas.append(region_schema)
+        except ValidationError:
+            continue
+    return region_schemas
+
+
+async def a_get_all_regions(db: AsyncSession) -> list[RegionSchema]:
+    """Async variant of get_all_regions for ConfigStore loading."""
+    result = await db.execute(
+        select(RegionModel).filter(RegionModel.is_serviceable == True)
+    )
+    region_models = result.unique().scalars().all()
+    region_schemas = []
+    for r_model in region_models:
+        try:
+            region_schema = RegionSchema(
+                region_name=r_model.region_name,
+                region_code=r_model.region_code,
+                alt_region_names=(
+                    json.loads(r_model.alt_region_names)
+                    if r_model.alt_region_names
+                    else None
+                ),
+                alt_region_codes=(
+                    json.loads(r_model.alt_region_codes)
+                    if r_model.alt_region_codes
+                    else None
+                ),
+                id=r_model.id,
                 state_id=r_model.state_id,
                 country_id=r_model.country_id,
                 trip_types=(
@@ -1378,6 +1470,60 @@ async def async_get_region_by_id(
                 ),
                 state_id=region_model.state_id,
                 country_id=region_model.country_id,
+                trip_types=(
+                    json.loads(region_model.trip_types)
+                    if region_model.trip_types
+                    else None
+                ),
+                fuel_types=(
+                    json.loads(region_model.fuel_types)
+                    if region_model.fuel_types
+                    else None
+                ),
+                car_types=(
+                    json.loads(region_model.car_types)
+                    if region_model.car_types
+                    else None
+                ),
+                airport_locations=(
+                    json.loads(region_model.airport_locations)
+                    if region_model.airport_locations
+                    else None
+                ),
+            )
+            return region_schema
+        except ValidationError:
+            return None
+    return None
+
+
+async def a_get_region_by_id(
+    region_id: str, db: AsyncSession
+) -> Optional[RegionSchema]:
+    """Async variant of get_region_by_id for ConfigStore loading."""
+    result = await db.execute(
+        select(RegionModel).filter(
+            RegionModel.id == region_id, RegionModel.is_serviceable == True
+        )
+    )
+    region_model = result.scalars().first()
+    if region_model:
+        try:
+            region_schema = RegionSchema(
+                region_name=region_model.region_name,
+                region_code=region_model.region_code,
+                alt_region_names=(
+                    json.loads(region_model.alt_region_names)
+                    if region_model.alt_region_names
+                    else None
+                ),
+                alt_region_codes=(
+                    json.loads(region_model.alt_region_codes)
+                    if region_model.alt_region_codes
+                    else None
+                ),
+                state_code=region_model.state_id,
+                country_code=region_model.country_id,
                 trip_types=(
                     json.loads(region_model.trip_types)
                     if region_model.trip_types
@@ -1871,8 +2017,7 @@ async def async_remove_car_type_from_region(
 
 async def get_geography_data() -> CountryReadSchema:
     from core.config import settings
-    with get_mysql_local_session() as db:
-        config_store = settings.get_config_store(db=db)
+    config_store = settings.get_config_store()
     geo_data =  config_store.geographies.country_server
     if not geo_data:
         raise CabboException("Geography data not found", status_code=404, error_code=GENERIC_EXCEPTION)
@@ -1880,9 +2025,7 @@ async def get_geography_data() -> CountryReadSchema:
 
 def get_allowed_countries():
     from core.config import settings
-    with get_mysql_local_session() as session:
-        config_store = settings.get_config_store(db=session)
-    
+    config_store = settings.get_config_store()
     allowed_countries = list(config_store.geographies.countries.keys()) or [
         settings.COUNTRY_CODE
     ]

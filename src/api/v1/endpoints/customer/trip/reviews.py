@@ -5,7 +5,6 @@ from models.customer.customer_orm import Customer
 from models.trip.trip_schema import (
     CustomerTripRatingReadSchema,
     TripRatingCreateSchema,
-    TripRatingResponseSchema,
 )
 
 

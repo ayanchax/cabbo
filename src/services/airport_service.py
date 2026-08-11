@@ -278,6 +278,11 @@ async def async_get_all_airports(db: AsyncSession) -> List[AirportSchema]:
     return airport_schemas
 
 
+async def a_get_all_airports(db: AsyncSession) -> List[AirportSchema]:
+    """Async variant of get_all_airports for ConfigStore loading."""
+    return await async_get_all_airports(db)
+
+
 async def async_get_airport_by_id(
     airport_id: str, db: AsyncSession
 ) -> AirportSchema | None:

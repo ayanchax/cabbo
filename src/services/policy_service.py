@@ -1,12 +1,10 @@
 import math
 
 from core.store import ConfigStore
-from db.database import get_mysql_local_session
 from models.map.location_schema import LocationInfo
 from models.policies.cancelation_schema import CancelationPolicySchema
 from models.trip.trip_enums import TripTypeEnum
 import logging
-from sqlalchemy.orm import Session
 from core.config import settings
 from models.trip.trip_orm import Trip
 log = logging.getLogger(__name__)
@@ -85,12 +83,11 @@ def get_refund_and_cancellation_policy_lines(policy:CancelationPolicySchema):
     return lines
 
 def serialize_cancellation_and_refund_policy(
-    trip: Trip, trip_dict: dict, trip_type: TripTypeEnum, db: Session = None
+    trip: Trip, trip_dict: dict, trip_type: TripTypeEnum, 
 ):
 
-    if not db:
-        db = get_mysql_local_session()
-    config_store = settings.get_config_store(db)
+     
+    config_store = settings.get_config_store()
     origin = LocationInfo.model_validate(trip.origin) if trip.origin else None
     if origin:
         # We do not save cancellation or refund policy in trip table as a column

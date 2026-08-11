@@ -21,10 +21,8 @@ from models.user.user_schema import (
     UserLoginResponse,
 )
 from services.auth.auth_service import create_session, get_existing_active_session
-from services.auth.system_user_session_service import (
-    SYSTEM_USER_SESSION_COOKIE_NAME,
-    SYSTEM_USER_SESSION_LIFETIME,
-)
+
+from services.auth.session_constants import SYSTEM_USER_SESSION_COOKIE_NAME, SYSTEM_USER_SESSION_LIFETIME
 from services.user_service import (
     a_get_user_by_username,
 )

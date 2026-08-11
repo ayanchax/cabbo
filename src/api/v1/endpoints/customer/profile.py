@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import a_yield_mysql_session
 from models.common import S3ObjectInfo
 from models.customer.customer_orm import Customer
+from services.auth.session_constants import CUSTOMER_SESSION_COOKIE_NAME
 from services.customer_service import (
     a_get_active_customer_by_id,
     a_transform_to_safe_customer,
@@ -40,7 +41,6 @@ from core.exceptions import (
     GENERIC_EXCEPTION,
 )
 from services.auth.auth_service import revoke_session
-from services.auth.customer_session_service import CUSTOMER_SESSION_COOKIE_NAME
 from services.validation_service import (
     validate_customer_payload,
 )

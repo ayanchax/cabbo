@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 from services.auth.auth_service import revoke_session
-from services.auth.system_user_session_service import SYSTEM_USER_SESSION_COOKIE_NAME
+from services.auth.session_constants import SYSTEM_USER_SESSION_COOKIE_NAME
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from fastapi import Response

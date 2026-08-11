@@ -5,7 +5,6 @@ from core.exceptions import GENERIC_EXCEPTION, TRIP_NOT_FOUND, CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from core.trip_helpers import attach_relationships_to_trip
-from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerPayment, CustomerRead
 from models.financial.payments_schema import PaymentNotesSchema
 from models.policies.cancelation_schema import CancelationPolicySchema
@@ -64,8 +63,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
         ]
 
         if not config_store:
-            syncdb = get_mysql_local_session()
-            config_store = settings.get_config_store(db=syncdb)
+            config_store = settings.get_config_store()
 
         if trip.advance_payment is None or trip.advance_payment <= 0.0:
             log.info(f"No advance payment to refund for trip {trip.id}")
@@ -737,8 +735,7 @@ async def attempt_refund_initiation(
         ),
     )
 
-    with get_mysql_local_session() as sync_db:
-        config_store = settings.get_config_store(sync_db)
+    config_store = settings.get_config_store()
 
     currency = Currency(
         code=config_store.geographies.country_server.currency,
@@ -799,14 +796,13 @@ async def send_refund_credited_notification(
 
     """
     try:
-        with get_mysql_local_session() as sync_db:
-            from core.config import settings
+        from core.config import settings
 
-            config_store = settings.get_config_store(sync_db)
-            decimal_places = (
+        config_store = settings.get_config_store()
+        decimal_places = (
                 config_store.geographies.country_server.currency_decimal_places
             )
-            currency = config_store.geographies.country_server.currency_symbol
+        currency = config_store.geographies.country_server.currency_symbol
 
         formatted_refund_amount = f"{refund.refund_amount:.{decimal_places}f}"
         formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"

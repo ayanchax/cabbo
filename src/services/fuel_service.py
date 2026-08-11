@@ -53,6 +53,10 @@ async def async_get_all_fuel_types(db: AsyncSession) -> list[FuelTypeSchema]:
     fuel_type_schemas = [FuelTypeSchema.model_validate(fuel) for fuel in fuel_types]
     return fuel_type_schemas
 
+async def a_get_all_fuel_types(db: AsyncSession) -> list[FuelTypeSchema]:
+    """Async variant of get_all_fuel_types for ConfigStore loading."""
+    return await async_get_all_fuel_types(db)
+
 async def async_get_fuel_type_by_id(fuel_type_id: str, db: AsyncSession) -> FuelTypeSchema | None:
     """Asynchronously retrieve a fuel type by its ID."""
     result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_id))

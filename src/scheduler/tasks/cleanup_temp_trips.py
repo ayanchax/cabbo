@@ -1,21 +1,33 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
-from sqlalchemy.orm import Session
-from db.database import get_mysql_local_session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from db.database import AsyncSessionLocal
 from models.trip.temp_trip_orm import TempTrip
 from scheduler.task_registry import task
 import logging
+
 TTL_MINUTES_DEFAULT = 30
 log = logging.getLogger(__name__)
+
+
 @task(task_id="cleanup_temp_trips", description="Deletes expired temp trips older than TTL")
 def cleanup_temp_trips_task(ttl_minutes: int = TTL_MINUTES_DEFAULT):
-    with get_mysql_local_session() as db:
+    asyncio.run(_run_cleanup_temp_trips(ttl_minutes=ttl_minutes))
+
+
+async def _run_cleanup_temp_trips(ttl_minutes: int = TTL_MINUTES_DEFAULT):
+    async with AsyncSessionLocal() as db:
         try:
-            removed = _cleanup_expired_temp_trips(db=db, ttl_minutes=ttl_minutes)
+            removed = await a_cleanup_expired_temp_trips(db=db, ttl_minutes=ttl_minutes)
             log.info(f"cleanup_temp_trips removed {removed} rows")
         except Exception:
             log.error("cleanup_temp_trips failed")
 
-def _cleanup_expired_temp_trips(db: Session, ttl_minutes: int = TTL_MINUTES_DEFAULT) -> int:
+
+async def a_cleanup_expired_temp_trips(
+    db: AsyncSession, ttl_minutes: int = TTL_MINUTES_DEFAULT
+) -> int:
     """
     Deletes unpaid temp trips older than ttl_minutes.
 
@@ -28,11 +40,10 @@ def _cleanup_expired_temp_trips(db: Session, ttl_minutes: int = TTL_MINUTES_DEFA
     try:
         log.info(f"Running cleanup_expired_temp_trips with TTL={ttl_minutes} minutes")
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=ttl_minutes)
-        expired_temp_trips = (
-            db.query(TempTrip)
-            .filter(TempTrip.created_at < cutoff)
-            .all()
+        result = await db.execute(
+            select(TempTrip).where(TempTrip.created_at < cutoff)
         )
+        expired_temp_trips = result.scalars().all()
 
         removed = 0
         skipped_verified = 0
@@ -42,17 +53,17 @@ def _cleanup_expired_temp_trips(db: Session, ttl_minutes: int = TTL_MINUTES_DEFA
                 skipped_verified += 1
                 continue
 
-            db.delete(temp_trip)
+            await db.delete(temp_trip)
             removed += 1
 
-        db.commit()
+        await db.commit()
         if skipped_verified:
             log.info(
-                f"cleanup_temp_trips skipped {skipped_verified} payment-verified rows. Those will be upgraded to real trips using our scheduled workflows or admin endpoints."
+                f"cleanup_temp_trips skipped {skipped_verified} payment-verified rows. Those will be upgraded to real trips using our admin workflows on demand."
             )
         log.info(f"cleanup_temp_trips removed {removed} abandoned rows.")
         return removed
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         log.error(f"Error during cleanup_expired_temp_trips: {e}")
         return 0

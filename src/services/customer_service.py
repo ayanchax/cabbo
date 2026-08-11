@@ -452,7 +452,7 @@ def is_customer_email_verified(customer_id: str, db: Session) -> bool:
             error_code=GENERIC_EXCEPTION,
         )
 
-async def a_is_customer_email_verified(customer_id: str, db: Session) -> bool:
+async def a_is_customer_email_verified(customer_id: str, db: AsyncSession) -> bool:
     try:
         customer = await a_get_active_customer_by_id(customer_id, db)
         return customer.is_email_verified

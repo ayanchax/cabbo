@@ -1,6 +1,5 @@
 from typing import Optional
 from core.store import ConfigStore
-from db.database import get_mysql_local_session
 from models.geography.region_schema import RegionSchema
 from models.geography.state_schema import StateSchema
 from models.map.location_schema import LocationInfo
@@ -11,7 +10,6 @@ from services.geography_service import (
     lookup_state_by_code,
     look_up_state_by_id,
 )
-from sqlalchemy.orm import Session
 from core.config import settings
 
 
@@ -88,13 +86,13 @@ def get_state_from_location_v2(
 
     return state
 
-def get_all_cabs(db: Session):
-    config_store: ConfigStore = settings.get_config_store(db)
+def get_all_cabs():
+    config_store: ConfigStore = settings.get_config_store()
     cabs = config_store.cabs
     return cabs
 
-def get_currency(db: Session):
-    config_store: ConfigStore = settings.get_config_store(db)
+def get_currency():
+    config_store: ConfigStore = settings.get_config_store()
     currency: Currency = Currency(
         code=config_store.geographies.country_server.currency or "INR",
         symbol=config_store.geographies.country_server.currency_symbol or "₹",
@@ -118,10 +116,8 @@ def get_currency(db: Session):
     )
     return currency
 
-def serialize_currency(trip_dict: dict, db: Session=None):
-    if not db:
-        db = get_mysql_local_session()
-    currency= get_currency(db)
+def serialize_currency(trip_dict: dict):
+    currency= get_currency()
     trip_dict["currency"] = currency.model_dump() if currency else None
     return trip_dict
 

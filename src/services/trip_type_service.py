@@ -1,8 +1,7 @@
 # Add trip type
 
 from typing import Optional
-from sqlalchemy.orm import Session
-from core.exceptions import GENERIC_EXCEPTION, ORIGIN_REGION_NOT_SERVICEABLE, SAME_PICKUP_DROPOFF_LOCATION, TRIP_PACKAGE_FETCH_FAILED, CabboException
+from core.exceptions import GENERIC_EXCEPTION, SAME_PICKUP_DROPOFF_LOCATION, TRIP_PACKAGE_FETCH_FAILED, CabboException
 from core.security import RoleEnum
 from core.store import ConfigStore
 from models.map.location_schema import LocationInfo, MobilityHub
@@ -148,9 +147,7 @@ def classify_trip_type(
         )
 
     if not config_store:
-        from db.database import get_mysql_local_session
-        syncdb = get_mysql_local_session()
-        config_store = settings.get_config_store(db=syncdb)
+        config_store = settings.get_config_store()
 
     # Rule 2: Outstation check takes priority over airport mobility_hub.
     # A trip from Bangalore to Mysore Airport is outstation, not airport_drop.
@@ -190,11 +187,11 @@ def classify_trip_type(
     distance_diff_km = outbound_distance - max_included_km if has_distance_overage else None
     return TripClassificationResult(TripTypeEnum.local, outbound_distance, has_distance_overage, distance_diff_km)
 
-def get_packages_by_region_code(trip_type: TripTypeEnum, region_code: str, db: Session):
+def get_packages_by_region_code(trip_type: TripTypeEnum, region_code: str):
     try:
         if trip_type == TripTypeEnum.local:
             # For local trips, we can have region-specific packages based on the region code, which can be a city or district code. This allows us to offer tailored packages for different localities, taking into account factors like traffic patterns, demand, and customer preferences in those areas.
-            config_store = settings.get_config_store(db)
+            config_store = settings.get_config_store()
             trip_packages = config_store.local.get(
                 region_code
             ).auxiliary_pricing.trip_packages

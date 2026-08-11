@@ -5,13 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.exceptions import SESSION_CREATION_FAILED, CabboException
 from models.user.user_orm import SystemUserSession
 from models.user.user_schema import SystemUserSessionSchema
+from services.auth.session_constants import (
+    SYSTEM_USER_SESSION_LIFETIME,
+)
 
 log = logging.getLogger(__name__)
-
-SYSTEM_USER_SESSION_COOKIE_NAME = "__Host-cabbo_sysuser_session"
-SYSTEM_USER_SESSION_LIFETIME = timedelta(
-    days=1
-)  # Absolute expiry at 1 days for SYSTEM users.
 
 
 async def create_system_user_session(payload: SystemUserSessionSchema, db: AsyncSession):

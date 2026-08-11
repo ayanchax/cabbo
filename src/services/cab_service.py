@@ -3,7 +3,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.security import RoleEnum
-from db.database import get_mysql_local_session
 from models.cab.cab_orm import CabType
 from models.cab.cab_schema import CabTypeSchema, CabTypeUpdateSchema
 import logging
@@ -11,7 +10,6 @@ import logging
 from models.common import LuggageInfoSchema
 from models.trip.trip_enums import CarTypeEnum
 from models.trip.trip_orm import Trip
-from models.trip.trip_schema import TripSearchRequest
 log = logging.getLogger(__name__)
 
 
@@ -76,6 +74,11 @@ async def async_get_all_cabs(db: AsyncSession) -> list[CabTypeSchema]:
     result = await db.execute(select(CabType))
     cabs = result.scalars().all()
     return [CabTypeSchema.model_validate(cab) for cab in cabs]
+
+
+async def a_get_all_cabs(db: AsyncSession) -> list[CabTypeSchema]:
+    """Async variant of get_all_cabs for ConfigStore loading."""
+    return await async_get_all_cabs(db)
 
 
 async def get_cab_type_by_id(
@@ -198,11 +201,9 @@ def get_recommended_car_type(
     return passenger_car_type
 
 
-def serialize_fleet(trip: Trip,  trip_dict: dict, db: Session=None):
-    if not db:
-        db = get_mysql_local_session()
+def serialize_fleet(trip: Trip,  trip_dict: dict):
     from services.configuration_service import get_all_cabs as get_all_cabs_config
-    all_cabs = get_all_cabs_config(db)
+    all_cabs = get_all_cabs_config()
 
     # Find the cab that matches the preferred car type
     preferred_cab = next(

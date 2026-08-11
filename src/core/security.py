@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from typing import TYPE_CHECKING
 
-from services.auth.customer_session_service import CUSTOMER_SESSION_COOKIE_NAME
-from services.auth.system_user_session_service import SYSTEM_USER_SESSION_COOKIE_NAME
+from services.auth.session_constants import (
+    CUSTOMER_SESSION_COOKIE_NAME,
+    SYSTEM_USER_SESSION_COOKIE_NAME,
+)
 
 if TYPE_CHECKING:
     from models.customer.customer_orm import Customer
