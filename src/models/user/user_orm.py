@@ -54,7 +54,6 @@ class User(Base):
     dob = Column(DateTime, nullable=True)
     emergency_contact_name = Column(String(255), nullable=True)
     emergency_contact_number = Column(String(20), nullable=True)
-    bearer_token = Column(Text, nullable=True)  # Bearer token for authentication
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -31,37 +31,6 @@ import logging
 
 log = logging.getLogger(__name__)
 
-
- 
-def get_active_user_by_id_and_bearer_token(
-    user_id: str, token: str, db: Session
-) -> User:
-    """
-    Get an active user by ID and bearer token.
-    """
-    user = db.query(User).filter(
-        User.id == user_id,
-        User.bearer_token == token,
-        User.is_active.is_(True),
-    ).first()
-    
-     
-    return user
-
-def delete_bearer_token(user: User, db: Session) -> bool:
-    try:
-        user.bearer_token = None
-        db.commit()
-        db.refresh(user)
-        return True
-    except Exception as e:
-        db.rollback()
-        raise CabboException(
-            f"Error deleting bearer token: {str(e)}",
-            status_code=500,
-            include_traceback=True,
-        )
-
 def get_user_by_username(username: str,db: Session ):
     """Get user by username."""
     return db.query(User).filter(User.username == username).first()
