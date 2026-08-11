@@ -1,3 +1,5 @@
+from typing import Union
+
 from sqlalchemy import (
     JSON,
     Column,
@@ -23,7 +25,12 @@ class Customer(Base):
     __tablename__ = "customers"
     __table_args__ = (
         Index("ix_customers_active_created", "is_active", "created_at"),
-        Index("ix_customers_verification_flags", "is_active", "is_phone_verified", "is_email_verified"),
+        Index(
+            "ix_customers_verification_flags",
+            "is_active",
+            "is_phone_verified",
+            "is_email_verified",
+        ),
     )
 
     id = Column(
@@ -62,8 +69,6 @@ class Customer(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-    bearer_token = Column(Text, nullable=True)
-    last_seen = Column(DateTime, nullable=True)
     is_suspended = Column(
         Boolean,
         default=False,
@@ -100,15 +105,12 @@ class Customer(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    
 
 
 class PreOnboardingCustomer(Base):
     # Table containing the volatile state of a customer while they login or register with Cabbo.
     __tablename__ = "pre_onboarding_customers"
-    __table_args__ = (
-        Index("ix_pre_onboarding_expires_at", "expires_at"),
-    )
+    __table_args__ = (Index("ix_pre_onboarding_expires_at", "expires_at"),)
 
     id = Column(
         CHAR(36),
@@ -148,4 +150,106 @@ class CustomerEmailVerification(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+
+class CustomerSession(Base):
+    __tablename__ = "customer_sessions"
+
+    #Primary key
+    id = Column(
+        CHAR(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        nullable=False,
+    )
+
+    #Associated customer_id with the session
+    customer_id: str = Column(
+        CHAR(36),
+        ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # One way SHA-256 fingerprint/digest encoded as 64 hexadecimal characters. This is formed from a secured url safe token
+    token_hash: str = Column(
+        String(64),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    #When was the session created, defaults to current date time, trivially.
+    created_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+    #When the customer was last seen requesting customer facing protected resource from an active or inactive session.
+    last_seen_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False, #Update this every n minutes from current value of last_seen_id, this is essentially for monitoring activity of user recently in system.
+    )
+
+    #When the hashed token is set to expire
+    expires_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+    )
+
+    #When was the hashed token revoked
+    revoked_at: Union[datetime, None] = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Useful for showing active sessions across devices and browsers and to detect suspicious login etc. 
+    # For example: If usual login from customer is from an IP location Mumbai, but suddenly we detect a login from
+    # Delhi(very much possible - if user travels) - we will just send a suspicious activity email
+    # to the customer registered email address to alert them and they can ignore if they did it otherwise they 
+    # are advised to reach out to us to remove all active sessions as a security measure. This can be detected while 
+    # the otp verify endpoint satisifies the otp equality and we are just about to 
+    # rotate the hashed token, we can deterministically check all of these login activity and send alerts if needed.
+    # We will do this post V1 - because in V1 - we are focussed on bagging more customers and not restrict or scare them to
+    # use the application.
+    # However, we will never treat these as
+    # strong identity/device-binding signals.
+    user_agent: Union[str, None] = Column(
+        String(512),
+        nullable=True,
+    )
+
+    #Track ip address from request
+    ip_address: Union[str, None] = Column(
+        String(45),
+        nullable=True,
+    )
+
+    location:Union[str, None] = Column(
+        String(120),
+        nullable=True, #City/region from login was detected.
+    )
+
+    is_active: bool = Column(
+        Boolean,
+        nullable=False,
+        default=True, #Whether session is active, this does the same thing as revoked_at does by not being present at all. This is just a quick bool check instead of doing revoked_at is None to check if session is active, both columns are complementary to each other. revoked_at is especially used for auditability.
+    )
+
+    #Any additional metadata we want to store while registering a customer session.
+    session_metadata:dict=Column(JSON, nullable=True, default = None) 
+
+    #Every session must have one customer associated with it.
+    customer = relationship("Customer")
+
+    __table_args__ = (
+        Index(
+            "ix_customer_sessions_customer_id_is_active",
+            "customer_id",
+            "is_active",
+        ),
     )

@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 import logging
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from  models.customer.customer_orm import CustomerEmailVerification
 from services.message_service import create_email_verification_link
+from sqlalchemy.ext.asyncio import AsyncSession
+
 
 log = logging.getLogger(__name__)
 EMAIL_VERIFY_EXPIRY_UNIT=2
@@ -20,6 +23,22 @@ def get_existing_email_verification_link(customer_id:str, db:Session):
     ).first()
     return existing or None
 
+
+async def a_get_existing_email_verification_link(
+    customer_id: str, db: AsyncSession
+):
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(CustomerEmailVerification).where(
+            CustomerEmailVerification.customer_id == customer_id,
+            CustomerEmailVerification.expiry > now
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    return existing
+
 def is_email_verification_link_valid(customer_id:str, token:str, db:Session):
     
     now = datetime.now(timezone.utc)
@@ -30,6 +49,22 @@ def is_email_verification_link_valid(customer_id:str, token:str, db:Session):
     ).first()
     return record if record else False
 
+async def a_is_email_verification_link_valid(
+    customer_id: str, token: str, db: AsyncSession
+):
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(CustomerEmailVerification).where(
+            CustomerEmailVerification.customer_id == customer_id,
+            CustomerEmailVerification.verification_url.like(f"%{token}"),
+            CustomerEmailVerification.expiry > now
+        )
+    )
+    record = result.scalar_one_or_none()
+
+    return record if record else False
+
 def remove_email_verification(email_verification:CustomerEmailVerification, db:Session):
     try:
             db.delete(email_verification)
@@ -38,6 +73,16 @@ def remove_email_verification(email_verification:CustomerEmailVerification, db:S
     except Exception as e:
         log.error(f"remove_email_verification: unexpected error for email_verification {email_verification.id}: {e}")
         db.rollback()
+        return False  
+
+async def a_remove_email_verification(email_verification:CustomerEmailVerification, db:AsyncSession):
+    try:
+            await db.delete(email_verification)
+            await db.commit()
+            return True
+    except Exception as e:
+        log.error(f"remove_email_verification: unexpected error for email_verification {email_verification.id}: {e}")
+        await db.rollback()
         return False    
     
 def create_customer_email_verification(customer_id:str, db:Session):
@@ -56,6 +101,25 @@ def create_customer_email_verification(customer_id:str, db:Session):
         db.rollback()
         log.error(f"create_customer_email_verification: unexpected error for customer {customer_id}: {e}")
         return None
+
+
+async def a_create_customer_email_verification(customer_id:str, db:AsyncSession):
+    try:
+        verification_url, expiry = create_email_verification_link(id=customer_id, endpoint=f"/customer/email-verification/verify")
+        email_verification = CustomerEmailVerification(
+            customer_id=customer_id,
+            verification_url=verification_url,
+            expiry=expiry
+        )
+        db.add(email_verification)
+        await db.commit()
+        await db.refresh(email_verification)
+        return email_verification
+    except Exception as e:
+        await db.rollback()
+        log.error(f"create_customer_email_verification: unexpected error for customer {customer_id}: {e}")
+        return None
+
 
 
 async def send_email_verification(customer_id: str) -> None:

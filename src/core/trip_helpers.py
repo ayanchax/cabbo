@@ -16,7 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.passenger_service import get_passenger_id_from_preferences
 import logging
+from core.config import settings
 log = logging.getLogger(__name__)
+
+TRIP_BOOKING_SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
 def get_trip_type_id_by_trip_type(
     trip_type: TripTypeEnum, db: Session, include_id_only=True
@@ -160,7 +163,8 @@ def generate_trip_hash(option: dict, preferences: dict) -> str:
     This is used to verify the integrity of the booking data.
     """
     payload = json.dumps({"option": option, "preferences": preferences}, sort_keys=True)
-    return generate_hash(payload)
+    # Generate hash for the trip booking to verify the integrity of trip later during confirmation.
+    return generate_hash(payload, secret=TRIP_BOOKING_SECRET_KEY)
 
 
 def get_default_trip_amenities():

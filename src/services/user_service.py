@@ -1,8 +1,12 @@
 import sys
 from pathlib import Path
+
+from services.auth.auth_service import revoke_session
+from services.auth.system_user_session_service import SYSTEM_USER_SESSION_COOKIE_NAME
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
-from sqlalchemy import or_
+from fastapi import Response
+from sqlalchemy import or_, select
 from core.constants import SUPER_ADMIN
 from core.exceptions import (
     CabboException,
@@ -17,7 +21,7 @@ from core.exceptions import (
     PHONE_ALREADY_EXISTS,
     USER_PASSWORD_NOT_SET,
 )
-from core.security import JWT_EXPIRY_UNIT_ADMIN, JWT_EXPIRY_UNIT_TIME_FRAME, RoleEnum, decode_jwt_token, generate_jwt_payload, generate_jwt_token, generate_password_hash
+from core.security import RoleEnum, delete_cookie, generate_password_hash
 from models.user.user_orm import User
 from sqlalchemy.orm import Session
 from core.config import settings
@@ -27,33 +31,8 @@ import logging
 
 log = logging.getLogger(__name__)
 
-def persist_bearer_token(user: User, token: str, db: Session) -> str:
-    try:
-        user.bearer_token = token
-        db.commit()
-        db.refresh(user)
-        return token
-    except Exception as e:
-        db.rollback()
-        raise CabboException(
-            f"Error persisting bearer token: {str(e)}",
-            status_code=500,
-            include_traceback=True,
-        )
 
-def generate_user_jwt(
-    user: User,
-    expires_in=JWT_EXPIRY_UNIT_ADMIN,
-    expires_unit=JWT_EXPIRY_UNIT_TIME_FRAME.get("DAYS"),
-) -> str:
-    payload = generate_jwt_payload(
-        sub=str(user.id),
-        identity=user.phone_number,
-        expires_in=expires_in,
-        expires_unit=expires_unit,
-    )
-    return generate_jwt_token(payload)
-
+ 
 def get_active_user_by_id_and_bearer_token(
     user_id: str, token: str, db: Session
 ) -> User:
@@ -87,6 +66,14 @@ def get_user_by_username(username: str,db: Session ):
     """Get user by username."""
     return db.query(User).filter(User.username == username).first()
 
+
+async def a_get_user_by_username(username: str, db: AsyncSession):
+    """Get user by username."""
+    result = await db.execute(
+        select(User).where(User.username == username)
+    )
+    return result.scalar_one_or_none()
+
 def get_user_by_id(user_id: str, db: Session, active: bool = False) -> User:
     """Get user by ID."""
     user = db.query(User).filter(User.id == user_id).first()
@@ -94,6 +81,33 @@ def get_user_by_id(user_id: str, db: Session, active: bool = False) -> User:
         raise CabboException("User not found.", status_code=404, error_code=USER_NOT_FOUND)
     if active and not user.is_active:
         raise CabboException("User is inactive.", status_code=404, error_code=USER_INACTIVE)
+    return user
+
+async def a_get_user_by_id(
+    user_id: str,
+    db: AsyncSession,
+    active: bool = False
+) -> User:
+    """Get user by ID."""
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise CabboException(
+            "User not found.",
+            status_code=404,
+            error_code=USER_NOT_FOUND
+        )
+
+    if active and not user.is_active:
+        raise CabboException(
+            "User is inactive.",
+            status_code=404,
+            error_code=USER_INACTIVE
+        )
+
     return user
 
 def get_user_by_email(email: str, db: Session) -> User:
@@ -236,6 +250,14 @@ def change_user_password(user: User, new_password: str, db: Session) -> User:
     return user
 
 
+async def a_change_user_password(user: User, new_password: str, db: AsyncSession) -> User:
+    """Change user password."""
+    user.password_hash = generate_password_hash(new_password)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 async def create_users_in_bulk(payload:list[UserCreateSchema], db: AsyncSession):
     try:
         users = []
@@ -284,27 +306,25 @@ def create_user(data:UserCreateSchema, db: Session) -> User:
     db.refresh(user)
     return user
 
-def is_user_logged_in(user: User) -> bool:
-    if not user.bearer_token:
-        return False
-    try:
-        decode_jwt_token(
-            user.bearer_token
-        )  # Decode the JWT token and raise error if invalid or expired
-        return True
-    except Exception:
-        return False
 
-def auto_logoff_user_after_password_change(user: User, db: Session) -> bool:
+ 
+
+async def a_auto_logoff_user_after_password_change(db: AsyncSession, response:Response, session_token:str) -> bool:
     """
-    Automatically log off the user by deleting their bearer token after password change.
+    Automatically log off the user after password change.
     """
     try:
-        if user.bearer_token:
-            delete_bearer_token(user=user, db=db)
-        return True
+        if session_token and await revoke_session(
+                session_id=session_token,
+                role=RoleEnum.system,
+                db=db,
+            ):
+                delete_cookie(response, key=SYSTEM_USER_SESSION_COOKIE_NAME)
+                return True
+        return False
     except Exception as e:
         log.error(f"Error logging off user after password change: {str(e)}")
+
 
 def create_super_admin_user(db:Session):
     super_admin = User(

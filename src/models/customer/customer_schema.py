@@ -37,13 +37,9 @@ class CustomerBase(BaseModel):
         None  # To store S3 key and URL for profile picture if using S3 for storage
     )
 
-     
-
-
 class CustomerCreate(CustomerBase):
     pass
     # All other optional fields are inherited from CustomerBase
-
 
 class CustomerRead(CustomerBase):
     id: Optional[str] = Field(None, description="UUID v4 customer ID")
@@ -52,8 +48,7 @@ class CustomerRead(CustomerBase):
     class Config:
         from_attributes = True  # Read from ORM attributes of customer_orm
         extra = "allow"
-
-        
+       
 class AdminSafeReadCustomer(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -80,9 +75,6 @@ class CustomerSafeRead(BaseModel):
         from_attributes = True 
         extra="ignore"
 
-
-
-
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -94,24 +86,18 @@ class CustomerUpdate(BaseModel):
 
     # phone_number intentionally omitted to prevent updates
 
-
-
 class CustomerReadAfterUpdate(CustomerUpdate):
     last_modified: datetime
 
     class Config:
         from_attributes = True  # Read from ORM attributes of customer_orm
 
-
 class CustomerOTPRequest(BaseModel):
     phone_number: str
     otp:Optional[str] = None  # OTP is optional here because for resend OTP endpoint, we might not require it in the payload
     
-
-class ClientAccessToken(BaseModel):
-    existing_token: Optional[str] = None  # Token is optional here because for some endpoints, we might not require it in the payload
-
-class CustomerOnboardInitiationRequest(ClientAccessToken):
+ 
+class CustomerOnboardInitiationRequest(BaseModel):
     phone_number: str
     
 
@@ -123,12 +109,22 @@ class CustomerLoginRequest(BaseModel):
 
 
 class CustomerLoginResponse(BaseModel):
-    access_token: str
-    token_type: str
-    expires_in: int
-    first_time_login: Optional[bool] = None
+    authenticated:Optional[bool]=False
+    first_time_login: Optional[bool] = False
 
 
 class CustomerSuspensionRequest(BaseModel):
     customer_id: Optional[str] = None
     reason: Optional[str] = None
+
+
+class CustomerSessionSchema(BaseModel):
+    customer_id:str
+    token_hash:str
+    created_at:Optional[datetime]
+    last_seen_at:Optional[datetime]
+    expires_at:Optional[datetime]
+    user_agent:Optional[str]
+    ip_address:Optional[str]
+    location:Optional[str]
+    session_metadata:Optional[dict]

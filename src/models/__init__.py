@@ -1,6 +1,6 @@
 from .airport.airport_orm import AirportModel
 from .cab.cab_orm import CabType, FuelType
-from .customer.customer_orm import Customer, PreOnboardingCustomer, CustomerEmailVerification
+from .customer.customer_orm import Customer, PreOnboardingCustomer, CustomerEmailVerification, CustomerSession
 from .customer.recent_location_orm import CustomerRecentLocation
 from .documents.kyc_document_orm import KYCDocumentTypes
 from .customer.passenger_orm import Passenger
@@ -14,17 +14,18 @@ from .trip.trip_orm import Trip, TripTypeMaster, TripStatusAudit,TripPackageConf
 from .trip.temp_trip_orm import TempTrip
 from .policies.refund_orm import Refund
 from .policies.dispute_orm import Dispute
-from .user.user_orm import User
+from .user.user_orm import User, SystemUserSession
 from .seed.seed_orm import SeedMetaData
 from .support.support_orm import SupportContact, SupportRoutingRule
 
 __all__ = [
     "SeedMetaData",
     "AirportModel", "CabType", "FuelType",  "Customer", "Passenger", "PreOnboardingCustomer", "CustomerEmailVerification", "CustomerRecentLocation",
+    "CustomerSession",
     "KYCDocumentTypes",
     "CountryModel", "StateModel", "RegionModel", "CancellationPolicy",
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",
     "CommonPricingConfiguration", "FixedPlatformPricingConfiguration", "PermitFeeConfiguration",
     "Trip", "Refund", "Dispute", "Driver","DriverEarning","TripRating","TripTypeMaster", "TripStatusAudit","TripPackageConfig",
-    "TempTrip", "User", "SupportContact", "SupportRoutingRule"
+    "TempTrip", "User","SystemUserSession", "SupportContact", "SupportRoutingRule"
 ]

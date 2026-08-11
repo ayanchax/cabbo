@@ -7,6 +7,7 @@ from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
 from core.trip_helpers import (
+    TRIP_BOOKING_SECRET_KEY,
     attach_relationships_to_trip,
     generate_trip_field_dictionary,
     get_trip_type_id_by_trip_type,
@@ -520,6 +521,7 @@ def verify_trip_hash(booking_request: TripBookRequest):
     if not verify_hash(
         payload=payload,
         client_hash=booking_request.option.hash,
+        secret= TRIP_BOOKING_SECRET_KEY
     ):
         raise CabboException(
             "Invalid booking request, option hash is not valid",

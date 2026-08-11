@@ -130,10 +130,21 @@ class UserLoginBaseResponse(BaseModel):
 
 
 
-class UserLoginResponse(UserLoginBaseResponse):
+class UserLoginResponse(BaseModel):
      
-    user_id: str
-    first_time_login: Optional[bool] = None
+    authenticated:Optional[bool]=False
+
+
+class SystemUserSessionSchema(BaseModel):
+    user_id:str
+    token_hash:str
+    created_at:Optional[datetime]
+    last_seen_at:Optional[datetime]
+    expires_at:Optional[datetime]
+    user_agent:Optional[str]
+    ip_address:Optional[str]
+    location:Optional[str]
+    session_metadata:Optional[dict]
  
 
 
