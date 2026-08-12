@@ -8,8 +8,7 @@ import logging
 from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.database import AsyncSessionLocal, get_mysql_local_session
-from models.customer.customer_schema import CustomerRead
+from db.database import AsyncSessionLocal
 from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_enum import RefundStatus
 from models.trip.trip_orm import Trip
@@ -19,7 +18,6 @@ from services.payment_service import (
     is_eligible_payment_identifier,
     is_eligible_to_attempt_refund_initiation,
 )
-from services.notification_service import notify_refund_processed_to_customer
 from services.refund_service import inactivate_refund, attempt_refund_initiation, send_refund_credited_notification
 
 log = logging.getLogger(__name__)

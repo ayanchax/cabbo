@@ -108,7 +108,6 @@ class Driver(Base):
     created_by = Column(
         MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
     )  # Created by system, admin, or user
-    bearer_token = Column(Text, nullable=True) # Bearer token for authentication, this will be used to authenticate the driver in the driver app when the driver app is released to the drivers.
     # Relationships
     trips = relationship(
         "Trip",

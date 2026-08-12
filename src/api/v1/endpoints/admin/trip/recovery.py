@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import CabboException, UNAUTHORIZED
 from core.security import RoleEnum, validate_user_token
-from db.database import yield_mysql_session
+from db.database import a_yield_mysql_session
 from models.user.user_orm import User
-from services.trips.booking_service import recover_payment_verified_temp_trip
+from services.trips.booking_service import a_recover_payment_verified_temp_trip
 
 router = APIRouter()
 
@@ -15,9 +15,9 @@ router = APIRouter()
     response_model=dict,
     tags=["Admin Trip Recovery"],
 )
-def recover_payment_verified_booking(
+async def recover_payment_verified_booking(
     temp_trip_id: str,
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """
@@ -33,7 +33,7 @@ def recover_payment_verified_booking(
             error_code=UNAUTHORIZED,
         )
 
-    recovered_trip = recover_payment_verified_temp_trip(
+    recovered_trip = await a_recover_payment_verified_temp_trip(
         temp_trip_id=temp_trip_id,
         admin_user_id=current_user.id,
         db=db,

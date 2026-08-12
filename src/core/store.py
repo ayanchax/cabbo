@@ -1,12 +1,17 @@
+import asyncio
 from datetime import datetime, timezone
 import threading
 from typing import ClassVar, List, Optional, Union
 from pydantic import BaseModel, Field, PrivateAttr
-from core.trip_helpers import get_all_trip_types, get_trip_package_configuration_list_by_region_code, get_trip_type_id_by_trip_type
+from core.trip_helpers import (
+    a_get_all_trip_types,
+    a_get_trip_package_configuration_list_by_region_code,
+    a_get_trip_type_id_by_trip_type,
+)
 from models.airport.airport_schema import AirportSchema
 from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
 from models.geography.geography_schema import Geographies
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.pricing.pricing_schema import (
     AirportCabPricingSchema,
@@ -18,26 +23,25 @@ from models.pricing.pricing_schema import (
 )
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripTypeSchema
-from services.cab_service import get_all_cabs
-from services.fuel_service import get_all_fuel_types
+from services.cab_service import a_get_all_cabs
+from services.fuel_service import a_get_all_fuel_types
 from services.geography_service import (
-    get_all_countries,
-    get_all_regions,
-    get_all_states,
-    get_all_states,
-    get_region_by_id,
-    get_state_by_id,
+    a_get_all_countries,
+    a_get_all_regions,
+    a_get_all_states,
+    a_get_region_by_id,
+    a_get_state_by_id,
 )
 from services.pricing_service import (
-    get_base_pricings_airport,
-    get_base_pricings_local,
-    get_base_pricings_outstation,
-    get_cancellation_policies_by_region_code,
-    get_cancellation_policies_by_state_code,
-    get_common_pricing_configurations_by_trip_type_id,
-    get_fixed_platform_pricing_configuration,
-    get_night_pricing_configuration,
-    get_permit_fee_configuration,
+    a_get_base_pricings_airport,
+    a_get_base_pricings_local,
+    a_get_base_pricings_outstation,
+    a_get_cancellation_policies_by_region_code,
+    a_get_cancellation_policies_by_state_code,
+    a_get_common_pricing_configurations_by_trip_type_id,
+    a_get_fixed_platform_pricing_configuration,
+    a_get_night_pricing_configuration,
+    a_get_permit_fee_configuration,
 )
 
 from core.config import settings
@@ -125,7 +129,7 @@ class ConfigStore(BaseModel):
     _store: dict = PrivateAttr(default_factory=dict)
     _last_loaded_at: Optional[datetime] = PrivateAttr(default=None)
     _is_initialized: bool = PrivateAttr(default=False)
-    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
     class Config:
         arbitrary_types_allowed = True
@@ -150,7 +154,7 @@ class ConfigStore(BaseModel):
         return cls._instance
 
     @classmethod
-    def reset_instance(cls, db:Session=None, force_reload: bool = False):
+    def reset_instance(cls, db: AsyncSession = None, force_reload: bool = False):
         """Reset the singleton instance (useful for testing)."""
         with cls._instance_lock:
             if cls._instance is not None:
@@ -159,20 +163,20 @@ class ConfigStore(BaseModel):
                 settings.CONFIG_STORE = None
             cls._instance = None
             if db is not None and force_reload:
-                cls.warm_up_cache(db)
+                return cls.warm_up_cache(db)
     
     @classmethod
-    def warm_up_cache(cls, db: Session):
+    async def warm_up_cache(cls, db: AsyncSession):
         """Eagerly load all configurations into the cache."""
         instance = cls.get_instance()
-        instance.initialize_config_store(db)
+        await instance.initialize_config_store(db)
 
-    def initialize_config_store(self, db: Session):
+    async def initialize_config_store(self, db: AsyncSession):
         """Initial load of all configurations from database."""
         # Only initialize if not already initialized or cache expired
         if not self._is_initialized or not self.is_cache_valid():
             self.log.info("ConfigStore: Starting initialization...")
-            self._lazy_load(db)
+            await self._lazy_load(db)
             self.log.info("ConfigStore initialization completed.")
         else:
             self.log.info(
@@ -194,7 +198,7 @@ class ConfigStore(BaseModel):
     def _initialize_pricing_configuration(self):
         return MasterPricingConfiguration()
 
-    def _lazy_load(self, db: Session):
+    async def _lazy_load(self, db: AsyncSession):
         """
         Lazy load configurations on first request or when cache expires.
         Thread-safe and ensures only one load happens at a time.
@@ -207,7 +211,7 @@ class ConfigStore(BaseModel):
             return
 
         # Slow path: need to reload
-        with self._lock:
+        async with self._lock:
             # Double-check after acquiring lock (another thread may have loaded the force reload meanwhile)
             if self.is_cache_valid():
                 self.log.info("Cache is valid after acquiring lock, no need to reload.")
@@ -217,7 +221,7 @@ class ConfigStore(BaseModel):
 
             self.log.info("ConfigStore: Loading all configurations from database...")
             try:
-                self._load_all_configurations(db)
+                await self._load_all_configurations(db)
                 self._last_loaded_at = datetime.now(timezone.utc)
                 self._is_initialized = True
                 self.log.info("Configuration store loaded/reloaded successfully.")
@@ -229,40 +233,40 @@ class ConfigStore(BaseModel):
                 self._is_initialized = False
                 raise
 
-    def _load_all_configurations(self, db: Session):
+    async def _load_all_configurations(self, db: AsyncSession):
         """Load all configurations from database."""
         # Load in dependency order
         self.log.info("Step 1: Loading cabs...")
-        self._retrieve_and_set_cabs(db)
+        await self._retrieve_and_set_cabs(db)
 
         self.log.info("Step 2: Loading fuel types...")
-        self._retrieve_and_set_fuel_types(db)
+        await self._retrieve_and_set_fuel_types(db)
 
         self.log.info("Step 3: Loading trip types...")
-        self._retrieve_and_set_trip_types(db)
+        await self._retrieve_and_set_trip_types(db)
 
         self.log.info("Step 4: Loading airport locations...")
-        self._retrieve_and_set_airport_locations(db)
+        await self._retrieve_and_set_airport_locations(db)
 
         self.log.info("Step 5: Loading geographies...")
-        self._retrieve_and_set_serviceable_geographies(db)
+        await self._retrieve_and_set_serviceable_geographies(db)
 
         # Load pricing configurations
         self.log.info("Step 6: Loading outstation pricing...")
-        self._retrieve_and_set_outstation_pricing(db)
+        await self._retrieve_and_set_outstation_pricing(db)
 
         self.log.info("Step 7: Loading local pricing...")
-        self._retrieve_and_set_local_pricing(db)
+        await self._retrieve_and_set_local_pricing(db)
 
         self.log.info("Step 8: Loading airport pickup pricing...")
-        self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_pickup, db)
+        await self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_pickup, db)
 
         self.log.info("Step 9: Loading airport drop pricing...")
-        self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_drop, db)
+        await self._retrieve_and_set_airport_pricing(TripTypeEnum.airport_drop, db)
 
         # Load platform fee
         self.log.info("Step 10: Loading platform fee information...")
-        self._retrieve_and_set_platform_fee_info(db)
+        await self._retrieve_and_set_platform_fee_info(db)
 
          
 
@@ -421,40 +425,40 @@ class ConfigStore(BaseModel):
         return self.platform_fee
 
     # ===== DATA RETRIEVAL HELPERS =====
-    def _retrieve_and_set_cabs(self, db: Session):
+    async def _retrieve_and_set_cabs(self, db: AsyncSession):
         """Load cab data into the store."""
         self.log.info("Loading cab data into ConfigStore...")
-        self._set_cabs(get_all_cabs(db))
+        self._set_cabs(await a_get_all_cabs(db))
 
-    def _retrieve_and_set_fuel_types(self, db: Session):
+    async def _retrieve_and_set_fuel_types(self, db: AsyncSession):
         """Load fuel type data into the store."""
         self.log.info("Loading fuel type data into ConfigStore...")
-        self._set_fuel_types(get_all_fuel_types(db))
+        self._set_fuel_types(await a_get_all_fuel_types(db))
 
-    def _retrieve_and_set_trip_types(self, db: Session):
+    async def _retrieve_and_set_trip_types(self, db: AsyncSession):
         """Load trip type data into the store."""
         self.log.info("Loading trip type data into ConfigStore...")
-        self._set_trip_types(get_all_trip_types(db))
+        self._set_trip_types(await a_get_all_trip_types(db))
     
-    def _retrieve_and_set_airport_locations(self, db: Session):
+    async def _retrieve_and_set_airport_locations(self, db: AsyncSession):
         """Load airport location data into the store."""
         self.log.info("Loading airport location data into ConfigStore...")
-        from services.airport_service import get_all_airports
-        self._set_airport_locations(get_all_airports(db))
+        from services.airport_service import a_get_all_airports
+        self._set_airport_locations(await a_get_all_airports(db))
 
-    def _retrieve_and_set_serviceable_geographies(self, db: Session):
+    async def _retrieve_and_set_serviceable_geographies(self, db: AsyncSession):
         try:
             """Load country data from the database into the store."""
             self.log.info("Loading geography data into ConfigStore...")
-            countries = get_all_countries(db)
+            countries = await a_get_all_countries(db)
             country_dict = {country.country_code: country for country in countries}
             self.geographies.countries = country_dict
 
-            states = get_all_states(db)
+            states = await a_get_all_states(db)
             state_dict = {state.state_code: state for state in states}
             self.geographies.states = state_dict
 
-            regions = get_all_regions(db)
+            regions = await a_get_all_regions(db)
             region_dict = {region.region_code: region for region in regions}
             self.geographies.regions = region_dict
 
@@ -469,19 +473,19 @@ class ConfigStore(BaseModel):
             traceback.print_exc()
             raise
 
-    def _retrieve_and_set_outstation_pricing(self, db: Session):
+    async def _retrieve_and_set_outstation_pricing(self, db: AsyncSession):
         """Load outstation master data from the database into the store."""
         self.log.info("Loading outstation pricing data into ConfigStore...")
-        outstation_trip_type = self._retrieve_trip_type(
+        outstation_trip_type = await self._retrieve_trip_type(
             trip_type=TripTypeEnum.outstation, db=db
         )
 
         if not outstation_trip_type:
             return
-        base_pricings = get_base_pricings_outstation(db)
+        base_pricings = await a_get_base_pricings_outstation(db)
         # Load TripwisePricingConfiguration for outstation
 
-        trip_configs = self._retrieve_trip_configs(id=outstation_trip_type.id, db=db)
+        trip_configs = await self._retrieve_trip_configs(id=outstation_trip_type.id, db=db)
 
         # Group by state_code
         outstation_data: dict[str, MasterPricingConfiguration] = {}
@@ -496,7 +500,7 @@ class ConfigStore(BaseModel):
             _fuel: FuelTypeSchema = FuelTypeSchema.model_validate(fuel)
             if _pricing.state_id:
 
-                state = get_state_by_id(_pricing.state_id, db)
+                state = await a_get_state_by_id(_pricing.state_id, db)
 
                 if state:
                     state_code = state.state_code
@@ -510,7 +514,7 @@ class ConfigStore(BaseModel):
         for trip_config in trip_configs:
             if trip_config.state_id:
 
-                state = get_state_by_id(trip_config.state_id, db)
+                state = await a_get_state_by_id(trip_config.state_id, db)
                 if state:
                     state_code = state.state_code
                     if state_code not in outstation_data:
@@ -520,7 +524,7 @@ class ConfigStore(BaseModel):
 
                     outstation_data[state_code].auxiliary_pricing.common = trip_config
                     # Find the night pricing configuration for the state and set it
-                    night_pricing_schema = get_night_pricing_configuration(
+                    night_pricing_schema = await a_get_night_pricing_configuration(
                         db=db, id=state.id, by_state=True
                     )
                     if night_pricing_schema:
@@ -528,7 +532,9 @@ class ConfigStore(BaseModel):
                             night_pricing_schema
                         )
                     # Get the permit fee configuration for the state and set it
-                    permit_fee_schema = get_permit_fee_configuration(db, state.id)
+                    permit_fee_schema = await a_get_permit_fee_configuration(
+                        db=db, state_id=state.id
+                    )
 
                     if permit_fee_schema:
                         outstation_data[state_code].auxiliary_pricing.permit = (
@@ -536,7 +542,9 @@ class ConfigStore(BaseModel):
                         )
         # Load cancelation policy config in store for outstation trips for each state
         for state_code, pricing_config in outstation_data.items():
-            cancellation_policies = get_cancellation_policies_by_state_code(state_code, db)
+            cancellation_policies = await a_get_cancellation_policies_by_state_code(
+                state_code, db
+            )
             #Find the cancellation policy for trip type outstation in the list of cancellation policies for the state and set it in the store with key as outstation_trip_type.id
             cancellation_policy = next((policy for policy in cancellation_policies if policy.trip_type_id == outstation_trip_type.id), None) if cancellation_policies else None
             if cancellation_policy:
@@ -547,16 +555,16 @@ class ConfigStore(BaseModel):
             
         self._set_outstation_pricing(outstation_data)
 
-    def _retrieve_and_set_local_pricing(self, db: Session):
+    async def _retrieve_and_set_local_pricing(self, db: AsyncSession):
         """Load local pricing data from the database into the store."""
         self.log.info("Loading local pricing data into ConfigStore...")
-        local_trip_type = self._retrieve_trip_type(trip_type=TripTypeEnum.local, db=db)
+        local_trip_type = await self._retrieve_trip_type(trip_type=TripTypeEnum.local, db=db)
         if not local_trip_type:
             return
-        base_pricings = get_base_pricings_local(db)
+        base_pricings = await a_get_base_pricings_local(db)
         # Load TripwisePricingConfiguration for local
 
-        trip_configs = self._retrieve_trip_configs(local_trip_type.id, db)
+        trip_configs = await self._retrieve_trip_configs(local_trip_type.id, db)
         # Group by region_code
         local_data: dict[str, MasterPricingConfiguration] = {}
         # First, group base pricings by region_code
@@ -567,7 +575,7 @@ class ConfigStore(BaseModel):
             _cab = CabTypeSchema.model_validate(cab)
             _fuel = FuelTypeSchema.model_validate(fuel)
             if _pricing.region_id:
-                region = get_region_by_id(_pricing.region_id, db)
+                region = await a_get_region_by_id(_pricing.region_id, db)
 
                 if region:
                     region_code = region.region_code
@@ -580,7 +588,7 @@ class ConfigStore(BaseModel):
 
         for trip_config in trip_configs:
             if trip_config.region_id:
-                region = get_region_by_id(trip_config.region_id, db)
+                region = await a_get_region_by_id(trip_config.region_id, db)
                 if region:
                     region_code = region.region_code
                     if region_code not in local_data:
@@ -590,7 +598,7 @@ class ConfigStore(BaseModel):
 
                     local_data[region_code].auxiliary_pricing.common = trip_config
                     # Get the night pricing configuration for the region and set it
-                    night_pricing_schema = get_night_pricing_configuration(
+                    night_pricing_schema = await a_get_night_pricing_configuration(
                         db=db, id=region.id
                     )
                     if night_pricing_schema:
@@ -599,7 +607,7 @@ class ConfigStore(BaseModel):
                         )
         # Load cancelation policy config in store for local trips for each region
         for region_code, pricing_config in local_data.items():
-            cancellation_policies = get_cancellation_policies_by_region_code(
+            cancellation_policies = await a_get_cancellation_policies_by_region_code(
                 region_code, db
             )
             #Find the cancellation policy for trip type local in the list of cancellation policies for the region and set it in the store with key as local_trip_type.id
@@ -610,7 +618,7 @@ class ConfigStore(BaseModel):
                 pricing_config.auxiliary_pricing.cancellation_policy[local_trip_type.id] = cancellation_policy
         # - Load trip package config per region inside local trip config data
         for region_code, pricing_config in local_data.items():
-            trip_package_config_list = get_trip_package_configuration_list_by_region_code(
+            trip_package_config_list = await a_get_trip_package_configuration_list_by_region_code(
                 region_code, db
             )
             if trip_package_config_list:
@@ -618,17 +626,17 @@ class ConfigStore(BaseModel):
 
         self._set_local_pricing(local_data)
 
-    def _retrieve_and_set_airport_pricing(self, trip_type: TripTypeEnum, db: Session):
+    async def _retrieve_and_set_airport_pricing(self, trip_type: TripTypeEnum, db: AsyncSession):
         """Load all airport pricing data from the database into the store."""
         self.log.info("Loading airport pricing data into ConfigStore...")
         if trip_type not in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
             return
-        airport_trip_type = self._retrieve_trip_type(trip_type=trip_type, db=db)
+        airport_trip_type = await self._retrieve_trip_type(trip_type=trip_type, db=db)
         if not airport_trip_type:
             return
-        base_pricings = get_base_pricings_airport(db)
+        base_pricings = await a_get_base_pricings_airport(db)
         # Load TripwisePricingConfiguration for airport
-        trip_configs = self._retrieve_trip_configs(id=airport_trip_type.id, db=db)
+        trip_configs = await self._retrieve_trip_configs(id=airport_trip_type.id, db=db)
         # Group by region_code
         airport_data: dict[str, MasterPricingConfiguration] = {}
         # First, group base pricings by region_code
@@ -639,7 +647,7 @@ class ConfigStore(BaseModel):
             _fuel = FuelTypeSchema.model_validate(fuel)
 
             if _pricing.region_id:
-                region = get_region_by_id(_pricing.region_id, db)
+                region = await a_get_region_by_id(_pricing.region_id, db)
                 if region:
                     region_code = region.region_code
                     if region_code not in airport_data:
@@ -652,7 +660,7 @@ class ConfigStore(BaseModel):
                     )
         for trip_config in trip_configs:
             if trip_config.region_id:
-                region = get_region_by_id(trip_config.region_id, db)
+                region = await a_get_region_by_id(trip_config.region_id, db)
                 if region:
                     region_code = region.region_code
                     if region_code not in airport_data:
@@ -665,7 +673,7 @@ class ConfigStore(BaseModel):
                     # No permit fee for airport trips
         # Load cancelation policy config in store for local trips for each region
         for region_code, pricing_config in airport_data.items():
-            cancellation_policies = get_cancellation_policies_by_region_code(
+            cancellation_policies = await a_get_cancellation_policies_by_region_code(
                 region_code, db
             )
             #Find the cancellation policy for trip type local in the list of cancellation policies for the region and set it in the store with key as airport_trip_type.id
@@ -680,27 +688,31 @@ class ConfigStore(BaseModel):
         elif trip_type == TripTypeEnum.airport_drop:
             self._set_airport_drop_pricing(airport_data)
 
-    def _retrieve_and_set_platform_fee_info(self, db: Session):
+    async def _retrieve_and_set_platform_fee_info(self, db: AsyncSession):
         """Load fixed platform fee data from the database into the store."""
         self.log.info("Loading platform fee data into ConfigStore...")
 
-        platform_fee = get_fixed_platform_pricing_configuration(db=db)
+        platform_fee = await a_get_fixed_platform_pricing_configuration(db)
         if not platform_fee:
             return
         self._set_platform_fee(platform_fee)
 
-    def _retrieve_trip_configs(
-        self, id: str, db: Session
+    async def _retrieve_trip_configs(
+        self, id: str, db: AsyncSession
     ) -> List[CommonPricingConfigurationSchema]:
         self.log.info("Loading common pricing configurations into ConfigStore...")
-        return get_common_pricing_configurations_by_trip_type_id(trip_type_id=id, db=db)
+        return await a_get_common_pricing_configurations_by_trip_type_id(
+            trip_type_id=id, db=db
+        )
 
-    def _retrieve_trip_type(
-        self, trip_type: TripTypeEnum, db: Session
+    async def _retrieve_trip_type(
+        self, trip_type: TripTypeEnum, db: AsyncSession
     ) -> TripTypeSchema:
         self.log.info("Loading trip type data into ConfigStore...")
-        return get_trip_type_id_by_trip_type(
-            trip_type=trip_type, db=db, include_id_only=False
+        return await a_get_trip_type_id_by_trip_type(
+            trip_type=trip_type,
+            db=db,
+            include_id_only=False,
         )
 
     

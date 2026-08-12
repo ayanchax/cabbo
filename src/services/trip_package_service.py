@@ -70,7 +70,7 @@ async def create_trip_package_config(
         db.add(new_trip_package_config)
         await db.commit()
         await db.refresh(new_trip_package_config)
-        ConfigStore.reset_instance()  # Reset the config store instance to refresh the cache
+        await ConfigStore.reset_instance(db, force_reload=True)  # Reset the config store instance to refresh the cache
         
 
         return TripPackageSchema.model_validate(
@@ -202,7 +202,7 @@ async def update_trip_package_config(
 
         await db.commit()
         await db.refresh(trip_package_config)
-        ConfigStore.reset_instance()  # Reset the config store instance to refresh the cache
+        await ConfigStore.reset_instance(db, force_reload=True)  # Reset the config store instance to refresh the cache
         return TripPackageSchema.model_validate(
             {
                 **{
@@ -232,7 +232,7 @@ async def delete_trip_package_config_by_id(id: str, db: AsyncSession):
         trip_package_config.is_active = False
         await db.commit()
         await db.refresh(trip_package_config)
-        ConfigStore.reset_instance()  # Reset the config store instance to refresh the cache
+        await ConfigStore.reset_instance(db, force_reload=True)  # Reset the config store instance to refresh the cache
         return True
     except Exception as e:
         await db.rollback()
@@ -301,7 +301,7 @@ async def activate_trip_package_config_by_id(id: str, db: AsyncSession):
         trip_package_config.is_active = True
         await db.commit()
         await db.refresh(trip_package_config)
-        ConfigStore.reset_instance()  # Reset the config store instance to refresh the cache
+        await ConfigStore.reset_instance(db, force_reload=True)  # Reset the config store instance to refresh the cache
         return True
     except Exception as e:
         await db.rollback()

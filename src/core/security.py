@@ -1,180 +1,147 @@
-from fastapi import Depends, Header
+from __future__ import annotations
+
+import secrets
+
+from fastapi import Cookie, Depends, Request, Response
 from core.exceptions import (
+    UNAUTHORIZED,
     CabboException,
-    TOKEN_MISSING,
-    INVALID_TOKEN,
-    TOKEN_EXPIRED,
 )
-from core.config import settings
-import jwt
-from db.database import yield_mysql_session
-from sqlalchemy.orm import Session
-from core.constants import APP_NAME, Environment
-from datetime import datetime, timedelta, timezone
+from db.database import a_yield_mysql_session
+from datetime import timedelta
 from enum import Enum
 import hmac
 import hashlib
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from typing import TYPE_CHECKING
+
+from services.auth.session_constants import (
+    CUSTOMER_SESSION_COOKIE_NAME,
+    SYSTEM_USER_SESSION_COOKIE_NAME,
+)
 
 if TYPE_CHECKING:
     from models.customer.customer_orm import Customer
+    from models.user.user_orm import User
 
 import logging
-JWT_EXPIRY_UNIT = 30
-JWT_EXPIRY_UNIT_ADMIN = 1
-ADMIN_JWT_EXPIRES_IN = JWT_EXPIRY_UNIT_ADMIN * 24 * 60 * 60 #Admin login expires in 24 hours
-JWT_EXPIRES_IN=JWT_EXPIRY_UNIT * 24 * 60 * 60  # Default expiry in seconds (30 days)
-JWT_EXPIRY_UNIT_TIME_FRAME = {
-    "DAYS": "days",
-    "HOURS": "hours",
-    "MINUTES": "minutes",
-}
-SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
+
 log = logging.getLogger(__name__)
- 
 
 
 class ActiveInactiveStatusEnum(str, Enum):
     active = "active"
     inactive = "inactive"
-    
-    
+
 
 class RoleEnum(str, Enum):
-    #Admin roles for managing the application
+    # Admin roles for managing the application
     super_admin = "super_admin"  # Super admin System administrator with full access to all features
     driver_admin = "driver_admin"  # Administrator for driver management such as onboarding, verification etc.
-    finance_admin = "fin_admin"  # Administrator for financial operations such as payments etc.
+    finance_admin = (
+        "fin_admin"  # Administrator for financial operations such as payments etc.
+    )
     customer_admin = "cust_admin"  # Administrator for customer management such as deactivation, reactivation etc.
     regional_admin = "regional_admin"  # Regional admin with access to manage operations in specific regions
-    state_admin = "state_admin"  # State admin with access to manage operations in specific states
-    
-    #Internal roles for seeding or migrations
+    state_admin = (
+        "state_admin"  # State admin with access to manage operations in specific states
+    )
+
+    # Internal roles for seeding or migrations
     system = (
         "system"  # System role for internal operations during seeding or migrations
     )
-    #Regular roles
+    # Regular roles
     customer = "customer"  # Regular customer role
     driver = "driver"  # Regular driver role
-    support_agent = "support_agent"  # Support agent role for handling customer support queries
-
-#Customer validation for customer routes, this will validate the JWT token and return the customer details for accessing the customer routes. We can use this to manage access control for different types of users in the system based on their roles and permissions.
-def validate_customer_token(
-    authorization: str = Header(..., description="Bearer token for authentication"),
-    db: Session = Depends(yield_mysql_session),
-) -> "Customer":
-    
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise CabboException(
-            "Authorization header missing or invalid.", status_code=401, error_code=INVALID_TOKEN
-        )
-    token = authorization.split(" ", 1)[1]
-    if not token:
-        raise CabboException("Token is missing.", status_code=401, error_code=TOKEN_MISSING)
-    try:
-        payload = decode_jwt_token(token)
-        customer_id = payload.get("sub")
-        if not customer_id:
-            raise CabboException("Invalid token: missing subject.", status_code=401, error_code=INVALID_TOKEN)
-        from services.customer_service import get_active_customer_by_id_and_bearer_token
-
-        customer = get_active_customer_by_id_and_bearer_token(customer_id, token, db)
-        if not customer:
-            raise CabboException("Invalid or expired token.", status_code=401, error_code=INVALID_TOKEN)
-        return customer
-    except jwt.ExpiredSignatureError:
-        raise CabboException("Token has expired.", status_code=401, error_code=TOKEN_EXPIRED)
-    except jwt.InvalidTokenError:
-        raise CabboException("Invalid token.", status_code=401, error_code=INVALID_TOKEN)
+    support_agent = (
+        "support_agent"  # Support agent role for handling customer support queries
+    )
 
 
-# System user validation for admin routes, support agent routes etc. This will validate the JWT token and return the user details along with their role and permissions for accessing the admin or support agent routes. We can use this to manage access control for different types of users in the system based on their roles and permissions.
-def validate_user_token(
-    authorization: str = Header(..., description="Bearer token for authentication"),
-    db: Session = Depends(yield_mysql_session),
-):
-    
-    # Query db using async session
-    
+async def validate_customer_token(
+    request: Request,
+    session_token: str | None = Cookie(
+        default=None,
+        alias=CUSTOMER_SESSION_COOKIE_NAME,
+    ),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+) -> Customer:
+    unauthorized = CabboException(
+        "Unauthorized.", status_code=403, error_code=UNAUTHORIZED
+    )
 
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise CabboException(
-            "Authorization header missing or invalid.", status_code=401, error_code=INVALID_TOKEN
-        )
-    token = authorization.split(" ", 1)[1]
-    if not token:
-        raise CabboException("Token is missing.", status_code=401, error_code=TOKEN_MISSING)
-    try:
-        payload = decode_jwt_token(token)
-        user_id = payload.get("sub")
-        if not user_id:
-            raise CabboException("Invalid token: missing subject.", status_code=401, error_code=INVALID_TOKEN)
-        from services.user_service import get_active_user_by_id_and_bearer_token
+    if not session_token:
+        raise unauthorized
 
-        user = get_active_user_by_id_and_bearer_token(user_id, token, db)
-        if not user:
-            raise CabboException("Invalid or expired token.", status_code=401, error_code=INVALID_TOKEN)
-        return user
-    except jwt.ExpiredSignatureError:
-        raise CabboException("Token has expired.", status_code=401, error_code=TOKEN_EXPIRED)
-    except jwt.InvalidTokenError:
-        raise CabboException("Invalid token.", status_code=401, error_code=INVALID_TOKEN)
+    from services.auth.auth_service import get_session, update_session_last_seen
 
+    # Get the hashed token from the opaque token
+    customer_session = await get_session(
+        session_id=session_token, role=RoleEnum.customer, db=db
+    )
 
-#Note: 
-# When we release driver app(when app scales and we get investment), we can have a separate validation function for driver token which will validate the JWT token and return the driver details along with their role and permissions for accessing the driver routes. 
-# This will use the the Driver orm table to validate the driver token and return the driver details. 
-# This will help us to keep the actors of the system viz., system user, customer and driver authentication separate and manage them independently based on their specific requirements and access controls. We can also have separate JWT secret keys for customer and driver tokens for added security.
+    if customer_session is None:
+        raise unauthorized
 
-def generate_jwt_token(payload, secret=settings.JWT_SECRET, algorithm="HS256"):
-    """
-    Generate a JWT token with a secret key.
-    """
+    from models.customer.customer_orm import Customer
 
-    return jwt.encode(payload, secret, algorithm=algorithm)
+    customer = await db.get(Customer, customer_session.customer_id)
+
+    if customer is None or not customer.is_active or customer.is_suspended:
+        raise unauthorized
+    await update_session_last_seen(session=customer_session, db=db)
+    request.state.customer_session = customer_session
+
+    return customer
 
 
-def decode_jwt_token(token, secret=settings.JWT_SECRET, algorithms=["HS256"]):
-    """
-    Decode a JWT token with a secret key.
-    """
+async def validate_user_token(
+    request: Request,
+    session_token: str | None = Cookie(
+        default=None,
+        alias=SYSTEM_USER_SESSION_COOKIE_NAME,
+    ),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+) -> User:
+    unauthorized = CabboException(
+        "Unauthorized.", status_code=403, error_code=UNAUTHORIZED
+    )
 
-    return jwt.decode(token, secret, algorithms=algorithms)
+    if not session_token:
+        raise unauthorized
+
+    from services.auth.auth_service import get_session, update_session_last_seen
+
+    # Get the hashed token from the opaque token
+    system_user_session = await get_session(
+        session_id=session_token, role=RoleEnum.system, db=db
+    )
+
+    if system_user_session is None:
+        raise unauthorized
+
+    from models.user.user_orm import User
+
+    system_user = await db.get(User, system_user_session.user_id)
+
+    if system_user is None or not system_user.is_active:
+        raise unauthorized
+    await update_session_last_seen(session=system_user_session, db=db)
+    request.state.system_user_session = system_user_session
+
+    return system_user
 
 
-def generate_jwt_payload(
-    sub: str,
-    identity: str,
-    expires_in=JWT_EXPIRY_UNIT,
-    expires_unit=JWT_EXPIRY_UNIT_TIME_FRAME.get("DAYS"),
-) -> dict:
-    now = datetime.now(timezone.utc)
-    if expires_unit == JWT_EXPIRY_UNIT_TIME_FRAME.get("DAYS"):
-        expire = now + timedelta(days=expires_in)
-    elif expires_unit == JWT_EXPIRY_UNIT_TIME_FRAME.get("HOURS"):
-        expire = now + timedelta(hours=expires_in)
-    elif expires_unit == JWT_EXPIRY_UNIT_TIME_FRAME.get("MINUTES"):
-        expire = now + timedelta(minutes=expires_in)
-    else:
-        expire = now + timedelta(days=JWT_EXPIRY_UNIT)  # fallback
-    payload = {
-        "iss": APP_NAME,
-        "iat": int(now.timestamp()),
-        "sub": sub,
-        "exp": int(expire.timestamp()),
-        "identity": identity,
-    }
-    return payload
+def generate_simple_hash(s:str):
+    return hashlib.sha256(s.encode()).hexdigest()
 
-def generate_hash(payload:str) -> str:
-    """
-    Generate a hash for the trip booking option and preferences.
-    This is used to verify the integrity of the booking data.
-    """
-    return hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
+def generate_hash(payload: str, secret:bytes) -> str:
+    return hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
 
-def verify_hash(payload:str, client_hash: str) -> bool:
-    expected_hash = generate_hash(payload)
+def verify_hash(payload: str, client_hash: str, secret:bytes) -> bool:
+    expected_hash = generate_hash(payload, secret=secret)
     return hmac.compare_digest(expected_hash, client_hash)
 
 def generate_password_hash(password: str) -> str:
@@ -188,3 +155,33 @@ def verify_password_hash(password: str, hashed_password: str) -> bool:
     Verify the password against the hashed password.
     """
     return generate_password_hash(password) == hashed_password
+
+def generate_session_token() -> str:
+    # 32 random bytes = 256 bits of entropy/unavailable to guess.
+    return secrets.token_urlsafe(32)
+
+def hash_session_token(token: str) -> str:
+    """
+    Hash a 256 bits random session token in hexadecimal.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def set_cookie(response: Response, key: str, value: str, lifetime: timedelta):
+    response.set_cookie(
+        key=key,
+        value=value,
+        max_age=int(lifetime.total_seconds()),
+        path="/",
+        secure=True,  # Cookie should only be sent over HTTPS connections to prevent eavesdropping and man-in-the
+        httponly=True,
+        samesite="lax",  # Set to "lax" to allow the cookie to be sent with top-level navigations and GET requests initiated by third-party websites. This is a balance between security and usability, allowing the session cookie to be sent in most cases while still providing some protection against CSRF attacks.
+    )
+
+def delete_cookie(response: Response, key: str):
+    response.delete_cookie(
+        key=key,
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="lax",
+    )

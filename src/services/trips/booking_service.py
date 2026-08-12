@@ -2,7 +2,7 @@ from decimal import Decimal
 import secrets
 import string
 from datetime import datetime, timezone
-from core.trip_helpers import attach_trip_details_to_order_notes, get_trip_type_by_trip_type_id
+from core.trip_helpers import attach_trip_details_to_order_notes
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import RazorPayPaymentResponse
 from models.trip.temp_trip_orm import TempTrip
@@ -12,7 +12,6 @@ from models.trip.trip_schema import (
     TripCreate,
     TripOut,
 )
-from sqlalchemy.orm import Session
 from models.trip.trip_enums import (
     TripStatusEnum,
 )
@@ -26,13 +25,14 @@ from core.exceptions import (
     TRIP_NOT_FOUND,
     UNAUTHORIZED,
 )
-from services.audit_trail_service import log_trip_audit
+from services.audit_trail_service import a_log_trip_audit
 from services.configuration_service import get_currency
 from services.payment_service import get_booking_payment_order, verify_payment
 from services.trips.trip_service import (
-    create_temporary_trip,
-    delete_temp_trip,
-    populate_trip_schema,
+    a_create_temporary_trip,
+    a_delete_temp_trip,
+    a_get_trip_type_by_trip_type_id,
+    a_populate_trip_schema,
     verify_trip_hash,
 )
 from services.validation_service import (
@@ -40,26 +40,17 @@ from services.validation_service import (
 )
 from core.config import settings
 from utils.utility import money, convert_based_on_currency
-
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 log = logging.getLogger(__name__)
 
 
-
-def _generate_booking_id(trip_type: str, db: Session, length: int = 16, attempts: int = 5) -> str:
+async def a_generate_booking_id(
+    trip_type: str, db: AsyncSession, length: int = 16, attempts: int = 5
+) -> str:
     """
-    Generate a unique booking ID with a prefix based on the trip type.
-    The ID will consist of a trip type prefix followed by a 16-character alphanumeric string.
-
-    
-    Args:
-        trip_type (str): The type of trip (e.g., "AIRPORTTFR-PICKUP", "AIRPORTTFR-DROP", "OUTSTATION", "RENTAL").
-        db (Session): The database session for ORM operations.
-        length (int): The length of the unique part of the booking ID (default is 16).
-        attempts (int): The maximum number of attempts to generate a unique ID in case of collisions (default is 5).
-    
-    Returns:
-        str: The generated booking ID.
+    Async version of _generate_booking_id.
     """
     try:
         # Map trip types to prefixes
@@ -75,7 +66,8 @@ def _generate_booking_id(trip_type: str, db: Session, length: int = 16, attempts
         while True:
             unique_part = ''.join(  secrets.choice(alphabet) for _ in range(length))
             booking_id = f"{trip_type_prefix}-{unique_part}"
-            exists=db.query(Trip).filter(Trip.booking_id == booking_id).first()
+            result = await db.execute(select(Trip).filter(Trip.booking_id == booking_id))
+            exists = result.scalars().first()
             if not exists:
                 return booking_id
             attempts -= 1 # Decrement the attempts counter if a collision is found, to avoid infinite loop in case of high collision probability
@@ -84,26 +76,18 @@ def _generate_booking_id(trip_type: str, db: Session, length: int = 16, attempts
 
     except Exception as e:
         return None
-    
-def _get_temp_trip_by_trip_id_and_requestor(
-    trip_id: str, requestor: str, db: Session
+
+
+async def a_get_temp_trip_by_trip_id_and_requestor(
+    trip_id: str, requestor: str, db: AsyncSession
 ) -> TempTrip:
     """
-    Retrieves a temporary trip record from the database based on the trip ID and requestor.
-    Args:
-        trip_id (str): The ID of the trip to retrieve.
-        requestor (str): The user or system requesting the trip details.
-        db (Session): The database session for ORM operations.
-    Returns:
-        TempTrip: The retrieved temporary trip record.
-    Raises:
-        CabboException: If the trip is not found or if the requestor is not authorized to access it.
+    Async version of _get_temp_trip_by_trip_id_and_requestor.
     """
-    temp_trip = (
-        db.query(TempTrip)
-        .filter(TempTrip.id == trip_id, TempTrip.creator_id == requestor)
-        .first()
+    result = await db.execute(
+        select(TempTrip).filter(TempTrip.id == trip_id, TempTrip.creator_id == requestor)
     )
+    temp_trip = result.scalars().first()
     if not temp_trip:
         raise CabboException(
             "Trip not found or you are not authorized to access this trip",
@@ -113,33 +97,28 @@ def _get_temp_trip_by_trip_id_and_requestor(
     return temp_trip
 
 
-def _is_existing_trip_booking(trip_id: str, requestor: str, db: Session) -> bool:
+async def a_is_existing_trip_booking(
+    trip_id: str, requestor: str, db: AsyncSession
+) -> bool:
     """
-    Checks if a trip booking exists in the database for the given trip ID and requestor.
-    Args:
-        trip_id (str): The ID of the trip to retrieve.
-        requestor (str): The user or system requesting the trip details.
-        db (Session): The database session for ORM operations.
-    Returns:
-        bool: True if the trip booking exists, False otherwise.
+    Async version of _is_existing_trip_booking.
     """
-    trip = (
-        db.query(Trip)
-        .filter(Trip.id == trip_id, Trip.creator_id == requestor)
-        .first()
+    result = await db.execute(
+        select(Trip).filter(Trip.id == trip_id, Trip.creator_id == requestor)
     )
+    trip = result.scalars().first()
     if trip:
         return True
     return False
 
 
-def verify_temp_trip_platform_fee(
+async def a_verify_temp_trip_platform_fee(
     temp_trip_id: str,
     requestor: str,
     amount: Decimal,
-    db: Session,
+    db: AsyncSession,
 ) -> bool:
-    temp_trip = _get_temp_trip_by_trip_id_and_requestor(
+    temp_trip = await a_get_temp_trip_by_trip_id_and_requestor(
         trip_id=temp_trip_id,
         requestor=requestor,
         db=db,
@@ -161,32 +140,21 @@ def verify_temp_trip_platform_fee(
     return True
 
 
-def _create_confirmed_trip_from_temp_trip(
+async def a_create_confirmed_trip_from_temp_trip(
     temp_trip: TempTrip,
     requestor: str,
     payment_info: RazorPayPaymentResponse,
-    db: Session,
+    db: AsyncSession,
     audit_reason: str = "Trip confirmed",
 ) -> TripCreate:
-    """Creates a confirmed trip record from a temporary trip record.
-    This function takes a temporary trip record, validates it, and creates a confirmed trip record in the database.
-    Args:
-        temp_trip (TempTrip): The temporary trip record to convert.
-        requestor (str): The user or system requesting the trip creation.
-        payment_info (RazorPayPaymentResponse): The payment information for the trip.
-        db (Session): The database session for ORM operations.
-    Returns:
-        TripCreate: The created confirmed trip record.
-    Raises:
-        CabboException: If the temporary trip is invalid or if any database operation fails.
-    """
-    trip_type = get_trip_type_by_trip_type_id(temp_trip.trip_type_id, db)
+    """Async version of _create_confirmed_trip_from_temp_trip."""
+    trip_type = await a_get_trip_type_by_trip_type_id(temp_trip.trip_type_id, db)
     if not trip_type:
         raise CabboException(
             f"Invalid trip type ID: {temp_trip.trip_type_id}", status_code=400, error_code=TRIP_TYPE_ID_NOT_FOUND
         )
     trip_type_name= str(trip_type.name)
-    booking_id = _generate_booking_id(trip_type=trip_type_name.lower(), db=db)
+    booking_id = await a_generate_booking_id(trip_type=trip_type_name.lower(), db=db)
     if not booking_id:
         raise CabboException(
             "Failed to generate booking ID", status_code=500, error_code=GENERIC_EXCEPTION
@@ -279,10 +247,10 @@ def _create_confirmed_trip_from_temp_trip(
 
     try:
         db.add(trip)
-        db.commit()
-        db.refresh(trip)
+        await db.commit()
+        await db.refresh(trip)
         # Here we will perform a trip status audit log entry
-        log_trip_audit(
+        await a_log_trip_audit(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor,
@@ -291,10 +259,10 @@ def _create_confirmed_trip_from_temp_trip(
         )  # Log the trip status audit entry
         log.info(f"Trip confirmed for trip ID: {trip.id}")
         # After confirming the trip, delete the temporary(one or more) trip details for this customer
-        delete_temp_trip(
+        await a_delete_temp_trip(
             requestor=temp_trip.creator_id, db=db
         )  # Clean up all temporary trip details for this customer.
-        trip_schema = populate_trip_schema(
+        trip_schema = await a_populate_trip_schema(
             trip=trip, db=db
         )  # Populate the trip schema with necessary details
         return TripCreate(
@@ -306,22 +274,22 @@ def _create_confirmed_trip_from_temp_trip(
         )
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         log.error(e)
         raise CabboException(
             f"Failed to confirm trip booking: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
         )
 
 
-def initiate_trip_booking(
-    booking_request: TripBookRequest, customer: Customer, db: Session
+async def initiate_trip_booking(
+    booking_request: TripBookRequest, customer: Customer, db: AsyncSession
 ):
     """
     Initiates a booking for a trip based on the provided booking request.
     Args:
         booking_request (TripBookRequest): The trip booking request containing trip details.
         customer (Customer): The user or system initiating the booking.
-        db (Session): The database session for ORM operations.
+        db (AsyncSession): The database session for ORM operations.
     Returns:
         TripBookResponse: The response containing booking details.
     Raises:
@@ -329,14 +297,14 @@ def initiate_trip_booking(
 
     """
     try:
-        currency= get_currency(db=db)  # Ensure that currency information is loaded from the configuration store before proceeding with the booking process, as it may be required for payment processing and order creation. This also helps to catch any issues with currency configuration early in the booking flow, allowing for a smoother user experience and better error handling in case of misconfiguration.
+        currency= get_currency()  # Ensure that currency information is loaded from the configuration store before proceeding with the booking process, as it may be required for payment processing and order creation. This also helps to catch any issues with currency configuration early in the booking flow, allowing for a smoother user experience and better error handling in case of misconfiguration.
         
         
         # Verify the trip_in.option.hash, if not valid (tampered), raise exception and return error response
         verify_trip_hash(booking_request=booking_request)
 
         # Check for duplicate or conflicting bookings for the same customer.
-        existing_valid_temp_trip_details, order_id = validate_booking_request(
+        existing_valid_temp_trip_details, order_id = await validate_booking_request(
             booking_request=booking_request, requestor=customer.id, db=db
         )
 
@@ -347,16 +315,16 @@ def initiate_trip_booking(
         )
             if order is None:
                 #Silently delete the existing temp trip details if the associated payment order is not valid or cannot be retrieved, to allow the booking process to start fresh and avoid potential issues with stale or orphaned temp trip records that are not linked to valid payment orders. This ensures data integrity and a smoother booking experience for the customer.
-                delete_temp_trip_by_booking_id(booking_id=existing_valid_temp_trip_details.id, requestor=customer.id, db=db)
+                await a_delete_temp_trip_by_booking_id(booking_id=existing_valid_temp_trip_details.id, requestor=customer.id, db=db)
             else:
                 log.info(f"Existing valid temp trip and payment order found for customer {customer.id}, reusing the existing records for the booking process.")
                 return trip_id, order
 
         # Sanity Hygiene: Delete all previous temporary trip details for the customer
-        delete_temp_trip(requestor=customer.id, db=db)
+        await a_delete_temp_trip(requestor=customer.id, db=db)
 
         # Create a new Temp Trip object from the booking request
-        temp_trip = create_temporary_trip(
+        temp_trip = await a_create_temporary_trip(
             booking_request=booking_request, requestor=customer.id, db=db
         )
 
@@ -366,7 +334,7 @@ def initiate_trip_booking(
             booking_request=booking_request, customer=customer, temp_trip=temp_trip, currency=currency
         )
         if order is None:
-            delete_temp_trip_by_booking_id(booking_id=trip_id, requestor=customer.id, db=db)
+            await a_delete_temp_trip_by_booking_id(booking_id=trip_id, requestor=customer.id, db=db)
             raise CabboException(
                 "Failed to create payment order for the trip booking", status_code=500, error_code=GENERIC_EXCEPTION
             )
@@ -380,12 +348,12 @@ def initiate_trip_booking(
         }
         #After successful order creation, update the temp trip with payment provider metadata
         temp_trip.payment_provider_metadata=payment_provider_metadata
-        db.commit()
-        db.refresh(temp_trip)
+        await db.commit()
+        await db.refresh(temp_trip)
         
 
         # Populate the trip schema with necessary details
-        trip_schema = populate_trip_schema(
+        trip_schema = await a_populate_trip_schema(
             trip=temp_trip, db=db
         )  # Populate the trip schema with necessary details
 
@@ -395,7 +363,7 @@ def initiate_trip_booking(
 
         return trip_id, order
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         if isinstance(e, CabboException):
             raise e  # Re-raise the CabboException to be handled by the caller
          
@@ -404,12 +372,15 @@ def initiate_trip_booking(
         )
 
 
-def _mark_temp_trip_payment_verified(
+async def a_mark_temp_trip_payment_verified(
     temp_trip: TempTrip,
     payment_info: RazorPayPaymentResponse,
-    db: Session,
+    db: AsyncSession,
     payment_verified_via: str = "checkout_api",
 ) -> None:
+    """
+    Async version of _mark_temp_trip_payment_verified.
+    """
     try:
         provider_metadata = (
             temp_trip.payment_provider_metadata
@@ -426,10 +397,10 @@ def _mark_temp_trip_payment_verified(
             "payment_verified_at": datetime.now(timezone.utc).isoformat(),
         }
         temp_trip.payment_provider_metadata = provider_metadata
-        db.commit()
-        db.refresh(temp_trip)
+        await db.commit()
+        await db.refresh(temp_trip)
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         log.error(f"Failed to mark payment as verified for trip {temp_trip.id}: {e}")
         raise CabboException(
             "Payment verified but booking confirmation is pending. Please contact support if this persists.",
@@ -438,13 +409,13 @@ def _mark_temp_trip_payment_verified(
         )
 
 
-def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Session):
+async def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: AsyncSession):
     """
     Confirms a trip booking based on the provided booking request.
     Args:
         booking_request (TripBookingOut): The trip booking request containing trip details.
         customer (Customer): The user or system confirming the booking.
-        db (Session): The database session for ORM operations.
+        db (AsyncSession): The database session for ORM operations.
     Returns:
         TripBookResponse: The response containing booking details.
     Raises:
@@ -460,18 +431,18 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
         )
 
     # Check if the booking request already exists in the main Trip table
-    existing_trip = _is_existing_trip_booking(
+    existing_trip = await a_is_existing_trip_booking(
         trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
     if existing_trip: # Idempotency check: If the trip booking already exists, raise an exception to prevent duplicate bookings and ensure that the booking process is idempotent, allowing clients to safely retry requests without creating multiple bookings for the same trip.
         raise CabboException("Booking already exists", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT)
 
     # Check in database if the booking exists
-    temp_trip = _get_temp_trip_by_trip_id_and_requestor(
+    temp_trip = await a_get_temp_trip_by_trip_id_and_requestor(
         trip_id=booking_request.trip_id, requestor=customer.id, db=db
     )
 
-    currency = get_currency(db=db)
+    currency = get_currency()
     provider_metadata = temp_trip.payment_provider_metadata or {}
     payment_order_key = f"{settings.PAYMENT_PROVIDER}_order_id"
     expected_order_id = (
@@ -510,7 +481,7 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     if not payment_verified:
         raise CabboException("Payment verification failed", status_code=400, error_code=GENERIC_EXCEPTION)
 
-    _mark_temp_trip_payment_verified(
+    await a_mark_temp_trip_payment_verified(
         temp_trip=temp_trip,
         payment_info=booking_request.payment_info,
         db=db,
@@ -518,24 +489,22 @@ def confirm_trip_booking(booking_request: TripOut, customer: Customer, db: Sessi
     )
 
     # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
-    return _create_confirmed_trip_from_temp_trip(
+    return await a_create_confirmed_trip_from_temp_trip(
         temp_trip=temp_trip,
         requestor=customer.id,
         payment_info=booking_request.payment_info,
         db=db,
     )
 
-
-def recover_payment_verified_temp_trip(
+async def a_recover_payment_verified_temp_trip(
     temp_trip_id: str,
     admin_user_id: str,
-    db: Session,
+    db: AsyncSession,
 ) -> TripCreate:
-    existing_trip = (
-        db.query(Trip)
-        .filter(Trip.id == temp_trip_id, Trip.is_active.is_(True))
-        .first()
+    result = await db.execute(
+        select(Trip).filter(Trip.id == temp_trip_id, Trip.is_active.is_(True))
     )
+    existing_trip = result.scalars().first()
     if existing_trip:
         payment_info = None
         if existing_trip.payment_provider_metadata:
@@ -553,10 +522,11 @@ def recover_payment_verified_temp_trip(
             booking_id=existing_trip.booking_id,
             payment_info=payment_info,
             status=existing_trip.status,
-            trip_details=populate_trip_schema(trip=existing_trip, db=db),
+            trip_details=await a_populate_trip_schema(trip=existing_trip, db=db),
         )
 
-    temp_trip = db.query(TempTrip).filter(TempTrip.id == temp_trip_id).first()
+    result = await db.execute(select(TempTrip).filter(TempTrip.id == temp_trip_id))
+    temp_trip = result.scalars().first()
     if not temp_trip:
         raise CabboException(
             "Payment-verified temporary trip not found",
@@ -576,7 +546,7 @@ def recover_payment_verified_temp_trip(
         )
 
     payment_info = RazorPayPaymentResponse.model_validate(provider_metadata)
-    currency = get_currency(db=db)
+    currency = get_currency()
     payment_order_key = f"{settings.PAYMENT_PROVIDER}_order_id"
     expected_order_id = provider_metadata.get(payment_order_key)
     if not expected_order_id:
@@ -613,7 +583,7 @@ def recover_payment_verified_temp_trip(
             error_code=PAYMENT_VERIFICATION_FAILED,
         )
 
-    return _create_confirmed_trip_from_temp_trip(
+    return await a_create_confirmed_trip_from_temp_trip(
         temp_trip=temp_trip,
         requestor=admin_user_id,
         payment_info=payment_info,
@@ -622,21 +592,18 @@ def recover_payment_verified_temp_trip(
     )
 
 
-def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session):
+async def a_delete_temp_trip_by_booking_id(
+    booking_id: str, requestor: str, db: AsyncSession
+):
     """
-    Deletes a temporary trip record from the database based on the booking ID and requestor.
-    Args:
-        booking_id (str): The ID of the booking to delete.
-        requestor (str): The user or system requesting the deletion.
-        db (Session): The database session for ORM operations.
-    Raises:
-        CabboException: If the trip is not found or if the requestor is not authorized to delete it.
+    Async version of delete_temp_trip_by_booking_id.
     """
-    temp_trip = (
-        db.query(TempTrip)
-        .filter(TempTrip.id == booking_id, TempTrip.creator_id == requestor)
-        .first()
+    result = await db.execute(
+        select(TempTrip).filter(
+            TempTrip.id == booking_id, TempTrip.creator_id == requestor
+        )
     )
+    temp_trip = result.scalars().first()
     if not temp_trip:
         raise CabboException(
             "Booking not found or you are not authorized to delete this booking",
@@ -644,10 +611,10 @@ def delete_temp_trip_by_booking_id(booking_id: str, requestor: str, db: Session)
             error_code=UNAUTHORIZED,
         )
     try:
-        db.delete(temp_trip)
-        db.commit()
+        await db.delete(temp_trip)
+        await db.commit()
         log.info(f"Temporary trip deleted for booking ID: {booking_id}")
         return True
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         return False

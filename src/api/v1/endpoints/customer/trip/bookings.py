@@ -1,7 +1,6 @@
 from typing import Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from core.config import settings
 from core.exceptions import (
     CabboException,
     TRIP_NOT_FOUND,
@@ -10,17 +9,13 @@ from core.exceptions import (
 from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
-from models.support.support_enum import SupportTypeEnum
 from models.support.support_schema import (
     CommentSchema,
-    CustomerSupportContactLookupRequest,
-    CustomerSupportContactSchema,
 )
 from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import AdditionalDetailsOnTripStatusChange, TripUpdateRequestSchema
 from services.dispute_service import add_comment_to_dispute_by_trip_id
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.support_service import get_best_support_contact, get_support_geography_ids
 from services.trips.trip_service import (
     async_get_trip_by_booking_id,
     async_get_trip_by_booking_id_customer_id,

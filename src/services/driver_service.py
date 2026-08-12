@@ -269,10 +269,9 @@ def search_drivers_paginated(
         },
     }
 
-
-def search_assignable_drivers_paginated(
+async def a_search_assignable_drivers_paginated(
     search_in: DriverSearchSchema,
-    db: Session,
+    db: AsyncSession,
     page: int = 1,
     limit: int = 50,
 ) -> dict:
@@ -322,15 +321,17 @@ def search_assignable_drivers_paginated(
     if search_in.kyc_verified is not None:
         filters.append(Driver.kyc_verified == search_in.kyc_verified)
 
-    total = db.query(func.count(Driver.id)).filter(*filters).scalar() or 0
-    query = db.query(Driver).filter(*filters)
+    total_result = await db.execute(select(func.count(Driver.id)).filter(*filters))
+    total = total_result.scalar() or 0
+    query = select(Driver).filter(*filters)
     if matching_criteria:
         fit_score = _build_driver_assignment_fit_score_expression(matching_criteria) #Used for ordering the drivers by their fit score for the given criteria. This is used to sort the drivers in descending order of their fit score, so that the best matching drivers are returned first.
         query = query.order_by(fit_score.desc(), Driver.created_at.desc())
     else:
         query = query.order_by(Driver.created_at.desc())
 
-    drivers = query.offset(offset).limit(limit).all()
+    result = await db.execute(query.offset(offset).limit(limit))
+    drivers = result.scalars().all()
 
     return {
         "items": drivers,

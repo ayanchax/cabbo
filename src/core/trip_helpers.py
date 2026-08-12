@@ -3,7 +3,6 @@ from typing import List, Optional, Union
 from core.exceptions import INVALID_TRIP_TYPE, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.security import RoleEnum, generate_hash
 from core.trip_constants import OUTSTATION_DEFAULTS, TRIP_RESPONSE_OPTIONS
-from db.database import get_mysql_local_session
 from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
@@ -11,12 +10,16 @@ from models.pricing.pricing_schema import TripPackageConfigSchema
 from models.trip.trip_enums import TripResponseView, TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import  TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.passenger_service import get_passenger_id_from_preferences
 import logging
+from core.config import settings
 log = logging.getLogger(__name__)
+
+TRIP_BOOKING_SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
 def get_trip_type_id_by_trip_type(
     trip_type: TripTypeEnum, db: Session, include_id_only=True
@@ -34,6 +37,25 @@ def get_trip_type_id_by_trip_type(
     trip_type_obj = (
         db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
     )
+    if not trip_type_obj:
+        raise CabboException(f"Trip type {trip_type} not found", status_code=404, error_code=INVALID_TRIP_TYPE)
+    return (
+        trip_type_obj.id
+        if include_id_only
+        else TripTypeSchema.model_validate(trip_type_obj)
+    )
+
+
+async def a_get_trip_type_id_by_trip_type(
+    trip_type: TripTypeEnum, db: AsyncSession, include_id_only=True
+) -> Union[str, TripTypeSchema]:
+    """
+    Async variant of get_trip_type_id_by_trip_type.
+    """
+    result = await db.execute(
+        select(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type)
+    )
+    trip_type_obj = result.scalars().first()
     if not trip_type_obj:
         raise CabboException(f"Trip type {trip_type} not found", status_code=404, error_code=INVALID_TRIP_TYPE)
     return (
@@ -61,6 +83,19 @@ def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
         return []
 
 
+async def a_get_all_trip_types(db: AsyncSession) -> List[TripTypeSchema]:
+    """
+    Async variant of get_all_trip_types.
+    """
+    try:
+        result = await db.execute(select(TripTypeMaster))
+        trip_types = result.scalars().all()
+        return [TripTypeSchema.model_validate(trip_type) for trip_type in trip_types]
+    except Exception as e:
+        log.error(f"Error fetching trip types: {e}")
+        return []
+
+
 def get_trip_package_configuration_list_by_region_code(
     region_code: str, db: Session
 ) -> List[TripPackageConfigSchema]:
@@ -72,6 +107,27 @@ def get_trip_package_configuration_list_by_region_code(
         )
         .all()
     )
+    if not trip_package_config:
+        return []
+    return [
+        TripPackageConfigSchema.model_validate(config) for config in trip_package_config
+    ]
+
+
+async def a_get_trip_package_configuration_list_by_region_code(
+    region_code: str, db: AsyncSession
+) -> List[TripPackageConfigSchema]:
+    """
+    Async variant of get_trip_package_configuration_list_by_region_code.
+    """
+    result = await db.execute(
+        select(TripPackageConfig)
+        .join(RegionModel, TripPackageConfig.region_id == RegionModel.id)
+        .filter(
+            RegionModel.region_code == region_code, TripPackageConfig.is_active == True
+        )
+    )
+    trip_package_config = result.scalars().all()
     if not trip_package_config:
         return []
     return [
@@ -160,7 +216,8 @@ def generate_trip_hash(option: dict, preferences: dict) -> str:
     This is used to verify the integrity of the booking data.
     """
     payload = json.dumps({"option": option, "preferences": preferences}, sort_keys=True)
-    return generate_hash(payload)
+    # Generate hash for the trip booking to verify the integrity of trip later during confirmation.
+    return generate_hash(payload, secret=TRIP_BOOKING_SECRET_KEY)
 
 
 def get_default_trip_amenities():
@@ -185,7 +242,7 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session, use_cache=True
     """
     if use_cache:
         from core.config import settings
-        config_store = settings.get_config_store(db)
+        config_store = settings.get_config_store()
         trip_types = config_store.trip_types
         trip_type_obj= next(trip_type for trip_type in trip_types if trip_type.id == trip_type_id)
         if not trip_type_obj:
@@ -255,7 +312,7 @@ def get_prior_booking_window_hours(
 ) -> Optional[int]:
     try:
         from core.config import settings
-        config_store = settings.get_config_store(get_mysql_local_session())
+        config_store = settings.get_config_store()
         if trip_type == TripTypeEnum.airport_pickup:
             if jurisdiction_code and config_store.airport_pickup.get(jurisdiction_code):
                 return config_store.airport_pickup.get(
@@ -281,9 +338,9 @@ def get_prior_booking_window_hours(
     return None
 
 
-def get_trip_constraints_by_trip_type(trip_type: TripTypeEnum, jurisdiction_code: Optional[str], db: Session) -> dict:
+def get_trip_constraints_by_trip_type(trip_type: TripTypeEnum, jurisdiction_code: Optional[str]) -> dict:
     from core.config import settings
-    config_store = settings.get_config_store(db)
+    config_store = settings.get_config_store()
     
     if trip_type == TripTypeEnum.outstation:
         config = config_store.outstation.get(jurisdiction_code)

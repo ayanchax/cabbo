@@ -1,6 +1,5 @@
 from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from core.exceptions import UNAUTHORIZED
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.policies.refund_enum import RefundStatus

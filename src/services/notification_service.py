@@ -1,11 +1,9 @@
 from core.constants import APP_NAME
 from core.security import RoleEnum
-from db.database import get_mysql_local_session
 from models.customer.customer_schema import CustomerRead
 from models.driver.driver_orm import Driver
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_orm import Trip
-from sqlalchemy.orm import Session
 from core.config import settings
 from services.message_service import (
     EMAIL_VERIFICATION_FILE,
@@ -21,7 +19,6 @@ from services.trips.local_hourly_rental_service import (
 from services.trips.outstation_service import get_kwargs_for_outstation_trip
 import logging
 log = logging.getLogger(__name__)
-db = get_mysql_local_session()
 
 
 
@@ -51,7 +48,7 @@ async def notify_customer_booking_confirmed(booking: Trip) -> bool:
     )
     if not trip_type:
         return False
-    config_store = settings.get_config_store(db)
+    config_store = settings.get_config_store()
 
     if trip_type == TripTypeEnum.local:
         # Notify customer about cab booking confirmation

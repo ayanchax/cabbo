@@ -3,8 +3,7 @@ from typing import Any, Optional
 from pydantic_settings import BaseSettings
 from pydantic import ValidationError
 from rich.console import Console
-from core.constants import Environment
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from services.environment_service import load_env
 log = logging.getLogger(__name__)
 class Settings(BaseSettings):
@@ -133,7 +132,7 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         extra = "ignore"
 
-    def init_config_store(self, db: Session):
+    async def init_config_store(self, db: AsyncSession):
         """Initialize configuration store with a dedicated session."""
 
         log.info("Starting ConfigStore initialization...")
@@ -141,7 +140,7 @@ class Settings(BaseSettings):
 
         try:
             store = ConfigStore.get_instance()
-            store.initialize_config_store(db)
+            await store.initialize_config_store(db)
             self.CONFIG_STORE = store
             log.info("ConfigStore initialization completed successfully.")
             return store
@@ -149,10 +148,10 @@ class Settings(BaseSettings):
             log.error(f"Error during ConfigStore initialization: {e}")
             raise
 
-    def get_config_store(self, db: Session):
+    def get_config_store(self):
         """Get the configuration store, initializing it if necessary."""
         if not self.CONFIG_STORE:
-            return self.init_config_store(db)
+            raise RuntimeError("ConfigStore is not initialized. Call init_config_store with an AsyncSession first.")
         else:
             log.info("ConfigStore already initialized, returning existing instance for retrieving configurations from in-memory store.")
         return self.CONFIG_STORE

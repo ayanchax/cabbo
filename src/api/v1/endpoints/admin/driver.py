@@ -35,6 +35,7 @@ from services.kyc_service import (
     update_driver_kyc_documents,
 )
 from services.driver_service import (
+    a_search_assignable_drivers_paginated,
     activate_driver,
     add_driver_earning_record_manually,
     apply_driver_assignment_fit_signals,
@@ -53,7 +54,6 @@ from services.driver_service import (
     get_driver_assignment_criteria,
     get_trip_earning_for_driver,
     remove_extra_fields_from_driver_for_admin,
-    search_assignable_drivers_paginated,
     update_driver,
     update_driver_profile_picture,
 )
@@ -146,7 +146,7 @@ def edit_driver(
 
 # Search assignable drivers by driver name and get paginated results, max upto 10 in one page
 @router.get("/search/driver", response_model=dict)
-def search_drivers(
+async def search_drivers(
     search_in: DriverSearchSchema = Depends(),
     page: int = Query(
         1, ge=1, description="Page number for pagination, starting from 1"
@@ -157,7 +157,7 @@ def search_drivers(
         le=10,
         description="Number of drivers per page for pagination, maximum 10",
     ),
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
     """Search active and available drivers for assignment."""
@@ -169,7 +169,7 @@ def search_drivers(
             error_code=UNAUTHORIZED,
         )
 
-    drivers = search_assignable_drivers_paginated(
+    drivers = await a_search_assignable_drivers_paginated(
         search_in=search_in,
         db=db,
         page=page,

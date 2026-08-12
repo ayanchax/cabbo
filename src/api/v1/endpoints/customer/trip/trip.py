@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Path
-from core.exceptions import CabboException
 from core.security import validate_customer_token
 from core.trip_helpers import get_prior_booking_window_hours, get_trip_constraints_by_trip_type
-from db.database import yield_mysql_session
+from db.database import a_yield_mysql_session, yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import (
@@ -15,10 +14,10 @@ from sqlalchemy.orm import Session
 from services.configuration_service import get_all_cabs
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import (
+    a_delete_temp_trip_by_booking_id,
+    a_verify_temp_trip_platform_fee,
     confirm_trip_booking,
-    delete_temp_trip_by_booking_id,
     initiate_trip_booking,
-    verify_temp_trip_platform_fee,
 )
 from services.trips.search_service import search
 from utils.utility import remove_none_recursive
@@ -30,6 +29,7 @@ from .package import router as trip_packages
 from .fleet import router as fleet_router
 from .support import router as trip_support_router
 from decimal import Decimal
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -38,22 +38,22 @@ router = APIRouter()
 
 
 @router.post("/search", tags=["customer-trip-search"])
-def search_trip(
+async def search_trip(
     search_in: TripSearchRequest,
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    result = search(search_in=search_in, requestor=current_customer.id, db=db)
+    result = await search(search_in=search_in, requestor=current_customer.id, db=db)
     return remove_none_recursive(result.model_dump())
 
 
 @router.post("/initiate-booking", response_model=dict, tags=["customer-trip-booking"])
-def init_booking(
+async def init_booking(
     trip_in: TripBookRequest,
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    trip_id, order = initiate_trip_booking(
+    trip_id, order = await initiate_trip_booking(
         booking_request=trip_in, customer=current_customer, db=db
     )
 
@@ -78,7 +78,7 @@ def init_booking(
     fleet= None
     if trip_in.preferences.retrieve_fleet:
         #If the request includes a flag to retrieve fleet information, fetch the fleet details based on the car type preference specified in the trip booking request and include it in the response. This allows customers to view the available fleet options that match their preferences when initiating a trip booking, enhancing their booking experience and enabling them to make informed decisions about their trip options.
-        all_cabs = get_all_cabs(db)
+        all_cabs = get_all_cabs()
         preferred_cab = next((cab for cab in all_cabs if cab.name.lower() == trip_in.option.car_type.value.lower()), None)
         fleet = preferred_cab.model_dump(exclude_none=True, exclude={"id","created_by","is_active"}) if preferred_cab else None
         response["fleet"] = fleet
@@ -87,15 +87,15 @@ def init_booking(
 
 
 @router.post("/confirm-booking", response_model=dict, tags=["customer-trip-booking"])
-def confirm_booking(
+async def confirm_booking(
     booking: TripOut,
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     """
     Confirm the trip booking after payment is successful.
     """
-    created_trip = confirm_trip_booking(
+    created_trip = await confirm_trip_booking(
         booking_request=booking, customer=current_customer, db=db
     )
     return {
@@ -107,16 +107,16 @@ def confirm_booking(
 @router.delete(
     "/cleanup/{booking_id}", response_model=dict, tags=["customer-trip-booking"]
 )
-def cleanup_temp_trip_booking(
+async def cleanup_temp_trip_booking(
     booking_id: str,
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     """
     Cleanup trip data for the customer.
     This endpoint is invoked silently from frontend when the customer abandons the trip search or payment page midway or payment fails.
     """
-    is_deleted = delete_temp_trip_by_booking_id(
+    is_deleted = await a_delete_temp_trip_by_booking_id(
         booking_id=booking_id, requestor=current_customer.id, db=db
     )
     if is_deleted:
@@ -129,7 +129,7 @@ def cleanup_temp_trip_booking(
     response_model=int,
     tags=["customer-trip-booking"],
 )
-def get_prior_booking_window(
+async def get_prior_booking_window(
     trip_type: TripTypeEnum,
     jurisdiction_code: str,
     _: Customer = Depends(validate_customer_token),
@@ -149,20 +149,19 @@ def get_prior_booking_window(
     response_model=dict,
     tags=["customer-trip-booking"],
 )
-def get_trip_constraints(
+async def get_trip_constraints(
     trip_type: TripTypeEnum,
     jurisdiction_code: str,
-    db: Session = Depends(yield_mysql_session),
     _: Customer = Depends(validate_customer_token),
 ):
    
     return get_trip_constraints_by_trip_type(
-        trip_type=trip_type, jurisdiction_code=jurisdiction_code, db=db
+        trip_type=trip_type, jurisdiction_code=jurisdiction_code,  
     )
 
 
 @router.get("/verify/platform-fee/{id}/{amount}")
-def verify_trip_cost(
+async def verify_trip_cost(
     id: str = Path(..., description="Temp trip id to verify the cost for"),
     amount: Decimal = Path(
         ...,
@@ -170,13 +169,13 @@ def verify_trip_cost(
         ge=100,
         le=1200,
     ),
-    db: Session = Depends(yield_mysql_session),
+    db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
     # Reverify the platform fee before opening Razorpay checkout. If a client
     # payload was tampered with, fail before the payment modal is initialized.
     return {
-        "verified": verify_temp_trip_platform_fee(
+        "verified": await a_verify_temp_trip_platform_fee(
             temp_trip_id=id,
             requestor=current_customer.id,
             amount=amount,

@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from core.security import validate_customer_token
-from db.database import yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.pricing.pricing_schema import TripPackageConfigRead, TripPackageConfigSchema
 from models.trip.trip_enums import TripTypeEnum
@@ -13,14 +11,13 @@ router = APIRouter()
 @router.get(
     "/{trip_type}/{region_code}", response_model=list[TripPackageConfigRead]
 )
-def get_packages(
+async def get_packages(
     trip_type: TripTypeEnum,
     region_code: str,
-    db: Session = Depends(yield_mysql_session),
     _: Customer = Depends(validate_customer_token),
 ):
     packages = get_packages_by_region_code(
-        trip_type=trip_type, region_code=region_code, db=db
+        trip_type=trip_type, region_code=region_code,  
     )
     # Sort packages by included_hours ascending
     packages_sorted = sorted(packages, key=lambda p: p.included_hours)

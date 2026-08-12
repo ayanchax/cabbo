@@ -17,6 +17,8 @@ from models.pricing.pricing_schema import (
 )
 from models.geography.region_orm import RegionModel
 from models.trip.trip_orm import TripPackageConfig, TripTypeMaster
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from models.pricing.pricing_orm import (
     AirportCabPricing,
@@ -227,6 +229,25 @@ def get_common_pricing_configurations_by_trip_type_id(
     ]
 
 
+async def a_get_common_pricing_configurations_by_trip_type_id(
+    trip_type_id: str,
+    db: AsyncSession,
+) -> List[CommonPricingConfigurationSchema]:
+    """
+    Async variant of get_common_pricing_configurations_by_trip_type_id.
+    """
+    result = await db.execute(
+        select(CommonPricingConfiguration).filter(
+            CommonPricingConfiguration.trip_type_id == trip_type_id
+        )
+    )
+    common_pricings = result.scalars().all()
+    return [
+        CommonPricingConfigurationSchema.model_validate(pricing)
+        for pricing in common_pricings
+    ]
+
+
 def get_base_pricings_outstation(db: Session):
     return (
         db.query(OutstationCabPricing, CabType, FuelType)
@@ -237,6 +258,17 @@ def get_base_pricings_outstation(db: Session):
         )  # Ensure only available cabs are considered
         .all()
     )
+
+
+async def a_get_base_pricings_outstation(db: AsyncSession):
+    """Async variant of get_base_pricings_outstation."""
+    result = await db.execute(
+        select(OutstationCabPricing, CabType, FuelType)
+        .join(CabType, OutstationCabPricing.cab_type_id == CabType.id)
+        .join(FuelType, OutstationCabPricing.fuel_type_id == FuelType.id)
+        .filter(OutstationCabPricing.is_available_in_network == True)
+    )
+    return result.all()
 
 
 def get_base_pricings_airport(db: Session):
@@ -251,6 +283,17 @@ def get_base_pricings_airport(db: Session):
     )
 
 
+async def a_get_base_pricings_airport(db: AsyncSession):
+    """Async variant of get_base_pricings_airport."""
+    result = await db.execute(
+        select(AirportCabPricing, CabType, FuelType)
+        .join(CabType, AirportCabPricing.cab_type_id == CabType.id)
+        .join(FuelType, AirportCabPricing.fuel_type_id == FuelType.id)
+        .filter(AirportCabPricing.is_available_in_network == True)
+    )
+    return result.all()
+
+
 def get_base_pricings_local(db: Session):
     base_pricings = (
         db.query(LocalCabPricing, CabType, FuelType)
@@ -262,6 +305,17 @@ def get_base_pricings_local(db: Session):
         .all()
     )
     return base_pricings
+
+
+async def a_get_base_pricings_local(db: AsyncSession):
+    """Async variant of get_base_pricings_local."""
+    result = await db.execute(
+        select(LocalCabPricing, CabType, FuelType)
+        .join(CabType, LocalCabPricing.cab_type_id == CabType.id)
+        .join(FuelType, LocalCabPricing.fuel_type_id == FuelType.id)
+        .filter(LocalCabPricing.is_available_in_network == True)
+    )
+    return result.all()
 
 
 def get_night_pricing_configuration(
@@ -288,6 +342,28 @@ def get_night_pricing_configuration(
     return None
 
 
+async def a_get_night_pricing_configuration(
+    db: AsyncSession, id: str, by_state: bool = False
+) -> NightPricingConfigurationSchema:
+    """Async variant of get_night_pricing_configuration."""
+    if by_state:
+        result = await db.execute(
+            select(NightPricingConfiguration).filter(
+                NightPricingConfiguration.state_id == id,
+            )
+        )
+    else:
+        result = await db.execute(
+            select(NightPricingConfiguration).filter(
+                NightPricingConfiguration.region_id == id,
+            )
+        )
+    night_pricing = result.scalars().first()
+    if night_pricing:
+        return NightPricingConfigurationSchema.model_validate(night_pricing)
+    return None
+
+
 def get_permit_fee_configuration(
     db: Session, state_id: str
 ) -> PermitFeeConfigurationSchema:
@@ -303,10 +379,39 @@ def get_permit_fee_configuration(
     return None
 
 
+async def a_get_permit_fee_configuration(
+    db: AsyncSession, state_id: str
+) -> PermitFeeConfigurationSchema:
+    """Async variant of get_permit_fee_configuration."""
+    result = await db.execute(
+        select(PermitFeeConfiguration).filter(
+            PermitFeeConfiguration.state_id == state_id,
+        )
+    )
+    permit_fee = result.scalars().first()
+    if permit_fee:
+        return PermitFeeConfigurationSchema.model_validate(permit_fee)
+    return None
+
+
 def get_fixed_platform_pricing_configuration(
     db: Session,
 ) -> FixedPlatformFeeConfigurationSchema:
     platform_fee_data = db.query(FixedPlatformPricingConfiguration).first()
+    if not platform_fee_data:
+        return None
+    platform_fee_data_schema = FixedPlatformFeeConfigurationSchema.model_validate(
+        platform_fee_data
+    )
+    return platform_fee_data_schema
+
+
+async def a_get_fixed_platform_pricing_configuration(
+    db: AsyncSession,
+) -> FixedPlatformFeeConfigurationSchema:
+    """Async variant of get_fixed_platform_pricing_configuration."""
+    result = await db.execute(select(FixedPlatformPricingConfiguration))
+    platform_fee_data = result.scalars().first()
     if not platform_fee_data:
         return None
     platform_fee_data_schema = FixedPlatformFeeConfigurationSchema.model_validate(
@@ -461,6 +566,21 @@ def get_cancellation_policies_by_state_code(
     return None
 
 
+async def a_get_cancellation_policies_by_state_code(
+    state_code: str, db: AsyncSession
+) -> List[CancelationPolicySchema]:
+    """Async variant of get_cancellation_policies_by_state_code."""
+    result = await db.execute(
+        select(CancellationPolicy)
+        .join(StateModel, CancellationPolicy.state_id == StateModel.id)
+        .filter(StateModel.state_code == state_code)
+    )
+    policies = result.scalars().all()
+    if policies:
+        return [CancelationPolicySchema.model_validate(policy) for policy in policies]
+    return None
+
+
 def get_cancellation_policy_by_region_code(
     region_code: str, db: Session
 ) -> CancelationPolicySchema:
@@ -488,6 +608,21 @@ def get_cancellation_policies_by_region_code(
         )
         .all()
     )
+    if policies:
+        return [CancelationPolicySchema.model_validate(policy) for policy in policies]
+    return None
+
+
+async def a_get_cancellation_policies_by_region_code(
+    region_code: str, db: AsyncSession
+) -> List[CancelationPolicySchema]:
+    """Async variant of get_cancellation_policies_by_region_code."""
+    result = await db.execute(
+        select(CancellationPolicy)
+        .join(RegionModel, CancellationPolicy.region_id == RegionModel.id)
+        .filter(RegionModel.region_code == region_code)
+    )
+    policies = result.scalars().all()
     if policies:
         return [CancelationPolicySchema.model_validate(policy) for policy in policies]
     return None

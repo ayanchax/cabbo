@@ -1,7 +1,10 @@
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from core.exceptions import PLACE_NOT_FOUND, CabboException
+from core.security import validate_customer_token, validate_user_token
+from models.customer.customer_orm import Customer
 from models.map.location_schema import MapUrl, LocationProximity
+from models.user.user_orm import User
 from services.geography_service import get_allowed_countries
 from services.location_service import (
     get_map_url_from_place_id,
@@ -14,7 +17,8 @@ router = APIRouter()
 
 
 @router.get("/search")
-def search_location(
+async def search_location(
+    _: Customer = Depends(validate_customer_token),
     query: str = Query(..., description="Partial location string to search for"),
     lat: float = Query(None, description="Optional latitude to bias results"),
     lng: float = Query(None, description="Optional longitude to bias results"),
@@ -37,7 +41,8 @@ def search_location(
 
 
 @router.get("/reverse-geocode")
-def reverse_geocode(
+async def reverse_geocode(
+    _: Customer = Depends(validate_customer_token),
     lat: float = Query(..., description="Latitude for reverse geocoding"),
     lng: float = Query(..., description="Longitude for reverse geocoding"),
 ):
@@ -48,7 +53,8 @@ def reverse_geocode(
 
 
 @router.get("/place-details")
-def get_place_details(
+async def get_place_details(
+    _: Customer = Depends(validate_customer_token),
     place_id: str = Query(..., description="Place ID to fetch details for"),
     session_token: Optional[str] = Query(
         None, description="Session token for caching and improving location suggestions"
@@ -61,7 +67,8 @@ def get_place_details(
 
 
 @router.get("/mapurl", response_model=MapUrl)
-def get_map_url(
+async def get_map_url(
+    _: User = Depends(validate_user_token),
     place_id: str = Query(..., description="Maps place ID to generate a map URL for"),
 ):
     """

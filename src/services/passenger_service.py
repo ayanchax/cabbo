@@ -4,6 +4,8 @@ from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.security import RoleEnum
 from models.customer.passenger_orm import Passenger
 from models.customer.passenger_schema import PassengerCreate, PassengerRead, PassengerRequest, PassengerUpdate
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from models.trip.trip_schema import TripSearchRequest
@@ -223,6 +225,33 @@ def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Sess
 
         search_in.passenger = "self"  # Use a string to indicate self-booking
 
+async def a_validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: AsyncSession):
+    if (
+        search_in.passenger
+        and isinstance(search_in.passenger, PassengerRequest)
+        and search_in.passenger.id
+    ):
+        search_in.passenger.id = search_in.passenger.id.strip()
+        passenger = await a_get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
+        if not passenger:
+            raise CabboException("Invalid passenger ID provided", status_code=400, error_code=GENERIC_EXCEPTION)
+        if passenger.customer_id != requestor:
+            raise CabboException(
+                "Passenger does not belong to the requesting customer", status_code=403, error_code=GENERIC_EXCEPTION
+            )
+        if not passenger.is_active:
+            raise CabboException("Passenger is not active", status_code=403, error_code=GENERIC_EXCEPTION)
+        passenger_read = PassengerRead.model_validate(
+            passenger
+        )  # Validate passenger schema
+        search_in.passenger.name = (
+            passenger_read.name
+        )  # Attach passenger details to request
+        search_in.passenger.phone_number = passenger_read.phone_number
+    else:
+
+        search_in.passenger = "self"  # Use a string to indicate self-booking
+
 def get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
     """Retrieve a passenger by their ID.
     Args:
@@ -232,6 +261,11 @@ def get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
         Passenger: The passenger object if found, otherwise None.
     """
     return db.query(Passenger).filter(Passenger.id == passenger_id).first() 
+
+async def a_get_passenger_by_id(passenger_id: str, db: AsyncSession) -> Passenger:
+    """Async variant of get_passenger_by_id."""
+    result = await db.execute(select(Passenger).filter(Passenger.id == passenger_id))
+    return result.scalars().first()
 
 def populate_passenger_details(passenger_id:str, db:Session):
     """

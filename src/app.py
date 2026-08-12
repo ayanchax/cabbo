@@ -3,11 +3,10 @@ logger = logging.getLogger(APP_NAME)
 from core.constants import APP_NAME, APP_DESCRIPTION, APP_VERSION, Environment
 from core.config import settings
 import warnings
-
 warnings.filterwarnings("ignore", category=UserWarning, module="razorpay.client")
 from sqlalchemy.exc import SQLAlchemyError
 from core.exceptions import get_mysql_exception
-from db.database import check_db_connection, get_mysql_local_session
+from db.database import AsyncSessionLocal, check_db_connection
 from scheduler.app_scheduler import start_scheduler, stop_scheduler
 
 from fastapi import FastAPI, Request
@@ -41,8 +40,8 @@ async def lifespan(app: FastAPI):
     start_scheduler()
 
     # Initialize ConfigStore at startup to ensure it's ready when needed
-    with get_mysql_local_session() as db:
-        settings.init_config_store(db=db)
+    async with AsyncSessionLocal() as db:
+        await settings.init_config_store(db=db)
 
     yield
 
