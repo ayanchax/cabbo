@@ -10,6 +10,7 @@ from models.customer.customer_schema import CustomerSessionSchema
 from services.auth.session_constants import (
     CUSTOMER_SESSION_LIFETIME,
 )
+from utils.utility import as_utc_datetime
 
 log = logging.getLogger(__name__)
 
@@ -37,8 +38,9 @@ async def create_customer_session(payload: CustomerSessionSchema, db: AsyncSessi
 
 
 async def revoke_customer_session(
-    db: AsyncSession, token_hash: str, now: datetime =datetime.now(timezone.utc)
+    db: AsyncSession, token_hash: str, now: datetime | None = None
 ) -> bool:
+    now = now or datetime.now(timezone.utc)
     current_customer_session = await get_customer_session(
         db, token_hash=token_hash, now=now
     )
@@ -73,10 +75,12 @@ async def get_customer_session(
 async def update_customer_session_last_seen(
     db: AsyncSession,
     customer_session: CustomerSession,
-    now: datetime = datetime.now(timezone.utc),
+    now: datetime | None = None,
     update_threshold_minutes = 15
 ) -> bool:
-    if customer_session.last_seen_at > now - timedelta(minutes=update_threshold_minutes):
+    now = as_utc_datetime(now or datetime.now(timezone.utc))
+    last_seen_at = as_utc_datetime(customer_session.last_seen_at)
+    if last_seen_at > now - timedelta(minutes=update_threshold_minutes):
         return # Do not update if last seen was updated in the last `update_threshold_minutes` minutes.
     try:
         customer_session.last_seen_at = now

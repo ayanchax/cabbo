@@ -119,12 +119,12 @@ class CustomerSuspensionRequest(BaseModel):
 
 
 class CustomerSessionSchema(BaseModel):
-    customer_id:str
-    token_hash:str
-    created_at:Optional[datetime]
-    last_seen_at:Optional[datetime]
-    expires_at:Optional[datetime]
-    user_agent:Optional[str]
-    ip_address:Optional[str]
-    location:Optional[str]
-    session_metadata:Optional[dict]
+    customer_id: str = Field(..., description="UUID v4 customer ID associated with this session")
+    token_hash: str = Field(..., description="SHA-256 hash of the opaque session token")
+    created_at: Optional[datetime] = Field(None, description="Date and time when the session was created")
+    last_seen_at: Optional[datetime] = Field(None, description="Date and time when this session was last used")
+    expires_at: Optional[datetime] = Field(None, description="Date and time when this session expires")
+    user_agent: Optional[str] = Field(None, description="User agent captured when the session was created")
+    ip_address: Optional[str] = Field(None, description="IP address captured when the session was created")
+    location: Optional[str] = Field(None, description="Detected city or region for the session, if available")
+    session_metadata: Optional[dict] = Field(None, description="Additional structured metadata for this session")

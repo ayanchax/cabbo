@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from core.exceptions import CabboException, USER_PASSWORD_NOT_SET, GENERIC_EXCEPTION
 from core.security import RoleEnum
 from models.user.user_enum import GenderEnum
@@ -136,15 +136,15 @@ class UserLoginResponse(BaseModel):
 
 
 class SystemUserSessionSchema(BaseModel):
-    user_id:str
-    token_hash:str
-    created_at:Optional[datetime]
-    last_seen_at:Optional[datetime]
-    expires_at:Optional[datetime]
-    user_agent:Optional[str]
-    ip_address:Optional[str]
-    location:Optional[str]
-    session_metadata:Optional[dict]
+    user_id: str = Field(..., description="UUID v4 system user ID associated with this session")
+    token_hash: str = Field(..., description="SHA-256 hash of the opaque session token")
+    created_at: Optional[datetime] = Field(None, description="Date and time when the session was created")
+    last_seen_at: Optional[datetime] = Field(None, description="Date and time when this session was last used")
+    expires_at: Optional[datetime] = Field(None, description="Date and time when this session expires")
+    user_agent: Optional[str] = Field(None, description="User agent captured when the session was created")
+    ip_address: Optional[str] = Field(None, description="IP address captured when the session was created")
+    location: Optional[str] = Field(None, description="Detected city or region for the session, if available")
+    session_metadata: Optional[dict] = Field(None, description="Additional structured metadata for this session")
  
 
 

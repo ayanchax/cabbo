@@ -8,6 +8,7 @@ from models.user.user_schema import SystemUserSessionSchema
 from services.auth.session_constants import (
     SYSTEM_USER_SESSION_LIFETIME,
 )
+from utils.utility import as_utc_datetime
 
 log = logging.getLogger(__name__)
 
@@ -35,8 +36,9 @@ async def create_system_user_session(payload: SystemUserSessionSchema, db: Async
 
 
 async def revoke_system_user_session(
-    db: AsyncSession, token_hash: str, now: datetime =datetime.now(timezone.utc)
+    db: AsyncSession, token_hash: str, now: datetime | None = None
 ) -> bool:
+    now = now or datetime.now(timezone.utc)
     current_user_session = await get_system_user_session(
         db, token_hash=token_hash, now=now
     )
@@ -71,10 +73,12 @@ async def get_system_user_session(
 async def update_system_user_session_last_seen(
     db: AsyncSession,
     user_session: SystemUserSession,
-    now: datetime = datetime.now(timezone.utc),
+    now: datetime | None = None,
     update_threshold_minutes = 30
 ) -> bool:
-    if user_session.last_seen_at > now - timedelta(minutes=update_threshold_minutes):
+    now = as_utc_datetime(now or datetime.now(timezone.utc))
+    last_seen_at = as_utc_datetime(user_session.last_seen_at)
+    if last_seen_at > now - timedelta(minutes=update_threshold_minutes):
         return # Do not update if last seen was updated in the last `update_threshold_minutes` minutes.
     try:
         user_session.last_seen_at = now

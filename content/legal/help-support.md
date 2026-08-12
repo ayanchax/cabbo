@@ -1,11 +1,11 @@
 ---
 slug: help-support
 title: Help & Support
-version: "1.0.0"
+version: "1.0.1"
 effective_date: "2026-07-02"
 content_format: markdown
 requires_acceptance: false
-last_updated: "2026-07-02T00:00:00+05:30"
+last_updated: "2026-08-13T00:00:00+05:30"
 status: published
 display_order: 10
 category: support
@@ -71,4 +71,4 @@ Cabbo may refuse abusive, threatening, or fraudulent support requests.
 
 ## Support Channels
 
-For trip support, use the Call or WhatsApp support option shown on the booking detail page. For your safety, do not share OTPs, passwords, full card details, or other sensitive information with anyone claiming to represent Cabbo.
+For trip support, use the Call or WhatsApp support option shown on the booking detail page. For your safety, do not share OTPs, passwords, session access details, full card details, or other sensitive information with anyone claiming to represent Cabbo.

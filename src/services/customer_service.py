@@ -1,5 +1,6 @@
 from typing import Literal, Optional
 from sqlalchemy.orm import Session
+from core.security import RoleEnum
 from models.common import S3ObjectInfo
 from models.customer.customer_schema import (
     AdminSafeReadCustomer,
@@ -13,8 +14,9 @@ from models.customer.customer_orm import Customer
 from core.exceptions import CabboException, USER_NOT_FOUND, GENERIC_EXCEPTION
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_orm import Trip
 from models.user.user_enum import GenderEnum
 from services.customer_email_verification_service import (
     a_get_existing_email_verification_link,
@@ -684,18 +686,17 @@ async def a_transform_to_safe_customer(customer: Customer, db: AsyncSession) -> 
     safe_customer = CustomerSafeRead.model_validate(customer)
     safe_customer.profile_picture_url = _get_customer_profile_picture_url(customer)
     safe_customer.joined_on = customer.created_at
-    actual_trips = (
-        [
-            trip
-            for trip in customer.trips
-            if trip.status
-            not in [TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
-            and trip.is_active
-        ]
-        if hasattr(customer, "trips")
-        else []
+    actual_trips_count_result = await db.execute(
+        select(func.count(Trip.id)).where(
+            Trip.creator_id == customer.id,
+            Trip.creator_type == RoleEnum.customer.value,
+            Trip.status.notin_(
+                [TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
+            ),
+            Trip.is_active == True,
+        )
     )
-    safe_customer.number_of_trips = len(actual_trips)
+    safe_customer.number_of_trips = actual_trips_count_result.scalar_one() or 0
     existing_valid_email_verification = await a_get_existing_email_verification_link(
         customer.id, db=db
     )  # Check for existing email verification link

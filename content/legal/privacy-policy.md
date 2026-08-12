@@ -1,11 +1,11 @@
 ---
 slug: privacy-policy
 title: Privacy Policy
-version: "1.0.0"
-effective_date: "2026-07-02"
+version: "1.0.1"
+effective_date: "2026-08-13"
 content_format: markdown
 requires_acceptance: true
-last_updated: "2026-07-02T00:00:00+05:30"
+last_updated: "2026-08-13T00:00:00+05:30"
 status: published
 display_order: 30
 category: legal
@@ -29,7 +29,7 @@ Cabbo may collect the following information:
 - Booking details such as trip type, date, time, vehicle category, passengers, luggage, add-ons, fare estimate, driver assignment, and trip status.
 - Payment metadata such as payment status, payment method, transaction ID, refund ID, gateway response, and invoice details. Cabbo does not ask you to share full card numbers, UPI PINs, OTPs, or banking passwords.
 - Support information such as complaints, call notes, WhatsApp or email details, screenshots, and issue history.
-- Device and technical details such as app version, IP address, logs, timestamps, and diagnostic information.
+- Device, session, and technical details such as app version, IP address, browser or device information, session status, logs, timestamps, and diagnostic information.
 - Communication preferences and notification history.
 
 ## Why We Use Data
@@ -57,15 +57,19 @@ Depending on app permissions and product design, Cabbo may collect location ente
 
 Cabbo may also use a third-party IP-based geolocation service, such as ipapi.co, to estimate your city, region, country, or similar geography from your IP address. This helps Cabbo load relevant service-area and geography information. This is approximate IP-based geography and is not the same as precise GPS location.
 
-## Local Storage
+## Cookies And Local Storage
 
-Cabbo may use browser local storage to keep you signed in, remember recent places, cache approximate location information after you choose current location, and store geography-related preferences needed for the app experience.
+Cabbo uses essential session cookies to keep you signed in. These cookies contain an opaque session token, not your password or full account details. Cabbo stores session records on its servers and uses a one-way hash of the session token to validate active sessions, manage logout, detect active sessions, and protect account access.
+
+Session cookies may be configured with security settings such as Secure, HTTP-only, SameSite, and expiry controls where appropriate. Because these cookies are needed for login and account security, disabling or deleting them may sign you out or prevent authenticated features from working.
+
+Cabbo may use browser local storage or similar client-side storage to remember recent places, cache approximate location information after you choose current location, and store geography-related preferences needed for the app experience. Cabbo does not use browser local storage as the primary way to store login tokens.
 
 Cabbo may cache client geography information in local storage for a limited period, such as 24 hours, so the app does not need to request the same approximate geography repeatedly.
 
 Cabbo does not use non-essential advertising or tracking cookies.
 
-You can clear local storage from your browser or device settings. Clearing local storage may sign you out, remove saved trip-search context, or require Cabbo to load location and geography information again.
+You can clear cookies and local storage from your browser or device settings. Clearing cookies may sign you out. Clearing local storage may remove saved trip-search context or require Cabbo to load location and geography information again.
 
 ## Sharing Of Data
 

@@ -1,11 +1,11 @@
 ---
 slug: terms-of-service
 title: Terms of Service
-version: "1.0.0"
+version: "1.0.1"
 effective_date: "2026-07-02"
 content_format: markdown
 requires_acceptance: true
-last_updated: "2026-07-02T00:00:00+05:30"
+last_updated: "2026-08-13T00:00:00+05:30"
 status: published
 display_order: 20
 category: legal
@@ -52,7 +52,7 @@ Cabbo collects and processes personal information in accordance with its Privacy
 
 ## Account Rules
 
-You must provide accurate account and contact information. You are responsible for activity on your account and for keeping your login credentials and OTPs secure.
+You must provide accurate account and contact information. You are responsible for activity on your account and for keeping your login credentials, OTPs, devices, and active sessions secure.
 
 You must not misuse Cabbo, create fake bookings, abuse drivers or support staff, attempt fraud, interfere with the service, or use another person's account without permission.
 
