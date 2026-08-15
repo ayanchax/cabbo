@@ -356,6 +356,8 @@ class TripSerializationOptions(BaseModel):
     expose_trip_refund:bool=False
     expose_trip_flags:bool=False
     expose_upgradation_information: bool = False
+    expose_driver_assignment_notice: bool = False
+    expose_admin_driver_assignment_notice: bool = False
 
 
 class TripUpgradationInformationSchema(BaseModel):
@@ -474,6 +476,14 @@ class TripDetailSchema(BaseModel):
     # Driver assignment fields
     driver: Optional[Union[Dict[str, Any], Any, DriverReadSchema, CustomerSafeDriverReadSchema]] = Field(
         None, description="Driver details of the assigned driver"
+    )
+    driver_assignment_notice: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Customer-facing timing metadata for when driver details are usually shared",
+    )
+    admin_driver_assignment_notice: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Admin-facing timing metadata for future driver assignment attention",
     )
 
     # Trip status

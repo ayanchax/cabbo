@@ -30,6 +30,7 @@ from services.driver_service import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.refund_service import refund_advance_payment_to_customer_on_cancellation
+from utils.utility import validate_date_time
 import logging
 log = logging.getLogger(__name__)
  
@@ -56,8 +57,19 @@ async def change_status(
         if validate_time_window:
             trip_type = TripTypeEnum(trip_type)
             now = datetime.now(timezone.utc)
-            #payload.start_datetime can be provided as overriden value by driver_admin when they are marking the trip as ongoing, because sometimes the driver might have started the trip a bit earlier than the scheduled start time due to traffic conditions, customer readiness etc. and in such cases we want to allow driver_admin to provide the actual start datetime when marking the trip as ongoing for better accuracy in trip records and also for better analysis of trip data in the future. But if payload.start_datetime is not provided then we will use the original start datetime of the trip for further processing in the flow of marking trip as ongoing.
-            scheduled_start_time = _evaluate_start_time(trip.start_datetime, payload.start_datetime if payload else None)
+            # The window must be based on the scheduled trip start. The admin
+            # payload is the actual start time to persist, not permission to
+            # move the scheduled window.
+            scheduled_start_time = _evaluate_start_time(
+                trip=trip,
+                startdatetime=trip.start_datetime,
+            )
+            actual_start_time = _evaluate_start_time(
+                trip=trip,
+                startdatetime=payload.start_datetime if payload else None,
+                fallback_datetime=now,
+                use_trip_timezone=True,
+            )
             earliest_start_time, latest_start_time = _get_ongoing_start_window(
                 trip=trip,
                 trip_type=trip_type,
@@ -77,7 +89,7 @@ async def change_status(
                     status_code=400,
                     error_code=GENERIC_EXCEPTION,
                 )
-            payload.start_datetime = scheduled_start_time  # Update the start datetime in the payload with the evaluated start datetime which is based on the original start datetime of the trip and any overridden start datetime provided in the payload, so that we can use this start datetime for further processing in the flow of marking trip as ongoing and also to log in the audit trail for trip status change.
+            payload.start_datetime = actual_start_time  # Update the start datetime in the payload with the evaluated actual start datetime, so that we can use this start datetime for further processing in the flow of marking trip as ongoing and also to log in the audit trail for trip status change.
         return await _ongoing(
             trip=trip, db=db, status=status, requestor=requestor, payload=payload
         )
@@ -149,7 +161,15 @@ async def _ongoing(
             await db.flush()  # Flush to save the updated driver availability status before any further operations
 
         # Update start datetime - The driver_admin can get the actual start datetime from the driver when they start the trip in the driver app, if not provided we will set the start datetime as current datetime in UTC timezone.
-        trip.start_datetime =payload.start_datetime if payload and payload.start_datetime else _evaluate_start_time(startdatetime=trip.start_datetime)  # Set the actual start datetime when trip is marked as ongoing
+        trip.start_datetime = (
+            _evaluate_start_time(
+                trip=trip,
+                startdatetime=payload.start_datetime,
+                use_trip_timezone=True,
+            )
+            if payload and payload.start_datetime
+            else _evaluate_start_time(trip=trip, startdatetime=trip.start_datetime)
+        )  # Set the actual start datetime when trip is marked as ongoing
         # Update status
         trip.status = status.value
 
@@ -432,15 +452,21 @@ async def _dispute(
         return trip_schema, background_task
      
     
-def _evaluate_start_time(startdatetime: datetime, overridden_startdatetime: Optional[datetime]=None):
-    if overridden_startdatetime:
-        dt = overridden_startdatetime
-    else:
-        dt = startdatetime if startdatetime else datetime.now(timezone.utc)
+def _evaluate_start_time(
+    trip: Trip,
+    startdatetime: Optional[datetime] = None,
+    fallback_datetime: Optional[datetime] = None,
+    use_trip_timezone: bool = False,
+) -> datetime:
+    dt = startdatetime or fallback_datetime or datetime.now(timezone.utc)
+    if use_trip_timezone:
+        return validate_date_time(
+            dt,
+            timezone_str=getattr(trip, "timezone", None),
+            utc_offset=getattr(trip, "utc_offset", None),
+        )
     # Normalise to UTC-aware — MySQL returns naive datetimes stored as UTC
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+    return validate_date_time(dt, timezone_str="UTC")
 
 
 def _get_ongoing_start_window(
@@ -456,7 +482,7 @@ def _get_ongoing_start_window(
 
     expected_end_datetime = getattr(trip, "expected_end_datetime", None)
     if expected_end_datetime:
-        latest_start_time = _evaluate_start_time(expected_end_datetime)
+        latest_start_time = _evaluate_start_time(trip=trip, startdatetime=expected_end_datetime)
         if latest_start_time < fallback_latest_start_time:
             latest_start_time = fallback_latest_start_time
     else:

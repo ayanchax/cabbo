@@ -108,6 +108,7 @@ TRIP_RESPONSE_OPTIONS = {
         expose_policy_detail=True,
         expose_trip_review=True,
         expose_upgradation_information=True,
+        expose_driver_assignment_notice=True,
 
     ),
     TripResponseView.CUSTOMER_LIST: TripSerializationOptions(
@@ -148,7 +149,8 @@ TRIP_RESPONSE_OPTIONS = {
         expose_dispute_details=True,
         expose_trip_review=True,
         optimize_response=True,
-        expose_trip_flags=True
+        expose_trip_flags=True,
+        expose_admin_driver_assignment_notice=True
 
 
     ),

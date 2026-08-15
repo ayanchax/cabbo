@@ -69,7 +69,7 @@ async def validate_customer_token(
     db: AsyncSession = Depends(a_yield_mysql_session),
 ) -> Customer:
     unauthorized = CabboException(
-        "Unauthorized.", status_code=403, error_code=UNAUTHORIZED
+        "Unauthorized.", status_code=401, error_code=UNAUTHORIZED
     )
 
     if not session_token:
@@ -106,7 +106,7 @@ async def validate_user_token(
     db: AsyncSession = Depends(a_yield_mysql_session),
 ) -> User:
     unauthorized = CabboException(
-        "Unauthorized.", status_code=403, error_code=UNAUTHORIZED
+        "Unauthorized.", status_code=401, error_code=UNAUTHORIZED
     )
 
     if not session_token:

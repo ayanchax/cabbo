@@ -3,6 +3,7 @@ import json
 from typing import Literal, Optional, Union
 
 from core.exceptions import CabboException, GENERIC_EXCEPTION
+from core.buffers import TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
@@ -11,7 +12,6 @@ from core.trip_helpers import (
     a_get_trip_type_id_by_trip_type,
     attach_relationships_to_trip,
     generate_trip_field_dictionary,
-    get_trip_type_id_by_trip_type,
 )
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
@@ -61,7 +61,6 @@ from services.passenger_service import (
     get_passenger_id_from_preferences,
     populate_passenger_details,
     serialize_passenger,
-    validate_passenger_id,
 )
 from services.policy_service import serialize_cancellation_and_refund_policy
 from services.pricing_service import (
@@ -89,7 +88,7 @@ from services.trips.status_transition_policy import validate_trip_status_transit
 from services.trips.status_service import change_status
 from services.trips.upgradation_service import serialize_trip_upgradtion
 from services.validation_service import validate_serviceable_area, validate_trip_type
-from utils.coercions import coerce_refund_status, coerce_trip_filter_date, coerce_trip_status
+from utils.coercions import coerce_refund_status, coerce_trip_filter_date, coerce_trip_status, coerce_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, delete, func, or_, select
@@ -186,6 +185,11 @@ def serialize_trip(
             trip=trip, trip_dict=trip_dict, trip_type=trip_type
         )
 
+    if trip_type and options.expose_driver_assignment_notice:
+        trip_dict["driver_assignment_notice"] = get_driver_assignment_notice(
+            TripTypeEnum(trip_type)
+        )
+
     trip_dict["rate_per_km"] = trip.rate_per_km if trip.rate_per_km else 0.0
 
     if options.expose_trip_label:
@@ -201,6 +205,12 @@ def serialize_trip(
             
     if options.expose_trip_flags:
         trip_dict = apply_trip_flags(trip_dict=trip_dict, driver=driver)
+
+    if options.expose_admin_driver_assignment_notice:
+        trip_dict["admin_driver_assignment_notice"] = get_admin_driver_assignment_notice(
+            trip_dict=trip_dict,
+            driver=driver,
+        )
 
     if options.expose_upgradation_information and upgradation_information:
         trip_dict["upgradation_information"] = upgradation_information
@@ -299,18 +309,123 @@ def _needs_driver_for_operations(
     label: Optional[str],
     status: Optional[TripStatusEnum],
     has_driver: bool,
+    start_datetime: Optional[datetime],
+    trip_type: Optional[TripTypeEnum],
 ) -> bool:
     if has_driver:
         return False
+
+    if _is_stale_or_unknown_trip(label=label, status=status):
+        return True
 
     upcoming_driver_statuses = {
         TripStatusEnum.confirmed,
         TripStatusEnum.created,
     }
-    if label == "upcoming" and status in upcoming_driver_statuses:
-        return True
+    if label != "upcoming" or status not in upcoming_driver_statuses:
+        return False
 
-    return _is_stale_or_unknown_trip(label=label, status=status)
+    if not start_datetime or not trip_type:
+        return False
+
+    assignment_lookahead_minutes = TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES.get(
+        trip_type,
+        1440, # 1 day by default
+    )
+    assignment_window_start = start_datetime - timedelta(minutes=assignment_lookahead_minutes)
+    return datetime.now(timezone.utc) >= assignment_window_start
+
+
+def _format_minutes_for_display(minutes: int) -> dict:
+    if minutes % 1440 == 0:
+        value = minutes // 1440
+        unit = "day" if value == 1 else "days"
+    elif minutes % 60 == 0:
+        value = minutes // 60
+        unit = "hour" if value == 1 else "hours"
+    else:
+        value = minutes
+        unit = "minute" if value == 1 else "minutes"
+
+    return {
+        "display_value": value,
+        "display_unit": unit,
+        "display_text": f"{value} {unit}",
+    }
+
+
+def _format_driver_assignment_notice(assignment_lookahead_minutes: int) -> dict:
+    notice_minutes = max(1, assignment_lookahead_minutes // 2)
+    return {
+        "assignment_lookahead_minutes": assignment_lookahead_minutes,
+        "notice_minutes": notice_minutes,
+        **_format_minutes_for_display(notice_minutes),
+    }
+
+
+def get_driver_assignment_notice(trip_type: Optional[TripTypeEnum]) -> Optional[dict]:
+    if not trip_type:
+        return None
+
+    assignment_lookahead_minutes = TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES.get(
+        trip_type,
+        1440,
+    )
+    return _format_driver_assignment_notice(assignment_lookahead_minutes)
+
+
+def get_admin_driver_assignment_notice(trip_dict: dict, driver=None) -> Optional[dict]:
+    label = trip_dict.get("label") or get_trip_label(trip_dict)
+    status = coerce_trip_status(trip_dict.get("status"))
+    has_driver = _has_assigned_driver(trip_dict=trip_dict, driver=driver)
+    trip_type_value = (
+        trip_dict.get("trip_type", {}).get("trip_type")
+        if trip_dict.get("trip_type")
+        else None
+    )
+    trip_type = coerce_trip_type(trip_type_value)
+    start_datetime = (
+        validate_date_time(trip_dict.get("start_datetime"), timezone_str="UTC")
+        if trip_dict.get("start_datetime")
+        else None
+    )
+
+    if (
+        has_driver
+        or label != "upcoming"
+        or status not in {TripStatusEnum.confirmed, TripStatusEnum.created}
+        or not trip_type
+        or not start_datetime
+    ):
+        return None
+
+    assignment_lookahead_minutes = TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES.get(
+        trip_type,
+        1440,
+    )
+    assignment_window_start = start_datetime - timedelta(
+        minutes=assignment_lookahead_minutes
+    )
+    now = datetime.now(timezone.utc)
+    if now >= assignment_window_start:
+        return None
+
+    minutes_until_assignment_window = int(
+        (assignment_window_start - now).total_seconds() // 60
+    )
+    assignment_lookahead_display = _format_minutes_for_display(
+        assignment_lookahead_minutes
+    )
+    return {
+        "assignment_lookahead_minutes": assignment_lookahead_minutes,
+        "assignment_lookahead_display_text": assignment_lookahead_display["display_text"],
+        "assignment_window_starts_at": assignment_window_start,
+        "minutes_until_assignment_window": minutes_until_assignment_window,
+        "message": (
+            f"Driver assignment window will open {assignment_lookahead_display['display_text']} before pickup. "
+            "This trip is upcoming and does not need driver action as of yet."
+        ),
+    }
 
 
 def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
@@ -318,6 +433,17 @@ def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
     label = trip_dict.get("label") or get_trip_label(trip_dict)
     status = coerce_trip_status(trip_dict.get("status"))
     has_driver = _has_assigned_driver(trip_dict=trip_dict, driver=driver)
+    trip_type_value = (
+        trip_dict.get("trip_type", {}).get("trip_type")
+        if trip_dict.get("trip_type")
+        else None
+    )
+    trip_type = coerce_trip_type(trip_type_value)
+    start_datetime = (
+        validate_date_time(trip_dict.get("start_datetime"), timezone_str="UTC")
+        if trip_dict.get("start_datetime")
+        else None
+    )
 
     trip_dict["label"] = label
     trip_dict["needs_review"] = _is_stale_or_unknown_trip(label=label, status=status)
@@ -325,6 +451,8 @@ def apply_trip_flags(trip_dict: dict, driver=None) -> dict:
         label=label,
         status=status,
         has_driver=has_driver,
+        start_datetime=start_datetime,
+        trip_type=trip_type,
     )
     return trip_dict
 

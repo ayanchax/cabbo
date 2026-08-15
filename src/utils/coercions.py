@@ -4,7 +4,7 @@ from typing import Optional
 
 from core.exceptions import GENERIC_EXCEPTION, CabboException
 from models.policies.refund_enum import RefundStatus
-from models.trip.trip_enums import CancellationSubStatusEnum, CarTypeEnum, FuelTypeEnum, TripStatusEnum
+from models.trip.trip_enums import CancellationSubStatusEnum, CarTypeEnum, FuelTypeEnum, TripStatusEnum, TripTypeEnum
 
 
 def coerce_car_type(value) -> Optional[CarTypeEnum]:
@@ -56,6 +56,17 @@ def coerce_trip_status(status: Optional[Union[str, TripStatusEnum]]) -> Optional
         return status
     try:
         return TripStatusEnum(status)
+    except ValueError:
+        return None
+
+
+def coerce_trip_type(trip_type: Optional[Union[str, TripTypeEnum]]) -> Optional[TripTypeEnum]:
+    if not trip_type:
+        return None
+    if isinstance(trip_type, TripTypeEnum):
+        return trip_type
+    try:
+        return TripTypeEnum(trip_type)
     except ValueError:
         return None
 
