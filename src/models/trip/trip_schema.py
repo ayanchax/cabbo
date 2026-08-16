@@ -53,6 +53,19 @@ class TripTypeUpdateSchema(BaseModel):
         extra = "allow"
 
 
+class InclusionExclusionItem(BaseModel):
+    label: str = Field(..., description="Customer-facing inclusion or exclusion label")
+    description: str = Field(
+        ..., description="Short customer-facing explanation for the label"
+    )
+
+    class Config:
+        extra = "forbid"
+
+
+InclusionExclusionList = List[Union[str, InclusionExclusionItem]]
+
+
 class TripDetails(BaseModel):
     # Trip type and package
     trip_type: Optional[TripTypeEnum] = None
@@ -105,8 +118,8 @@ class TripDetails(BaseModel):
     overages: Optional[dict] = None
 
     # Inclusions and exclusions
-    inclusions: Optional[List[str]] = None
-    exclusions: Optional[List[str]] = None
+    inclusions: Optional[InclusionExclusionList] = None
+    exclusions: Optional[InclusionExclusionList] = None
 
     # Airport/flight metadata
     flight_number: Optional[str] = None
@@ -271,10 +284,10 @@ class TripSearchOption(BaseModel):
 
 
 class TripSearchAdditionalData(BaseModel):
-    inclusions: Optional[List[str]] = (
+    inclusions: Optional[InclusionExclusionList] = (
         None  # List of inclusions like tolls, parking, etc.
     )
-    exclusions: Optional[List[str]] = (
+    exclusions: Optional[InclusionExclusionList] = (
         None  # List of exclusions like fuel, driver meals, etc.
     )
     in_car_amenities: Optional[AmenitiesSchema] = (
@@ -537,10 +550,10 @@ class TripDetailSchema(BaseModel):
     
 
     # Inclusions and exclusions
-    inclusions: Optional[List[str]] = Field(
+    inclusions: Optional[InclusionExclusionList] = Field(
         None, description="List of inclusions for the trip"
     )
-    exclusions: Optional[List[str]] = Field(
+    exclusions: Optional[InclusionExclusionList] = Field(
         None, description="List of exclusions for the trip"
     )
 

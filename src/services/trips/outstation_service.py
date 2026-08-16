@@ -10,7 +10,12 @@ from core.exceptions import (
     GENERIC_EXCEPTION,
 )
 from core.store import ConfigStore
-from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
+from core.trip_constants import (
+    COMMON_EXCLUSIONS,
+    COMMON_INCLUSIONS,
+    build_exclusion_items,
+    build_inclusion_items,
+)
 from core.trip_helpers import (
     generate_trip_field_dictionary,
     generate_trip_hash,
@@ -58,28 +63,30 @@ def _get_inclusions_exclusions_for_outstation_trip(is_interstate: bool):
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = COMMON_INCLUSIONS[:]  # base set
-    inclusions.extend(
+    inclusion_labels = COMMON_INCLUSIONS[:]  # base set
+    inclusion_labels.extend(
         [
             "Driver allowance",
             "Water bottles, candies, and tissues",
         ]
     )
 
-    exclusions = COMMON_EXCLUSIONS[:]  # base set
-    exclusions.extend(
+    exclusion_labels = COMMON_EXCLUSIONS[:]  # base set
+    exclusion_labels.extend(
         [
-            "Self sponsored driver accomodation",
+            "Self sponsored driver accommodation",
             "Night surcharges (if applicable)",
         ]
     )
     if is_interstate:
-        inclusions.extend(
+        inclusion_labels.extend(
             [
                 "State entry taxes",  # Applicable state entry taxes for interstate trips, we maintain a configuration for state entry taxes per state, and hence it is included here
             ]
         )
-    return inclusions, exclusions
+    return build_inclusion_items(inclusion_labels), build_exclusion_items(
+        exclusion_labels
+    )
 
 
 def _track_state_transitions(search_in: TripSearchRequest):
@@ -503,7 +510,7 @@ def get_outstation_trip_options(
         preferences=remove_extra_fields_from_outstation_trip(search_in.model_dump(exclude_none=True, exclude_unset=True)),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_outstation_common_disclaimer_lines(),
-        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy, trip_startdate_time=search_in.start_date, trip_timezone=search_in.timezone),
     )
 
 

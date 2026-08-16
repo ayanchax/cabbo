@@ -29,6 +29,7 @@ from models.trip.trip_enums import (
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
+    InclusionExclusionItem,
     TripBookRequest,
     TripDetailSchema,
     TripDetails,
@@ -966,16 +967,8 @@ async def a_create_temporary_trip(
             booking_request.option.total_price
             - booking_request.option.price_breakdown.platform_fee
         ),
-        inclusions=(
-            booking_request.metadata.inclusions
-            if booking_request.metadata.inclusions
-            else None
-        ),
-        exclusions=(
-            booking_request.metadata.exclusions
-            if booking_request.metadata.exclusions
-            else None
-        ),
+        inclusions=_get_serialized_inclusions(booking_request),
+        exclusions=_get_serialized_exclusions(booking_request),
         flight_number=(
             booking_request.preferences.flight_number
             if booking_request.preferences and booking_request.preferences.flight_number
@@ -1117,6 +1110,36 @@ async def async_get_trip_by_id(
             view=view,
         )
     return trip_result
+
+def _serialize_inclusion_exclusion_items(items):
+    if not items:
+        return None
+
+    if all(isinstance(item, str) for item in items):
+        return items
+
+    return [
+        item.model_dump() if isinstance(item, InclusionExclusionItem) else item
+        for item in items
+    ]
+
+
+def _get_serialized_inclusions(booking_request: TripBookRequest):
+    inclusions = (
+        booking_request.metadata.inclusions
+        if booking_request.metadata and hasattr(booking_request.metadata, "inclusions")
+        else None
+    )
+    return _serialize_inclusion_exclusion_items(inclusions)
+
+
+def _get_serialized_exclusions(booking_request: TripBookRequest):
+    exclusions = (
+        booking_request.metadata.exclusions
+        if booking_request.metadata and hasattr(booking_request.metadata, "exclusions")
+        else None
+    )
+    return _serialize_inclusion_exclusion_items(exclusions)
 
 
 async def async_get_trip_by_booking_id(

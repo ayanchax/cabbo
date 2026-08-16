@@ -30,9 +30,10 @@ from services.driver_service import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.refund_service import refund_advance_payment_to_customer_on_cancellation
-from utils.utility import validate_date_time
+from utils.utility import format_duration_from_delta, validate_date_time
 import logging
 log = logging.getLogger(__name__)
+
  
 async def change_status(
     trip: Trip,
@@ -78,14 +79,14 @@ async def change_status(
             
             if now > latest_start_time:
                 raise CabboException(
-                    f"Cannot start trip after {(now - latest_start_time).total_seconds() // 60} minutes of the allowed start window. Please ensure to mark the trip as ongoing before the trip window expires.",
+                    f"Cannot start trip after {format_duration_from_delta(now - latest_start_time)} of the allowed start window.",
                     status_code=400,
                     error_code=GENERIC_EXCEPTION,
                 )
 
             if now < earliest_start_time:
                 raise CabboException(
-                    f"Cannot start trip before {(earliest_start_time - now).total_seconds() // 60} minutes of the allowed start window. Please ensure to mark the trip as ongoing closer to the scheduled start time.",
+                    f"Cannot start trip before {format_duration_from_delta(earliest_start_time - now)} of the allowed start window.",
                     status_code=400,
                     error_code=GENERIC_EXCEPTION,
                 )

@@ -575,7 +575,8 @@
                 <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
                     {% for inc in inclusions %}
                     <li style="margin-bottom: 8px; font-size: 12px;">
-                        <span style="margin-right: 8px;">✅</span>{{ inc }}
+                        <span style="margin-right: 8px;">✅</span>{{ inc.label if inc.label is defined else inc }}
+                         
                     </li>
                     {% endfor %}
                 </ul>
@@ -583,7 +584,8 @@
                 <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
                     {% for ex in exclusions %}
                     <li style="margin-bottom: 8px; font-size: 12px;">
-                        <span style="margin-right: 8px;">❌</span>{{ ex }}
+                        <span style="margin-right: 8px;">❌</span>{{ ex.label if ex.label is defined else ex }}
+                        
                     </li>
                     {% endfor %}
                 </ul>

@@ -9,7 +9,12 @@ from core.exceptions import (
     DISTANCE_NOT_DETERMINED,
 )
 from core.store import ConfigStore
-from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
+from core.trip_constants import (
+    COMMON_EXCLUSIONS,
+    COMMON_INCLUSIONS,
+    build_exclusion_items,
+    build_inclusion_items,
+)
 from core.trip_helpers import (
     generate_trip_field_dictionary,
     generate_trip_hash,
@@ -59,13 +64,15 @@ def _get_inclusions_exclusions_for_airport_drop(toll_road_preferred: bool = Fals
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = COMMON_INCLUSIONS[:]  # base set
+    inclusion_labels = COMMON_INCLUSIONS[:]  # base set
     if toll_road_preferred:
-        inclusions.insert(1, "Toll")  # keep Toll early in the list
-    inclusions.extend(["Water bottles and tissues"])
+        inclusion_labels.insert(1, "Toll")  # keep Toll early in the list
+    inclusion_labels.extend(["Water bottles and tissues"])
 
-    exclusions = COMMON_EXCLUSIONS[:]
-    return inclusions, exclusions
+    exclusion_labels = COMMON_EXCLUSIONS[:]
+    return build_inclusion_items(inclusion_labels), build_exclusion_items(
+        exclusion_labels
+    )
 
 
 def _get_trip_origin_destination_distance_airport_drop(search_in: TripSearchRequest):
@@ -150,15 +157,17 @@ def _get_inclusions_exclusions_for_airport_pickup(
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = COMMON_INCLUSIONS[:]  # base set
+    inclusion_labels = COMMON_INCLUSIONS[:]  # base set
     if toll_road_preferred:
-        inclusions.append("Toll")
-    inclusions.append("Parking")
+        inclusion_labels.append("Toll")
+    inclusion_labels.append("Parking")
     if placard_required:
-        inclusions.append("Placard charges")
-    inclusions.append("Water bottles and tissues")
-    exclusions = COMMON_EXCLUSIONS[:]  # base set
-    return inclusions, exclusions
+        inclusion_labels.append("Placard charges")
+    inclusion_labels.append("Water bottles and tissues")
+    exclusion_labels = COMMON_EXCLUSIONS[:]  # base set
+    return build_inclusion_items(inclusion_labels), build_exclusion_items(
+        exclusion_labels
+    )
 
 
 def _get_airport_toll(toll: float, toll_road_preferred: bool):
@@ -482,7 +491,7 @@ def get_airport_pickup_trip_options(
             includes_placard=search_in.placard_required,
         ),
         refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(
-            policy=cancelation_refund_policy
+            policy=cancelation_refund_policy, trip_startdate_time=search_in.start_date, trip_timezone=search_in.timezone
         ),
     )
 
@@ -660,7 +669,7 @@ def get_airport_dropoff_trip_options(
             includes_tolls=search_in.toll_road_preferred,
         ),
         refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(
-            policy=cancelation_refund_policy
+            policy=cancelation_refund_policy, trip_startdate_time=search_in.start_date, trip_timezone=search_in.timezone
         ),
     )
 

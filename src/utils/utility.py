@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from dateutil.parser import isoparse
 from core.config import settings
+import math
 import requests
 import re
 import logging
@@ -154,6 +155,25 @@ def as_utc_datetime(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+def format_duration_from_minutes(total_minutes: int) -> str:
+    total_minutes = max(1, int(total_minutes))
+    days, remaining_minutes = divmod(total_minutes, 1440) # 1 day = 1440 mins
+    hours, minutes = divmod(remaining_minutes, 60) # 1 hour = 60 mins
+
+    parts = []
+    if days:
+        parts.append(f"{days} {'day' if days == 1 else 'days'}")
+    if hours:
+        parts.append(f"{hours} {'hour' if hours == 1 else 'hours'}")
+    if minutes:
+        parts.append(f"{minutes} {'minute' if minutes == 1 else 'minutes'}")
+
+    return " ".join(parts)
+
+def format_duration_from_delta(delta: timedelta) -> str:
+    total_minutes = math.ceil(delta.total_seconds() / 60)
+    return format_duration_from_minutes(total_minutes)
 
 def money(value: float) -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

@@ -6,7 +6,12 @@ from core.constants import APP_NAME
 from core.config import settings
 from core.exceptions import CabboException, LOCAL_TRIP_ORIGIN_REQUIRED, GENERIC_EXCEPTION
 from core.store import ConfigStore
-from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
+from core.trip_constants import (
+    COMMON_EXCLUSIONS,
+    COMMON_INCLUSIONS,
+    build_exclusion_items,
+    build_inclusion_items,
+)
 from core.trip_helpers import (
     generate_trip_field_dictionary,
     generate_trip_hash,
@@ -51,15 +56,17 @@ def _get_inclusions_exclusions_for_local_trip():
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = COMMON_INCLUSIONS[:]  # base set
-    inclusions.extend(
+    inclusion_labels = COMMON_INCLUSIONS[:]  # base set
+    inclusion_labels.extend(
         [
             "Water bottles and tissues",
         ]
     )
-    exclusions = COMMON_EXCLUSIONS[:]
+    exclusion_labels = COMMON_EXCLUSIONS[:]
 
-    return inclusions, exclusions
+    return build_inclusion_items(inclusion_labels), build_exclusion_items(
+        exclusion_labels
+    )
 
 
 def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
@@ -371,7 +378,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         preferences=remove_extra_fields_from_local_hourly_rental_trip(search_in.model_dump(exclude_none=True)),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
         disclaimers=_get_local_trips_common_disclaimer_lines(currency, applicable_driver_allowance=math.ceil(package.driver_allowance) if package and package.driver_allowance else 0.0),
-        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy, trip_startdate_time=search_in.start_date, trip_timezone=search_in.timezone),
 
     )
 

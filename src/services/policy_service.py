@@ -1,4 +1,6 @@
+from datetime import datetime, timedelta
 import math
+from typing import Union
 
 from core.store import ConfigStore
 from models.map.location_schema import LocationInfo
@@ -7,7 +9,28 @@ from models.trip.trip_enums import TripTypeEnum
 import logging
 from core.config import settings
 from models.trip.trip_orm import Trip
+from utils.utility import as_utc_datetime, format_trip_datetime, validate_date_time
+
 log = logging.getLogger(__name__)
+
+
+def _format_refund_cutoff_datetime(cutoff_datetime: datetime) -> str:
+    hour = cutoff_datetime.hour % 12 or 12
+    meridiem = "AM" if cutoff_datetime.hour < 12 else "PM"
+    return (
+        f"{cutoff_datetime:%b} {cutoff_datetime.day} {cutoff_datetime.year} "
+        f"{hour}:{cutoff_datetime.minute:02d} {meridiem}"
+    )
+
+
+def _trip_start_datetime_as_utc(
+    trip_startdate_time: Union[str, datetime]
+) -> datetime:
+    if isinstance(trip_startdate_time, datetime):
+        return as_utc_datetime(trip_startdate_time)
+
+    return validate_date_time(date_time=trip_startdate_time, timezone_str="UTC")
+
 
 def get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type: TripTypeEnum, config_store: ConfigStore, jurisdiction_code: str):
     trip_type_id = next(tt.id for tt in config_store.trip_types if tt.trip_type == trip_type)
@@ -45,8 +68,12 @@ def get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type: TripTypeE
                     f"Trip type {trip_type.value} not eligible for cancellation refund"
                 )
         return None
-    
-def get_refund_and_cancellation_policy_lines(policy:CancelationPolicySchema):
+
+def get_refund_and_cancellation_policy_lines(
+    policy: CancelationPolicySchema,
+    trip_startdate_time: Union[str, datetime] = None,
+    trip_timezone: str = None,
+):
     
     if not policy:
         # Give some default lines about contacting support for refund and cancellation queries if policy is not defined for the region/trip type, to ensure we are not leaving users without any information
@@ -59,9 +86,29 @@ def get_refund_and_cancellation_policy_lines(policy:CancelationPolicySchema):
     lines = []
     # 1. Full refund if cancelled before cutoff
     if policy.free_cutoff_minutes and policy.free_cutoff_time_label:
-        lines.append(
-            f"Full refund if you cancel atleast {policy.free_cutoff_time_label}."
-        )
+        if trip_startdate_time and trip_timezone:
+            trip_startdate_time_in_utc = _trip_start_datetime_as_utc(
+                trip_startdate_time=trip_startdate_time,
+            )
+            exact_date_time_upto_which_full_refund_can_be_availed_in_utc = (
+                trip_startdate_time_in_utc - timedelta(minutes=policy.free_cutoff_minutes)
+            )
+            exact_date_time_upto_which_full_refund_can_be_availed = (
+                format_trip_datetime(
+                    exact_date_time_upto_which_full_refund_can_be_availed_in_utc,
+                    trip_timezone,
+                )
+            )
+            full_refund_cutoff_label = _format_refund_cutoff_datetime(
+                exact_date_time_upto_which_full_refund_can_be_availed
+            )
+            lines.append(
+                f"Full refund if you cancel by {full_refund_cutoff_label}."
+            )
+        else:
+            lines.append(
+                f"Full refund if you cancel at least {policy.free_cutoff_time_label}."
+            )
     # 2. Partial refund if cancelled after cutoff
     if policy.refund_percentage is not None and policy.refund_percentage < 100:
         rounded_refund_percentage = int(math.ceil(policy.refund_percentage))
@@ -83,10 +130,8 @@ def get_refund_and_cancellation_policy_lines(policy:CancelationPolicySchema):
     return lines
 
 def serialize_cancellation_and_refund_policy(
-    trip: Trip, trip_dict: dict, trip_type: TripTypeEnum, 
+    trip: Trip, trip_dict: dict, trip_type: TripTypeEnum,
 ):
-
-     
     config_store = settings.get_config_store()
     origin = LocationInfo.model_validate(trip.origin) if trip.origin else None
     if origin:
@@ -111,7 +156,9 @@ def serialize_cancellation_and_refund_policy(
             )
         )  # Ensure refund policy exists for local trips in the region
         refund_and_cancellation_policy = get_refund_and_cancellation_policy_lines(
-            policy=cancelation_refund_policy
+            policy=cancelation_refund_policy,
+            trip_startdate_time=trip.start_datetime,
+            trip_timezone=trip.timezone,
         )
         trip_dict["refund_and_cancellation_policy"] = refund_and_cancellation_policy
     return trip_dict
