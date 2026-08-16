@@ -1,0 +1,14 @@
+users:
+  - name: Bishal Dey
+    username: bishal_dey
+    phone_number: "+918453712810"
+    role: driver_admin
+
+  - name: Oyendrila Majumdar
+    username: oyendrila_majumdar
+    phone_number: "+918017084241"
+    role: super_admin
+     
+
+  
+  

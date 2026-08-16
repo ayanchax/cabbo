@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/confirm-booking"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_id\":\"b60a532a-01ed-4d4c-9612-120570af806c\",\r
+
+    \    \"payment_info\":{\r
+
+    \    \r
+
+    \    \"razorpay_payment_id\": \"pay_STsKLnUbXOE82T\",\r
+
+    \    \"razorpay_order_id\": \"order_STsJFx9u4kqwBl\",\r
+
+    \    \"razorpay_signature\": \"def622eb4c665a3011559f71450633adc70ef8dc4087f2c36b45ff8c21f2b848\"\r
+
+    \r
+
+    \    }\r
+
+    }"
+order: 2000

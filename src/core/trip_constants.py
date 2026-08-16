@@ -1,6 +1,7 @@
 from core.constants import APP_NAME
-from models.trip.trip_enums import TripStatusEnum
-
+from models.trip.trip_enums import TripResponseView, TripStatusEnum, TripTypeEnum
+from models.trip.trip_schema import TripSerializationOptions
+from models.trip.trip_schema import TripSerializationOptions
 
 TRIP_MESSAGES = {
     TripStatusEnum.created.value: {
@@ -81,6 +82,139 @@ COMMON_INCLUSIONS = [
 COMMON_EXCLUSIONS = [
     "Personal expenses",
     "Self sponsored driver meals",
-    "Tolls(if applicable)",
-    "Paid parking(if applicable)",
+    "Tolls (if applicable)",
+    "Paid parking (if applicable)",
 ]
+
+INCLUSION_DESCRIPTIONS = {
+    "Base fare": "Covers your cab fare, fuel, and standard trip charges.",
+    "Premium AC cab with professional driver": "Travel in an AC cab with a verified driver.",
+    "Doorstep pickup and drop": "Pickup and drop are included at your selected locations.",
+    "Platform/Convenience fee": "Our booking and support fee is already included in the fare.",
+    "Well-maintained and sanitized vehicle": "We keep cabs clean and well-maintained for a comfortable trip.",
+    "24/7 customer support": "We are here to help before, during, or after your trip.",
+    "Toll": "Already included for the selected route; no extra toll payment needed.",
+    "Parking": "Airport pickup parking is already included; no extra payment needed.",
+    "Placard charges": "Your driver will meet you with a placard at pickup.",
+    "Water bottles and tissues": "In-car essentials are kept ready for your comfort.",
+    "Water bottles, candies, and tissues": "A small gesture from us to make longer rides more comfortable.",
+    "Driver allowance": "Your fare already covers the driver's allowance for the booked trip days.",
+    "State entry taxes": "Permit charges are included in your fare; any extra is paid directly to the driver.",
+}
+
+EXCLUSION_DESCRIPTIONS = {
+    "Personal expenses": "Meals, tickets, shopping, or anything else personal are outside the fare.",
+    "Self sponsored driver meals": "Driver meals are not required from you; offer only if you wish.",
+    "Tolls (if applicable)": "Tolls are extra charges - pay the driver directly.",
+    "Paid parking (if applicable)": "Paid parking is an extra charge - pay the driver directly.",
+    "Self sponsored driver accommodation": "Driver stay is not required from you; arrange only if you wish.",
+    "Night surcharges (if applicable)": "Applies only when your trip uses the night-hour window.",
+}
+
+
+def build_inclusion_items(labels: list[str]) -> list[dict[str, str]]:
+    return [
+        {
+            "label": label,
+            "description": INCLUSION_DESCRIPTIONS.get(
+                label, "Included in the fare shown for this booking."
+            ),
+        }
+        for label in labels
+    ]
+
+
+def build_exclusion_items(labels: list[str]) -> list[dict[str, str]]:
+    return [
+        {
+            "label": label,
+            "description": EXCLUSION_DESCRIPTIONS.get(
+                label, "Handled separately from the fare shown."
+            ),
+        }
+        for label in labels
+    ]
+
+DEFAULT_PRIOR_BOOKING_WINDOW_HOURS = {
+    TripTypeEnum.local: 6,
+    TripTypeEnum.airport_general: 3,
+    TripTypeEnum.outstation: 48,
+}
+
+OUTSTATION_DEFAULTS = {
+    "max_hops": 3,
+    "min_hops": 1,
+    "min_days_allowed": 2,
+    "max_days_allowed": 7,
+}
+
+TRIP_RESPONSE_OPTIONS = {
+    TripResponseView.CUSTOMER_DETAIL: TripSerializationOptions(
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        optimize_response=True,
+        expose_policy_detail=True,
+        expose_trip_review=True,
+        expose_upgradation_information=True,
+        expose_driver_assignment_notice=True,
+
+    ),
+    TripResponseView.CUSTOMER_LIST: TripSerializationOptions(
+        expose_customer_details=True,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        optimize_response=True,
+        expose_policy_detail=True,
+    ),
+    TripResponseView.CUSTOMER_LIST_SELF: TripSerializationOptions(
+        expose_customer_details=False,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        optimize_response=True,
+        expose_policy_detail=False,
+    ),
+
+    TripResponseView.CUSTOMER_DISPUTE: TripSerializationOptions(
+        expose_dispute_details=True,
+        optimize_response=True,
+    ),
+    TripResponseView.CUSTOMER_CANCELLATION_POLICY: TripSerializationOptions(
+        expose_policy_detail=True,
+        optimize_response=True,
+        expose_cancellation_detail=True,
+    ),
+
+    TripResponseView.ADMIN_DETAIL: TripSerializationOptions(
+        expose_customer_details=True,
+        expose_cancellation_detail=True,
+        expose_trip_refund=True,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        expose_policy_detail=False,
+        expose_dispute_details=True,
+        expose_trip_review=True,
+        optimize_response=True,
+        expose_trip_flags=True,
+        expose_admin_driver_assignment_notice=True
+
+
+    ),
+     TripResponseView.ADMIN_LIST: TripSerializationOptions(
+        expose_customer_details=True,
+        expose_cancellation_detail=False,
+        expose_currency_detail=True,
+        expose_fleet_detail=True,
+        expose_trip_label=True,
+        expose_policy_detail=False,
+        expose_dispute_details=True,
+        expose_trip_review=True,
+        optimize_response=True,
+        expose_trip_flags=True
+
+
+    )
+}

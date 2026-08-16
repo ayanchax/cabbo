@@ -151,6 +151,11 @@ class CommonPricingConfigurationSchema(BaseModel):
     max_included_km: Optional[int] = None  # For local cab maximum included
     min_platform_fee: Optional[float] = None  # Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.
     max_platform_fee: Optional[float] = None  # Maximum platform fee charged to customer
+    min_outbound_distance_km: Optional[float] = None  # For airport trips and outstation trips minimum distance threshold for fare calculation, e.g., 2 km for airport trips and 121 km for outstation trips
+    max_distance_km: Optional[float] = None  # For airport trips and out
+    min_days_allowed: Optional[int]= None  # Min days allowed for outstation trips, e.g., 2 days allowed for outstation trips, otherwise there is no margin in outstation trips and it is better to
+    max_days_allowed: Optional[int]= None  # Max days allowed for outstation trips, e.g., 7 days
+    max_hops_allowed: Optional[int] = None  # Max hops/stops allowed for outstation trips, e.g., 2 hops
     placard_charge: Optional[float] = (
         None  # Only for airport pickup, can be null for others
     )
@@ -160,6 +165,7 @@ class CommonPricingConfigurationSchema(BaseModel):
     )
     toll: Optional[float] = None  # For airport pickup and drop, if applicable
     parking: Optional[float] = None  # For airport pickup
+    prior_booking_window_hours: Optional[float] = None  # The prior booking window in hours for this trip type in this region or state. This helps ensure that customers book their trips in advance to help us manage our fleet and operations better, especially for outstation trips which require more planning and resources.
     state_id: Optional[str] = None  # FK to State.id
     region_id: Optional[str] = None  # FK to GeoRegion.id
     created_by: Optional[str] = None
@@ -209,14 +215,27 @@ class TripPackageConfigSchema(BaseModel):
     region_id: Optional[str] = None  # FK to RegionsMaster.id
     included_hours: Optional[int]  # e.g., 4, 6, 8, 10, 12
     included_km: Optional[int]  # e.g., 40, 60, 80, 100, 120
-    package_label: Optional[str]  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    package_label: Optional[str]=None  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
     driver_allowance: Optional[float] = (
         None  # Optional driver allowance for the package, this will apply for trip packages where duration of ride>=12hrs
     )
+    best_intended_for: Optional[str] = None  # Optional description for the package, e.g., "This package includes 4 hours and 40 km. Additional hours will be charged at ₹X per hour and additional km will be charged at ₹Y per km."
+
+
 
     class Config:
         from_attributes = True
         extra = "allow"
+
+class TripPackageConfigRead(BaseModel):
+    id: Optional[str] = None  # Optional ID for existing packages
+    included_hours: Optional[int] = None  # e.g., 4, 6, 8, 10, 12
+    included_km: Optional[int] = None  # e.g., 40, 60, 80, 100, 120
+    description: Optional[str] = None  # e.g., "4 Hours / 40 KM", "6 Hours / 60 KM"
+    best_intended_for: Optional[str] = None  # Optional description for the package, e.g., "This package includes 4 hours and 40 km. Additional hours will be charged at ₹X per hour and additional km will be charged at ₹Y per km."
+    class Config:
+        extra = "ignore"
+        exclude_none = True  # Exclude fields with None values from the model dump
 
 class AuxiliaryPricingConfiguration(BaseModel):
 
@@ -289,7 +308,6 @@ class ExtraPayments(BaseModel):
         
         elif calculated_total>0 and self.total_extra_payment != calculated_total:
             # If there is a discrepancy between user-provided total_extra_payment and calculated total, log a warning (or raise an exception based on your needs)
-            print(f"Warning: The provided total_extra_payment ({self.total_extra_payment}) does not match the sum of individual components ({calculated_total}). Please verify the values.")
             self.total_extra_payment = calculated_total  # Override with calculated total to ensure consistency
         
         # Otherwise, respect the user-provided total_extra_payment

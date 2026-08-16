@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}/self-service/initiate-email-verification"
+method: POST
+order: 10000

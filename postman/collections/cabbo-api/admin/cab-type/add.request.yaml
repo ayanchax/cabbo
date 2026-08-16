@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/cab/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Sedan\",\r
+
+    \  \"description\": \"A comfortable 4-seater cab type\",\r
+
+    \  \"cab_names\": [\"Dzire\", \"Amaze\", \"Indigo\"],\r
+
+    \  \"inventory_cab_names\": [\"Dzire\", \"Amaze\"],\r
+
+    \  \"capacity\": \"4+1\"\r
+
+    }"
+order: 1000

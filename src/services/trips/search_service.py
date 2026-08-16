@@ -1,4 +1,4 @@
-from core.exceptions import CabboException
+from core.exceptions import TRIP_TYPE_NOT_SUPPORTED, CabboException
 from core.store import ConfigStore
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripSearchRequest, TripSearchResponse
@@ -15,14 +15,16 @@ from services.trips.outstation_service import (
     get_outstation_trip_options,
 )
 from core.config import settings
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def search(
-    search_in: TripSearchRequest, requestor: str, db: Session
+
+async def search(
+    search_in: TripSearchRequest, requestor: str, db: AsyncSession
 ) -> TripSearchResponse:
-    config_store: ConfigStore = settings.get_config_store(db)
+    config_store: ConfigStore = settings.get_config_store()
 
-    validate_trip_search(
+    await validate_trip_search(
         search_in=search_in, requestor=requestor, db=db, config_store=config_store
     )
     trip_type = search_in.trip_type
@@ -45,4 +47,4 @@ def search(
         )
 
     else:
-        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501)
+        raise CabboException(f"Trip type {trip_type} is not supported", status_code=501, error_code=TRIP_TYPE_NOT_SUPPORTED)

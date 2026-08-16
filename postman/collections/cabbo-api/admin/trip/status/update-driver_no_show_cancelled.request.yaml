@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/cancelled"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"reason\": \"Assigned driver did not reach pickup location. Trip cancelled on behalf of customer.\",\r
+
+    \    \"cancelation_detail\": {\r
+
+    \        \"reason\": \"Driver was unreachable and did not show up at the scheduled pickup time. Customer was waiting.\",\r
+
+    \        \"cancellation_sub_status\": \"driver_no_show\"\r
+
+    \    }\r
+
+    }"
+order: 5000

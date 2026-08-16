@@ -1,4 +1,6 @@
 
+import logging
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -9,38 +11,34 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
 
-from dotenv import load_dotenv
-from core.constants import PROJECT_ROOT, Environment
+from services.environment_service import load_env
 
-# Load .env file
-ENV = os.getenv("ENV", Environment.LOCAL.value)
-# Load ONLY for local
-if ENV == Environment.LOCAL.value:
-    env_path = os.path.join(PROJECT_ROOT, f".env.{Environment.LOCAL.value}")
-    load_dotenv(dotenv_path=env_path)
-    print(f"Loaded local env: {env_path}")
-else:
-    print("Running in non-local mode, relying on system env vars")
-
+log= logging.getLogger(__name__)
+load_env(load_env_file=True)  # Ensure env vars are loaded before importing models
 # Build DB URL from env vars
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT") or 3306
 DB_NAME = os.getenv("DB_NAME")
+DB_SSL_CA = os.getenv("DB_SSL_CA", "")
+DB_SSL_CA_PEM = os.getenv("DB_SSL_CA_PEM", "")
 SQLALCHEMY_DATABASE_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
 
 
-import models  # Ensure all models are imported so that they are registered with SQLAlchemy
-from db.database import Base
+ 
 
-# Set the sqlalchemy.url dynamically
+
+
+import models  # Ensure all models are imported so that they are registered with SQLAlchemy
+from db.database import Base, resolve_db_ssl_ca_path
+
+DB_SSL_CA_PATH = resolve_db_ssl_ca_path()
 config = context.config
 config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
-
-# ...rest of your env.py...
+ 
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -101,10 +99,20 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    connect_args = {}
+    if DB_SSL_CA_PATH:
+        connect_args = {
+            "ssl": {
+                "ca": DB_SSL_CA_PATH,
+                "check_hostname": True,
+            }
+        }
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     with connectable.connect() as connection:

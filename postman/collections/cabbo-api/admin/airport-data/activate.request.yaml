@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/airport/076869b9a-f235-44e9-bcd1-69c2d670b8a0/activate"
+method: PATCH
+order: 8000

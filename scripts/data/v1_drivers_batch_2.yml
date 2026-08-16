@@ -1,0 +1,154 @@
+drivers:
+  - name: Riajul A
+    phone: "+918088959632"
+    avg_rating: 4.0
+    cab_registration_number: KA28C8406
+    cab_model_and_make: Toyota Etios
+    cab_type: Premium Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: Silver
+
+  - name: Majid K
+    phone: "+919380413302"
+    avg_rating: 4.0
+    cab_registration_number: KA03AN7231
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Sorif
+    phone: "+919880987518"
+    avg_rating: 4.0
+    cab_registration_number: KA50B5004
+    cab_model_and_make: Hyundai Aura
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: Silver
+
+  - name: Dilwar
+    phone: "+919902622136"
+    avg_rating: 4.0
+    cab_registration_number: KA04AC7257
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White
+
+  - name: Tufail
+    phone: "+919954702208"
+    avg_rating: 4.0
+    cab_registration_number: KA01AR2923
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+
+  - name: Kaysar
+    phone: "+918139812843"
+    avg_rating: 4.0
+    cab_registration_number: KA03AG4177
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: White
+
+  - name: Ruhul
+    phone: "+918431692861"
+    avg_rating: 4.0
+    cab_registration_number: KA02AL4828
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+
+  - name: Nazmul Choudhury
+    phone: "+916360128164"
+    avg_rating: 4.0
+    cab_registration_number: KA53AB4069
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+
+  - name: Salam Uddin
+    phone: "+919021841598"
+    avg_rating: 4.0
+    cab_registration_number: KA01AS8148
+    cab_model_and_make: Maruti Suzuki Dzire Tour
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Rubel Ahmed
+    phone: "+917349063034"
+    avg_rating: 4.0
+    cab_registration_number: KA01AT1681
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: Pearl White
+
+  - name: Pranojit
+    phone: "+916362679519"
+    avg_rating: 4.0
+    cab_registration_number: KA03AN5525
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White
+
+  - name: Sahin Laskar
+    phone: "+916002305463"
+    avg_rating: 4.0
+    cab_registration_number: KA01AS6917
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Anam Uddin
+    phone: "+919365697593"
+    avg_rating: 4.0
+    cab_registration_number: KA01AS9346
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Alok Chanda
+    phone: "+918197345452"
+    avg_rating: 4.0
+    cab_registration_number: KA03AN8515
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: Silver
+
+  - name: MD Ahmed
+    phone: "+918088984688"
+    avg_rating: 4.0
+    cab_registration_number: KA03AM0095
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White

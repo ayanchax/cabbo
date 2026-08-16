@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.params import Depends
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.cab.cab_schema import FuelTypeSchema
@@ -32,13 +32,13 @@ async def add_fuel_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to add fuel types.", status_code=403
+            "You do not have permission to add fuel types.", status_code=403, error_code=UNAUTHORIZED
         )
     result = await async_add_fuel_type(
         fuel_type=fuel_type, db=db, created_by=current_user_role
     )
     if not result:
-        raise CabboException(status_code=500, message="Failed to add new fuel type")
+        raise CabboException(status_code=500, message="Failed to add new fuel type", error_code=GENERIC_EXCEPTION)
     return result
 
 
@@ -52,7 +52,7 @@ async def list_fuel_types(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view fuel types.", status_code=403
+            "You do not have permission to view fuel types.", status_code=403, error_code=UNAUTHORIZED
         )
     return await async_get_all_fuel_types(db=db)
 
@@ -69,12 +69,12 @@ async def update_fuel_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to update fuel types.", status_code=403
+            "You do not have permission to update fuel types.", status_code=403, error_code=UNAUTHORIZED
         )
     payload.id = fuel_type_id
     fuel_type, error  = await async_update_fuel_type(fuel_type_data=payload, db=db)
     if not fuel_type:
-        raise CabboException(status_code=500, message=error or "Failed to update fuel type")
+        raise CabboException(status_code=500, message=error or "Failed to update fuel type", error_code=GENERIC_EXCEPTION)
     return fuel_type
 
 
@@ -89,11 +89,11 @@ async def get_fuel_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view fuel types.", status_code=403
+            "You do not have permission to view fuel types.", status_code=403, error_code=UNAUTHORIZED
         )
     fuel_type = await async_get_fuel_type_by_id(fuel_type_id=fuel_type_id, db=db)
     if not fuel_type:
-        raise CabboException(status_code=404, message="Fuel type not found")
+        raise CabboException(status_code=404, message="Fuel type not found", error_code=GENERIC_EXCEPTION)
     return fuel_type
 
 
@@ -107,14 +107,14 @@ async def activate_fuel_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to activate fuel types.", status_code=403
+            "You do not have permission to activate fuel types.", status_code=403, error_code=UNAUTHORIZED
         )
     is_activated, error = await async_activate_fuel_type(
         fuel_type_id=fuel_type_id, db=db
     )
     if not is_activated:
         raise CabboException(
-            status_code=500, message=error or "Failed to activate fuel type"
+            status_code=500, message=error or "Failed to activate fuel type", error_code=GENERIC_EXCEPTION
         )
     return {"detail": f"Fuel type {fuel_type_id} activated successfully."}
 
@@ -130,13 +130,13 @@ async def delete_fuel_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to delete fuel types.", status_code=403
+            "You do not have permission to delete fuel types.", status_code=403, error_code=UNAUTHORIZED
         )
     is_deleted, error = await async_delete_fuel_type(fuel_type_id=fuel_type_id, db=db)
 
     if not is_deleted:
         raise CabboException(
-            status_code=500, message=error or "Failed to delete fuel type"
+            status_code=500, message=error or "Failed to delete fuel type", error_code=GENERIC_EXCEPTION
         )
 
     return {"detail": f"Fuel type {fuel_type_id} deleted successfully."}

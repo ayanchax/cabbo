@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.policies.cancelation_schema import CancelationSchema
@@ -26,7 +26,7 @@ async def list_all_trip_cancellations(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip cancellations.", status_code=403
+            "You do not have permission to view trip cancellations.", status_code=403, error_code=UNAUTHORIZED
         )
     cancellations = await fetch_all_cancelled_trips(db=db)
     return cancellations
@@ -45,11 +45,11 @@ async def get_trip_cancellation_by_id(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip cancellations.", status_code=403
+            "You do not have permission to view trip cancellations.", status_code=403, error_code=UNAUTHORIZED
         )
     cancellation = await get_cancellation_by_trip_id(trip_id=trip_id, db=db)
     if not cancellation:
         raise CabboException(
-            "Cancellation not found for the specified ID.", status_code=404
+            "Cancellation not found for the specified ID.", status_code=404, error_code=GENERIC_EXCEPTION
         )
     return cancellation

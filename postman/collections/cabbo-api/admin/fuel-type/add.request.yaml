@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/fuel/add"
+method: POST
+body:
+  type: json
+  content: "{\r\n  \"name\": \"Diesel\"\r\n}"
+order: 1000

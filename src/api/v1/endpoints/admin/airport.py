@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.airport.airport_schema import AirportSchema, AirportUpdateSchema
@@ -36,15 +36,15 @@ async def add_airport(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to add airports.", status_code=403
+            "You do not have permission to add airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airport, error = await async_add_airport(
         airport_data=payload, db=db, created_by=current_user_role
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not airport:
-        raise CabboException("Failed to add new airport", status_code=500)
+        raise CabboException("Failed to add new airport", status_code=500, error_code=GENERIC_EXCEPTION)
     return airport
 
 
@@ -57,7 +57,7 @@ async def list_airports(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view airports.", status_code=403
+            "You do not have permission to view airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airports = await async_get_all_airports(db)
     return airports
@@ -74,11 +74,11 @@ async def get_airport(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view airports.", status_code=403
+            "You do not have permission to view airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airport = await async_get_airport_by_id(airport_id=airport_id, db=db)
     if not airport:
-        raise CabboException(status_code=404, message="Airport not found")
+        raise CabboException(status_code=404, message="Airport not found", error_code=GENERIC_EXCEPTION)
     return airport
 
  
@@ -94,7 +94,7 @@ async def get_airports_by_state(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view airports.", status_code=403
+            "You do not have permission to view airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airports = await async_get_all_airports_in_state(state_code=state_code, db=db)
     return airports
@@ -110,7 +110,7 @@ async def get_airports_by_country(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view airports.", status_code=403
+            "You do not have permission to view airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airports = await async_get_all_airports_in_country(country_code=country_code, db=db)
     return airports
@@ -126,11 +126,11 @@ async def get_airports_by_region(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view airports.", status_code=403
+            "You do not have permission to view airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airports = await async_get_airport_by_region_code(region_code=region_code, db=db)
     if not airports:
-        raise CabboException(status_code=404, message="No airports found for the specified region")
+        raise CabboException(status_code=404, message="No airports found for the specified region", error_code=GENERIC_EXCEPTION)
     return airports
 
 @router.put("/{airport_id}", response_model=AirportSchema)
@@ -144,15 +144,15 @@ async def update_airport(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to update airports.", status_code=403
+            "You do not have permission to update airports.", status_code=403, error_code=UNAUTHORIZED
         )
     airport, error = await async_update_airport(
         airport_id=airport_id, airport_data=payload, db=db
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not airport:
-        raise CabboException("Failed to update airport", status_code=500)
+        raise CabboException("Failed to update airport", status_code=500, error_code=GENERIC_EXCEPTION)
     return airport
 
 
@@ -167,12 +167,12 @@ async def activate_airport(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to activate airports.", status_code=403
+            "You do not have permission to activate airports.", status_code=403, error_code=UNAUTHORIZED
         )
     success, error_message = await async_activate_airport(airport_id=airport_id, db=db)
     if not success:
         raise CabboException(
-            status_code=400, message=error_message or "Failed to activate airport"
+            status_code=400, message=error_message or "Failed to activate airport", error_code=GENERIC_EXCEPTION
         )
     return {"message": "Airport activated successfully"}
 
@@ -187,11 +187,11 @@ async def delete_airport(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete airports.", status_code=403
+            "You do not have permission to delete airports.", status_code=403, error_code=UNAUTHORIZED
         )
     success, error = await async_delete_airport(airport_id=airport_id, db=db)
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not success:
-        raise CabboException("Failed to delete airport", status_code=500)
+        raise CabboException("Failed to delete airport", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "Airport deleted successfully"}

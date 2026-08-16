@@ -1,0 +1,66 @@
+$kind: http-request
+name: create
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/drivers/create"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Bishal Dey\",\r
+
+    \  \"email\": \"ayanchaxs9088@gmail.com\",\r
+
+    \  \"phone\": \"+91 9875642219\",\r
+
+    \  \"dob\": \"1985-07-15T00:00:00\",\r
+
+    \  \"gender\": \"male\",\r
+
+    \  \"emergency_contact_name\": \"Ram Kumar\",\r
+
+    \  \"emergency_contact_number\": \"+919812345679\",\r
+
+    \  \"nationality\": \"Indian\",\r
+
+    \  \"religion\": \"Hindu\",\r
+
+    \  \"cab_type\": \"Sedan\",\r
+
+    \  \"fuel_type\": \"diesel\",\r
+
+    \  \"cab_model_and_make\": \"Maruti Swift Dzire\",\r
+
+    \  \"cab_registration_number\": \"KA14B9113\",\r
+
+    \  \"payment_mode\": \"gpay\",\r
+
+    \  \"payment_phone_number\": \"9876543215\",\r
+
+    \  \"bank_details\": {\r
+
+    \    \"account_holder_name\": \"Ravi Kumar\",\r
+
+    \    \"account_number\": \"124567894\",\r
+
+    \    \"ifsc_code\": \"SBIN0001234\",\r
+
+    \    \"bank_name\": \"State Bank of India\"\r
+
+    \  },\r
+
+    \  \"address\": {\r
+
+    \    \"address_line1\": \"St Louis suite\",\r
+
+    \    \"address_line2\": \"Govindgiri road\",\r
+
+    \    \"state\": \"KA\",\r
+
+    \    \"country\": \"India\",\r
+
+    \    \"landmark\": \"something\"\r
+
+    \  }\r
+
+    }"
+order: 2000

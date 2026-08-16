@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session
 
-from core.exceptions import CabboException
+from core.exceptions import FUEL_TYPE_ID_REQUIRED, GENERIC_EXCEPTION, CabboException
 from core.security import RoleEnum
 from models.cab.cab_orm import FuelType
 from models.cab.cab_schema import FuelTypeSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import logging
+log = logging.getLogger(__name__)
 
 
 def get_all_fuel_types(db: Session)-> list[FuelTypeSchema]:
@@ -26,7 +28,7 @@ def create_fuel_types(fuel_types:list, db:Session, created_by:RoleEnum=RoleEnum.
         db.bulk_save_objects(_fuel_types)  # More efficient for bulk inserts
         db.flush()  # Flush to assign IDs before commit
     except Exception as e:
-        print(f"Error seeding fuel types: {e}")
+        log.error(f"Error seeding fuel types: {e}")
 
 async def async_add_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession, created_by: RoleEnum = RoleEnum.system) -> FuelTypeSchema:
     """Asynchronously add a new fuel type to the database."""
@@ -41,7 +43,7 @@ async def async_add_fuel_type(fuel_type: FuelTypeSchema, db: AsyncSession, creat
         return FuelTypeSchema.model_validate(new_fuel_type)
     except Exception as e:
         await db.rollback()
-        print(f"Error adding fuel type: {e}")
+        log.error(f"Error adding fuel type: {e}")
         return None
 
 async def async_get_all_fuel_types(db: AsyncSession) -> list[FuelTypeSchema]:
@@ -50,6 +52,10 @@ async def async_get_all_fuel_types(db: AsyncSession) -> list[FuelTypeSchema]:
     fuel_types = result.scalars().all()
     fuel_type_schemas = [FuelTypeSchema.model_validate(fuel) for fuel in fuel_types]
     return fuel_type_schemas
+
+async def a_get_all_fuel_types(db: AsyncSession) -> list[FuelTypeSchema]:
+    """Async variant of get_all_fuel_types for ConfigStore loading."""
+    return await async_get_all_fuel_types(db)
 
 async def async_get_fuel_type_by_id(fuel_type_id: str, db: AsyncSession) -> FuelTypeSchema | None:
     """Asynchronously retrieve a fuel type by its ID."""
@@ -74,14 +80,14 @@ async def async_delete_fuel_type(fuel_type_id: str, db: AsyncSession)-> tuple[bo
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting fuel type: {e}")
+        log.error(f"Error deleting fuel type: {e}")
         return False, str(e)
 
 async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSession) -> tuple[FuelTypeSchema | None, str | None]:
     """Asynchronously update an existing fuel type in the database."""
     try:
         if not fuel_type_data.id:
-            raise CabboException(status_code=400, message="Fuel type ID is required for update") 
+            raise CabboException(status_code=400, message="Fuel type ID is required for update", error_code=FUEL_TYPE_ID_REQUIRED) 
         
         result = await db.execute(select(FuelType).where(FuelType.id == fuel_type_data.id))
         fuel_type = result.scalar_one_or_none()
@@ -94,7 +100,7 @@ async def async_update_fuel_type(fuel_type_data: FuelTypeSchema, db: AsyncSessio
         return FuelTypeSchema.model_validate(fuel_type), None
     except Exception as e:
         await db.rollback()
-        print(f"Error updating fuel type: {e}")
+        log.error(f"Error updating fuel type: {e}")
         return None, str(e)
 
 async def async_activate_fuel_type(fuel_type_id: str, db: AsyncSession) -> tuple[bool, str | None]:
@@ -111,7 +117,7 @@ async def async_activate_fuel_type(fuel_type_id: str, db: AsyncSession) -> tuple
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error activating fuel type: {e}")
+        log.error(f"Error activating fuel type: {e}")
         return False, str(e)
 
 

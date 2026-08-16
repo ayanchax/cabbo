@@ -23,9 +23,24 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from db.database import Base
 from datetime import datetime, timezone
+from core.config import settings
 
 class Trip(Base):
     __tablename__ = "trips"
+    __table_args__ = (
+        Index("ix_trips_active_created", "is_active", "created_at"),
+        Index("ix_trips_active_status_created", "is_active", "status", "created_at"),
+        Index(
+            "ix_trips_customer_bucket",
+            "creator_id",
+            "creator_type",
+            "is_active",
+            "status",
+            "start_datetime",
+        ),
+        Index("ix_trips_driver_status", "driver_id", "is_active", "status"),
+        Index("ix_trips_type_status_start", "trip_type_id", "status", "start_datetime"),
+    )
 
     id = Column(
         MySQL_CHAR(36),
@@ -85,7 +100,10 @@ class Trip(Base):
     )  # Short label for the package, e.g., "4H/40KM"
     # FK to trip package config table for hourly rental trips
     # Package information selected by customer - END
-
+    rate_per_min= Column(
+        Float, nullable=True, default=0.0, comment="Applicable for hourly rental trips, this is the rate per minute for the trip which is used to calculate the final price for hourly rental trips based on the total duration of the trip. This field is populated based on the package chosen by the customer and the region-specific pricing configured in the system for that package and trip type."
+    )
+    rate_per_km = Column(Float, default=0.0, nullable=True, comment="Applicable for outstation trips, airport transfers, and hourly rental trips, this is the rate per km for the trip which is used to calculate the final price based on the total distance of the trip. This field is populated based on the package chosen by the customer and the region/state-specific pricing configured in the system for that package and trip type.")
     # Date and time information
     start_datetime = Column(DateTime, nullable=False) #This field is always converted to UTC, refer validate_date_time() method in utility.py for details
     expected_end_datetime = Column(
@@ -220,8 +238,7 @@ class Trip(Base):
     indicative_overage_warning = Column(
         Boolean, default=False, nullable=False
     )  # does not apply to all hourly local trips
-    alternate_customer_phone = Column(String(32), nullable=True)
-    # Passenger info (nullable, for 'book for someone else' feature)
+    alternate_customer_phone = Column(String(32), nullable=True) # Alternate phone number provided by customer for the trip, if any. Use case: This is applicable for scenarios where customer wants to provide an alt contact number where they can be reached - if their primary phone number is not reachable. 
     passenger_id = Column(
         MySQL_CHAR(36),
         ForeignKey("passengers.id", ondelete="SET NULL"),
@@ -230,10 +247,18 @@ class Trip(Base):
         comment="FK to passengers table; null if trip is for self",
     )
 
+    upgradation_information = Column(
+        JSON, nullable=True, comment="JSON/text for upgradation information, if any. This is applicable for scenarios where Cabbo upgrades the trip to a higher car type and/or fuel type or others. The upgradation information will be stored in this field as a JSON object with details of the upgradation and the additional charges, if any."
+    )
+
     is_active = Column(
         Boolean, nullable=False, default=True
     )  # Soft delete flag for trip record, which only super admins can toggle to false in case of any fraudulent or test trips that need to be deactivated, but we don't want to delete the record from the database for data integrity and audit purposes. When a trip is marked as inactive, it will be excluded from all active trip listings and queries in the system, but the record will still exist in the database with is_active set to false.
+    
+    timezone= Column(String(64), nullable=True, default=settings.CABBO_DEFAULT_TIMEZONE)  # Timezone of the trip based on client's location, e.g., "Asia/Kolkata". Or the timezone from which the trip was booked. This is used to display the trip start and end datetime in the local timezone of the trip origin for better user experience, while all datetimes are stored in UTC in the database for consistency using the method validate_date_time() in utility.py
+    utc_offset = Column(Integer, nullable=True, default=settings.CABBO_DEFAULT_UTC_OFFSET)  # UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30). This is used to convert the stored UTC datetimes to local time for display purposes and also to validate that the start_datetime provided by the customer falls within the allowed booking window based on the trip type and jurisdiction using the method validate_date_time() in utility.py
     # Additional metadata - END
+
 
     # Audit fields
     status_audits = relationship("TripStatusAudit", back_populates="trip")
@@ -256,6 +281,7 @@ class Trip(Base):
     trip_rating = relationship(
         "TripRating",
         back_populates="trip",
+        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )  # A trip can have only one rating given by the customer but a driver can have multiple ratings from different customers for different trips, so the relationship is one-to-one from Trip to TripRating and one-to-many from Driver to TripRating.
@@ -293,6 +319,9 @@ class Trip(Base):
 
 class TripStatusAudit(Base):
     __tablename__ = "trip_status_audits"
+    __table_args__ = (
+        Index("ix_trip_status_audits_trip_timestamp", "trip_id", "timestamp"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -364,6 +393,9 @@ class TripPackageConfig(Base):
         Float, nullable=True, default=0.0
     )  # Daily driver allowance for outstation/local trips
     package_label = Column(String(64), nullable=False)
+    best_intended_for = Column(
+        Text, nullable=True
+    )  # Brief user centric description/usage of the package, like "Best for short trips within the city"
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     last_modified = Column(

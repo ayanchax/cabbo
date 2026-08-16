@@ -1,9 +1,10 @@
-from sqlalchemy import Boolean, Column, String, DateTime, Enum as SAEnum, func, Float
+from sqlalchemy import Boolean, Column, String, DateTime, Float
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
 import uuid
 from core.security import RoleEnum
 from db.database import Base
 from datetime import datetime, timezone
+from core.config import settings
 
 class AirportModel(Base):
     __tablename__ = "airports_master"
@@ -33,5 +34,5 @@ class AirportModel(Base):
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_modified = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
+    provider =Column(String(64), nullable=True, default=settings.LOCATION_SERVICE_PROVIDER)
     # One or more airports belong to one region

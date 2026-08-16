@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/58d12d85-a38e-4127-baef-3c90ab695027/assign-driver/{{example-driver-id}}"
+method: POST
+order: 2000

@@ -1,0 +1,186 @@
+drivers:
+  - name: Sufian
+    phone: "+919108684990"
+    avg_rating: 4.0
+    cab_registration_number: KA03AH2763
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: Silver
+
+  - name: Nozmul Laskar
+    phone: "+917002644699"
+    avg_rating: 4.0
+    cab_registration_number: KA03AK8031
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+
+  - name: Roshid
+    phone: "+918147490523"
+    avg_rating: 4.0
+    cab_registration_number: KA53AC0473
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: Silver
+
+  - name: Manir Husen
+    phone: "+919387358395"
+    avg_rating: 4.0
+    cab_registration_number: KA05AG5026
+    cab_model_and_make: Nissan Sunny
+    cab_type: Premium Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: Silver
+
+  - name: Sanjib Dey
+    phone: "+918822096848"
+    avg_rating: 4.0
+    cab_registration_number: KA01AP5642
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+
+  - name: M U Choudhary
+    phone: "+918861685660"
+    avg_rating: 4.0
+    cab_registration_number: KA01AF0910
+    cab_model_and_make: Toyota Etios GD
+    cab_type: Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: Silver
+
+  - name: Asad
+    phone: "+917022385580"
+    avg_rating: 4.0
+    cab_registration_number: KA01AN7491
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: Gray
+
+  - name: Nantu Debnath
+    phone: "+917795846798"
+    avg_rating: 4.0
+    secondary_phone: "+918787806660"
+    cab_registration_number: KA01AP3551
+    cab_model_and_make: Maruti Suzuki Ertiga
+    cab_type: SUV
+    fuel_type: cng
+    capacity: "6+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Hijayat Ali
+    phone: "+919394334810"
+    avg_rating: 4.0
+    cab_registration_number: KA03AC7482
+    cab_model_and_make: Hyundai Xcent
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White
+
+  - name: Sahin Ahmed
+    phone: "+918088539388"
+    avg_rating: 4.0
+    cab_registration_number: KA04AD9783
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: Silver
+
+  - name: Jabir Ahmed
+    phone: "+919365421872"
+    avg_rating: 4.0
+    cab_registration_number: KA51AK7931
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+
+  - name: Kamil Ahmed
+    phone: "+919113025147"
+    avg_rating: 4.0
+    cab_registration_number: KA04AD0659
+    cab_model_and_make: Hyundai Aura
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: Polar White
+
+  - name: Jabir Ahmed
+    phone: "+917086503778"
+    avg_rating: 4.0
+    cab_registration_number: KA53AB5919
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White
+
+  - name: Ahad H Laskar
+    phone: "+917483948104"
+    avg_rating: 4.0
+    cab_registration_number: KA51AH9963
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: Red
+
+  - name: Abdul Laskar
+    phone: "+917483417992"
+    avg_rating: 4.0
+    cab_registration_number: KA01AQ9350
+    cab_model_and_make: Maruti Suzuki Dzire Tour
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Hassan
+    phone: "+919035870679"
+    avg_rating: 4.0
+    cab_registration_number: KA03AK4259
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Jairul
+    phone: "+919678899828"
+    avg_rating: 4.0
+    secondary_phone: "+919577394885"
+    cab_registration_number: KA51AM2216
+    cab_model_and_make: Maruti Suzuki Dzire ZXI
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Bishal Dey
+    phone: "+916362065211"
+    avg_rating: 4.5
+    cab_registration_number: KA14B9113
+    cab_model_and_make: Toyota Etios
+    cab_type: Premium Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: White

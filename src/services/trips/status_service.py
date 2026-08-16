@@ -1,10 +1,11 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
-from core.exceptions import CabboException
+from core.buffers import TRIP_START_EARLY_BUFFER_MINUTES, TRIP_START_LATE_BUFFER_MINUTES, TRIP_START_LATE_BUFFER_MINUTES
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
-from models.trip.trip_enums import CancellationSubStatusEnum, TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import CancellationSubStatusEnum, TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
@@ -29,8 +30,11 @@ from services.driver_service import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.refund_service import refund_advance_payment_to_customer_on_cancellation
+from utils.utility import format_duration_from_delta, validate_date_time
+import logging
+log = logging.getLogger(__name__)
 
-
+ 
 async def change_status(
     trip: Trip,
     db: AsyncSession,
@@ -45,6 +49,7 @@ async def change_status(
             raise CabboException(
                 "Invalid trip type associated with the trip. Please ensure the trip has a valid trip type before starting the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
     if not payload:
             payload = AdditionalDetailsOnTripStatusChange()  # Create a new payload if not provided to pass the evaluated start datetime to the background task of logging audit trail for trip status change and also for better consistency in the flow of marking trip as ongoing and logging audit trail with the same payload.
@@ -53,33 +58,39 @@ async def change_status(
         if validate_time_window:
             trip_type = TripTypeEnum(trip_type)
             now = datetime.now(timezone.utc)
-            #payload.start_datetime can be provided as overriden value by driver_admin when they are marking the trip as ongoing, because sometimes the driver might have started the trip a bit earlier than the scheduled start time due to traffic conditions, customer readiness etc. and in such cases we want to allow driver_admin to provide the actual start datetime when marking the trip as ongoing for better accuracy in trip records and also for better analysis of trip data in the future. But if payload.start_datetime is not provided then we will use the original start datetime of the trip for further processing in the flow of marking trip as ongoing.
-            scheduled_start_time = _evaluate_start_time(trip.start_datetime, payload.start_datetime if payload else None)
-            buffer_times ={
-                TripTypeEnum.airport_drop: 60,  # For airport trips we will allow to mark the trip as ongoing within 60 minutes before the scheduled start time considering the potential traffic conditions and other factors that can affect the timely arrival of driver at airport and also considering the short notice and potential driver inconvenience in case of airport trips.
-                TripTypeEnum.airport_pickup: 60,  # For airport trips we will allow to mark the trip as ongoing within 60 minutes before the scheduled start time considering the potential traffic conditions and other factors that can affect the timely arrival of driver at airport and also considering the short notice and potential driver inconvenience in case of airport trips.
-                TripTypeEnum.local: 0,  # For local trips we will not allow to mark the trip as ongoing before the scheduled start time to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-                TripTypeEnum.outstation: 0,  # For outstation trips we will not allow to mark the trip as ongoing before the scheduled start time to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-            }
-            buffer_time_minutes = buffer_times.get(trip_type, 0)
+            # The window must be based on the scheduled trip start. The admin
+            # payload is the actual start time to persist, not permission to
+            # move the scheduled window.
+            scheduled_start_time = _evaluate_start_time(
+                trip=trip,
+                startdatetime=trip.start_datetime,
+            )
+            actual_start_time = _evaluate_start_time(
+                trip=trip,
+                startdatetime=payload.start_datetime if payload else None,
+                fallback_datetime=now,
+                use_trip_timezone=True,
+            )
+            earliest_start_time, latest_start_time = _get_ongoing_start_window(
+                trip=trip,
+                trip_type=trip_type,
+                scheduled_start_time=scheduled_start_time,
+            )
             
-            #Past trip guard
-            # Block past trips, only allow trips that are scheduled to start in the future or within the buffer time window for trips to be marked as ongoing, because we do not want to allow marking of past trips as ongoing to avoid any misuse or accidental marking of old trips as ongoing which can create confusion and issues in driver allocation and customer experience. For non-airport trips, we will not allow to mark the trip as ongoing before the scheduled start time to ensure better accuracy in trip records and also to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-            
-            if now > scheduled_start_time + timedelta(minutes=buffer_time_minutes):
+            if now > latest_start_time:
                 raise CabboException(
-                    f"Cannot start trip after {(now - scheduled_start_time).total_seconds() // 60} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience.",
+                    f"Cannot start trip after {format_duration_from_delta(now - latest_start_time)} of the allowed start window.",
                     status_code=400,
+                    error_code=GENERIC_EXCEPTION,
                 )
 
-            #Do not start too early guard
-            #Trip can be marked as ongoing if current time is equal to or after the start time minus buffer time for trips considering the short notice and potential driver inconvenience, but we will not allow to mark the trip as ongoing much before the start time to avoid any misuse or accidental marking of trip as ongoing well before the actual start time which can create confusion and issues in driver allocation and customer experience.
-            if now < scheduled_start_time - timedelta(minutes=buffer_time_minutes):
-                    raise CabboException(
-                        f"Cannot start trip before {(scheduled_start_time - now).total_seconds() // 60} minutes of the start time. Please ensure to mark the trip as ongoing within the allowed time window considering the short notice and potential driver inconvenience.",
-                        status_code=400,
-                    )
-            payload.start_datetime = scheduled_start_time  # Update the start datetime in the payload with the evaluated start datetime which is based on the original start datetime of the trip and any overridden start datetime provided in the payload, so that we can use this start datetime for further processing in the flow of marking trip as ongoing and also to log in the audit trail for trip status change.
+            if now < earliest_start_time:
+                raise CabboException(
+                    f"Cannot start trip before {format_duration_from_delta(earliest_start_time - now)} of the allowed start window.",
+                    status_code=400,
+                    error_code=GENERIC_EXCEPTION,
+                )
+            payload.start_datetime = actual_start_time  # Update the start datetime in the payload with the evaluated actual start datetime, so that we can use this start datetime for further processing in the flow of marking trip as ongoing and also to log in the audit trail for trip status change.
         return await _ongoing(
             trip=trip, db=db, status=status, requestor=requestor, payload=payload
         )
@@ -99,7 +110,7 @@ async def change_status(
             trip=trip, db=db, status=status, requestor=requestor, payload=payload
         )
     else:
-        raise CabboException("Invalid status update requested", status_code=400)
+        raise CabboException("Invalid status update requested", status_code=400, error_code=GENERIC_EXCEPTION)
 
 async def _ongoing(
     trip: Trip,
@@ -113,18 +124,20 @@ async def _ongoing(
             raise CabboException(
                 "Cannot start trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if not trip.balance_payment or trip.balance_payment <= 0:
             raise CabboException(
                 "Cannot start trip without a valid balance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before starting the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if trip.driver_id is None:
             # Cannot silently assign a random driver, thus we will raise an exception if there is no driver assigned to the trip when we are trying to mark it as ongoing because a trip cannot start without a driver. The driver assignment should have happened at the time of confirming the trip booking and if for some reason the driver assignment did not happen then it should be fixed before starting the trip.
             raise CabboException(
-                "Cannot start trip without an assigned driver", status_code=400
+                "Cannot start trip without an assigned driver", status_code=400, error_code=GENERIC_EXCEPTION
             )
 
         existing_record = await get_trip_earning_for_driver(
@@ -142,20 +155,28 @@ async def _ongoing(
             and trip.driver.is_available
         ):
             # Silently handle the scenario where driver is still marked available due to some reason (like app crash, network issue etc.) after they were assigned to the trip but before the trip was marked as ongoing. In this case, we will log a warning and proceed with marking the trip as ongoing and setting the start datetime because we do not want to block the trip from starting just because of an issue in updating driver availability status in the system.
-            print(
+            log.warning(
                 f"Warning: Driver {trip.driver_id} is still marked as available even after they were assigned for this trip: {trip.id}. Proceeding with marking trip as ongoing and setting start datetime. Marking driver unavailable again to ensure smooth flow of the trip."
             )
             trip.driver.is_available = False
             await db.flush()  # Flush to save the updated driver availability status before any further operations
 
         # Update start datetime - The driver_admin can get the actual start datetime from the driver when they start the trip in the driver app, if not provided we will set the start datetime as current datetime in UTC timezone.
-        trip.start_datetime =payload.start_datetime if payload and payload.start_datetime else _evaluate_start_time(startdatetime=trip.start_datetime)  # Set the actual start datetime when trip is marked as ongoing
+        trip.start_datetime = (
+            _evaluate_start_time(
+                trip=trip,
+                startdatetime=payload.start_datetime,
+                use_trip_timezone=True,
+            )
+            if payload and payload.start_datetime
+            else _evaluate_start_time(trip=trip, startdatetime=trip.start_datetime)
+        )  # Set the actual start datetime when trip is marked as ongoing
         # Update status
         trip.status = status.value
 
         # Log audit trail for trip start
         reason = payload.reason if payload and payload.reason else "No reason provided"
-        print(f"Logging audit trail for trip start with reason: {reason}")
+        log.info(f"Logging audit trail for trip start with reason: {reason}")
         await a_log_trip_audit(
             trip_id=trip.id,
             status=status,
@@ -167,7 +188,7 @@ async def _ongoing(
         await db.flush()  # Flush to ensure the start_datetime and status update is saved before any further operations
         await db.commit()
         await db.refresh(trip)
-        await attach_relationships_to_trip(trip, db, expose_customer_details=True, expose_cancellation_detail=True)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_DETAIL)
         return TripDetailSchema.model_validate(trip), None
      
 
@@ -183,17 +204,19 @@ async def _complete(
             raise CabboException(
                 "Cannot complete trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before completing the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if not trip.balance_payment or trip.balance_payment <= 0:
             raise CabboException(
                 "Cannot complete trip without a valid balance payment. Please ensure the customer has made the balance payment and the payment is reflected in the system before completing the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         if trip.driver_id is None:
             raise CabboException(
-                "Cannot complete trip without an assigned driver", status_code=400
+                "Cannot complete trip without an assigned driver", status_code=400, error_code=GENERIC_EXCEPTION
             )
 
         # Update end datetime with the actual end datetime when trip is completed. The driver_admin can get the actual end datetime from the driver, if not provided we will set the end datetime as current datetime in UTC timezone.
@@ -221,7 +244,7 @@ async def _complete(
 
         # Log audit trail for trip completion
         reason = payload.reason if payload and payload.reason else "No reason provided"
-        print(f"Logging audit trail for trip completion with reason: {reason}")
+        log.info(f"Logging audit trail for trip completion with reason: {reason}")
 
         await a_log_trip_audit(
             trip_id=trip.id,
@@ -237,7 +260,7 @@ async def _complete(
 
         # Add a record to DriverEarning for the amount paid to driver - Background Task
         # Delegating the task of adding driver earning record to background task because it is a secondary work and also to ensure that the main flow of trip completion and marking driver available is not affected by any potential issues in adding driver earning record and also to improve the response time for trip completion API.
-        await attach_relationships_to_trip(trip, db, expose_customer_details=True, expose_cancellation_detail=True)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_DETAIL)
         trip_schema = TripDetailSchema.model_validate(
             trip
         )  # Convert the serialized trip dictionary back to TripDetails schema for better type safety and to ensure we are passing the correct data structure to the background task of adding driver earning record.
@@ -276,6 +299,7 @@ async def _cancelled(
             raise CabboException(
                 "Cannot cancel trip without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before canceling the trip.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # Update status.
@@ -315,6 +339,7 @@ async def _cancelled(
             raise CabboException(
                 "Failed to register trip cancellation details in the system",
                 status_code=500,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # Log audit trail for trip cancellation
@@ -325,7 +350,7 @@ async def _cancelled(
             and payload.cancelation_detail.reason
             else "No cancellation reason provided"
         )
-        print(f"Logging audit trail for trip cancellation with reason: {reason}")
+        log.info(f"Logging audit trail for trip cancellation with reason: {reason}")
 
         await a_log_trip_audit(
             trip_id=trip.id,
@@ -339,7 +364,7 @@ async def _cancelled(
         await db.commit()
         await db.refresh(trip)
         await attach_relationships_to_trip(
-            trip, db, expose_customer_details=True, expose_cancellation_detail=True
+            trip, db, view=TripResponseView.ADMIN_DETAIL
         )
         trip_schema = TripDetailSchema.model_validate(trip)
 
@@ -368,6 +393,7 @@ async def _dispute(
             raise CabboException(
                 "Cannot mark trip as dispute without a valid advance payment. Please ensure the customer has made the advance payment and the payment is reflected in the system before marking the trip as dispute.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # A disputed trip must have an assigned driver, so we check for driver assignment before allowing to mark a trip as dispute. We want to ensure that a trip cannot be marked as dispute without an assigned driver because in case of disputes we need to involve the driver and also need to investigate the trip details and driver behavior during the trip to resolve the dispute, and it would be difficult to do that if there is no assigned driver for the trip.
@@ -375,6 +401,7 @@ async def _dispute(
             raise CabboException(
                 "Cannot mark trip as dispute without an assigned driver",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
         # Update status
@@ -393,7 +420,7 @@ async def _dispute(
             if payload and payload.dispute_detail and payload.dispute_detail.reason
             else "No dispute reason provided"
         )
-        print(f"Logging audit trail for trip dispute with reason: {reason}")
+        log.info(f"Logging audit trail for trip dispute with reason: {reason}")
 
         await a_log_trip_audit(
             trip_id=trip.id,
@@ -406,7 +433,7 @@ async def _dispute(
         await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations
         await db.commit()
         await db.refresh(trip)
-        await attach_relationships_to_trip(trip, db, expose_customer_details=True, expose_cancellation_detail=True)
+        await attach_relationships_to_trip(trip, db, view=TripResponseView.ADMIN_DETAIL)
         trip_schema = TripDetailSchema.model_validate(trip)
         # Create a dispute record in the system for this trip - Background Task
         background_task = AppBackgroundTask(
@@ -426,12 +453,40 @@ async def _dispute(
         return trip_schema, background_task
      
     
-def _evaluate_start_time(startdatetime: datetime, overridden_startdatetime: Optional[datetime]=None):
-    if overridden_startdatetime:
-        dt = overridden_startdatetime
-    else:
-        dt = startdatetime if startdatetime else datetime.now(timezone.utc)
+def _evaluate_start_time(
+    trip: Trip,
+    startdatetime: Optional[datetime] = None,
+    fallback_datetime: Optional[datetime] = None,
+    use_trip_timezone: bool = False,
+) -> datetime:
+    dt = startdatetime or fallback_datetime or datetime.now(timezone.utc)
+    if use_trip_timezone:
+        return validate_date_time(
+            dt,
+            timezone_str=getattr(trip, "timezone", None),
+            utc_offset=getattr(trip, "utc_offset", None),
+        )
     # Normalise to UTC-aware — MySQL returns naive datetimes stored as UTC
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+    return validate_date_time(dt, timezone_str="UTC")
+
+
+def _get_ongoing_start_window(
+    trip: Trip,
+    trip_type: TripTypeEnum,
+    scheduled_start_time: datetime,
+) -> tuple[datetime, datetime]:
+    early_buffer_minutes = TRIP_START_EARLY_BUFFER_MINUTES.get(trip_type, 30)
+    late_buffer_minutes = TRIP_START_LATE_BUFFER_MINUTES.get(trip_type, 60)
+
+    earliest_start_time = scheduled_start_time - timedelta(minutes=early_buffer_minutes)
+    fallback_latest_start_time = scheduled_start_time + timedelta(minutes=late_buffer_minutes)
+
+    expected_end_datetime = getattr(trip, "expected_end_datetime", None)
+    if expected_end_datetime:
+        latest_start_time = _evaluate_start_time(trip=trip, startdatetime=expected_end_datetime)
+        if latest_start_time < fallback_latest_start_time:
+            latest_start_time = fallback_latest_start_time
+    else:
+        latest_start_time = fallback_latest_start_time
+
+    return earliest_start_time, latest_start_time

@@ -12,3 +12,18 @@ class TicketPriorityEnum(str, Enum):
     medium = "medium"
     high = "high"
 
+class SupportTypeEnum(str, Enum):
+    customer = "customer"
+    driver = "driver"
+    booking = "booking"
+    payment = "payment"
+    emergency = "emergency"
+    general = "general"
+
+
+class SupportScopeEnum(str, Enum):
+    country = "country"
+    state = "state"
+    region = "region"
+
+

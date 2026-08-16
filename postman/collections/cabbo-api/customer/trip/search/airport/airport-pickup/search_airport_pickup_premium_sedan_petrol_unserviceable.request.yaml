@@ -1,0 +1,53 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"airport_pickup\",\r
+
+    \    \r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9716,\r
+
+    \        \"lng\": 77.6412,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\",\r
+
+    \        \"region_code\":\"BEN\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-04-14T10:30:00\",\r
+
+    \    \"num_adults\": 2,\r
+
+    \    \"num_children\": 1,\r
+
+    \    \"num_large_suitcases\": 2,\r
+
+    \    \"num_carryons\": 1,\r
+
+    \    \"preferred_car_type\": \"Sedan\",\r
+
+    \    \"preferred_fuel_type\": \"diesel\",\r
+
+    \    \"flight_number\": \"AI123\",\r
+
+    \    \"terminal_number\": \"T1\",\r
+
+    \    \"toll_road_preferred\": true,\r
+
+    \    \"placard_required\": true,\r
+
+    \    \"placard_name\": \"John Doe\"\r
+
+    }\r\n"
+order: 4000

@@ -5,6 +5,8 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    ForeignKey,
+    Index,
     String,
     DateTime,
     Enum as SAEnum,
@@ -20,6 +22,9 @@ from datetime import datetime, timezone
 
 class Dispute(Base):
     __tablename__ = "disputes"
+    __table_args__ = (
+        Index("ix_disputes_active_status_created", "is_active", "status", "created_at"),
+    )
 
     id = Column(
         MySQL_CHAR(36),
@@ -29,7 +34,7 @@ class Dispute(Base):
         index=True,
     )  # UUID for the dispute
     entity_id = Column(
-        MySQL_CHAR(36), nullable=False, unique=True
+        MySQL_CHAR(36), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, unique=True
     )  # ID of the associated trip
     reason = Column(String(255), nullable=False)  # Reason for the dispute
     dispute_type = Column(

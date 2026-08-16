@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/seed/data?secret={{super-admin-secret}}"
+method: GET
+queryParams:
+  secret: "{{super-admin-secret}}"
+body:
+  type: text
+  content: "{\r
+
+    \    \"phone_number\":\"+91 9831305667\",\r
+
+    \    \"otp\":\"6768\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjYWJibyIsImlhdCI6MTc0ODYzNjk2NSwic3ViIjoiMDZkNmUzMDEtMmY0Yi00MTA5LTkxODUtNWFiZmJiYzAwNDFiIiwiZXhwIjoxNzQ5MDY4OTY1LCJpZGVudGl0eSI6Iis5MTk4MzEzMDU2NjcifQ.omH-x2Nh34AJvooy93zdohtO1pQJ6kMftHrJiJQgNTE
+order: 1000

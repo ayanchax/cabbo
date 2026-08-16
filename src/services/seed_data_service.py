@@ -1,5 +1,6 @@
 from typing import List
 from sqlalchemy.orm import Session
+from core.config import settings
 from core.trip_helpers import create_trip_types, get_all_trip_types
 from models.geography.country_schema import CountrySchema
 from models.geography.region_schema import RegionSchema
@@ -46,8 +47,10 @@ from services.pricing_service import (
     create_permit_fee_configuration,
     create_trip_package_pricing_configuration,
 )
+from services.support_service import seed_customer_support_contact_for_serviceable_geographies
 from services.user_service import create_super_admin_user
-
+import logging 
+log= logging.getLogger(__name__)
 
 SEED_COUNTRIES = [
     {
@@ -79,8 +82,8 @@ SEED_REGIONS = [
     # Return list of seed regions with (name, code, alt_names, alt_codes, state_code)
     # This is seed data and can be updated later via admin interface
     # Alt region codes are added to support multiple region codes returned by different location service providers, we will use these codes to verify service availability in a region if primary region code is not found in the LocationInfo response.
-    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City"], ["BEN"], "KA"),
-    ("Mysore", "MYS", ["Mysuru"], [], "KA"),
+    ("Bangalore", "BLR", ["Bengaluru", "Bangalore City", "Bangalore Division"], ["BEN", "BANGALORE DIVISION"], "KA"),
+    ("Mysore", "MYS", ["Mysuru", "Mysore Division"], ["MYSORE DIVISION"], "KA"),
 ]
 
 TRIP_TYPE_SEED_DATA = [
@@ -108,16 +111,20 @@ TRIP_TYPE_SEED_DATA = [
 
 CAB_TYPES_SEED_DATA = {
     CarTypeEnum.hatchback: {
-        "description": "Compact hatchbacks, ideal for city rides and short trips. Most available cabs in this segment are CNG.",
+        "description": "Compact hatchbacks, ideal for city rides and short trips.",
         "cab_names": ["WagonR", "Celerio", "Tiago", "Santro", "i10", "Swift"],
         "inventory_cab_names": ["WagonR"],
         "capacity": "4+1",
+        "passenger_capacity": 4,
+        "luggage_capacity": { "num_large_suitcases": 1, "num_carryons": 1, "num_backpacks": 1, "num_other_bags": 0}
     },
     CarTypeEnum.sedan: {
         "description": "Comfortable sedans, suitable for city and outstation travel.",
         "cab_names": ["Dzire", "Amaze", "Indigo"],
         "inventory_cab_names": ["Dzire"],
         "capacity": "4+1",
+        "passenger_capacity": 4,
+        "luggage_capacity": { "num_large_suitcases": 1, "num_carryons": 1, "num_backpacks": 1, "num_other_bags": 0}
     },
     CarTypeEnum.sedan_plus: {
         "description": "Premium sedans for extra comfort and luxury.",
@@ -134,18 +141,26 @@ CAB_TYPES_SEED_DATA = {
         ],
         "inventory_cab_names": ["Etios", "Dzire Plus", "Xcent", "Aura"],
         "capacity": "4+1",
+        "passenger_capacity": 4,
+        "luggage_capacity": { "num_large_suitcases": 1, "num_carryons": 2, "num_backpacks": 1, "num_other_bags": 0}
     },
     CarTypeEnum.suv: {
         "description": "Spacious SUVs, good for family/group travel and rough roads.",
         "cab_names": ["Ertiga", "Innova", "Marazzo", "XL6", "Mobilio"],
         "inventory_cab_names": ["Ertiga", "Innova"],
         "capacity": "6+1",
+        "passenger_capacity": 6,
+        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 2, "num_other_bags": 1},
+        "roof_carrier": True  # Indicates that this cab type has a roof carrier
     },
     CarTypeEnum.suv_plus: {
         "description": "Premium SUVs with extra comfort and luggage space.",
         "cab_names": ["Innova Crysta", "Hexa", "Fortuner", "XUV500", "Alcazar"],
         "inventory_cab_names": ["Innova Crysta"],
         "capacity": "7+1",
+        "passenger_capacity": 7,
+        "luggage_capacity": { "num_large_suitcases": 2, "num_carryons": 2, "num_backpacks": 3, "num_other_bags": 2},
+        "roof_carrier": True  # Indicates that this cab type has a roof carrier
     },
 }
 
@@ -162,27 +177,32 @@ HOURLY_RENTAL_PACKAGES_SEED_DATA = {
             included_hours=4,
             included_km=40,
             package_label="4Hours / 40KM",
+            best_intended_for="Perfect for short city trips, errands, or quick meetings."
         ),
         TripPackageConfigSchema(
             included_hours=6,
             included_km=60,
             package_label="6Hours / 60KM",
+            best_intended_for="Great for half-day outings or city sightseeing."
         ),
         TripPackageConfigSchema(
             included_hours=8,
             included_km=80,
             package_label="8Hours / 80KM",
+            best_intended_for="Best for full-day city travel, business or leisure."
         ),
         TripPackageConfigSchema(
             included_hours=10,
             included_km=100,
             package_label="10Hours / 100KM",
+            best_intended_for="Ideal for long city days, family outings, or multiple stops."
         ),
         TripPackageConfigSchema(
             included_hours=12,
             included_km=120,
             package_label="12Hours / 120KM",
             driver_allowance=400.0,  # Driver allowance applies for 12 hours
+            best_intended_for="Perfect for full-day city trips with driver allowance."
         ),
     ]
 }
@@ -193,9 +213,10 @@ PLATFORM_FEE_BY_COUNTRY = {
     # These are seed data and can be updated later via admin interface
     #Breakdown of estimated costs for platform fee for a typical ₹800 local trip in India:
     # Payment gateway (Razorpay): ~2% of ₹800 = ₹16
-    # SMS / OTP: ₹1–₹2
-    # Infra (AWS amortized): ₹10–₹20
-    # Misc (email, logging, etc): ₹5
+    # SMS by Twilio / OTP: ₹8 per SMS segment
+    # Infra (Railway Backend, Digital Ocean MySQL Managed DB): ₹10–₹20
+    # Misc (email by Brevo(300/day free), logging to Sentry, etc): ₹5
+    # Google Mapping and location services: ₹5–₹10
     "IN": 65,  # 65 INR for India, sweet spot to cover costs and ensure profitability while remaining competitive.
     # Future countries:
     # "US": 2.5,  # $2.5 for USA
@@ -296,7 +317,6 @@ def _seed_regions(session: Session):
 
 # End of geo data seeding
 
-
 # Seed master data seeding - trip types, cab types, fuel types etc
 def _seed_master_data(session: Session):
     # Seed core data like trip types, cab types, fuel types
@@ -339,6 +359,16 @@ def _seed_airports(session: Session):
 
 
 # End of master data seeding
+
+
+def _seed_support_contacts(session: Session):
+    seed_customer_support_contact_for_serviceable_geographies(
+        db=session,
+        display_name="Cabbo Customer Support",
+        email=settings.CUSTOMER_SUPPORT_EMAIL,
+        phone_number=settings.CUSTOMER_SUPPORT_PHONE_NUMBER,
+        whatsapp_number=settings.CUSTOMER_SUPPORT_WHATSAPP_NUMBER,
+    )
 
 
 # Seed pricing data for local, airport and outstation trips
@@ -1009,6 +1039,8 @@ def _seed_local_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=100,  # Minimum platform fee of Rs. 50 for local trips
                 max_platform_fee=400,  # Maximum platform fee of Rs. 200 for local trips
+                #We do not need distance thresholds for local trips as fare is primarily time based and distance is secondary, but we can keep some reasonable thresholds to manage outliers and for better fare estimation for users
+                prior_booking_window_hours=6,  # Assuming a standard prior booking window of 24 hours for local trips
             )
         )
         create_common_pricing_configuration(common_payload, session)
@@ -1076,8 +1108,16 @@ def _seed_outstation_cab_pricing(session: Session):
                 dynamic_platform_fee_percent=1.5,  # 3% platform fee/convenience fee
                 overage_warning_km_threshold=50,  # Warning threshold for overages
                 state_id=state_id,
+                min_included_km=300,   # For outstation trips, we have 300km included kms per day as a standard, but for fare estimation purposes we can keep a reasonable range of included kms based on the package and trip duration
+                max_included_km=2100,  # For outstation trips, we have 300*max_days_allowed range of included kms based on the package and trip duration, but for fare estimation purposes we can keep a reasonable range
                 min_platform_fee=300,  # Minimum platform fee of Rs. 300 for outstation trips
                 max_platform_fee=1200,  # Maximum platform fee of Rs. 1200 for outstation trips
+                min_outbound_distance_km=121,  # Minimum distance threshold for fare calculation, e.g., 121 km for outstation trips excluding hops and return distance as these are primarily long distance trips and fare is not very sensitive for short distances, but we can keep some reasonable state wise thresholds to manage outliers and for better fare estimation for users
+                max_distance_km=2100,  # Maximum distance threshold for fare calculation, e.g., 2100 km for outstation trips
+                min_days_allowed=2,  # Minimum days allowed for outstation trips, e.g., 2 days
+                max_days_allowed=7,  # Maximum days allowed for outstation trips, e.g., 7 days
+                max_hops_allowed=3,  # Maximum hops allowed for outstation trips, e.g., 3 hops (to manage complexity of multi-city trips and for better fare estimation for users)
+                prior_booking_window_hours=48,  # Assuming a standard prior booking window of 48 hours for outstation trips
             )
         )
         create_common_pricing_configuration(common_payload, session)
@@ -1138,6 +1178,9 @@ def _seed_airport_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=150,  # Minimum platform fee of Rs. 100 for airport pickup trips
                 max_platform_fee=500,  # Maximum platform fee of Rs. 400 for airport pickup trips
+                min_outbound_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
+                max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g., 42 km for airport trips
+                prior_booking_window_hours=3,  # Assuming a standard prior booking window of 6 hours for airport pickup trips considering the short notice nature of these trips
             ),
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.airport_drop],
@@ -1149,6 +1192,9 @@ def _seed_airport_cab_pricing(session: Session):
                 region_id=region_id,
                 min_platform_fee=150,  # Minimum platform fee of Rs. 150 for airport drop trips
                 max_platform_fee=500,  # Maximum platform fee of Rs. 500 for airport drop trips
+                min_outbound_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
+                max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g
+                prior_booking_window_hours=3,  # Assuming a standard prior booking window of 6 hours for airport drop trips considering the short notice nature of these trips
             ),
         ]
         for common_payload in common_payload:
@@ -1162,13 +1208,13 @@ def _seed_local_trip_packages(session: Session):
     local_trip_type_id = trip_type_id_map.get(TripTypeEnum.local)
 
     if not local_trip_type_id:
-        print("Local trip type not found. Skipping package seeding.")
+        log.info("Local trip type not found. Skipping package seeding.")
         return
 
     for region_code, packages in HOURLY_RENTAL_PACKAGES_SEED_DATA.items():
         region = get_region_by_code(region_code.upper(), session)
         if not region:
-            print(f"Region {region_code} not found. Skipping packages.")
+            log.info(f"Region {region_code} not found. Skipping packages.")
             continue
 
         for package_data in packages:
@@ -1179,6 +1225,7 @@ def _seed_local_trip_packages(session: Session):
                 included_km=package_data.included_km,
                 driver_allowance=package_data.driver_allowance,
                 package_label=package_data.package_label,
+                best_intended_for=package_data.best_intended_for,
             )
             create_trip_package_pricing_configuration(payload, session)
 
@@ -1246,7 +1293,7 @@ def _seed_fixed_platform_pricing(session: Session):
         platform_fee = PLATFORM_FEE_BY_COUNTRY.get(country_code)
 
         if platform_fee is None:
-            print(f"No platform fee configured for {country_code}. Skipping.")
+            log.info(f"No platform fee configured for {country_code}. Skipping.")
             continue
 
         payload = FixedPlatformFeeConfigurationSchema(
@@ -1432,7 +1479,7 @@ def is_seed_completed(
 
         return record is not None and record.value == value
     except Exception as e:
-        print(f"Error checking seed completion for {key} with value {value}: {e}")
+        log.error(f"Error checking seed completion for {key} with value {value}: {e}")
         return False
 
 
@@ -1456,7 +1503,7 @@ def mark_seed_completed(
 
         db.flush()
     except Exception as e:
-        print(f"Error marking seed as completed: {e}")
+        log.error(f"Error marking seed as completed: {e}")
         raise e
 
 
@@ -1474,18 +1521,18 @@ def run_seed_registry(session: Session):
                     raise Exception(f"Dependency {dep} not completed for {key}")
             # Fail fast
             if is_seed_completed(session, key):
-                print(f"Seed already completed for key: {key}. Skipping.")
+                log.info(f"Seed already completed for key: {key}. Skipping.")
                 continue
-            print(f"Running seed function for key: {key}")
+            log.info(f"Running seed function for key: {key}")
             func(session)
             mark_seed_completed(session, key)
-            print(f"Completed seed function for key: {key}")
+            log.info(f"Completed seed function for key: {key}")
 
         session.commit()
-        print("All seed functions in registry have been processed.")
+        log.info("All seed functions in registry have been processed.")
     except Exception as e:
         session.rollback()
-        print(f"Error during seed registry execution: {e}")
+        log.error(f"Error during seed registry execution: {e}")
         raise e
 
 
@@ -1506,6 +1553,11 @@ SEED_REGISTRY: list[SeedRegistryEntry] = [
         key=SeedKeyEnum.SEED_GEO_REGIONS_V1,
         func=_seed_regions,
         depends_on=[SeedKeyEnum.SEED_GEO_CORE_V1],
+    ),
+    SeedRegistryEntry(
+        key=SeedKeyEnum.SEED_SUPPORT_CONTACTS_V1,
+        func=_seed_support_contacts,
+        depends_on=[SeedKeyEnum.SEED_GEO_REGIONS_V1],
     ),
     SeedRegistryEntry(
         key=SeedKeyEnum.SEED_PRICING_LOCAL_V1,

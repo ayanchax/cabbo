@@ -1,0 +1,27 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/airport/76869b9a-f235-44e9-bcd1-69c2d670b8a0"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"display_name\": \"San Francisco International Airport\",\r
+
+    \  \"iata_code\": \"SFO\",\r
+
+    \  \"icao_code\": \"KSFO\",\r
+
+    \  \"elevation_ft\": 13,\r
+
+    \  \"timezone\": \"America/Los_Angeles\",\r
+
+    \  \"dst\": \"A\",\r
+
+    \  \"tz_database_time_zone\": \"America/Los_Angeles\",\r
+
+    \  \"type\": \"large_airport\",\r
+
+    \  \"source\": \"OurAirports\"\r
+
+    }"
+order: 2000

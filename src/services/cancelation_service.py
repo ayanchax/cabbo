@@ -11,7 +11,8 @@ from models.trip.trip_enums import CancellationSubStatusEnum
 from models.user.user_orm import User
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
+import logging
+log = logging.getLogger(__name__)
 
 def get_cancelation_payload(
     cancelation_detail: Optional[CancelationSchema],
@@ -64,7 +65,7 @@ async def register_trip_cancellation(
             trip_id=payload.entity_id, db=db
         )
         if existing_cancelation:
-            print(
+            log.info(
                 f"Existing cancellation record found for trip {payload.entity_id}, removing it before adding new cancellation details"
             )
             await remove_cancellation_by_trip_id(
@@ -79,7 +80,7 @@ async def register_trip_cancellation(
         )
     except Exception as e:
         import traceback
-        print(f"Error registering cancellation for trip {payload.entity_id}: {e}")
+        log.error(f"Error registering cancellation for trip {payload.entity_id}: {e}")
         traceback.print_exc()
         if not silently_fail:
             raise e
@@ -110,7 +111,7 @@ async def _create_cancellation_record(
         return CancelationSchema.model_validate(new_cancellation)
     except Exception as e:
         import traceback
-        print(f"Error creating cancellation record for trip {payload.entity_id}: {e}")
+        log.error(f"Error creating cancellation record for trip {payload.entity_id}: {e}")
         traceback.print_exc()
         await db.rollback()
         if not silently_fail:
@@ -132,7 +133,7 @@ async def get_cancellation_by_trip_id(
             return CancelationSchema.model_validate(cancellation)
         return None
     except Exception as e:
-        print(f"Error fetching cancellation record for trip_id {trip_id}: {e}")
+        log.error(f"Error fetching cancellation record for trip_id {trip_id}: {e}")
         return None
 
 
@@ -155,7 +156,7 @@ async def remove_cancellation_by_trip_id(
             return True
         return False
     except Exception as e:
-        print(f"Error removing cancellation record for trip_id {trip_id}: {e}")
+        log.error(f"Error removing cancellation record for trip_id {trip_id}: {e}")
         await db.rollback()
         return False
 
@@ -169,6 +170,7 @@ def get_cancelation_policy_id(policy: Optional[CancelationPolicySchema]):
 
 
 async def fetch_all_cancelled_trips(db: AsyncSession):
+
     try:
         result = await db.execute(
             select(Cancellation).where(Cancellation.is_active == True)
@@ -176,5 +178,11 @@ async def fetch_all_cancelled_trips(db: AsyncSession):
         cancellations = result.scalars().all()
         return [CancelationSchema.model_validate(cancellation) for cancellation in cancellations]
     except Exception as e:
-        print(f"Error fetching all cancellations: {e}")
+        log.error(f"Error fetching all cancellations: {e}")
         return []
+    
+def serialize_cancelation(cancellation, trip_dict: dict):
+    cancellation = CancelationSchema.model_validate(cancellation)
+    cancellation_data = cancellation.model_dump()
+    trip_dict["cancellation"] = cancellation_data
+    return trip_dict

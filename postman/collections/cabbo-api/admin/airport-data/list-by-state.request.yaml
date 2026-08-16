@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/airport/state/KA"
+method: GET
+order: 5000

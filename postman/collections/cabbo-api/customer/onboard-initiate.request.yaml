@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/auth/onboard/initiate"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"phone_number\":\"+91 9831305667\"\r
+
+    }"
+auth:
+  type: noauth
+order: 3000

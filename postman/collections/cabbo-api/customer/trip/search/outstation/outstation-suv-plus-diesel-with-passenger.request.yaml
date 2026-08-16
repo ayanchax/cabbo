@@ -1,0 +1,65 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"outstation\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"Koramangala, Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9352,\r
+
+    \        \"lng\": 77.6245,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"Koramangala, Bengaluru, Karnataka, India\",\r
+
+    \        \"state_code\":\"KA\"\r
+
+    \    },\r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Munnar, KL\",\r
+
+    \        \"lat\": 10.0889,\r
+
+    \        \"lng\": 77.0595,\r
+
+    \        \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r
+
+    \        \"address\": \"Munnar, Kerala, India\",\r
+
+    \        \"state_code\":\"KL\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-09-26T06:00:00\",\r
+
+    \    \"end_date\": \"2026-09-29T21:00:00\",\r
+
+    \    \"num_adults\": 5,\r
+
+    \    \"num_children\": 2,\r
+
+    \    \"num_large_suitcases\": 4,\r
+
+    \    \"num_carryons\": 3,\r
+
+    \    \"preferred_car_type\": \"SUV+\",\r
+
+    \    \"preferred_fuel_type\": \"diesel\",\r
+
+    \    \"passenger\":{\r
+
+    \        \"id\":\"{{passenger_id}}\"\r
+
+    \    }\r
+
+    }"
+order: 7000

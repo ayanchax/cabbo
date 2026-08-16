@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/kyc-document-types/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"document_type\": \"passport\",\r
+
+    \  \"document_alias\":\"Passport\",\r
+
+    \  \"document_description\": \"A government-issued passport used for identity verification\"\r
+
+    \  \r
+
+    }"
+order: 1000

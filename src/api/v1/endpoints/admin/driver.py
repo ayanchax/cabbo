@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import (
     APIRouter,
@@ -7,10 +7,11 @@ from fastapi import (
     Form,
     Form,
     Path,
+    Query,
     UploadFile,
     File,
 )
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import ActiveInactiveStatusEnum, RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session, yield_mysql_session
 from models.common import S3ObjectInfo
@@ -20,6 +21,7 @@ from models.driver.driver_schema import (
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
+    DriverSearchSchema,
     DriverUpdateSchema,
 )
 from models.trip.trip_enums import TripStatusEnum
@@ -33,9 +35,12 @@ from services.kyc_service import (
     update_driver_kyc_documents,
 )
 from services.driver_service import (
+    a_search_assignable_drivers_paginated,
     activate_driver,
     add_driver_earning_record_manually,
+    apply_driver_assignment_fit_signals,
     create_driver,
+    create_drivers_in_bulk,
     deactivate_driver,
     delete_driver,
     fetch_all_drivers_earnings_summary,
@@ -46,7 +51,9 @@ from services.driver_service import (
     get_all_earnings_for_driver,
     get_average_rating_by_driver_id,
     get_driver_by_id,
+    get_driver_assignment_criteria,
     get_trip_earning_for_driver,
+    remove_extra_fields_from_driver_for_admin,
     update_driver,
     update_driver_profile_picture,
 )
@@ -56,10 +63,35 @@ from services.file_service import (
 )
 from services.notification_service import notify_driver_onboarded
 from services.orchestration_service import BackgroundTaskOrchestrator
-from services.validation_service import validate_driver_payload
+from services.validation_service import (
+    validate_driver_payload,
+    validate_driver_payloads,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 router = APIRouter()
+log = logging.getLogger(__name__)
+
+
+@router.post("/bulk/create", response_model=DriverBaseSchema, status_code=201)
+async def add_drivers_in_bulk(
+    payload: List[DriverReadSchema] = Depends(validate_driver_payloads),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Quick create drivers in bulk."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin]:
+        raise CabboException(
+            "You do not have permission to quick create drivers.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
+        )
+    created_drivers = await create_drivers_in_bulk(
+        payload=payload, db=db, created_by=current_user_role
+    )
+    return [DriverBaseSchema.model_validate(driver) for driver in created_drivers]
 
 
 # Add driver
@@ -74,7 +106,9 @@ def add_driver(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to add drivers.", status_code=403
+            "You do not have permission to add drivers.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
 
     driver = create_driver(payload=payload, db=db, created_by=current_user_role)
@@ -103,13 +137,65 @@ def edit_driver(
     ):
         driver = update_driver(driver_id=driver_id, payload=payload, db=db)
         return DriverBaseSchema.model_validate(driver)
-    raise CabboException("You do not have permission to edit drivers.", status_code=403)
+    raise CabboException(
+        "You do not have permission to edit drivers.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
+    )
+
+
+# Search assignable drivers by driver name and get paginated results, max upto 10 in one page
+@router.get("/search/driver", response_model=dict)
+async def search_drivers(
+    search_in: DriverSearchSchema = Depends(),
+    page: int = Query(
+        1, ge=1, description="Page number for pagination, starting from 1"
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=10,
+        description="Number of drivers per page for pagination, maximum 10",
+    ),
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Search active and available drivers for assignment."""
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to search drivers.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
+        )
+
+    drivers = await a_search_assignable_drivers_paginated(
+        search_in=search_in,
+        db=db,
+        page=page,
+        limit=limit,
+    )
+    matching_criterion = get_driver_assignment_criteria(search_in)
+
+    serialized_drivers = [
+        apply_driver_assignment_fit_signals(
+            driver_dict=remove_extra_fields_from_driver_for_admin(
+                DriverReadSchema.model_validate(driver).model_dump()
+            ),
+            criteria=matching_criterion,
+        )
+        for driver in drivers.get("items", [])
+    ]
+    drivers.pop("items", None)
+
+    return {
+        **drivers,
+        "drivers": serialized_drivers,
+    }
 
 
 # Upload driver profile picture
-@router.post(
-    "/{driver_id}/profile-picture", response_model=S3ObjectInfo
-)
+@router.post("/{driver_id}/profile-picture", response_model=S3ObjectInfo)
 def upload_driver_profile_picture(
     driver_id: str = Path(..., description="ID of the driver"),
     file: UploadFile = File(..., description="Profile picture file"),
@@ -121,26 +207,36 @@ def upload_driver_profile_picture(
     current_user_role = current_user.role
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     if not driver.is_active:
         raise CabboException(
-            "Cannot upload profile picture for inactive driver", status_code=400
+            "Cannot upload profile picture for inactive driver",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
 
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         new_s3_image_info = save_driver_profile_picture(driver_id=driver_id, file=file)
         if new_s3_image_info:
-            existing_s3_image_info = S3ObjectInfo.model_validate(driver.s3_image_info) if driver.s3_image_info else None
+            existing_s3_image_info = (
+                S3ObjectInfo.model_validate(driver.s3_image_info)
+                if driver.s3_image_info
+                else None
+            )
             if existing_s3_image_info and existing_s3_image_info.key:
                 # Remove old profile picture from S3 silently if it exists, and if new upload is successful
                 # We are explictly removing old picture because profile pictures are hex named and we want to avoid orphaned files in S3 which can lead to unnecessary storage costs. By removing old picture immediately after successful upload of new picture, we ensure that there is only one profile picture per driver at any given time, which simplifies management and reduces storage usage. If we don't remove old picture, we would need a separate cleanup process to identify and delete orphaned files, which adds complexity and overhead.
                 removed = remove_driver_profile_picture(key=existing_s3_image_info.key)
                 if not removed:
-                    #just print the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
-                    print("Failed to cleanup old profile picture from storage.")
-            
-            #Finally update driver record with new profile picture info
-            _ = update_driver_profile_picture(driver=driver, db=db, s3_image_info=new_s3_image_info)
+                    # just log the error but do not raise exception as the new profile picture has been uploaded successfully and we don't want to fail the whole operation just because of failure in removing old picture from S3. This can be handled in a background task for cleanup if needed.
+                    log.error("Failed to cleanup old profile picture from storage.")
+
+            # Finally update driver record with new profile picture info
+            _ = update_driver_profile_picture(
+                driver=driver, db=db, s3_image_info=new_s3_image_info
+            )
             return new_s3_image_info
         raise CabboException("Failed to upload new profile picture.", status_code=500)
 
@@ -160,27 +256,45 @@ def delete_driver_profile_picture(
 
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     if not driver.is_active:
         raise CabboException(
-            "Cannot upload profile picture for inactive driver", status_code=400
+            "Cannot upload profile picture for inactive driver",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
 
     current_user_role = current_user.role
 
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        existing_s3_image_info = S3ObjectInfo.model_validate(driver.s3_image_info) if driver.s3_image_info else None
+        existing_s3_image_info = (
+            S3ObjectInfo.model_validate(driver.s3_image_info)
+            if driver.s3_image_info
+            else None
+        )
         if existing_s3_image_info and existing_s3_image_info.key:
             removed = remove_driver_profile_picture(key=existing_s3_image_info.key)
             if removed:
                 update_driver_profile_picture(driver=driver, db=db, s3_image_info=None)
                 return {"message": "Profile picture removed successfully."}
             else:
-                raise CabboException("Failed to remove profile picture from storage.", status_code=500)
-        raise CabboException("No profile picture found for this driver.", status_code=404)
+                raise CabboException(
+                    "Failed to remove profile picture from storage.",
+                    status_code=500,
+                    error_code=GENERIC_EXCEPTION,
+                )
+        raise CabboException(
+            "No profile picture found for this driver.",
+            status_code=404,
+            error_code=GENERIC_EXCEPTION,
+        )
 
     raise CabboException(
-        "You do not have permission to remove driver profile picture.", status_code=403
+        "You do not have permission to remove driver profile picture.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -195,13 +309,17 @@ def view_driver_profile(
     driver = get_driver_by_id(driver_id, db)
 
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     current_user_role = current_user.role
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         return DriverReadSchema.model_validate(driver)
 
     raise CabboException(
-        "You do not have permission to view this driver.", status_code=403
+        "You do not have permission to view this driver.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -217,10 +335,14 @@ def upload_driver_documents(
     current_user_role = current_user.role
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     if not driver.is_active:
         raise CabboException(
-            "Cannot upload documents for inactive driver", status_code=400
+            "Cannot upload documents for inactive driver",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
 
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
@@ -230,7 +352,9 @@ def upload_driver_documents(
         )
 
     raise CabboException(
-        "You do not* have permission to upload driver documents.", status_code=403
+        "You do not* have permission to upload driver documents.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -246,14 +370,24 @@ def remove_driver_document(
     current_user_role = current_user.role
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         if not driver.kyc_documents:
-            raise CabboException("No documents found for this driver.", status_code=404)
+            raise CabboException(
+                "No documents found for this driver.",
+                status_code=404,
+                error_code=GENERIC_EXCEPTION,
+            )
 
         removed, error = remove_kyc_document_by_id_for_driver(driver, document_id, db)
         if not removed:
-            raise CabboException(error or "Document not found.", status_code=404)
+            raise CabboException(
+                error or "Document not found.",
+                status_code=404,
+                error_code=GENERIC_EXCEPTION,
+            )
         return {"message": f"Document {document_id} removed for driver {driver_id}"}
 
 
@@ -268,14 +402,18 @@ def view_driver_documents(
     current_user_role = current_user.role
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         if not driver.kyc_documents:
             return []
         return list_kyc_documents(driver, db)
 
     raise CabboException(
-        "You do not have permission to view driver documents.", status_code=403
+        "You do not have permission to view driver documents.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -290,16 +428,21 @@ def mark_kyc_verified(
 ):
     """Mark a specific driver document as verified or unverified."""
     current_user_role = current_user.role
+
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
+        raise CabboException(
+            "You do not have permission to verify/unverify driver documents.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
+        )
+
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
-    if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
-        return mark_kyc_verification_status_for_driver_document(
-            driver, document_id, status, db
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
         )
-    raise CabboException(
-        "You do not have permission to verify/unverify driver documents.",
-        status_code=403,
+    return mark_kyc_verification_status_for_driver_document(
+        driver, document_id, status, db
     )
 
 
@@ -316,12 +459,15 @@ def remove_driver(
     driver = get_driver_by_id(driver_id, db)
 
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
 
     if driver.is_active:
         raise CabboException(
             "Cannot remove an active driver. Please deactivate the driver first.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
 
     if current_user_role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
@@ -330,7 +476,9 @@ def remove_driver(
             return {"message": f"Driver {driver_id} removed (admin action)"}
 
     raise CabboException(
-        "You do not have permission to remove this driver.", status_code=403
+        "You do not have permission to remove this driver.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -344,9 +492,13 @@ def driver_activation(
     """Activate a driver."""
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
     if driver.is_active:
-        raise CabboException("Driver is already active", status_code=400)
+        raise CabboException(
+            "Driver is already active", status_code=400, error_code=GENERIC_EXCEPTION
+        )
 
     if current_user.role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         updated_driver = activate_driver(driver_id=driver_id, db=db)
@@ -354,7 +506,9 @@ def driver_activation(
             "message": f"Driver '{updated_driver.name}' with id: {updated_driver.id} activated"
         }
     raise CabboException(
-        "You do not have permission to activate this driver.", status_code=403
+        "You do not have permission to activate this driver.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -368,10 +522,14 @@ def driver_deactivation(
     """Deactivate a driver."""
     driver = get_driver_by_id(driver_id, db)
     if driver is None:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=GENERIC_EXCEPTION
+        )
 
     if not driver.is_active:
-        raise CabboException("Driver is already inactive", status_code=400)
+        raise CabboException(
+            "Driver is already inactive", status_code=400, error_code=GENERIC_EXCEPTION
+        )
 
     if current_user.role in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         updated_driver = deactivate_driver(driver_id=driver_id, db=db)
@@ -380,7 +538,9 @@ def driver_deactivation(
         }
 
     raise CabboException(
-        "You do not have permission to deactivate this driver.", status_code=403
+        "You do not have permission to deactivate this driver.",
+        status_code=403,
+        error_code=UNAUTHORIZED,
     )
 
 
@@ -395,7 +555,9 @@ def list_drivers_by_status(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view drivers.", status_code=403
+            "You do not have permission to view drivers.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
 
     return get_all_drivers_by_status(status=status, db=db)
@@ -412,7 +574,9 @@ def list_drivers_by_availability(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view drivers.", status_code=403
+            "You do not have permission to view drivers.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
 
     return get_all_drivers_by_availability(is_available=is_available, db=db)
@@ -428,7 +592,9 @@ def list_drivers(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view drivers.", status_code=403
+            "You do not have permission to view drivers.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
 
     return get_all_drivers(db)
@@ -446,7 +612,9 @@ async def view_driver_trips_history(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view driver trips.", status_code=403
+            "You do not have permission to view driver trips.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
     return await fetch_all_trips_for_driver(driver_id=driver_id, status=status, db=db)
 
@@ -461,7 +629,9 @@ async def get_average_rating_of_driver(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin]:
         raise CabboException(
-            "You do not have permission to view driver ratings.", status_code=403
+            "You do not have permission to view driver ratings.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
     return await get_average_rating_by_driver_id(driver_id=driver_id, db=db)
 
@@ -482,23 +652,28 @@ async def view_driver_earning_for_trip(
         RoleEnum.finance_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view driver earnings.", status_code=403
+            "You do not have permission to view driver earnings.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
-    earning= await get_trip_earning_for_driver(
+    earning = await get_trip_earning_for_driver(
         driver_id=driver_id, trip_id=trip_id, db=db
     )
     if earning is None:
         raise CabboException(
-            "Earnings not found for the specified driver and trip.", status_code=404
+            "Earnings not found for the specified driver and trip.",
+            status_code=404,
+            error_code=GENERIC_EXCEPTION,
         )
     return DriverEarningSchema.model_validate(earning)
 
-#Post earnings manually for a driver for a specific trip (admin action in case of any discrepancies in workflow(status_service.py._complete) or adjustments needed after investigation)
+
+# Post earnings manually for a driver for a specific trip (admin action in case of any discrepancies in workflow(status_service.py._complete) or adjustments needed after investigation)
 @router.post("/{driver_id}/earning/trip/{trip_id}", response_model=DriverEarningSchema)
 async def post_driver_earning_for_trip(
     driver_id: str,
     trip_id: str,
-    payload:AdditionalDetailsOnTripStatusChange,
+    payload: AdditionalDetailsOnTripStatusChange,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
@@ -510,11 +685,18 @@ async def post_driver_earning_for_trip(
         RoleEnum.finance_admin,
     ]:
         raise CabboException(
-            "You do not have permission to post driver earnings.", status_code=403
+            "You do not have permission to post driver earnings.",
+            status_code=403,
+            error_code=UNAUTHORIZED,
         )
-    return await add_driver_earning_record_manually(trip_id=trip_id, driver_id=driver_id, payload=payload, db=db, requestor=current_user.id)
-    
-   
+    return await add_driver_earning_record_manually(
+        trip_id=trip_id,
+        driver_id=driver_id,
+        payload=payload,
+        db=db,
+        requestor=current_user.id,
+    )
+
 
 # all-time earnings for a driver (admin audit)
 @router.get("/{driver_id}/earnings", response_model=list[DriverEarningSchema])
@@ -533,7 +715,7 @@ async def view_driver_earnings(
         raise CabboException(
             "You do not have permission to view driver earnings.", status_code=403
         )
-    earnings= await get_all_earnings_for_driver(driver_id=driver_id, db=db)
+    earnings = await get_all_earnings_for_driver(driver_id=driver_id, db=db)
     if not earnings:
         raise CabboException(
             "Earnings not found for the specified driver.", status_code=404
@@ -554,4 +736,3 @@ async def view_earnings_summary(
             "You do not have permission to view earnings summary.", status_code=403
         )
     return await fetch_all_drivers_earnings_summary(db=db)
-    

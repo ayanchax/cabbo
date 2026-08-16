@@ -7,7 +7,10 @@ from api.v1.endpoints.admin.geography.geo_routes import router as geography_conf
 from api.v1.endpoints.admin.pricing.pricing_routes import router as pricing_config_ep
 from api.v1.endpoints import (
     auth as auth_ep,
+    company as company_ep,
     location as location_ep,
+    geography as geography_ep,
+    legal as legal_ep,
 )
 from api.v1.endpoints.customer import (
      customer as customer_ep,
@@ -22,20 +25,21 @@ from api.v1.endpoints.admin import (
     kyc_document_types as admin_kyc_document_types_ep,
     trip_type as admin_trip_type_ep,
     local_trip_package as admin_trip_package_ep,
+    housekeeping as admin_housekeeping_ep,
+    profile as admin_profile
 )
 from api.v1.endpoints.customer.trip import trip as trip_router
 from api.v1.endpoints.admin.trip import trip as admin_trip_ep
-from api.v1.endpoints.s3 import router as s3_router
 
 router = APIRouter()
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
 router.include_router(customer_ep.router, prefix="/customer")
 router.include_router(trip_router.router, prefix="/trips")
-router.include_router(s3_router, prefix="/s3", tags=["s3"])
 router.include_router(driver_router.router, prefix="/driver", tags=["driver-operations-for-customers"])
 router.include_router(location_ep.router, prefix="/locations", tags=["locations"])
-
-
+router.include_router(geography_ep.router, prefix="/geography", tags=["geography"])
+router.include_router(legal_ep.router, prefix="/legal", tags=["legal"])
+router.include_router(company_ep.router, prefix="/company", tags=["company"])
 
 router.include_router(admin_auth_ep.router, prefix="/admin/auth", tags=["admin-auth"])
 router.include_router(
@@ -80,5 +84,17 @@ router.include_router(
     admin_trip_package_ep.router,
     prefix="/admin/config/trip-packages",
     tags=["admin-trip-package-configuration"],
+)
+
+router.include_router(
+    admin_housekeeping_ep.router,
+    prefix="/admin/housekeeping",
+    tags=["admin-housekeeping"],
+)
+
+router.include_router(
+    admin_profile.router,
+    prefix="/admin/profile",
+    tags=["admin-profile"],
 )
 

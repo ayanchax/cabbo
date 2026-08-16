@@ -1,11 +1,13 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.policies.refund_enum import RefundStatus
 from models.user.user_orm import User
 from models.policies.refund_schema import RefundSchema
 from sqlalchemy.ext.asyncio import AsyncSession
+from scheduler.tasks.process_refund import process_single_refund
+from services.orchestration_service import BackgroundTaskOrchestrator
 from services.payment_service import get_refund_status
 from services.refund_service import fetch_all_refund_details, fetch_refund_detail_by_booking_id, fetch_refund_detail_by_booking_id_and_customer_id, fetch_refund_detail_by_refund_id, fetch_refund_details_by_customer_id, get_refund_details_by_trip_id, initiate_refund_by_booking_id
 
@@ -22,7 +24,7 @@ async def get_refund_details_by_booking_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.finance_admin]:
         raise HTTPException(
-            status_code=403, detail="You do not have permission to access this resource."
+            status_code=403, detail="You do not have permission to access this resource.",
         )
     refund_detail = await fetch_refund_detail_by_booking_id(
         booking_id, db
@@ -138,7 +140,7 @@ async def get_refund_detail_by_trip_id(
         raise HTTPException(status_code=404, detail="Refund detail not found.")
     return refund_detail
 
-# Initiate a refund for a trip by booking_id - finance_admin, super_admin, if the workflow based refund initiation failed to complete/execute successfully(Refer #status_service.py._cancelled() method)
+# Initiate a refund record for a trip by booking_id - finance_admin, super_admin, if the workflow based refund initiation failed to complete/execute successfully/create a refund initiation record in database(Refer #status_service.py._cancelled() method)
 @router.get("/booking/{booking_id}/initiate-refund")
 async def init_refund_by_booking_id(
     booking_id: str | UUID,
@@ -156,4 +158,36 @@ async def init_refund_by_booking_id(
         raise HTTPException(status_code=400, detail="Refund initiation failed.")
     return {"message": "Refund initiation successful."}
 
+
+#Attempt to force issue a refund by calling the process_single_refund of the process_refund scheduler task.
+@router.get("/booking/{booking_id}/issue-refund")
+async def issue_refund_by_booking_id(
+    background_tasks: BackgroundTasks,
+    booking_id: str | UUID,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_user: User = Depends(validate_user_token),
+):
+    """Initiate a refund for a trip by booking_id."""
+     
+    current_user_role = current_user.role
+    if current_user_role not in [RoleEnum.super_admin, RoleEnum.finance_admin]:
+        raise HTTPException(
+            status_code=403, detail="You do not have permission to issue refund."
+        )
+    refund = await fetch_refund_detail_by_booking_id(booking_id=booking_id, db= db, use_orm=True)
+    if not refund:
+        #Attempt creating refund record in system.
+        refund_initiated= await initiate_refund_by_booking_id(booking_id=booking_id, db=db, requestor=current_user.id)
+        if not refund_initiated:
+                raise HTTPException(status_code=400, detail="Refund initiation failed.")
+
+        #Refetch newly formed refund record now.
+        refund = await fetch_refund_detail_by_booking_id(booking_id=booking_id, db= db, use_orm=True)
+
+    # Orchestrate the refund issuance job in background.
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(
+            process_single_refund, task_name="ProcessRefundOnDemand", db=db, refund=refund
+        )
+    return {"message": "Refund issue request has been placed successfully."}
 

@@ -1,0 +1,27 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/trips/a2947179-6b89-4b2b-b5c1-f0468e0e93c0/status/completed"
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"end_datetime\": \"2026-03-10T06:10:00Z\",\r
+
+    \    \"reason\": \"Airport drop completed. Customer reached terminal T2 on time.\",\r
+
+    \    \"extra_payment_to_driver\": {\r
+
+    \        \"toll_charges\": 60.00,\r
+
+    \        \"parking_charges\": 0.00,\r
+
+    \        \"overage_payment\": 0.00,\r
+
+    \        \"tips\": 50.00,\r
+
+    \        \"comments\": \"Airport entry toll paid. Customer tipped for early morning pickup.\"\r
+
+    \    }\r
+
+    }"
+order: 7000

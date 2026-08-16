@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \    \"name\":\"Ayan\",\r
+
+    \    \"email\":\"ayan@gmail.com\"\r
+
+    }"
+order: 6000

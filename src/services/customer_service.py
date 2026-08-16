@@ -1,28 +1,30 @@
 from typing import Literal, Optional
 from sqlalchemy.orm import Session
+from core.security import RoleEnum
 from models.common import S3ObjectInfo
 from models.customer.customer_schema import (
+    AdminSafeReadCustomer,
     CustomerCreate,
     CustomerRead,
+    CustomerSafeRead,
     CustomerSuspensionRequest,
     CustomerUpdate,
 )
 from models.customer.customer_orm import Customer
-from core.exceptions import CabboException
+from core.exceptions import CabboException, USER_NOT_FOUND, GENERIC_EXCEPTION
 from datetime import datetime, timezone
-from core.security import (
-    generate_jwt_token,
-    decode_jwt_token,
-    generate_jwt_payload,
-    JWT_EXPIRY_UNIT,
-    JWT_EXPIRY_UNIT_TIME_FRAME,
-)
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
+from models.trip.trip_enums import TripStatusEnum
+from models.trip.trip_orm import Trip
+from models.user.user_enum import GenderEnum
+from services.customer_email_verification_service import (
+    a_get_existing_email_verification_link,
+)
 
 
-def create_customer(
-    data: CustomerCreate, db: Session, phone_verified=False, activate=False
+async def a_create_customer(
+    data: CustomerCreate, db: AsyncSession, phone_verified=False, activate=False
 ) -> Customer:
     try:
         customer = Customer(
@@ -52,20 +54,35 @@ def create_customer(
             ),
         )
         db.add(customer)
-        db.commit()
-        db.refresh(customer)
+        await db.commit()
+        await db.refresh(customer)
         return customer
     except Exception as e:
-        db.rollback()
-        raise CabboException(
-            f"Error creating customer: {str(e)}",
-            status_code=500,
-            include_traceback=True,
+        await db.rollback()
+        raise e
+
+
+async def a_is_existing_customer(phone_number: str, db: AsyncSession) -> bool:
+    result = await db.execute(
+        select(Customer).where(
+            Customer.phone_number == phone_number,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
         )
+    )
+    return result.scalar_one_or_none() is not None
 
 
 def is_existing_customer(phone_number: str, db: Session) -> bool:
-    existing = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
+    existing = (
+        db.query(Customer)
+        .filter(
+            Customer.phone_number == phone_number,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
+        )
+        .first()
+    )
     return existing is not None
 
 
@@ -76,44 +93,174 @@ def get_active_customer_by_id(customer_id: str, db: Session) -> Customer:
         .first()
     )
     if not customer:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException(
+            "Customer not found", status_code=404, error_code=USER_NOT_FOUND
+        )
     return customer
 
 
-def get_customer_by_phone_number(phone_number: str, db: Session) -> Customer:
-    customer = db.query(Customer).filter(Customer.phone_number == phone_number, Customer.is_active == True, Customer.is_suspended == False).first()
-    if not customer:
-        raise CabboException("Customer not found", status_code=404)
-    return customer
-
-
-def get_customer_by_id(customer_id: str, db: Session) -> Customer:
-    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False).first()
-    if not customer:
-        raise CabboException("Customer not found", status_code=404)
-    return customer
-
-async def a_get_customer_by_id(customer_id: str, db: AsyncSession) -> Customer:
-    result = await db.execute(select(Customer).filter(Customer.id == customer_id, Customer.is_active == True, Customer.is_suspended == False))
+async def a_get_active_customer_by_id(
+    customer_id: str, db: AsyncSession
+) -> Customer:
+    result = await db.execute(
+        select(Customer).where(
+            Customer.id == customer_id,
+            Customer.is_active == True
+        )
+    )
     customer = result.scalar_one_or_none()
+
     if not customer:
-        raise CabboException("Customer not found", status_code=404)
+        raise CabboException(
+            "Customer not found",
+            status_code=404,
+            error_code=USER_NOT_FOUND
+        )
+
     return customer
+
+
+async def a_get_customer_by_phone_number(
+    phone_number: str, db: AsyncSession, silently_fail: bool = False
+) -> Optional[Customer]:
+    if phone_number is None or phone_number.strip() == "":
+        if silently_fail:
+            return None
+        raise CabboException(
+            "Phone number is required", status_code=400, error_code=GENERIC_EXCEPTION
+        )
+    result = await db.execute(
+        select(Customer).filter(
+            Customer.phone_number == phone_number,
+            Customer.is_active == True,
+            Customer.is_suspended == False,
+        )
+    )
+    if not result:
+        if silently_fail:
+            return None
+        raise CabboException(
+            "Customer not found", status_code=404, error_code=USER_NOT_FOUND
+        )
+    return result.scalar_one_or_none()
+
+
+def update_customer_name(customer_id: str, new_name: str, db: Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_name(CustomerUpdate(name=new_name), customer):
+        db.commit()
+        db.refresh(customer)
+    return customer.name
+
+
+async def a_update_customer_name(customer_id: str, new_name: str, db: AsyncSession):
+    customer =await a_get_active_customer_by_id(customer_id, db)
+    if update_name(CustomerUpdate(name=new_name), customer):
+        await db.commit()
+        await db.refresh(customer)
+    return customer.name
+
+
+
+def update_customer_email(
+    customer_id: str, new_email: str, db: Session, unverify_email: bool = True
+):
+    customer = get_active_customer_by_id(customer_id, db)
+    if customer.email == new_email:
+        return customer.email, False  # No update needed if email is the same
+    customer.email = new_email
+    if unverify_email:
+        customer.is_email_verified = False
+    db.commit()
+    db.refresh(customer)
+    return customer.email, True
+
+
+async def a_update_customer_email(
+    customer_id: str, new_email: str, db: AsyncSession, unverify_email: bool = True
+):
+    customer = await a_get_active_customer_by_id(customer_id, db)
+    if customer.email == new_email:
+        return customer.email, False  # No update needed if email is the same
+    customer.email = new_email
+    if unverify_email:
+        customer.is_email_verified = False
+    await db.commit()
+    await db.refresh(customer)
+    return customer.email, True
+
+
+def update_customer_dob(customer_id: str, new_dob: datetime, db: Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_dob(CustomerUpdate(dob=new_dob), customer):
+        db.commit()
+        db.refresh(customer)
+    return customer.dob
+
+
+async def a_update_customer_dob(customer_id: str, new_dob: datetime, db: AsyncSession):
+    customer = await a_get_active_customer_by_id(customer_id, db)
+    if update_dob(CustomerUpdate(dob=new_dob), customer):
+        await db.commit()
+        await db.refresh(customer)
+    return customer.dob
+
+
+def update_customer_gender(customer_id, new_gender: GenderEnum, db: Session):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_gender(CustomerUpdate(gender=new_gender), customer):
+        db.commit()
+        db.refresh(customer)
+    return customer.gender
+
+
+async def a_update_customer_gender(customer_id, new_gender: GenderEnum, db: AsyncSession):
+    customer = await a_get_active_customer_by_id(customer_id, db)
+    if update_gender(CustomerUpdate(gender=new_gender), customer):
+       await db.commit()
+       await db.refresh(customer)
+    return customer.gender
+
+
+def update_customer_emergency_contact(
+    customer_id, payload: CustomerUpdate, db: Session
+):
+    customer = get_active_customer_by_id(customer_id, db)
+    if update_emergency_contact(payload, customer):
+        db.commit()
+        db.refresh(customer)
+    return {
+        "emergency_contact_name": customer.emergency_contact_name,
+        "emergency_contact_number": customer.emergency_contact_number,
+    }
+
+
+async def a_update_customer_emergency_contact(
+    customer_id, payload: CustomerUpdate, db: AsyncSession
+):
+    customer = await a_get_active_customer_by_id(customer_id, db)
+    if update_emergency_contact(payload, customer):
+        await db.commit()
+        await db.refresh(customer)
+    return {
+        "emergency_contact_name": customer.emergency_contact_name,
+        "emergency_contact_number": customer.emergency_contact_number,
+    }
 
 
 def update_customer_profile(
     customer_id: str, payload: CustomerUpdate, db: Session
-) -> Customer:
+) -> tuple[Customer, bool]:
     try:
         customer = get_active_customer_by_id(customer_id, db)
         updated_flags = [
             # Primary fields that can be updated
-            update_customer_name(payload, customer),
+            update_name(payload, customer),
             update_email(customer_id, payload, customer, db),
             # Secondary fields that can be updated
-            update_customer_dob(payload, customer),
-            update_customer_gender(payload, customer),
-            update_customer_emergency_contact(payload, customer),
+            update_dob(payload, customer),
+            update_gender(payload, customer),
+            update_emergency_contact(payload, customer),
             update_opt_in_status(payload, customer),
         ]
         if any(updated_flags):
@@ -121,17 +268,59 @@ def update_customer_profile(
             customer.last_modified = datetime.now(timezone.utc)
             db.commit()
             db.refresh(customer)
-        return customer
+
+        email_updated = updated_flags[
+            1
+        ]  # The second item in the list corresponds to email update
+        return customer, email_updated
     except Exception as e:
         db.rollback()
         raise CabboException(
             f"Error updating customer profile: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
-def update_customer_name(payload: CustomerUpdate, customer: Customer):
+
+
+async def a_update_customer_profile(
+    customer_id: str, payload: CustomerUpdate, db: AsyncSession
+) -> tuple[Customer, bool]:
+    try:
+        customer = await a_get_active_customer_by_id(customer_id, db)
+        updated_flags = [
+            # Primary fields that can be updated
+            update_name(payload, customer),
+            await update_email(customer_id, payload, customer, db),
+            # Secondary fields that can be updated
+            update_dob(payload, customer),
+            update_gender(payload, customer),
+            update_emergency_contact(payload, customer),
+            update_opt_in_status(payload, customer),
+        ]
+        if any(updated_flags):
+            # If any field was updated, set last_modified to now and commit changes
+            customer.last_modified = datetime.now(timezone.utc)
+            await db.commit()
+            await db.refresh(customer)
+
+        email_updated = updated_flags[
+            1
+        ]  # The second item in the list corresponds to email update
+        return customer, email_updated
+    except Exception as e:
+        await db.rollback()
+        raise CabboException(
+            f"Error updating customer profile: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+
+def update_name(payload: CustomerUpdate, customer: Customer):
     if payload.name is not None:
         if customer.name != payload.name:
             customer.name = payload.name
@@ -153,8 +342,9 @@ def update_email(
         )
         if existing_customer:
             raise CabboException(
-                "Email already in use, this update will not happen.",
+                "Email already in use by some other customer, this update will not happen.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         if customer.email != payload.email:
             customer.email = payload.email
@@ -162,6 +352,35 @@ def update_email(
             return True
     return False
 
+
+async def a_update_email(
+    customer_id: str,
+    payload: CustomerUpdate,
+    customer: Customer,
+    db: AsyncSession,
+):
+    if payload.email is not None:
+        result = await db.execute(
+            select(Customer).where(
+                Customer.email == payload.email,
+                Customer.id != customer_id
+            )
+        )
+        existing_customer = result.scalar_one_or_none()
+
+        if existing_customer:
+            raise CabboException(
+                "Email already in use by some other customer, this update will not happen.",
+                status_code=400,
+                error_code=GENERIC_EXCEPTION,
+            )
+
+        if customer.email != payload.email:
+            customer.email = payload.email
+            customer.is_email_verified = False
+            return True
+
+    return False
 
 def update_opt_in_status(payload: CustomerUpdate, customer: Customer):
     if payload.opt_in_updates is not None:
@@ -171,7 +390,7 @@ def update_opt_in_status(payload: CustomerUpdate, customer: Customer):
     return False
 
 
-def update_customer_emergency_contact(payload: CustomerUpdate, customer: Customer):
+def update_emergency_contact(payload: CustomerUpdate, customer: Customer):
     updated = False
     if payload.emergency_contact_name is not None:
         if customer.emergency_contact_name != payload.emergency_contact_name:
@@ -184,7 +403,7 @@ def update_customer_emergency_contact(payload: CustomerUpdate, customer: Custome
     return updated
 
 
-def update_customer_gender(payload: CustomerUpdate, customer: Customer):
+def update_gender(payload: CustomerUpdate, customer: Customer):
     if payload.gender is not None:
         gender_value = (
             payload.gender.value if hasattr(payload.gender, "value") else payload.gender
@@ -195,7 +414,7 @@ def update_customer_gender(payload: CustomerUpdate, customer: Customer):
     return False
 
 
-def update_customer_dob(payload: CustomerUpdate, customer: Customer):
+def update_dob(payload: CustomerUpdate, customer: Customer):
     if payload.dob is not None:
         if customer.dob != payload.dob:
             customer.dob = payload.dob
@@ -222,80 +441,7 @@ def calculate_customer_age(payload: CustomerUpdate):
     return None
 
 
-def get_active_customer_by_id_and_bearer_token(
-    customer_id: str, bearer_token: str, db: Session
-) -> Customer:
-    try:
-        return (
-            db.query(Customer)
-            .filter(
-                Customer.id == customer_id,
-                Customer.bearer_token == bearer_token,
-                Customer.is_active == True,
-            )
-            .first()
-        )
-    except Exception as e:
-        return None
-
-
-def is_customer_logged_in(customer: Customer) -> bool:
-    if not customer.bearer_token:
-        return False
-    try:
-        decode_jwt_token(
-            customer.bearer_token
-        )  # Decode the JWT token and raise error if invalid or expired
-        return True
-    except Exception:
-        return False
-
-
-def generate_customer_jwt(
-    customer: Customer,
-    expires_in=JWT_EXPIRY_UNIT,
-    expires_unit=JWT_EXPIRY_UNIT_TIME_FRAME.get("DAYS"),
-) -> str:
-    payload = generate_jwt_payload(
-        sub=str(customer.id),
-        identity=customer.phone_number,
-        expires_in=expires_in,
-        expires_unit=expires_unit,
-    )
-    return generate_jwt_token(payload)
-
-
-def persist_bearer_token(customer: Customer, token: str, db: Session) -> str:
-    try:
-        customer.bearer_token = token
-        customer.last_seen = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(customer)
-        return token
-    except Exception as e:
-        db.rollback()
-        raise CabboException(
-            f"Error persisting bearer token: {str(e)}",
-            status_code=500,
-            include_traceback=True,
-        )
-
-
-def delete_bearer_token(customer: Customer, db: Session) -> bool:
-    try:
-        customer.bearer_token = None
-        db.commit()
-        db.refresh(customer)
-        return True
-    except Exception as e:
-        db.rollback()
-        raise CabboException(
-            f"Error deleting bearer token: {str(e)}",
-            status_code=500,
-            include_traceback=True,
-        )
-
-
+ 
 def is_customer_email_verified(customer_id: str, db: Session) -> bool:
     try:
         customer = get_active_customer_by_id(customer_id, db)
@@ -305,6 +451,19 @@ def is_customer_email_verified(customer_id: str, db: Session) -> bool:
             f"Error checking email verification status: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+async def a_is_customer_email_verified(customer_id: str, db: AsyncSession) -> bool:
+    try:
+        customer = await a_get_active_customer_by_id(customer_id, db)
+        return customer.is_email_verified
+    except Exception as e:
+        raise CabboException(
+            f"Error checking email verification status: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -322,9 +481,31 @@ def mark_customer_email_verified(customer_id: str, db: Session) -> bool:
             f"Error marking email as verified: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
-def update_customer_profile_picture(customer:Customer, db:Session, s3_image_info:S3ObjectInfo=None):
+
+async def a_mark_customer_email_verified(customer_id: str, db: AsyncSession) -> bool:
+    try:
+        customer = await a_get_active_customer_by_id(customer_id, db)
+        customer.is_email_verified = True
+        customer.last_modified = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(customer)
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise CabboException(
+            f"Error marking email as verified: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
+        )
+
+
+def update_customer_profile_picture(
+    customer: Customer, db: Session, s3_image_info: S3ObjectInfo = None
+):
     try:
         customer.s3_image_info = s3_image_info.model_dump() if s3_image_info else None
         db.commit()
@@ -336,7 +517,27 @@ def update_customer_profile_picture(customer:Customer, db:Session, s3_image_info
             f"Error updating customer profile picture info: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
+
+
+async def a_update_customer_profile_picture(
+    customer: Customer, db: AsyncSession, s3_image_info: S3ObjectInfo = None
+):
+    try:
+        customer.s3_image_info = s3_image_info.model_dump() if s3_image_info else None
+        await db.commit()
+        await db.refresh(customer)
+        return customer
+    except Exception as e:
+        await db.rollback()
+        raise CabboException(
+            f"Error updating customer profile picture info: {str(e)}",
+            status_code=500,
+            include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
+        )
+
 
 
 async def async_get_all_customers(
@@ -428,6 +629,83 @@ async def async_suspend_customer(
 
     except Exception as e:
         return False, f"Error suspending customer: {str(e)}"
-    
-def get_customer_email(customer:CustomerRead):
+
+
+def get_customer_email(customer: CustomerRead):
     return customer.email if customer.email else None
+
+
+def _get_customer_profile_picture_url(customer) -> Optional[str]:
+    try:
+        s3_image_info = (
+            customer.get("s3_image_info")
+            if isinstance(customer, dict)
+            else getattr(customer, "s3_image_info", None)
+        )
+
+        if not s3_image_info:
+            return None
+
+        if isinstance(s3_image_info, dict):
+            return s3_image_info.get("url")
+
+        if isinstance(s3_image_info, S3ObjectInfo):
+            return s3_image_info.url
+
+        return getattr(s3_image_info, "url", None)
+    except Exception:
+        return None
+
+
+def serialize_customer(customer, trip_dict: dict):
+    customer = CustomerRead.model_validate(customer)
+    customer_data = customer.model_dump()
+    trip_dict["customer"] = customer_data
+    trip_dict.pop("creator_id", None)
+    trip_dict.pop("creator_type", None)
+    return trip_dict
+
+
+def serialize_customer_for_admin_retrieval(customer, trip_dict: dict):
+    profile_picture_url = _get_customer_profile_picture_url(customer)
+    customer = AdminSafeReadCustomer.model_validate(customer)
+    customer.profile_picture_url = profile_picture_url
+
+    customer_data = customer.model_dump(exclude_none=True, exclude_unset=True)
+    trip_dict["customer"] = customer_data
+    trip_dict.pop("creator_id", None)
+    trip_dict.pop("creator_type", None)
+    trip_dict.pop("opt_in_updates", None)
+
+    return trip_dict
+
+
+ 
+async def a_transform_to_safe_customer(customer: Customer, db: AsyncSession) -> CustomerSafeRead:
+    
+    safe_customer = CustomerSafeRead.model_validate(customer)
+    safe_customer.profile_picture_url = _get_customer_profile_picture_url(customer)
+    safe_customer.joined_on = customer.created_at
+    actual_trips_count_result = await db.execute(
+        select(func.count(Trip.id)).where(
+            Trip.creator_id == customer.id,
+            Trip.creator_type == RoleEnum.customer.value,
+            Trip.status.notin_(
+                [TripStatusEnum.cancelled.value, TripStatusEnum.dispute.value]
+            ),
+            Trip.is_active == True,
+        )
+    )
+    safe_customer.number_of_trips = actual_trips_count_result.scalar_one() or 0
+    existing_valid_email_verification = await a_get_existing_email_verification_link(
+        customer.id, db=db
+    )  # Check for existing email verification link
+
+    can_reinitiate_email_verification = False  # Default to False
+
+    if not customer.is_email_verified and not existing_valid_email_verification:
+        # If email is not verified and no existing valid email verification link exists, the customer can reinitiate email verification.
+        can_reinitiate_email_verification = True
+
+    safe_customer.can_reinitiate_email_verification = can_reinitiate_email_verification
+    return safe_customer

@@ -1,8 +1,9 @@
 # Trip type master endpoints for admin configuration - add, list, update and delete trip types in the system, can be operated only by super admin
 
+
 from fastapi import APIRouter, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import UNAUTHORIZED, CabboException, GENERIC_EXCEPTION, TRIP_TYPE_NOT_SUPPORTED
 from core.security import RoleEnum, validate_user_token
 from models.trip.trip_schema import TripTypeSchema, TripTypeUpdateSchema
 from models.user.user_orm import User
@@ -33,15 +34,15 @@ async def add_trip_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to add trip types.", status_code=403
+            "You do not have permission to add trip types.", status_code=403, error_code=UNAUTHORIZED
         )
     new_trip_type, error = await async_add_trip_type(
         trip_type_data=payload, db=db, created_by=current_user_role
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not new_trip_type:
-        raise CabboException("Failed to add new trip type", status_code=500)
+        raise CabboException("Failed to add new trip type", status_code=500, error_code=GENERIC_EXCEPTION)
     return new_trip_type
 
 
@@ -55,7 +56,7 @@ async def list_trip_types(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to list trip types.", status_code=403
+            "You do not have permission to list trip types.", status_code=403, error_code=UNAUTHORIZED
         )
     return await async_get_all_trip_types(db=db)
 
@@ -71,11 +72,11 @@ async def get_trip_type_by_id(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to view trip types.", status_code=403
+            "You do not have permission to view trip types.", status_code=403, error_code=UNAUTHORIZED
         )
     trip_type = await async_get_trip_type_by_id(trip_type_id=trip_type_id, db=db)
     if not trip_type:
-        raise CabboException(status_code=404, message="Trip type not found")
+        raise CabboException(status_code=404, message="Trip type not found", error_code=TRIP_TYPE_NOT_SUPPORTED)
     return trip_type
 
 
@@ -90,16 +91,16 @@ async def update_trip_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to update trip types.", status_code=403
+            "You do not have permission to update trip types.", status_code=403, error_code=UNAUTHORIZED
         )
     payload.id = trip_type_id
     updated_trip_type, error = await async_update_trip_type(
         trip_type_data=payload, db=db
     )
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not updated_trip_type:
-        raise CabboException("Failed to update trip type", status_code=500)
+        raise CabboException("Failed to update trip type", status_code=500, error_code=GENERIC_EXCEPTION)
     return updated_trip_type
 
 
@@ -113,13 +114,13 @@ async def delete_trip_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete trip types.", status_code=403
+            "You do not have permission to delete trip types.", status_code=403, error_code=UNAUTHORIZED
         )
     success, error = await async_delete_trip_type(trip_type_id=trip_type_id, db=db)
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not success:
-        raise CabboException("Failed to delete trip type", status_code=500)
+        raise CabboException("Failed to delete trip type", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "Trip type deleted successfully"}
 
 
@@ -133,11 +134,11 @@ async def activate_trip_type(
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to activate trip types.", status_code=403
+            "You do not have permission to activate trip types.", status_code=403, error_code=UNAUTHORIZED
         )
     success, error = await async_activate_trip_type(trip_type_id=trip_type_id, db=db)
     if error:
-        raise CabboException(error, status_code=400)
+        raise CabboException(error, status_code=400, error_code=GENERIC_EXCEPTION)
     if not success:
-        raise CabboException("Failed to activate trip type", status_code=500)
+        raise CabboException("Failed to activate trip type", status_code=500, error_code=GENERIC_EXCEPTION)
     return {"message": "Trip type activated successfully"}

@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/users/logout"
+method: POST
+body:
+  type: json
+  content: "{}"
+order: 1000

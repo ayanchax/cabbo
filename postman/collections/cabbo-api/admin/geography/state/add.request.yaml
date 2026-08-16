@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/geography/states/add"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"state_name\": \"Karnataka\",\r
+
+    \  \"state_code\": \"KA\",\r
+
+    \  \"country_code\":\"IN\"\r
+
+    }"
+order: 1000

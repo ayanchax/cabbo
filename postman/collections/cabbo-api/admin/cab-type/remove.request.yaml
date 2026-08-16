@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/cab/{{example-cab-type-id}}"
+method: DELETE
+order: 6000

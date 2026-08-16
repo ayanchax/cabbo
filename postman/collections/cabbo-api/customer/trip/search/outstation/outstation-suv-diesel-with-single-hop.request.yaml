@@ -1,0 +1,79 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"outstation\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9716,\r
+
+    \        \"lng\": 77.6412,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\",\r
+
+    \        \"state_code\": \"KA\"\r
+
+    \    },\r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Thiruvananthapuram, KL\",\r
+
+    \        \"lat\": 8.5241,\r
+
+    \        \"lng\": 76.9366,\r
+
+    \        \"place_id\": \"ChIJU4rS9bQs6zsRoOwCNHHyAQs\",\r
+
+    \        \"address\": \"Thiruvananthapuram, Kerala, India\",\r
+
+    \        \"state_code\": \"KL\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-05-19T21:00:00\",\r
+
+    \    \"end_date\": \"2026-05-23T20:00:00\",\r
+
+    \    \"num_adults\": 4,\r
+
+    \    \"num_children\": 1,\r
+
+    \    \"num_large_suitcases\": 3,\r
+
+    \    \"num_carryons\": 2,\r
+
+    \    \"preferred_car_type\": \"SUV\",\r
+
+    \    \"preferred_fuel_type\": \"diesel\",\r
+
+    \    \"hops\": [\r
+
+    \        {\r
+
+    \            \"display_name\": \"Varkala, KL\",\r
+
+    \            \"lat\": 8.7379,\r
+
+    \            \"lng\": 76.7163,\r
+
+    \            \"place_id\": \"ChIJT7rMwZAs6zsRpHuAZA_ZTQE\",\r
+
+    \            \"address\": \"Varkala, Kerala, India\",\r
+
+    \            \"state_code\": \"KL\"\r
+
+    \        }\r
+
+    \    ]\r
+
+    }"
+order: 1000

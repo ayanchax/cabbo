@@ -28,3 +28,12 @@ class AmenitiesSchema(BaseModel):
 class S3ObjectInfo(BaseModel):
     key: str
     url: str
+
+class LuggageInfoSchema(BaseModel):
+    num_large_suitcases: int = 0
+    num_carryons: int = 0  # kind of like a small suitcase or duffel bag
+    num_backpacks: int = 0
+    num_other_bags: int = 0
+
+ 
+

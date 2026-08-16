@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, Depends
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.policies.dispute_schema import DisputeSchema, DisputeUpdateSchema
@@ -25,11 +25,11 @@ async def get_trip_dispute(
         RoleEnum.driver_admin,
     ]:
         raise CabboException(
-            "You do not have permission to view trip disputes.", status_code=403
+            "You do not have permission to view trip disputes.", status_code=403, error_code=UNAUTHORIZED
         )
     dispute = await get_dispute_by_trip_id(trip_id=trip_id, db=db)
     if not dispute:
-        raise CabboException("Dispute not found for the specified trip.", status_code=404)
+        raise CabboException("Dispute not found for the specified trip.", status_code=404, error_code=GENERIC_EXCEPTION)
     return dispute
 
 #Patch endpoint for updating dispute details for a trip (admin support agent can update the dispute details based on the investigation and resolution process)
@@ -48,7 +48,7 @@ async def update_trip_dispute(
         RoleEnum.customer_admin,
     ]:
         raise CabboException(
-            "You do not have permission to update trip disputes.", status_code=403
+            "You do not have permission to update trip disputes.", status_code=403, error_code=UNAUTHORIZED
         )
     return await update_dispute_by_trip_id(trip_id=trip_id, payload=payload, db=db, requestor=current_user.id)
     

@@ -25,7 +25,7 @@ class KYCDocumentSchema(BaseModel):
     verified: bool = False  # Verification status of the document
     extension: Optional[str] = None  # File extension of the document (e.g., .jpg, .pdf)
     size: Optional[int] = None  # Size of the document in bytes
-
+    expiry_date: Optional[datetime] = None  # Expiry date of the document for documents like insurance, fitness pollution etc, if applicable
     class Config:
         from_attributes = True
         exclude_none = True
@@ -44,5 +44,4 @@ class KYCDocumentUpdateSchema(BaseModel):
     document_id: Optional[str] = None  # Unique identifier for the document
     document_alias: Optional[str] = None  # Alias for the document type (e.g., Driver License, Aadhar Card)
     document_description: Optional[str] = None  # Description of the document
-     
 

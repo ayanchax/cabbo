@@ -1,0 +1,95 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"outstation\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"MG Road, Kochi, KL\",\r
+
+    \        \"lat\": 9.9816,\r
+
+    \        \"lng\": 76.2852,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"MG Road, Kochi, Kerala, India\",\r
+
+    \        \"state_code\":\"KL\"\r
+
+    \    },\r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"Munnar, KL\",\r
+
+    \        \"lat\": 10.0889,\r
+
+    \        \"lng\": 77.0595,\r
+
+    \        \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g\",\r
+
+    \        \"address\": \"Munnar, Kerala, India\",\r
+
+    \        \"state_code\":\"KL\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-09-18T06:00:00\",\r
+
+    \    \"end_date\": \"2026-09-21T21:00:00\",\r
+
+    \    \"num_adults\": 2,\r
+
+    \    \"num_children\": 0,\r
+
+    \    \"num_large_suitcases\": 2,\r
+
+    \    \"num_carryons\": 1,\r
+
+    \    \"preferred_car_type\": \"Sedan\",\r
+
+    \    \"preferred_fuel_type\": \"petrol\",\r
+
+    \    \"hops\": [\r
+
+    \        {\r
+
+    \            \"display_name\": \"Kothamangalam, KL\",\r
+
+    \            \"lat\": 10.0607,\r
+
+    \            \"lng\": 76.6238,\r
+
+    \            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g1\",\r
+
+    \            \"address\": \"Kothamangalam, Kerala, India\",\r
+
+    \            \"state_code\":\"KL\"\r
+
+    \        },\r
+
+    \        {\r
+
+    \            \"display_name\": \"Adimali, KL\",\r
+
+    \            \"lat\": 10.0066,\r
+
+    \            \"lng\": 76.9553,\r
+
+    \            \"place_id\": \"ChIJw2QwQw8rCDsR4E9-UejD3_g2\",\r
+
+    \            \"address\": \"Adimali, Kerala, India\",\r
+
+    \            \"state_code\":\"KL\"\r
+
+    \        }\r
+
+    \    ]\r
+
+    }"
+order: 3000

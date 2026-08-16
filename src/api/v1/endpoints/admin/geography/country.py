@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.params import Depends
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, UNAUTHORIZED, CabboException
 from core.security import RoleEnum, validate_user_token
 from db.database import a_yield_mysql_session
 from models.geography.country_schema import CountrySchema, CountryUpdateSchema
@@ -19,11 +19,11 @@ async def add_country(country: CountrySchema, db: AsyncSession = Depends(a_yield
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to add countries.", status_code=403
+            "You do not have permission to add countries.", status_code=403, error_code=UNAUTHORIZED
         )
     result = await async_add_country(payload=country, db=db, created_by=current_user_role)
     if not result:
-        raise CabboException(status_code=500, message="Failed to add new country")
+        raise CabboException(status_code=500, message="Failed to add new country", error_code=GENERIC_EXCEPTION)
     return result
 
 
@@ -37,7 +37,7 @@ def list_countries(db: AsyncSession = Depends(a_yield_mysql_session), current_us
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin, RoleEnum.customer_admin]:
         raise CabboException(
-            "You do not have permission to view countries.", status_code=403
+            "You do not have permission to view countries.", status_code=403, error_code=UNAUTHORIZED
         )
     # Implementation to fetch and return list of countries goes here
     return async_get_all_countries(db=db)
@@ -49,12 +49,12 @@ async def get_country(country_id: str, db: AsyncSession = Depends(a_yield_mysql_
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.driver_admin, RoleEnum.customer_admin]:
         raise CabboException(
-            "You do not have permission to view countries.", status_code=403
+            "You do not have permission to view countries.", status_code=403, error_code=UNAUTHORIZED
         )
     country = await async_get_country_by_id(country_id=country_id, db=db)
     
     if not country:
-        raise CabboException(status_code=404, message="Country not found")
+        raise CabboException(status_code=404, message="Country not found", error_code=GENERIC_EXCEPTION)
     return country
 
 #Patch default country
@@ -64,13 +64,13 @@ async def set_default_country(country_id: str, db: AsyncSession = Depends(a_yiel
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to set default country.", status_code=403
+            "You do not have permission to set default country.", status_code=403, error_code=UNAUTHORIZED
         )
     success, error = await async_set_default_country(country_id=country_id, db=db)
     if error:
-        raise CabboException(status_code=500, message=error)
+        raise CabboException(status_code=500, message=error, error_code=GENERIC_EXCEPTION)
     if not success:
-        raise CabboException(status_code=404, message="Country not found")
+        raise CabboException(status_code=404, message="Country not found", error_code=GENERIC_EXCEPTION)
     return {"detail": f"Country {country_id} set as default successfully."}
 
 @router.put(
@@ -83,11 +83,11 @@ async def update_country(country: CountryUpdateSchema, db: AsyncSession = Depend
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to update countries.", status_code=403
+            "You do not have permission to update countries.", status_code=403, error_code=UNAUTHORIZED
         )
     result, error = await async_update_country(country_id=country.id, payload=country, db=db)
     if not result:
-        raise CabboException(status_code=500, message=error or "Failed to update country")
+        raise CabboException(status_code=500, message=error or "Failed to update country", error_code=GENERIC_EXCEPTION)
     return result
 
 #Activate a country
@@ -96,10 +96,10 @@ async def activate_country(country_id: str, db: AsyncSession = Depends(a_yield_m
     """Activate a country in the system configuration.""" 
     current_user_role = current_user.role 
     if current_user_role not in [RoleEnum.super_admin]: 
-        raise CabboException( "You do not have permission to activate countries.", status_code=403 ) 
+        raise CabboException( "You do not have permission to activate countries.", status_code=403, error_code=UNAUTHORIZED ) 
     result, error = await async_activate_country(country_id=country_id, db=db) 
     if not result: 
-        raise CabboException(status_code=500, message=error or "Failed to activate country") 
+        raise CabboException(status_code=500, message=error or "Failed to activate country", error_code=GENERIC_EXCEPTION) 
     return {"detail": f"Country {country_id} activated successfully."}
 
 
@@ -109,10 +109,10 @@ async def delete_country(country_id: str, db: AsyncSession = Depends(a_yield_mys
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin]:
         raise CabboException(
-            "You do not have permission to delete countries.", status_code=403
+            "You do not have permission to delete countries.", status_code=403, error_code=UNAUTHORIZED
         )
     result, error = await async_delete_country(country_id=country_id, db=db)
     if not result:
-        raise CabboException(status_code=500, message=error or "Failed to delete country")
+        raise CabboException(status_code=500, message=error or "Failed to delete country", error_code=GENERIC_EXCEPTION)
     return {"detail": f"Country {country_id} deleted successfully."}
 

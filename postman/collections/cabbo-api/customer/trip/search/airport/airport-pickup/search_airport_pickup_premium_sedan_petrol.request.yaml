@@ -1,0 +1,49 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"airport_pickup\",\r
+
+    \    \r
+
+    \    \"destination\": {\r
+
+    \        \"display_name\": \"MG Road, Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9740,\r
+
+    \        \"lng\": 77.6122,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"MG Road, Bengaluru, Karnataka, India\",\r
+
+    \        \"region_code\":\"BEN\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2026-07-15T11:00:00\",\r
+
+    \    \"num_adults\": 2,\r
+
+    \    \"num_children\": 2,\r
+
+    \    \"num_large_suitcases\": 3,\r
+
+    \    \"num_carryons\": 2,\r
+
+    \    \"preferred_car_type\": \"Premium Sedan\",\r
+
+    \    \"preferred_fuel_type\": \"petrol\",\r
+
+    \    \"flight_number\": \"AI555\",\r
+
+    \    \"terminal_number\": \"T2\",\r
+
+    \    \"toll_road_preferred\": true\r
+
+    }"
+order: 3000

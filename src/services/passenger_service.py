@@ -1,8 +1,11 @@
 from typing import Union
-from core.exceptions import CabboException
+from api.v1.endpoints.admin import trip
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.security import RoleEnum
 from models.customer.passenger_orm import Passenger
 from models.customer.passenger_schema import PassengerCreate, PassengerRead, PassengerRequest, PassengerUpdate
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from models.trip.trip_schema import TripSearchRequest
@@ -38,6 +41,7 @@ def create_passenger(
             f"Error creating passenger: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code = GENERIC_EXCEPTION
         )
 
 
@@ -101,7 +105,7 @@ def update_passenger(
     try:
         passenger = get_passenger_by_id(passenger_id, db)
         if not passenger:
-            raise CabboException("Passenger not found", status_code=404)
+            raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
         passenger.name = payload.name
         passenger.phone_number = payload.phone_number
@@ -124,12 +128,12 @@ def delete_passenger(passenger_id: str, db: Session) -> bool:
     try:
         passenger = get_passenger_by_id(passenger_id, db)
         if not passenger:
-            raise CabboException("Passenger not found", status_code=404)
+            raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
         db.delete(passenger)
         db.commit()
     except Exception as e:
         db.rollback()
-        raise CabboException("Failed to delete passenger", status_code=500)
+        raise CabboException("Failed to delete passenger", status_code=500, error_code=GENERIC_EXCEPTION)
     return True
 
 
@@ -143,7 +147,7 @@ def deactivate_passenger(passenger_id: str, db: Session) -> Passenger:
     """
     passenger = get_passenger_by_id(passenger_id, db)
     if not passenger:
-        raise CabboException("Passenger not found", status_code=404)
+        raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
     passenger.is_active = False
     db.commit()
@@ -161,7 +165,7 @@ def activate_passenger(passenger_id: str, db: Session) -> Passenger:
     """
     passenger = get_passenger_by_id(passenger_id, db)
     if not passenger:
-        raise CabboException("Passenger not found", status_code=404)
+        raise CabboException("Passenger not found", status_code=404, error_code=GENERIC_EXCEPTION)
 
     passenger.is_active = True
     db.commit()
@@ -203,13 +207,40 @@ def validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: Sess
         search_in.passenger.id = search_in.passenger.id.strip()
         passenger = get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
         if not passenger:
-            raise CabboException("Invalid passenger ID provided", status_code=400)
+            raise CabboException("Invalid passenger ID provided", status_code=400, error_code=GENERIC_EXCEPTION)
         if passenger.customer_id != requestor:
             raise CabboException(
-                "Passenger does not belong to the requesting customer", status_code=403
+                "Passenger does not belong to the requesting customer", status_code=403, error_code=GENERIC_EXCEPTION
             )
         if not passenger.is_active:
-            raise CabboException("Passenger is not active", status_code=403)
+            raise CabboException("Passenger is not active", status_code=403, error_code=GENERIC_EXCEPTION)
+        passenger_read = PassengerRead.model_validate(
+            passenger
+        )  # Validate passenger schema
+        search_in.passenger.name = (
+            passenger_read.name
+        )  # Attach passenger details to request
+        search_in.passenger.phone_number = passenger_read.phone_number
+    else:
+
+        search_in.passenger = "self"  # Use a string to indicate self-booking
+
+async def a_validate_passenger_id(search_in: TripSearchRequest, requestor: str, db: AsyncSession):
+    if (
+        search_in.passenger
+        and isinstance(search_in.passenger, PassengerRequest)
+        and search_in.passenger.id
+    ):
+        search_in.passenger.id = search_in.passenger.id.strip()
+        passenger = await a_get_passenger_by_id(passenger_id=search_in.passenger.id, db=db)
+        if not passenger:
+            raise CabboException("Invalid passenger ID provided", status_code=400, error_code=GENERIC_EXCEPTION)
+        if passenger.customer_id != requestor:
+            raise CabboException(
+                "Passenger does not belong to the requesting customer", status_code=403, error_code=GENERIC_EXCEPTION
+            )
+        if not passenger.is_active:
+            raise CabboException("Passenger is not active", status_code=403, error_code=GENERIC_EXCEPTION)
         passenger_read = PassengerRead.model_validate(
             passenger
         )  # Validate passenger schema
@@ -230,6 +261,11 @@ def get_passenger_by_id(passenger_id: str, db: Session) -> Passenger:
         Passenger: The passenger object if found, otherwise None.
     """
     return db.query(Passenger).filter(Passenger.id == passenger_id).first() 
+
+async def a_get_passenger_by_id(passenger_id: str, db: AsyncSession) -> Passenger:
+    """Async variant of get_passenger_by_id."""
+    result = await db.execute(select(Passenger).filter(Passenger.id == passenger_id))
+    return result.scalars().first()
 
 def populate_passenger_details(passenger_id:str, db:Session):
     """
@@ -273,3 +309,9 @@ def is_passenger_belongs_to_customer(passenger_id:str, customer_id:str, db:Sessi
     if not passenger:
         return False
     return passenger if passenger.customer_id == customer_id else False
+
+def serialize_passenger(passenger, trip_dict: dict):
+        passenger_data = PassengerRequest.model_validate(passenger).model_dump()
+        trip_dict["passenger"] = passenger_data
+        trip_dict.pop("passenger_id", None)
+        return trip_dict

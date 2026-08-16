@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/config/trip-types/{{example-trip-type-id}}"
+method: GET
+order: 4000

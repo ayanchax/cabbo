@@ -11,7 +11,15 @@ share/
 node_modules/
 notes/
 .vscode/
+.venv/
+.agents/
+.postman/
+postman/
 test/
-alembic/versions/__pycache__/
+backups/
+alembic/
+scripts/
 *.log
+*.pem
 .env.local
+infra/

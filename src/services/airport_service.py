@@ -1,55 +1,63 @@
-from typing import List
+from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from core.security import RoleEnum
 from core.store import ConfigStore
 from models.airport.airport_orm import AirportModel
 from models.airport.airport_schema import AirportSchema, AirportUpdateSchema
+from models.map.location_schema import LocationInfo
 from services.geography_service import (
     async_get_country_by_id,
     async_get_region_by_code,
     async_get_state_by_id,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+from core.config import settings    
 
 
-SEED_AIRPORTS_DATA = [
-    # It can contain multiple airports for a city in a state in a country.
-    # Admin can add more airports for a city/region inside a (state, country) via admin panel if needed.
-    # Admin can also add more regions/cities under a (state, country) via admin panel if needed.
+
+SEED_AIRPORTS_DATA_GOOGLE = [
     {
-        "display_name": "Kempegowda International Airport, Bengaluru",
-        "lat": 13.1986,
-        "lng": 77.7066,
-        "place_id": "ChIJL_P_CXMEDTkRw0ZdG-0GVvw",  # official Mapbox place ID for the airport in Bengaluru
-        "address": "Kempegowda International Airport, Devanahalli, Bengaluru, Karnataka 560300, India",
+        "display_name": "Kempegowda International Airport Bengaluru",
+        "iata_code": "BLR",
+        "lat": 13.198909,
+        "lng": 77.7068926,
+        "place_id": "ChIJZWJEdf4crjsRjkEpoelwbCk",  # Google Maps place ID for BLR airport
+        # Address must match what Google Place Details returns for this place_id so the
+        # address-heuristic check in validate_initial_serviceable_area passes.
+        "address": "Kempegowda International Airport Rd, Devanahalli, Bengaluru, Karnataka 562300, India",
         "country": "India",
         "country_code": "IN",
         "state": "Karnataka",
         "state_code": "KA",
         "region": "Bangalore",
         "region_code": "BLR",
-        "postal_code": "560300",
+        "postal_code": "562300",  # Devanahalli PIN — not 560300 (Central Bangalore)
+        "provider": settings.LOCATION_SERVICE_PROVIDER,
     },
     {
-        "display_name": "Mysore Airport, Mysore",
-        "lat": 12.3052,
-        "lng": 76.6536,
-        "place_id": "ChIJX8f5gq6rDTkR6e-8K5J7hYzA",  # official Mapbox place ID for the airport in Mysore
-        "address": "Mysore Airport, Mandakalli, Mysore, Karnataka 570008, India",
+        "display_name": "Mysore Airport",
+        "iata_code": "MYQ",
+        "lat": 12.2310482,
+        "lng": 76.6541862,
+        "place_id": "ChIJhVz42G5vrzsRHhC5IHsswy4",  # Google Maps place ID for Mysore airport
+        "address": "Airport Rd, Mandakalli, Mysuru, Karnataka 571311, India",
         "country": "India",
         "country_code": "IN",
         "state": "Karnataka",
         "state_code": "KA",
         "region": "Mysore",
         "region_code": "MYS",
-        "postal_code": "570008",
+        "postal_code": "571311",
+        "provider": settings.LOCATION_SERVICE_PROVIDER,
     },
     {
-        "display_name": "Chennai International Airport, Chennai",
-        "lat": 12.9941,
-        "lng": 80.1709,
-        "place_id": "ChIJGZ0fW3KqDTkR6r1K5J7hYzA",  # official Mapbox place ID for the airport in Chennai
+        "display_name": "Chennai International Airport",
+        "iata_code": "MAA",
+        "lat": 12.9939595,
+        "lng": 80.1706653,
+        "place_id": "ChIJl2OoXR9eUjoRR27ibiEvCSE",  # Google Maps place ID for Chennai airport
         "address": "Chennai International Airport, Tirusulam, Chennai, Tamil Nadu 600027, India",
         "country": "India",
         "country_code": "IN",
@@ -58,9 +66,13 @@ SEED_AIRPORTS_DATA = [
         "region": "Chennai",
         "region_code": "MAA",
         "postal_code": "600027",
+        "provider": settings.LOCATION_SERVICE_PROVIDER,
     },
 ]
 
+
+log = logging.getLogger(__name__)
+SEED_AIRPORTS_DATA = SEED_AIRPORTS_DATA_GOOGLE
 
 def _create_airports(data: List[AirportSchema], session: Session):
     airport_models = []
@@ -87,6 +99,7 @@ def _create_airports(data: List[AirportSchema], session: Session):
                 region=airport.region,
                 region_code=airport.region_code,
                 postal_code=airport.postal_code,
+                provider=airport.provider,
             )
         )
     session.add_all(airport_models)
@@ -203,7 +216,7 @@ async def async_add_airport(
         return AirportSchema.model_validate(new_airport), None
     except Exception as e:
         await db.rollback()
-        print(f"Error adding airport: {e}")
+        log.error(f"Error adding airport: {e}")
         return False, "Failed to add airport due to an internal error."
 
 
@@ -265,6 +278,11 @@ async def async_get_all_airports(db: AsyncSession) -> List[AirportSchema]:
     return airport_schemas
 
 
+async def a_get_all_airports(db: AsyncSession) -> List[AirportSchema]:
+    """Async variant of get_all_airports for ConfigStore loading."""
+    return await async_get_all_airports(db)
+
+
 async def async_get_airport_by_id(
     airport_id: str, db: AsyncSession
 ) -> AirportSchema | None:
@@ -299,7 +317,7 @@ async def async_activate_airport(
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error activating airport: {e}")
+        log.error(f"Error activating airport: {e}")
         return False, "Failed to activate airport"
 
 
@@ -321,7 +339,7 @@ async def async_delete_airport(
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting airport: {e}")
+        log.error(f"Error deleting airport: {e}")
         return False, "Failed to delete airport"
 
 
@@ -348,7 +366,7 @@ async def async_update_airport(
         return AirportSchema.model_validate(airport), None
     except Exception as e:
         await db.rollback()
-        print(f"Error updating airport: {e}")
+        log.error(f"Error updating airport: {e}")
         return None, "Failed to update airport"
 
 async def async_get_airport_by_id(airport_id: str, db: AsyncSession) -> AirportSchema | None:
@@ -361,4 +379,62 @@ async def async_get_airport_by_id(airport_id: str, db: AsyncSession) -> AirportS
     airport = result.scalars().first()
     if airport:
         return AirportSchema.model_validate(airport)
+    return None
+
+def get_all_airports_configuration(
+    config_store: ConfigStore
+) -> List[AirportSchema]:
+    airports: List[AirportSchema] = []
+    for airport in config_store.airport_locations:
+                if airport.is_serviceable:
+                    airports.append(airport)
+    return airports
+
+def match_location_to_airport(
+    location: LocationInfo,
+    airports: List[AirportSchema],
+) -> Optional[AirportSchema]:
+    """Return the first airport from `airports` that matches `location`.
+
+    Checks in priority order:
+      1. place_id  — exact string match (fastest, most reliable)
+      2. display_name — case-insensitive prefix in either direction
+      3. address  — case-insensitive prefix in either direction
+      4. lat/lng  — proximity within ~10 m (0.0001 degree tolerance)
+    Returns None when no airport matches.
+    """
+    if not location or not airports:
+        return None
+
+    # 1. place_id exact match
+    if location.place_id:
+        for airport in airports:
+            if airport.place_id and airport.place_id == location.place_id:
+                return airport
+
+    # 2. display_name prefix match
+    if location.display_name:
+        loc_name = location.display_name.lower().strip()
+        for airport in airports:
+            if airport.display_name:
+                apt_name = airport.display_name.lower().strip()
+                if loc_name == apt_name or loc_name.startswith(apt_name) or apt_name.startswith(loc_name):
+                    return airport
+
+    # 3. address prefix match
+    if location.address:
+        loc_addr = location.address.lower().strip()
+        for airport in airports:
+            if airport.address:
+                apt_addr = airport.address.lower().strip()
+                if loc_addr == apt_addr or loc_addr.startswith(apt_addr) or apt_addr.startswith(loc_addr):
+                    return airport
+
+    # 4. lat/lng proximity (~10 m ≈ 0.0001 degree tolerance)
+    if location.lat is not None and location.lng is not None:
+        for airport in airports:
+            if airport.lat is not None and airport.lng is not None:
+                if abs(location.lat - airport.lat) <= 0.0001 and abs(location.lng - airport.lng) <= 0.0001:
+                    return airport
+
     return None

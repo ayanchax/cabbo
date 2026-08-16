@@ -1,0 +1,42 @@
+$kind: http-request
+name: search_airport_drop_suv_diesel
+url: "{{host}}:{{port}}/api/{{api_version}}/trips/search"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"trip_type\": \"airport_drop\",\r
+
+    \    \"origin\": {\r
+
+    \        \"display_name\": \"Indiranagar, Bengaluru, KA\",\r
+
+    \        \"lat\": 12.9716,\r
+
+    \        \"lng\": 77.6412,\r
+
+    \        \"place_id\": \"ChIJd8BlQ2BfUjoR7yE6k5h1K2I\",\r
+
+    \        \"address\": \"Indiranagar, Bengaluru, Karnataka, India\"\r
+
+    \    },\r
+
+    \    \"start_date\": \"2025-07-15T18:00:00\",\r
+
+    \    \"num_adults\": 3,\r
+
+    \    \"num_children\": 0,\r
+
+    \    \"num_large_suitcases\": 3,\r
+
+    \    \"num_carryons\": 1,\r
+
+    \    \"preferred_car_type\": \"SUV\",\r
+
+    \    \"preferred_fuel_type\": \"diesel\",\r
+
+    \    \"toll_road_preferred\": true\r
+
+    }\r\n"
+order: 4000

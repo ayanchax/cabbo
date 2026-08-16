@@ -1,5 +1,5 @@
 from uuid import uuid4
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, KYC_DOCUMENT_NOT_FOUND, KYC_OPERATION_FAILED, CabboException
 from core.security import RoleEnum
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
 from models.documents.kyc_document_orm import KYCDocumentTypes
@@ -11,9 +11,10 @@ from models.driver.driver_orm import Driver
 from services.file_service import remove_driver_kyc_document_file, save_driver_kyc_document_file
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import logging
+log = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = [".pdf"]
-
 
 
 def update_driver_kyc_documents(
@@ -46,11 +47,11 @@ def update_driver_kyc_documents(
 
         for file, doc_type in zip(files, document_types):
             if file.size is None or file.size == 0:
-                print("Skipping empty file for document type:", doc_type)
+                log.warning("Skipping empty file for document type: %s", doc_type)
                 continue  # Skip empty files
             extension = os.path.splitext(file.filename)[-1].lower()
             if extension not in ALLOWED_EXTENSIONS:
-                print("Unsupported file type for document type:", doc_type)
+                log.warning("Unsupported file type for document type: %s", doc_type)
                 continue  # Skip unsupported file types
 
             # Overwrite existing document of the same type or add new document entry
@@ -61,7 +62,7 @@ def update_driver_kyc_documents(
                 driver.id, file, doc_type
             )
             if not s3_result:
-                print("Failed to save file for document type:", doc_type)
+                log.error("Failed to save file for document type: %s", doc_type)
                 continue  # Skip if file saving failed
             doc_entry = KYCDocumentSchema(
                 document_id=uuid4().hex,
@@ -96,6 +97,7 @@ def update_driver_kyc_documents(
             f"Error updating KYC documents: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=KYC_OPERATION_FAILED
         )
 
 
@@ -151,6 +153,11 @@ def create_master_kyc_data(db: Session):
             document_alias="Utility Bill",
             document_description="Recent bill from a utility provider (electricity, water, gas) showing the customer's name and address.",
         ),
+        KYCDocumentTypes(
+            document_type=KYCDocumentTypeEnum.fitness_certificate,
+            document_alias="Fitness Certificate",
+            document_description="Certificate proving that a vehicle meets fitness standards.",
+        ),
     ]
     db.add_all(kyc_document_types)
     db.flush()
@@ -203,6 +210,7 @@ def remove_kyc_document_by_id_for_driver(
         db.rollback()
         raise CabboException(
             f"Error removing KYC document: {str(e)}",
+            error_code=KYC_OPERATION_FAILED,
             status_code=500,
             include_traceback=True,
         )
@@ -231,7 +239,7 @@ def mark_kyc_verification_status_for_driver_document(
         kyc_docs = driver.kyc_documents or []
         if len(kyc_docs) == 0:
             raise CabboException(
-                "No KYC documents found for this driver.", status_code=404
+                "No KYC documents found for this driver.", error_code=KYC_DOCUMENT_NOT_FOUND, status_code=404
             )
 
         kyc_docs_dict = {
@@ -262,12 +270,13 @@ def mark_kyc_verification_status_for_driver_document(
 
             return kyc_doc
         else:
-            raise CabboException("KYC document not found.", status_code=404)
+            raise CabboException("KYC document not found.", error_code=KYC_DOCUMENT_NOT_FOUND, status_code=404)
 
     except Exception as e:
         db.rollback()
         raise CabboException(
             f"Error marking KYC document as verified: {str(e)}",
+            error_code=KYC_OPERATION_FAILED,
             status_code=500,
             include_traceback=True,
         )
@@ -292,7 +301,7 @@ async def async_add_kyc_document_record(
         return KYCDocumentTypeSchema.model_validate(new_record), None
     except Exception as e:
         await db.rollback()
-        print(f"Error adding KYC document record: {e}")
+        log.error(f"Error adding KYC document record: {e}")
         return None, str(e)
 
 async def async_get_all_kyc_document_records(db: AsyncSession) -> list[KYCDocumentTypeSchema]:
@@ -323,7 +332,7 @@ async def async_delete_kyc_document_record(document_id: str, db: AsyncSession) -
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting KYC document record: {e}")
+        log.error(f"Error deleting KYC document record: {e}")
         return False, str(e)
 
 
@@ -343,9 +352,9 @@ async def async_update_kyc_document_record(document_id: str, payload: KYCDocumen
         return KYCDocumentTypeSchema.model_validate(record), None
     except Exception as e:
         await db.rollback()
-        print(f"Error updating KYC document record: {e}")
+        log.error(f"Error updating KYC document record: {e}")
         return None, str(e)
-    
+
 async def async_activate_kyc_document_record(document_id:str, db:AsyncSession) -> tuple[bool, str | None]:
     """Async function to activate a KYC document record in the database."""
     try:
@@ -360,5 +369,5 @@ async def async_activate_kyc_document_record(document_id:str, db:AsyncSession) -
         return True, None
     except Exception as e:
         await db.rollback()
-        print(f"Error activating KYC document record: {e}")
+        log.error(f"Error activating KYC document record: {e}")
         return False, str(e)

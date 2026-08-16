@@ -66,3 +66,13 @@ class CarTypeEnum(str, enum.Enum):
     sedan_plus = "Premium Sedan"
     suv = "SUV"
     suv_plus = "SUV+"
+
+
+class TripResponseView(str, enum.Enum):
+    CUSTOMER_DETAIL = "customer_detail"
+    CUSTOMER_LIST = "customer_list"
+    CUSTOMER_LIST_SELF = "customer_list_self" # This view is used when a customer is viewing their own trips, and it may have different serialization options compared to the general customer list view.
+    CUSTOMER_DISPUTE = "customer_dispute"
+    CUSTOMER_CANCELLATION_POLICY = "customer_cancellation_policy"
+    ADMIN_DETAIL = "admin_detail"
+    ADMIN_LIST = "admin_list"

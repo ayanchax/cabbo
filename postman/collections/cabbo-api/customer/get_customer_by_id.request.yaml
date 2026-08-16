@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}"
+method: GET
+body:
+  type: text
+  content: "{\r
+
+    \    \"phone_number\":\"+91 9831305667\"\r
+
+    }"
+order: 5000

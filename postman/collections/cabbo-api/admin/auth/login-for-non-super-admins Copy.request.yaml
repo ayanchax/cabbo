@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/admin/auth/login"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"username\":\"john_doe\",\r
+
+    \    \"password\":\"P@55w0rd1234\"\r
+
+    }"
+auth:
+  type: noauth
+order: 2000

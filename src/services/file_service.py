@@ -1,10 +1,11 @@
+import logging
 import os
 from pathlib import Path
 import re
 from typing import Union
 
 from fastapi import UploadFile
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from core.config import settings
 from models.common import S3ObjectInfo
 from models.documents.kyc_document_enum import KYCDocumentTypeEnum
@@ -12,7 +13,7 @@ from services.s3.s3_key_builder import S3KeyBuilder
 from services.s3.s3_service import S3Service
 
 ALLOWED_IMAGE_EXTENSIONS = ["image/png"]
-
+log = logging.getLogger(__name__)
 
 def save_customer_profile_picture(customer_id: str, file:UploadFile, max_size_mb: int = 2) -> S3ObjectInfo:
     """
@@ -24,12 +25,13 @@ def save_customer_profile_picture(customer_id: str, file:UploadFile, max_size_mb
         raise CabboException(
             f"Only these image types are allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION
         )
     # Validate file size
     contents = file.file.read()
     if len(contents) > max_size_mb * 1024 * 1024:
         raise CabboException(
-            f"File size exceeds {max_size_mb}MB limit.", status_code=400
+            f"File size exceeds {max_size_mb}MB limit.", status_code=400, error_code=GENERIC_EXCEPTION
         )
     # Save file
 
@@ -66,12 +68,13 @@ def save_driver_profile_picture(driver_id: str, file:UploadFile, max_size_mb: in
         raise CabboException(
             f"Only these image types are allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}.",
             status_code=400,
+            error_code=GENERIC_EXCEPTION
         )
     # Validate file size
     contents = file.file.read()
     if len(contents) > max_size_mb * 1024 * 1024:
         raise CabboException(
-            f"File size exceeds {max_size_mb}MB limit.", status_code=400
+            f"File size exceeds {max_size_mb}MB limit.", status_code=400, error_code=GENERIC_EXCEPTION
         )
    
     #Extract extension
@@ -128,6 +131,7 @@ def save_file(path: Union[Path, str], content: str = ""):
         with open(path, "w") as f:
             f.write(content)
     except Exception as e:
+        log.error(f"Failed to save file at {path}: {str(e)}")
         return False
     return True
 
@@ -147,7 +151,7 @@ def create_directory(path: Union[Path, str]):
         os.makedirs(path, exist_ok=True)
         return True
     except Exception as e:
-        print(f"Failed to create directory {path}: {str(e)}")
+        log.error(f"Failed to create directory {path}: {str(e)}")
         return False
 
 
@@ -171,13 +175,13 @@ def copy_file(
         from shutil import copy2
 
         if not os.path.exists(src):
-            print(f"Source file {src} does not exist.")
+            log.error(f"Source file {src} does not exist.")
             return False
         if not os.path.exists(os.path.dirname(dest)):
             create_directory(os.path.dirname(dest))
         # If file exists at dest, it will be overwritten only if overwrite is True
         if not overwrite and os.path.exists(dest):
-            print(
+            log.warning(
                 f"Destination file {dest} already exists and overwrite is set to False."
             )
             return False
@@ -185,7 +189,7 @@ def copy_file(
         copy2(src, dest)
         return True
     except Exception as e:
-        print(f"Failed to copy file from {src} to {dest}: {str(e)}")
+        log.error(f"Failed to copy file from {src} to {dest}: {str(e)}")
         return False
 
 

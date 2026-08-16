@@ -1,19 +1,25 @@
 import json
-from typing import List, Union
-from core.exceptions import CabboException
+from typing import List, Optional, Union
+from core.exceptions import INVALID_TRIP_TYPE, TRIP_TYPE_ID_NOT_FOUND, CabboException
 from core.security import RoleEnum, generate_hash
+from core.trip_constants import OUTSTATION_DEFAULTS, TRIP_RESPONSE_OPTIONS
 from models.common import AmenitiesSchema
 from models.financial.payments_schema import PaymentNotesSchema
 from models.geography.region_orm import RegionModel
 from models.pricing.pricing_schema import TripPackageConfigSchema
-from models.trip.trip_enums import CarTypeEnum, TripTypeEnum
+from models.trip.trip_enums import TripResponseView, TripTypeEnum
 from models.trip.trip_orm import Trip, TripPackageConfig, TripTypeMaster
 from models.trip.trip_schema import  TripDetails, TripSearchOption, TripSearchRequest, TripTypeSchema
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.passenger_service import get_passenger_id_from_preferences
+import logging
+from core.config import settings
+log = logging.getLogger(__name__)
 
+TRIP_BOOKING_SECRET_KEY = settings.CABBO_TRIP_BOOKING_SECRET_KEY.encode()
 
 def get_trip_type_id_by_trip_type(
     trip_type: TripTypeEnum, db: Session, include_id_only=True
@@ -32,7 +38,26 @@ def get_trip_type_id_by_trip_type(
         db.query(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type).first()
     )
     if not trip_type_obj:
-        raise CabboException(f"Trip type {trip_type} not found", status_code=404)
+        raise CabboException(f"Trip type {trip_type} not found", status_code=404, error_code=INVALID_TRIP_TYPE)
+    return (
+        trip_type_obj.id
+        if include_id_only
+        else TripTypeSchema.model_validate(trip_type_obj)
+    )
+
+
+async def a_get_trip_type_id_by_trip_type(
+    trip_type: TripTypeEnum, db: AsyncSession, include_id_only=True
+) -> Union[str, TripTypeSchema]:
+    """
+    Async variant of get_trip_type_id_by_trip_type.
+    """
+    result = await db.execute(
+        select(TripTypeMaster).filter(TripTypeMaster.trip_type == trip_type)
+    )
+    trip_type_obj = result.scalars().first()
+    if not trip_type_obj:
+        raise CabboException(f"Trip type {trip_type} not found", status_code=404, error_code=INVALID_TRIP_TYPE)
     return (
         trip_type_obj.id
         if include_id_only
@@ -54,6 +79,20 @@ def get_all_trip_types(db: Session) -> List[TripTypeSchema]:
         ]
         return trip_type_schemas
     except Exception as e:
+        log.error(f"Error fetching trip types: {e}")
+        return []
+
+
+async def a_get_all_trip_types(db: AsyncSession) -> List[TripTypeSchema]:
+    """
+    Async variant of get_all_trip_types.
+    """
+    try:
+        result = await db.execute(select(TripTypeMaster))
+        trip_types = result.scalars().all()
+        return [TripTypeSchema.model_validate(trip_type) for trip_type in trip_types]
+    except Exception as e:
+        log.error(f"Error fetching trip types: {e}")
         return []
 
 
@@ -75,6 +114,27 @@ def get_trip_package_configuration_list_by_region_code(
     ]
 
 
+async def a_get_trip_package_configuration_list_by_region_code(
+    region_code: str, db: AsyncSession
+) -> List[TripPackageConfigSchema]:
+    """
+    Async variant of get_trip_package_configuration_list_by_region_code.
+    """
+    result = await db.execute(
+        select(TripPackageConfig)
+        .join(RegionModel, TripPackageConfig.region_id == RegionModel.id)
+        .filter(
+            RegionModel.region_code == region_code, TripPackageConfig.is_active == True
+        )
+    )
+    trip_package_config = result.scalars().all()
+    if not trip_package_config:
+        return []
+    return [
+        TripPackageConfigSchema.model_validate(config) for config in trip_package_config
+    ]
+
+
 def create_trip_types(trip_types: list, db: Session):
     trip_type_master_objs = [
         TripTypeMaster(
@@ -87,63 +147,6 @@ def create_trip_types(trip_types: list, db: Session):
     ]
     db.add_all(trip_type_master_objs)
     db.flush()  # Flush to get IDs assigned
-
-
-def derive_trip_sort_priority(search_in: TripSearchRequest, option: TripSearchOption):
-    # 1. User preferred car type/fuel type always first
-    pref_score = 0
-    if search_in.preferred_car_type and option.car_type == search_in.preferred_car_type:
-        pref_score -= 1000  # Strong preference
-    if (
-        search_in.preferred_fuel_type
-        and option.fuel_type == search_in.preferred_fuel_type
-    ):
-        pref_score -= 500
-    # 2. Passenger count logic
-    total_pax = search_in.num_adults + search_in.num_children
-    if total_pax > 4:  # More than 4 passengers, prefer larger vehicles
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 200
-    elif total_pax <= 4:  # 4 or fewer passengers, prefer smaller vehicles
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-    if total_pax <= 3:  #
-        if option.car_type == CarTypeEnum.hatchback:
-            pref_score -= 50
-    # 3. Luggage logic (fine-grained)
-    num_large_suitcases = search_in.num_large_suitcases or 0
-    num_carryons = search_in.num_carryons or 0
-    num_backpacks = search_in.num_backpacks or 0
-    num_other_bags = search_in.num_other_bags or 0
-    # Strongly prefer SUV/SUV+ only if large suitcases/trolley bags are 3 or more
-    if num_large_suitcases >= 3:
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 300  # Strong preference for SUV/SUV+
-        else:
-            pref_score += 200  # Penalize smaller cars
-    # Strongly prefer sedan/premium sedan if large suitcases/trolley bags are exactly 2
-    elif num_large_suitcases == 2:
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 200  # Strong preference for sedan/sedan+
-        elif option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score += 50  # Slightly penalize SUV/SUV+ (overkill for 2 bags)
-        elif option.car_type == CarTypeEnum.hatchback:
-            pref_score += 200  # Penalize hatchback
-
-    # Moderate preference for SUV/SUV+ for other bag types
-    elif num_carryons > 2 or num_backpacks > 1 or num_other_bags > 1:
-        if option.car_type in [CarTypeEnum.suv, CarTypeEnum.suv_plus]:
-            pref_score -= 150
-        else:
-            pref_score += 100
-    elif num_carryons <= 2 or num_backpacks == 1 or num_other_bags == 1:
-        if option.car_type in [CarTypeEnum.sedan, CarTypeEnum.sedan_plus]:
-            pref_score -= 100
-        elif option.car_type == CarTypeEnum.hatchback:
-            pref_score += 100
-    # 4. Price as a tiebreaker
-    return (pref_score, option.total_price)
-
 
 def generate_trip_field_dictionary(
     search_in: TripSearchRequest,
@@ -213,7 +216,8 @@ def generate_trip_hash(option: dict, preferences: dict) -> str:
     This is used to verify the integrity of the booking data.
     """
     payload = json.dumps({"option": option, "preferences": preferences}, sort_keys=True)
-    return generate_hash(payload)
+    # Generate hash for the trip booking to verify the integrity of trip later during confirmation.
+    return generate_hash(payload, secret=TRIP_BOOKING_SECRET_KEY)
 
 
 def get_default_trip_amenities():
@@ -225,7 +229,7 @@ def get_default_trip_amenities():
     )
 
 
-def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnum:
+def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session, use_cache=True) -> TripTypeEnum:
     """
     Retrieves the trip type from the database based on the provided trip type ID.
     Args:
@@ -236,31 +240,58 @@ def get_trip_type_by_trip_type_id(trip_type_id: str, db: Session) -> TripTypeEnu
     Raises:
         CabboException: If the trip type ID is not found in the database.
     """
+    if use_cache:
+        from core.config import settings
+        config_store = settings.get_config_store()
+        trip_types = config_store.trip_types
+        trip_type_obj= next(trip_type for trip_type in trip_types if trip_type.id == trip_type_id)
+        if not trip_type_obj:
+            raise CabboException(
+            f"Trip type with ID {trip_type_id} not found", status_code=404, error_code=TRIP_TYPE_ID_NOT_FOUND
+        )
+        return TripTypeEnum(trip_type_obj.trip_type)
+
+
     trip_type_obj = (
         db.query(TripTypeMaster).filter(TripTypeMaster.id == trip_type_id, TripTypeMaster.is_active).first()
     )
     if not trip_type_obj:
         raise CabboException(
-            f"Trip type with ID {trip_type_id} not found", status_code=404
+            f"Trip type with ID {trip_type_id} not found", status_code=404, error_code=TRIP_TYPE_ID_NOT_FOUND
         )
     return TripTypeEnum(trip_type_obj.trip_type)
 
 
-async def attach_relationships_to_trip(trip: Trip, db: AsyncSession, expose_customer_details: bool = False, expose_cancellation_detail:bool=False, expose_dispute_details:bool=False):
-        if trip.driver_id:
-            await db.refresh(trip, attribute_names=["driver"])
-        if trip.trip_type_id:
-            await db.refresh(trip, attribute_names=["trip_type_master"])
-        if trip.package_id:
-            await db.refresh(trip, attribute_names=["package"])
-        if trip.passenger_id:
-            await db.refresh(trip, attribute_names=["passenger"])
-        if expose_customer_details and trip.creator_id:
-            await db.refresh(trip, attribute_names=["customer"])
-        if expose_cancellation_detail:
-            await db.refresh(trip, attribute_names=["cancellation"])
-        if expose_dispute_details:
-            await db.refresh(trip, attribute_names=["dispute"])
+async def attach_relationships_to_trip(
+    trip: Trip,
+    db: AsyncSession,
+    view: Optional[TripResponseView] = None,
+):
+    options = TRIP_RESPONSE_OPTIONS.get(view) if view else None
+
+    relationship_names = []
+    if trip.driver_id:
+        relationship_names.append("driver")
+    if trip.trip_type_id:
+        relationship_names.append("trip_type_master")
+    if trip.package_id:
+        relationship_names.append("package")
+    if trip.passenger_id:
+        relationship_names.append("passenger")
+    if options and options.expose_customer_details and trip.creator_id:
+        relationship_names.append("customer")
+    if options and options.expose_cancellation_detail:
+        relationship_names.append("cancellation")
+    if options and options.expose_dispute_details:
+        relationship_names.append("dispute")
+    if options and options.expose_trip_review:
+        relationship_names.append("trip_rating")
+    if options and options.expose_trip_refund:
+        relationship_names.append("refund")
+
+
+    for relationship_name in relationship_names:
+        await db.refresh(trip, attribute_names=[relationship_name])
 
 
 def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
@@ -275,3 +306,50 @@ def attach_trip_details_to_order_notes(order: dict, trip_details: TripDetails):
         exclude_none=True
     )  # Update the order with the notes containing trip details
 
+
+def get_prior_booking_window_hours(
+    trip_type: TripTypeEnum, jurisdiction_code: Optional[str]
+) -> Optional[int]:
+    try:
+        from core.config import settings
+        config_store = settings.get_config_store()
+        if trip_type == TripTypeEnum.airport_pickup:
+            if jurisdiction_code and config_store.airport_pickup.get(jurisdiction_code):
+                return config_store.airport_pickup.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.airport_drop:
+            if jurisdiction_code and config_store.airport_drop.get(jurisdiction_code):
+                return config_store.airport_drop.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.outstation:
+            if jurisdiction_code and config_store.outstation.get(jurisdiction_code):
+                return config_store.outstation.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+        elif trip_type == TripTypeEnum.local:
+            if jurisdiction_code and config_store.local.get(jurisdiction_code):
+                return config_store.local.get(
+                    jurisdiction_code
+                ).auxiliary_pricing.common.prior_booking_window_hours
+    except Exception as e:
+        log.error(f"Error fetching prior booking window hours from config: {e}")
+    return None
+
+
+def get_trip_constraints_by_trip_type(trip_type: TripTypeEnum, jurisdiction_code: Optional[str]) -> dict:
+    from core.config import settings
+    config_store = settings.get_config_store()
+    
+    if trip_type == TripTypeEnum.outstation:
+        config = config_store.outstation.get(jurisdiction_code)
+        if config and config.auxiliary_pricing and config.auxiliary_pricing.common:
+            return {
+                "max_hops": config.auxiliary_pricing.common.max_hops_allowed or OUTSTATION_DEFAULTS.get("max_hops", 3),
+                "min_trip_days": config.auxiliary_pricing.common.min_days_allowed or OUTSTATION_DEFAULTS.get("min_days_allowed", 2),
+                "max_trip_days": config.auxiliary_pricing.common.max_days_allowed or OUTSTATION_DEFAULTS.get("max_days_allowed", 7),
+                "round_trip_only":True
+            }
+    # Add more trip type specific constraints if needed
+    return {}

@@ -1,14 +1,17 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Any, Dict, Optional, List, Union
+from pydantic import BaseModel, Field, computed_field, field_validator
+from typing import Any, Dict, NamedTuple, Optional, List, Union
 from datetime import datetime
-from core.exceptions import CabboException
+from core.exceptions import INVALID_TRIP_TYPE, CabboException
+from models.cab.cab_schema import VehicleCapacitySchema
 from models.common import AmenitiesSchema
-from models.customer.customer_schema import CustomerBase, CustomerRead
-from models.driver.driver_schema import DriverReadSchema
-from models.policies.cancelation_schema import CancelationSchema
+from models.customer.customer_schema import AdminSafeReadCustomer, CustomerBase, CustomerRead, CustomerSafeRead
+from models.driver.driver_schema import CustomerSafeDriverReadSchema, DriverReadSchema
+from models.policies.cancelation_schema import CancelationPolicySchema, CancelationSchema
 from models.policies.dispute_schema import InitialDisputeSchema
+from models.policies.refund_schema import RefundSchema
 from models.pricing.pricing_schema import (
     AirportPricingBreakdownSchema,
+    Currency,
     ExtraPayments,
     LocalPricingBreakdownSchema,
     OutstationPricingBreakdownSchema,
@@ -17,6 +20,8 @@ from models.pricing.pricing_schema import (
 )
 from models.customer.passenger_schema import PassengerRequest
 from models.financial.payments_schema import RazorPayPaymentResponse
+from enum import Enum
+
 from models.trip.trip_enums import (
     TripStatusEnum,
     TripTypeEnum,
@@ -24,7 +29,7 @@ from models.trip.trip_enums import (
     CarTypeEnum,
 )
 from models.map.location_schema import LocationInfo
-
+from core.config import settings
 
 class TripTypeSchema(BaseModel):
     id: Optional[str]
@@ -46,6 +51,19 @@ class TripTypeUpdateSchema(BaseModel):
     class Config:
         from_attributes = True
         extra = "allow"
+
+
+class InclusionExclusionItem(BaseModel):
+    label: str = Field(..., description="Customer-facing inclusion or exclusion label")
+    description: str = Field(
+        ..., description="Short customer-facing explanation for the label"
+    )
+
+    class Config:
+        extra = "forbid"
+
+
+InclusionExclusionList = List[Union[str, InclusionExclusionItem]]
 
 
 class TripDetails(BaseModel):
@@ -100,8 +118,8 @@ class TripDetails(BaseModel):
     overages: Optional[dict] = None
 
     # Inclusions and exclusions
-    inclusions: Optional[List[str]] = None
-    exclusions: Optional[List[str]] = None
+    inclusions: Optional[InclusionExclusionList] = None
+    exclusions: Optional[InclusionExclusionList] = None
 
     # Airport/flight metadata
     flight_number: Optional[str] = None
@@ -117,6 +135,12 @@ class TripDetails(BaseModel):
     indicative_overage_warning: Optional[bool] = None
     alternate_customer_phone: Optional[str] = None
     passenger: Optional[PassengerRequest] = None  # Passenger details
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+    utc_offset: Optional[int] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
+    )
 
     class Config:
         from_attributes = True
@@ -164,8 +188,8 @@ class TripSearchRequest(BaseModel):
     num_carryons: Optional[int] = 0
     num_backpacks: Optional[int] = 0
     num_other_bags: Optional[int] = 0
-    preferred_car_type: Optional[CarTypeEnum] = CarTypeEnum.sedan
-    preferred_fuel_type: Optional[FuelTypeEnum] = FuelTypeEnum.diesel
+    preferred_car_type: Optional[CarTypeEnum] = None
+    preferred_fuel_type: Optional[FuelTypeEnum] = None
     package_id: Optional[str] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
@@ -179,6 +203,38 @@ class TripSearchRequest(BaseModel):
         None  # Name to display on the placard for airport pickup
     )
     passenger: Optional[Union[str, PassengerRequest]] = None
+
+    session_token: Optional[str] = Field(
+        None,
+        description="Session token to be passed to location service for caching related location requests and improving the accuracy of location suggestions and details",
+    )
+
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+    utc_offset: Optional[float] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset of the trip based on the origin location, e.g., 5.5 for IST"
+    )
+
+    retrieve_fleet: Optional[bool] = Field(
+        False, description="Indicates if the trip is requesting for retrieving fleet data"
+    )
+
+    @computed_field
+    @property
+    def total_passengers(self) -> int:
+        return (self.num_adults or 0) + (self.num_children or 0)
+
+    @computed_field
+    @property
+    def total_luggages(self) -> int:
+        return (
+            (self.num_large_suitcases or 0)
+            + (self.num_carryons or 0)
+            + (self.num_backpacks or 0)
+            + (self.num_other_bags or 0)
+        )
+
 
     # Validate trip type and ensure it is one of the supported types
     @field_validator("trip_type", mode="before")
@@ -195,12 +251,15 @@ class TripSearchRequest(BaseModel):
             raise CabboException(
                 f"Invalid trip type. Supported types are: {supported_types}",
                 status_code=400,
+                error_code=INVALID_TRIP_TYPE,
             )
         return v
+    
 
 
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
+    car_capacity:Optional[VehicleCapacitySchema] = None
     fuel_type: FuelTypeEnum
     total_price: float
     price_breakdown: Union[
@@ -210,11 +269,14 @@ class TripSearchOption(BaseModel):
     ]  # Trip type specific pricing breakdown
     included_kms: Optional[float] = None
     included_hours: Optional[int] = None  # For local trips
+    rate_per_min: Optional[float] = None  # For local trips
+    rate_per_km: Optional[float] = None  # For outstation , airport and local trips
     package_short_label: Optional[str] = (
         None  # Short label for the package, e.g., "4 Hours / 40 KM"
     )
     package: Optional[Union[TripPackageConfigSchema, str]] = None  # For local trips
     overages: Optional[OveragesSchema] = None
+    currency:Optional[Currency]=None
 
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
@@ -222,10 +284,10 @@ class TripSearchOption(BaseModel):
 
 
 class TripSearchAdditionalData(BaseModel):
-    inclusions: Optional[List[str]] = (
+    inclusions: Optional[InclusionExclusionList] = (
         None  # List of inclusions like tolls, parking, etc.
     )
-    exclusions: Optional[List[str]] = (
+    exclusions: Optional[InclusionExclusionList] = (
         None  # List of exclusions like fuel, driver meals, etc.
     )
     in_car_amenities: Optional[AmenitiesSchema] = (
@@ -264,6 +326,14 @@ class TripSearchAdditionalData(BaseModel):
         False  # Indicates if the trip is a round trip, mainly applicable for outstation trips and local trips  # This is used to calculate the total price for outstation trips which are round trips
     )
 
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+    utc_offset: Optional[int] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
+    )
+
+    
     class Config:
         extra = "forbid"  # Allow extra fields not defined in the model
         exclude_none = True
@@ -271,11 +341,12 @@ class TripSearchAdditionalData(BaseModel):
 
 class TripSearchResponse(BaseModel):
     options: List[TripSearchOption]
-    preferences: Optional[TripSearchRequest] = None  # User preferences used for search
+    preferences: Optional[Union[dict,TripSearchRequest]] = None  # User preferences used for search
     metadata: Optional[Union[dict, TripSearchAdditionalData]] = (
         None  # Metadata about the trip search, like total options found, etc.
     )
-
+    disclaimers: Optional[List[str]] = None  # Any common disclaimer to be shown to the user based on the search results, e.g., "Prices are estimates and may vary based on traffic conditions, tolls, etc."
+    refund_and_cancellation_policy: Optional[Union[List[str], CancelationPolicySchema]] = None  # Refund and cancellation policy for the trip based on the trip type and origin location jurisdiction
 
 class TripBookRequest(BaseModel):
     option: TripSearchOption  # Selected option to book
@@ -285,12 +356,49 @@ class TripBookRequest(BaseModel):
     )
 
 
+class TripSerializationOptions(BaseModel):
+    expose_customer_details: bool = False
+    expose_dispute_details: bool = False
+    expose_cancellation_detail: bool = False
+    expose_policy_detail: bool = False
+    expose_currency_detail: bool = False
+    expose_fleet_detail: bool = False
+    expose_trip_label: bool = False
+    optimize_response: bool = False
+    expose_trip_review: bool = False
+    expose_trip_refund:bool=False
+    expose_trip_flags:bool=False
+    expose_upgradation_information: bool = False
+    expose_driver_assignment_notice: bool = False
+    expose_admin_driver_assignment_notice: bool = False
+
+
+class TripUpgradationInformationSchema(BaseModel):
+    upgraded: bool = Field(False, description="Indicates whether Cabbo upgraded the assigned cab/fuel experience for the customer")
+    upgrade_types: List[str] = Field(default_factory=list, description="Types of upgrades applied, e.g. fuel_upgrade, cab_type_upgrade")
+    from_cab_type: Optional[CarTypeEnum] = Field(None, description="Customer's booked/preferred cab type")
+    from_fuel_type: Optional[FuelTypeEnum] = Field(None, description="Customer's booked/preferred fuel type")
+    to_cab_type: Optional[CarTypeEnum] = Field(None, description="Assigned driver's cab type")
+    to_fuel_type: Optional[FuelTypeEnum] = Field(None, description="Assigned driver's fuel type")
+    additional_charges: float = Field(0.0, description="Additional charges for the customer. Cabbo v1 upgrades should be free.")
+    short_text: Optional[str] = Field(None, description="Short customer-facing upgrade explanation")
+    long_text: Optional[str] = Field(None, description="Detailed customer-facing upgrade explanation")
+    reason: Optional[str] = Field(None, description="Operational reason for the upgrade")
+    is_free_upgradation: bool = Field(True, description="Indicates whether the upgrade is free for the customer")
+    upgradation_timestamp: Optional[datetime] = Field(None, description="Timestamp when the upgrade was applied")
+    upgraded_by_id: Optional[str] = Field(None, description="Identifier of the admin/system user that applied the upgrade")
+
+    class Config:
+        from_attributes = True
+        extra = "forbid"
+
+
 class TripDetailSchema(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the trip")
     booking_id: Optional[str] = Field(None, description="Unique booking reference ID")
 
     # Creator information
-    customer: Optional[CustomerRead] = Field(
+    customer: Optional[Union[CustomerRead]] = Field(
         None,
         description="Customer details of the trip creator, included only if the creator is a customer and if the requesting user has permission to view customer details",
     )
@@ -370,13 +478,25 @@ class TripDetailSchema(BaseModel):
     preferred_fuel_type: Optional[FuelTypeEnum] = Field(
         None, description="Preferred fuel type"
     )
+    upgradation_information: Optional[TripUpgradationInformationSchema] = Field(
+        None,
+        description="Cab/fuel upgrade information when assigned vehicle improves on the booked preference",
+    )
     in_car_amenities: Optional[AmenitiesSchema] = Field(
         None, description="Dictionary of in-car amenities"
     )
 
     # Driver assignment fields
-    driver: Optional[Union[Dict[str, Any], Any]] = Field(
+    driver: Optional[Union[Dict[str, Any], Any, DriverReadSchema, CustomerSafeDriverReadSchema]] = Field(
         None, description="Driver details of the assigned driver"
+    )
+    driver_assignment_notice: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Customer-facing timing metadata for when driver details are usually shared",
+    )
+    admin_driver_assignment_notice: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Admin-facing timing metadata for future driver assignment attention",
     )
 
     # Trip status
@@ -418,12 +538,22 @@ class TripDetailSchema(BaseModel):
     overages: Optional[Dict] = Field(
         None, description="Details of overages (e.g., extra km charges)"
     )
+    refund: Optional[RefundSchema] = Field(
+        None, description="Refund details for the trip, if a refund exists"
+    )
+    can_issue_refund: Optional[bool] = Field(
+        None,
+        description="Indicates whether an admin can manually issue or retry a refund for this trip",
+    )
+    rate_per_min: Optional[float] = None  # For local trips
+    rate_per_km: Optional[float] = None  # For outstation , airport and local trips
+    
 
     # Inclusions and exclusions
-    inclusions: Optional[List[str]] = Field(
+    inclusions: Optional[InclusionExclusionList] = Field(
         None, description="List of inclusions for the trip"
     )
-    exclusions: Optional[List[str]] = Field(
+    exclusions: Optional[InclusionExclusionList] = Field(
         None, description="List of exclusions for the trip"
     )
 
@@ -469,6 +599,14 @@ class TripDetailSchema(BaseModel):
         None, description="Timestamp when the trip was last updated"
     )
 
+    timezone: Optional[str] = Field(
+        settings.CABBO_DEFAULT_TIMEZONE, description="Timezone of the trip based on the origin location, e.g., 'Asia/Kolkata'"
+    )
+
+    utc_offset: Optional[int] = Field(
+        settings.CABBO_DEFAULT_UTC_OFFSET, description="UTC offset in minutes for the trip origin timezone, e.g., 330 for IST (UTC+5:30)"
+    )
+
     class Config:
         from_attributes = True
         extra = "allow"  # Allow extra fields not defined in the model
@@ -504,6 +642,39 @@ class AdditionalDetailsOnTripStatusChange(BaseModel):
     class Config:
         extra = "forbid"  # Forbid extra fields not defined in the model
         exclude_none = True  # Exclude fields with None values from the model dump
+
+
+class TripStatusPayloadFieldTypeEnum(str, Enum):
+    string = "string"
+    datetime = "datetime"
+    number = "number"
+    enum = "enum"
+    object = "object"
+    array = "array"
+
+
+class TripStatusTransitionPayloadField(BaseModel):
+    name: str = Field(..., description="Dot-path field name in AdditionalDetailsOnTripStatusChange")
+    type: TripStatusPayloadFieldTypeEnum = Field(..., description="Frontend input type")
+    required: bool = Field(False, description="Whether the frontend should require this field")
+    label: Optional[str] = Field(None, description="Human readable field label")
+    description: Optional[str] = Field(None, description="Short explanation for the field")
+    options: Optional[list[str]] = Field(None, description="Allowed values for enum fields")
+    fields: Optional[list["TripStatusTransitionPayloadField"]] = Field(
+        None,
+        description="Nested fields for object or array payload fields",
+    )
+
+
+class TripStatusTransitionAction(BaseModel):
+    target_status: TripStatusEnum = Field(..., description="Target status for the transition")
+    label: str = Field(..., description="Human readable action label")
+    requires_confirmation: bool = Field(True, description="Whether the frontend should show a confirmation step")
+    confirmation_level: str = Field("standard", description="Frontend confirmation weight, e.g. light, standard, strong")
+    payload_fields: list[TripStatusTransitionPayloadField] = Field(
+        default_factory=list,
+        description="Payload fields the frontend should render for this target status",
+    )
 
 
 class TripPackageSchema(BaseModel):
@@ -592,8 +763,8 @@ class TripExperienceSchema(BaseModel):
 
 
 class TripRatingCreateSchema(BaseModel):
-    rating: int = Field(
-        ...,
+    rating: Optional[int] = Field(
+        None,
         ge=1,
         le=5,
         description="Rating given by the customer for the trip on a scale of 1 to 5",
@@ -624,6 +795,13 @@ class TripRatingSchema(TripRatingCreateSchema):
 
     class Config:
         from_attributes = True
+
+
+class CustomerTripRatingReadSchema(TripRatingCreateSchema):
+    class Config:
+        extra ="allow"
+        from_attributes=True
+    
 
 
 class TripRatingResponseSchema(TripRatingCreateSchema):
@@ -699,3 +877,49 @@ class TripUpdateRequestSchema(BaseModel):
         None,
         description="Placard name for the trip, only applied if placard_required is already True on the trip",
     )
+
+
+class TripClassificationRequest(BaseModel):
+    pickup: LocationInfo = Field(..., description="Origin location details")
+    dropoff: Optional[LocationInfo] = Field(
+        None, description="Destination location details"
+    )
+    validate_serviceable_area: Optional[bool] = Field(
+        False,
+        description="Whether to validate if the pickup and dropoff locations are within serviceable areas. This adds overhead due to additional API calls to location service.",
+    )
+    trip_type: Optional[TripTypeEnum] = Field(
+        None,
+        description="Optionally specify the trip type if you want to classify the trip for a specific type, if not provided, the system will classify the trip for all supported types and return the best match",
+    )
+    serviceable: Optional[bool] = Field(
+        False,
+        description="Indicates if the pickup and dropoff locations are within serviceable areas",
+    )
+
+    swap_empty_with_non_empty: Optional[bool] = Field(
+        True,
+        description="Whether to swap pickup and dropoff locations if one of them is empty and the other is not. This is to handle cases where the customer provides only one location (either pickup or dropoff) and leaves the other one empty, in such cases we can swap the empty location with the non-empty one and classify the trip based on the provided location. This is especially useful for classifying airport trips where the customer might only provide the airport location without specifying whether it's a pickup or dropoff.",
+    )
+
+
+class TripClassificationResult(NamedTuple):
+    """Result of classify_trip_type.
+
+    Attributes:
+        trip_type: The classified TripTypeEnum value.
+        distance_km: Haversine straight-line distance in km between pickup and dropoff.
+                     None for airport trips (Rule 2 fires before distance is computed)
+                     and when dropoff is absent.
+        has_distance_overage: True when trip_type is local and distance_km exceeds the
+                              region's max included km — signals the UI to show an
+                              overage-warning banner upfront.
+    """
+
+    trip_type: TripTypeEnum
+    distance_km: Optional[float]
+    has_distance_overage: bool
+    distance_diff_km: Optional[float] = (
+        None  # Optional field to indicate how much the distance exceeds the max included km, if applicable
+    )
+

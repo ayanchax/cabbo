@@ -1,51 +1,92 @@
-# Cabbo FastAPI Project
+# Cabbo Backend
 
-This project is the backend for the Cabbo cab booking platform, built with FastAPI and managed with uv.
+FastAPI backend for Cabbo, covering customer booking flows, admin operations,
+payments, refunds, legal content, OTP auth, and operational configuration.
 
-## Setup
+Dev API:
 
-### 1. Create and activate the virtual environment
+```text
+https://api.dev.cabbo.co.in
+```
 
-#### Windows (PowerShell):
+## Stack
+
+- FastAPI
+- SQLAlchemy / MySQL
+- Alembic
+- uv
+- Razorpay
+- Twilio
+- Sentry
+- Docker / Railway
+
+## Local Setup
+
 ```powershell
 uv venv
 .\.venv\Scripts\activate
+uv sync
 ```
 
-#### Linux/macOS (bash):
-```bash
-uv venv
-source .venv/bin/activate
+Create the required `.env.local` file before running the app.
+
+## Run Locally
+
+From the project root:
+
+```powershell
+cd src
+uvicorn app:app --reload
 ```
 
-### 2. Install dependencies
+Health check:
 
-```bash
-uv pip install -r pyproject.toml
+```text
+GET http://localhost:8000/health
 ```
 
-Or, for manual install:
-```bash
-uv pip install fastapi uvicorn[standard]
+API docs:
+
+```text
+http://localhost:8000/docs
 ```
 
-## Running the Server
+## Docker
 
-### Windows or Linux/macOS
+Local:
 
-#### Option 1: Using Uvicorn (recommended for development)
-```bash
-uvicorn main:app --reload
+```sh
+docker compose -f docker-compose.local.yml up --build
 ```
 
-#### Option 2: Directly with Python (auto-reload enabled)
-```bash
-python main.py
+Dev/prod images are built from their respective Dockerfiles. Runtime env vars
+are provided by the deployment platform.
+
+## Database Operations
+
+Database backup, restore, migration, and seed scripts live in `scripts/db`.
+They are intended to be run from a local or trusted operator machine, not from
+inside the deployed API container.
+
+Examples:
+
+```sh
+sh scripts/db/backup.sh dev
+sh scripts/db/migration.sh dev
+sh scripts/db/seed.sh dev
+sh scripts/db/restore.sh dev backups/db/<backup-file>.sql
 ```
 
-## Project Structure
-- `main.py`: FastAPI entrypoint
-- `pyproject.toml`: Project dependencies and metadata
+See `scripts/db/README.md` for the recommended flow.
 
----
+## Legal Content
+
+Legal/support pages are stored as Markdown under `content/legal` and exposed
+through read-only legal page APIs for frontend consumption.
+
+## Notes
+
+- Do not commit `.env.*`, database dumps, PEM files, or local backups.
+- Deployed logs go to stdout/stderr; local logs may use the local log folder.
+- Sentry is enabled for non-local environments when configured.
 

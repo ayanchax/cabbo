@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}/remove/profile-picture"
+method: DELETE
+body:
+  type: formdata
+  content: []
+order: 13000

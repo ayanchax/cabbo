@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     DateTime,
+    Index,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR as MySQL_CHAR
@@ -19,9 +20,13 @@ from datetime import datetime, timezone
 # Outstation pricing
 class OutstationCabPricing(Base):
     __tablename__ = "outstation_cab_pricing"
-    __table_args__ = (UniqueConstraint(
-        "state_id", "cab_type_id", "fuel_type_id", name="uq_outstation_state_cab_fuel"
-    ),)
+    __table_args__ = (
+        UniqueConstraint(
+            "state_id", "cab_type_id", "fuel_type_id", name="uq_outstation_state_cab_fuel"
+        ),
+        Index("ix_outstation_pricing_available", "is_available_in_network"),
+        Index("ix_outstation_pricing_state_available", "state_id", "is_available_in_network"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -41,6 +46,8 @@ class OutstationCabPricing(Base):
     min_included_km_per_day = Column(
         Integer, nullable=False, default=300
     )  # 200 for hatchback, 300 for others
+    
+    
     is_available_in_network = Column(
         Boolean, nullable=False, default=True
     )  # Indicates if this cab type is available for high-demand outstation trips
@@ -69,6 +76,8 @@ class LocalCabPricing(Base):
         UniqueConstraint(
             "region_id", "cab_type_id", "fuel_type_id", name="uq_local_region_cab_fuel"
         ),
+        Index("ix_local_pricing_available", "is_available_in_network"),
+        Index("ix_local_pricing_region_available", "region_id", "is_available_in_network"),
     )
     id = Column(
         MySQL_CHAR(36),
@@ -107,9 +116,13 @@ class LocalCabPricing(Base):
 # Airport pricing
 class AirportCabPricing(Base):
     __tablename__ = "airport_cab_pricing"
-    __table_args__ = (UniqueConstraint(
-        "region_id", "cab_type_id", "fuel_type_id", name="uq_airport_region_cab_fuel"
-    ),)
+    __table_args__ = (
+        UniqueConstraint(
+            "region_id", "cab_type_id", "fuel_type_id", name="uq_airport_region_cab_fuel"
+        ),
+        Index("ix_airport_pricing_available", "is_available_in_network"),
+        Index("ix_airport_pricing_region_available", "region_id", "is_available_in_network"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -223,8 +236,17 @@ class CommonPricingConfiguration(Base):
     max_included_km = Column(
         Integer, nullable=True, default=None
     )  # For local cab maximum included km
+    #Platform fee capping fields to ensure that we have a minimum and maximum platform fee charged to customer for each trip type in each region or state, regardless of total fare, to ensure that we cover our costs for low-fare trips and do not overcharge for high-fare trips.
+    #This is important since the dynamic platform fee is calculated as percentage of total fare and can be very low for low-fare trips and very high for high-fare trips, which can lead to undercharging or overcharging customers and can impact our unit economics and customer satisfaction.
     min_platform_fee = Column(Float, nullable=True, comment="Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.")
     max_platform_fee = Column(Float, nullable=True, comment="Maximum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we do not overcharge for high-fare trips.")
+    
+    #Distance thresholds for validating airport trips and outstation trips, we can have different thresholds for different trip types and regions since the economics of airport trips and outstation trips can vary significantly by region. We do not need thresholds for intracity/local rental trips since local trips are package based and we are validating at region level and have all region level and higher level info, so any trip within the same region is valid as intracity trip regardless of distance.
+    min_outbound_distance_km = Column(Float, nullable=True)  # For airport trips and outstation trips minimum outbound(excluding return and hops) distance threshold for fare calculation, e.g., 2 km for airport trips and 121 km for outstation trips
+    max_distance_km = Column(Float, nullable=True)  # For airport trips and outstation trips maximum distance threshold for fare calculation, e.g., 100 km for airport trips and 2100 km for outstation trips
+    min_days_allowed = Column(Integer, nullable=True, comment="Min days allowed for outstation trips")  # Min 2 days allowed for outstation trips, otherwise there is no margin in outstation trips and it is better to classify them as local trips and charge hourly rental fare instead of daily fare which can be expensive for customers and can lead to lower customer satisfaction and lower demand for outstation trips
+    max_days_allowed = Column(Integer, nullable=True, comment="Max days allowed for outstation trips")  # Max 7 days allowed for outstation trips
+    max_hops_allowed = Column(Integer, nullable=True, comment="Max hops/stops allowed for outstation trips")  # Max 2 hops allowed for outstation trips, to prevent very long routes with multiple stops which can impact our unit economics and customer satisfaction
     placard_charge = Column(
         Float, nullable=True
     )  # Only for airport pickup, can be null for others
@@ -234,7 +256,7 @@ class CommonPricingConfiguration(Base):
     )  # For airport pickup/drop and outstation
     toll = Column(Float, nullable=True)  # For airport pickup and drop
     parking = Column(Float, nullable=True)  # For airport pickup
-
+    prior_booking_window_hours = Column(Float, nullable=True, comment="The prior booking window in hours for this trip type in this region or state. This helps ensure that customers book their trips in advance to help us manage our fleet and operations better, especially for outstation trips which require more planning and resources.")
     region_id = Column(MySQL_CHAR(36), ForeignKey("regions_master.id"), nullable=True)
     state_id = Column(MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=True)
     created_by = Column(MySQL_CHAR(36), nullable=False, default=RoleEnum.system.value)
@@ -333,4 +355,5 @@ class PermitFeeConfiguration(Base):
         UniqueConstraint(
             "cab_type_id", "fuel_type_id", "state_id", name="uq_cab_fuel_state"
         ),
+        Index("ix_permit_fee_state", "state_id"),
     )

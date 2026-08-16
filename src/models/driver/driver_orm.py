@@ -10,6 +10,7 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
+    Index,
     String,
     Enum,
     Float,
@@ -27,6 +28,10 @@ from datetime import datetime, timezone
 
 class Driver(Base):
     __tablename__ = "drivers"
+    __table_args__ = (
+        Index("ix_drivers_name", "name"),
+        Index("ix_drivers_active_available_created", "is_active", "is_available", "created_at"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -37,6 +42,7 @@ class Driver(Base):
     )
     name = Column(String(255), nullable=False)
     phone = Column(String(32), nullable=False, unique=True) #When driver app is opened for drivers, we will use this as the primary phone number for OTP authentication as they login, just like we do for customers.
+    secondary_phone = Column(String(32), nullable=True, unique=True) #Alternate phone number for the driver, if provided, we will use this as the secondary internal phone number to connect to the driver from admin backend - this will not be exposed to the customer, and will be used for internal purposes only. If not provided, we will use the primary phone number for internal purposes as well.
     email = Column(String(255), nullable=True, unique=True)
     #Secondary data
     gender = Column(Enum(GenderEnum, name="gender_enum"), nullable=False, default=GenderEnum.male)
@@ -56,6 +62,9 @@ class Driver(Base):
     fuel_type = Column(Enum(FuelTypeEnum), nullable=False, default=FuelTypeEnum.diesel)  # petrol, diesel, electric, hybrid
     cab_model_and_make = Column(String(255), nullable=False) # Cab model and make free text (e.g., Maruti Swift) 
     cab_registration_number = Column(String(32), nullable=False, unique=True) # e.g., KA-01-AB-1234
+    capacity = Column(String(32), nullable=True, default="4+1") # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
+    color = Column(String(32), nullable=True) # Cab color (e.g., White, Black, Silver, Polar White etc.)
+    roof_carrier_available = Column(Boolean, default=False, nullable=False) # Whether the cab has a roof carrier available for luggage or not
     # Cab amenities details
     cab_amenities = Column(
     JSON,
@@ -99,7 +108,6 @@ class Driver(Base):
     created_by = Column(
         MySQL_CHAR(36), nullable=False, index=True, default=RoleEnum.system.value, comment="ID of the user or system that created this record"
     )  # Created by system, admin, or user
-    bearer_token = Column(Text, nullable=True) # Bearer token for authentication, this will be used to authenticate the driver in the driver app when the driver app is released to the drivers.
     # Relationships
     trips = relationship(
         "Trip",
@@ -122,8 +130,9 @@ class Driver(Base):
 class DriverEarning(Base):
     __tablename__ = "driver_earnings"
     __table_args__ = (
-    UniqueConstraint("driver_id", "trip_id", name="uq_driver_trip_earning"),
-)
+        UniqueConstraint("driver_id", "trip_id", name="uq_driver_trip_earning"),
+        Index("ix_driver_earnings_driver_active_created", "driver_id", "is_active", "created_at"),
+    )
     id = Column(
         MySQL_CHAR(36),
         primary_key=True,
@@ -171,6 +180,8 @@ class TripRating(Base):
     __tablename__ = "trip_ratings"
     __table_args__ = (
         UniqueConstraint("driver_id", "trip_id", "customer_id", name="uq_driver_trip_customer_rating"),
+        Index("ix_trip_ratings_driver_flagged", "driver_id", "is_flagged"),
+        Index("ix_trip_ratings_customer_flagged", "customer_id", "is_flagged"),
     )
     id = Column(
         MySQL_CHAR(36),

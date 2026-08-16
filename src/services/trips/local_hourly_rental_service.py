@@ -4,27 +4,33 @@ from typing import List, Optional, Union
 
 from core.constants import APP_NAME
 from core.config import settings
-from core.exceptions import CabboException
+from core.exceptions import CabboException, LOCAL_TRIP_ORIGIN_REQUIRED, GENERIC_EXCEPTION
 from core.store import ConfigStore
-from core.trip_constants import COMMON_EXCLUSIONS, COMMON_INCLUSIONS
+from core.trip_constants import (
+    COMMON_EXCLUSIONS,
+    COMMON_INCLUSIONS,
+    build_exclusion_items,
+    build_inclusion_items,
+)
 from core.trip_helpers import (
-    derive_trip_sort_priority,
     generate_trip_field_dictionary,
     generate_trip_hash,
     get_default_trip_amenities,
 )
-from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema, VehicleCapacitySchema
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import PassengerRequest
 from models.driver.driver_schema import DriverReadSchema
 from models.map.location_schema import LocationInfo
 from models.pricing.pricing_schema import (
+    Currency,
     LocalCabPricingSchema,
     LocalPricingBreakdownSchema,
     OveragesSchema,
     TripPackageConfigSchema,
 )
+from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
@@ -32,14 +38,15 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from services.customer_service import a_get_customer_by_id
-from services.passenger_service import get_passenger_by_id
+from services.cab_service import get_car_type_rank, get_recommended_car_type
+from services.configuration_service import get_region_from_location
 
+from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
 from services.pricing_service import compute_final_platform_fee
 from services.validation_service import validate_local_trip_schedule
-from utils.utility import validate_date_time
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from utils.utility import format_trip_datetime, to_timezone_aware_datetime, validate_date_time
+import logging
+log = logging.getLogger(__name__)
 
 def _get_inclusions_exclusions_for_local_trip():
     """
@@ -49,15 +56,17 @@ def _get_inclusions_exclusions_for_local_trip():
             - inclusions (List[str]): List of inclusions for the trip.
             - exclusions (List[str]): List of exclusions for the trip.
     """
-    inclusions = COMMON_INCLUSIONS[:]  # base set
-    inclusions.extend(
+    inclusion_labels = COMMON_INCLUSIONS[:]  # base set
+    inclusion_labels.extend(
         [
             "Water bottles and tissues",
         ]
     )
-    exclusions = COMMON_EXCLUSIONS[:]
+    exclusion_labels = COMMON_EXCLUSIONS[:]
 
-    return inclusions, exclusions
+    return build_inclusion_items(inclusion_labels), build_exclusion_items(
+        exclusion_labels
+    )
 
 
 def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
@@ -72,7 +81,7 @@ def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
     """
 
     if not search_in.origin:
-        raise CabboException("Origin is required for local trip", status_code=400)
+        raise CabboException("Origin is required for local trip", status_code=400, error_code=LOCAL_TRIP_ORIGIN_REQUIRED)
 
     if not search_in.destination:
         search_in.destination = (
@@ -85,6 +94,20 @@ def _get_trip_origin_destination_distance_local(search_in: TripSearchRequest):
         0.0,
     )  # Local trips don't require distance estimation as they are hourly based, can be 0 or any default value
 
+def _get_local_trips_common_disclaimer_lines(currency:str, applicable_driver_allowance: float = 0.0):
+    non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
+
+    disclaimer_lines = [
+        non_refund_line,
+
+        "Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.",
+    ]
+    if applicable_driver_allowance > 0.0:
+        disclaimer_lines.insert(
+            1,
+            f"An additional driver allowance of {currency}{applicable_driver_allowance} will be charged if you exceed the included hours.",
+        )
+    return disclaimer_lines
 
 def _get_local_trips_disclaimer_lines(
     package_label: str,
@@ -103,12 +126,19 @@ def _get_local_trips_disclaimer_lines(
         List[str]: A list of disclaimer lines for local trips.
     """
     non_refund_line = "You will be charged the full fare even if your trip is shorter than the booked duration or included mileage."
+    
+    # Always ceil per minute and per km overage amounts for display
+    #Converting per hour overage to per minute for better customer understanding and transparency, as local trips are primarily charged based on time. This allows customers to understand how much they will be charged for each additional minute if they exceed the included hours in their package, which can help them manage their trip duration effectively to avoid overage charges. The per km overage is also rounded up to ensure that customers are aware of the maximum potential charge for exceeding the included kilometers.
+    # Plus no surprise numbers for customers.
+    rounded_overage_amount_per_minute = int(math.ceil(overage_amount_per_hour/60)) if overage_amount_per_hour is not None else 0
+    rounded_overage_amount_per_km = int(math.ceil(overage_amount_per_km)) if overage_amount_per_km is not None else 0
 
     disclaimer_lines = [
-        f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{overage_amount_per_hour} per hour and/or {currency}{overage_amount_per_km} per km will apply.",
-        non_refund_line,
-        "Extra charges apply for tolls, paid parking, and exceeding included hours or mileage (if applicable) - pay the driver directly.",
-    ]
+            #In hourly rental, we do not have an indicative overage warning as we cannot estimate distance in advance since routes are uncertain and hence no est_km is provided. Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, thus, we keep them informed through a disclaimer message that extra charges may apply at the end of the trip.
+            f"If you exceed the included hours and/or kilometres in your selected package ({package_label}), an additional charge of {currency}{rounded_overage_amount_per_minute} per minute and/or {currency}{rounded_overage_amount_per_km} per km will apply.",
+            non_refund_line,
+            "Extra charges apply for tolls, paid parking, and extra hours, and extra mileage, if applicable - pay the driver directly.",
+        ]
 
     if applicable_driver_allowance > 0.0:
         disclaimer_lines.insert(
@@ -175,9 +205,11 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         raise CabboException(
             "No local trip options available for the selected region and criteria.",
             status_code=404,
+            error_code=GENERIC_EXCEPTION,
         )
     currency = config_store.geographies.country_server.currency_symbol
-
+    currency_code = config_store.geographies.country_server.currency
+    
     validate_local_trip_schedule(search_in)  # Validate local trip schedule
     _, _, _ = _get_trip_origin_destination_distance_local(search_in)
     inclusions, exclusions = _get_inclusions_exclusions_for_local_trip()
@@ -198,19 +230,25 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     package_short_label = package.package_label
     package_included_hours = package.included_hours
     package_included_km = package.included_km
+    total_included_minutes = package_included_hours * 60
 
-    expected_end_date = validate_date_time(search_in.start_date) + timedelta(
+    search_in.start_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone)
+    # Ensure start date is in correct format and timezone-aware for local trips
+    search_in.start_date =to_timezone_aware_datetime(search_in.start_date)
+    
+    expected_end_date = validate_date_time(search_in.start_date, timezone_str=search_in.timezone) + timedelta(
         hours=package_included_hours
     )
-    search_in.expected_end_date = str(
-        expected_end_date
-    )  # Ensure expected end date is set for local trips
-
+    search_in.expected_end_date = expected_end_date
+     # Ensure expected end date is set for local trips and timezone-aware
+    search_in.expected_end_date = to_timezone_aware_datetime(search_in.expected_end_date)
+    
     platform_fee_percent = (
         configuration.auxiliary_pricing.common.dynamic_platform_fee_percent
     )
     local_pricings = configuration.base_pricing
     options: List[TripSearchOption] = []
+
 
     for pricing, cab_type, fuel_type in local_pricings:
         pricing_schema = LocalCabPricingSchema.model_validate(pricing)
@@ -251,16 +289,27 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             currency=currency,
         )
 
-        disclaimer_message = (
-            "Extra charges may apply: " + "\n - " + "\n - ".join(disclaimer_lines)
-        )
+        
         package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
-        option = TripSearchOption(
-            car_type=cab_type_schema.name,  # Use display name from schema
-            fuel_type=fuel_type_schema.name,  # Use display name from schema
-            total_price=math.ceil(
+        total_price=math.ceil(
                 total_price_before_platform_fee + price_breakdown.platform_fee
+            )
+        #We are also calculating the rate per minute for local trips to provide better price transparency to customers, as local trips are primarily charged based on time rather than distance. This allows customers to understand how much they are paying for each minute of their trip, which can help them make more informed decisions about their booking and manage their trip duration effectively to avoid overage charges. The rate per minute is calculated by dividing the total price (including platform fee and driver allowance) by the total included minutes in the selected package.
+        rate_per_minute = round(total_price / total_included_minutes, 2)
+        rate_per_km = round(total_price / package.included_km, 2) 
+        
+        option = TripSearchOption(
+            car_type=CarTypeEnum(cab_type_schema.name),
+
+            car_capacity=VehicleCapacitySchema(
+                passenger_capacity=cab_type_schema.passenger_capacity,
+                luggage_capacity=cab_type_schema.total_luggages,
+                capacity_match = search_in.total_passengers <= cab_type_schema.passenger_capacity and search_in.total_luggages <= cab_type_schema.total_luggages if cab_type_schema.passenger_capacity is not None and cab_type_schema.luggage_capacity is not None else False,
+                rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
+                roof_carrier=cab_type_schema.roof_carrier
             ),
+            fuel_type=fuel_type_schema.name,  # Use display name from schema
+            total_price=total_price,
             price_breakdown=price_breakdown,
             included_hours=package_included_hours,
             included_kms=package_included_km,
@@ -269,11 +318,13 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             overages=(
                 OveragesSchema(
                     disclaimer=disclaimer_lines,
-                    extra_charges_disclaimers=disclaimer_message,
                     overage_amount_per_hour=overage_amount_per_hour,
                     overage_amount_per_km=overage_amount_per_km,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
+            currency=Currency(symbol=currency, code = currency_code) if currency else Currency(),
+            rate_per_min=rate_per_minute,
+            rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
             search_in, cab_type_schema.name, fuel_type_schema.name, option
@@ -289,13 +340,21 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         raise CabboException(
             "No local trip options available for the selected region and criteria.",
             status_code=404,
+            error_code=GENERIC_EXCEPTION,
         )
+    cancelation_refund_policy = get_refund_and_cancellation_policy_by_jurisdiction_code(trip_type=search_in.trip_type, jurisdiction_code=search_in.origin.region_code, config_store=config_store)  # Ensure refund policy exists for local trips in the region
+    
     # Intelligent sorting based on user preferences and trip context
-    _options = sorted(
-        options, key=lambda option: derive_trip_sort_priority(search_in, option)
-    )[
-        : len(options)
-    ]  #  Limit to top n options based on user preferences and trip context
+    recommended_car_type= get_car_type(search_in)
+    eligible_options = [
+        option
+        for option in options
+        if option.car_capacity.capacity_match
+    ]
+    _options = populate_best_choice_recommendation(
+        eligible_options=eligible_options,
+        recommended_car_type=recommended_car_type,
+    )
     metadata = TripSearchAdditionalData(
         inclusions=inclusions,
         exclusions=exclusions,
@@ -314,11 +373,13 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         choices=len(_options),  # Total number of options returned
         is_round_trip=True,
     )
-
     return TripSearchResponse(
         options=_options,
-        preferences=search_in,
+        preferences=remove_extra_fields_from_local_hourly_rental_trip(search_in.model_dump(exclude_none=True)),
         metadata=metadata.model_dump(exclude_none=True, exclude_unset=True),
+        disclaimers=_get_local_trips_common_disclaimer_lines(currency, applicable_driver_allowance=math.ceil(package.driver_allowance) if package and package.driver_allowance else 0.0),
+        refund_and_cancellation_policy=get_refund_and_cancellation_policy_lines(policy=cancelation_refund_policy, trip_startdate_time=search_in.start_date, trip_timezone=search_in.timezone),
+
     )
 
 
@@ -329,7 +390,7 @@ def get_kwargs_for_local_hourly_rental(
 ) -> dict:
     try:
         if not trip or not trip.booking_id:
-            print("Invalid trip information.")
+            log.error("Invalid trip information.")
             return {}  # Do not proceed if trip info is invalid
 
         app_name = APP_NAME.capitalize()
@@ -339,20 +400,20 @@ def get_kwargs_for_local_hourly_rental(
         origin = LocationInfo.model_validate(trip.origin)
 
         if not origin:
-            print("Invalid origin for trip:", trip.booking_id)
+            log.error("Invalid origin for trip:", trip.booking_id)
             return {}  # Do not proceed if origin is invalid
 
         if not customer :
             customer_id = trip.creator_id
             if not customer_id:
-                print("Invalid customer information for trip:", trip.booking_id)
+                log.error("Invalid customer information for trip:", trip.booking_id)
                 return {}  # Do not proceed if customer info is invalid
 
             # Get customer from customer_id
             customer = trip.customer if trip.creator_id and trip.creator_type == "customer" else None
             customer = CustomerRead.model_validate(customer) if customer else None
             if not customer:
-                print("Customer not found for trip:", trip.booking_id)
+                log.error("Customer not found for trip:", trip.booking_id)
                 return {}  # Do not proceed if customer not found
 
             customer_name = customer.name or "Valued Customer"
@@ -390,12 +451,12 @@ def get_kwargs_for_local_hourly_rental(
             "app_name": app_name,
             "app_url": app_url,
             "pickup_location": origin.address,
-            "start_date": trip.start_datetime.strftime("%d %b %Y, %I:%M %p"),
-            "expected_end_date": trip.expected_end_datetime.strftime("%d %b %Y, %I:%M %p") if trip.expected_end_datetime else None,
+            "start_date": format_trip_datetime(trip.start_datetime, trip.timezone).strftime("%d %b %Y, %I:%M %p"),
+            "expected_end_date": format_trip_datetime(trip.expected_end_datetime, trip.timezone).strftime("%d %b %Y, %I:%M %p") if trip.expected_end_datetime else None,
             "booking_id": trip.booking_id,
             "package_label": trip.package_label,
-            "cab_type": driver.cab_type if driver else None,
-            "fuel_type": driver.fuel_type if driver else None,
+            "cab_type": driver.cab_type.value if driver else None,
+            "fuel_type": driver.fuel_type.value if driver else None,
             "model": driver.cab_model_and_make if driver else None,
             "driver_name": driver.name if driver else None,
             "driver_contact": driver.phone if driver else None,
@@ -412,10 +473,100 @@ def get_kwargs_for_local_hourly_rental(
                 "disclaimer": overages_disclaimer,
                 "extra_charges_disclaimers": extra_charges_disclaimers,
             },
+            "timezone": trip.timezone,
         }
 
        
         return kwargs
     except Exception as e:
-        print("Error preparing kwargs for local hourly rental service:", str(e))
+        log.error("Error preparing kwargs for local hourly rental service:", str(e))
         return {}  # Return empty dict on error to avoid breaking email notifications
+
+
+def get_hourly_rental_max_included_km(
+    pickup: LocationInfo, config_store: ConfigStore
+) -> Optional[float]:
+    """
+    Returns the maximum included kilometers for an hourly rental trip based on the pickup location's region configuration. 
+    The config is picked up from the state of the pickup location and not the drop location because 
+    we want to set the maximum included kilometers based on the state from which the trip is starting, 
+    as that is where most of the cost is incurred 
+    Returns None if state or config entry is unavailable.
+    """
+    region = get_region_from_location(location=pickup, config_store=config_store)
+    if not region:
+        return None
+    local_hourly_rental_config = config_store.local.get(region.region_code)
+    if not local_hourly_rental_config:
+        return None
+    try:
+        return float(local_hourly_rental_config.auxiliary_pricing.common.max_included_km)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+def get_car_type(search_in: TripSearchRequest) -> CarTypeEnum:
+    total_pax = search_in.total_passengers
+    # We do not consider luggage for local rentals as customers typically do not carry large amounts of luggage for local trips, and the focus is more on passenger comfort and space rather than luggage capacity. This allows us to recommend a car type that prioritizes passenger seating and comfort, which is more relevant for local trips.
+    return get_recommended_car_type(total_num_people=total_pax, total_num_luggages=0)
+
+
+def derive_trip_sort_priority(recommended_car_type:CarTypeEnum, option: TripSearchOption):
+    minimum_car_type = recommended_car_type
+    minimum_rank = get_car_type_rank(minimum_car_type)
+    option_rank = get_car_type_rank(option.car_type)
+
+    if option_rank < minimum_rank:
+        capacity_score = 1000 + ((minimum_rank - option_rank) * 100)
+    else:
+        capacity_score = (option_rank - minimum_rank) * 100
+
+    return (capacity_score, option.total_price)
+
+def remove_extra_fields_from_local_hourly_rental_trip(trip_dict: dict):
+    keys_to_remove = ["created_at", "creator_id", "creator_type", "estimated_km","final_display_price","indicative_overage_warning", "is_active", "is_interstate", "is_round_trip", "num_backpacks","num_carryons", "num_large_suitcases","num_luggages", "num_other_bags","package_label","package_label_short","parking", "permit_fee","payment_provider_metadata","placard_required","platform_fee","preferred_car_type","preferred_fuel_type", "total_unique_states", "unique_states", "flight_number", "terminal_number","rate_per_km","toll_road_preferred","tolls","total_days","updated_at","utc_offset", "driver_allowance"]
+    for key in keys_to_remove:
+        trip_dict.pop(key, None)
+    return trip_dict
+
+
+def populate_best_choice_recommendation(
+    eligible_options: List[TripSearchOption],
+    recommended_car_type: CarTypeEnum,
+) -> List[TripSearchOption]:
+    sorted_options = sorted(
+        eligible_options,
+        key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
+    )
+
+    
+    recommended_candidates = [
+        option
+        for option in sorted_options
+        if option.car_type == recommended_car_type
+        and option.fuel_type == FuelTypeEnum.diesel
+    ]
+
+    if not recommended_candidates:
+        recommended_candidates = [
+            option
+            for option in sorted_options
+            if option.car_type == recommended_car_type
+        ]
+
+    recommended_option = min(
+        recommended_candidates,
+        key=lambda option: option.total_price,
+        default=sorted_options[0] if sorted_options else None,
+    )
+
+    if recommended_option:
+        recommended_option.car_capacity.recommended = True
+
+    return sorted(
+        sorted_options,
+        key=lambda option: (
+            not option.car_capacity.recommended,
+            derive_trip_sort_priority(recommended_car_type, option),
+        ),
+    )
+

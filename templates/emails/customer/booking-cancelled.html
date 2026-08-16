@@ -336,7 +336,7 @@
         </div>
 
         <!-- View Details CTA -->
-        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
+        <a href="{{ app_url }}/booking/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
             View Cancellation Details</a>
 
         <hr>
@@ -346,7 +346,8 @@
             If you have any questions about your cancellation and refund, please contact our support team.<br>
             We appreciate your understanding and look forward to serving you again.<br><br>
             This email was sent by <b>{{ app_name }}</b>.<br>
-            Maa Sarada Tours and Travels, Bangalore, India<br>
+            {{ public_company.legal_name }}<br>
+            CIN: {{ public_company.cin }} | GSTIN: {{ public_company.gstin }}<br>
             &copy; {{ current_year }} {{ app_name }}. All rights reserved.
         </div>
     </div>

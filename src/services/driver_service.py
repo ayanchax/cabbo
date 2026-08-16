@@ -1,22 +1,50 @@
-from datetime import datetime, timezone
-from typing import Optional
-from sqlalchemy import func
+from datetime import datetime, timezone, timedelta
+import logging
+from typing import List, Optional, Union
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
-from core.exceptions import CabboException
+from core.buffers import TRIP_START_LATE_BUFFER_MINUTES
+from core.exceptions import (
+    DRIVER_ALREADY_ASSIGNED,
+    DRIVER_NOT_ACTIVE,
+    DRIVER_NOT_AVAILABLE,
+    DRIVER_NOT_FOUND,
+    DRIVER_OPERATION_FAILED,
+    DRIVER_PHONE_INVALID,
+    INVALID_DRIVER_STATUS,
+    TRIP_ADVANCE_PAYMENT_REQUIRED,
+    TRIP_BALANCE_PAYMENT_REQUIRED,
+    TRIP_CREATOR_INVALID,
+    TRIP_CREATOR_NOT_CUSTOMER,
+    TRIP_IN_PAST,
+    TRIP_NOT_CONFIRMED,
+    TRIP_TYPE_ID_NOT_FOUND,
+    CabboException,
+    GENERIC_EXCEPTION,
+)
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import S3ObjectInfo
 from models.customer.customer_schema import CustomerBase
 from models.driver.driver_orm import Driver, DriverEarning, TripRating
 from models.driver.driver_schema import (
+    AdminSafeDriverReadSchema,
+    CustomerSafeDriverReadSchema,
+    DriverAssignmentCriteriaSchema,
+    DriverAssignmentFitLevelEnum,
+    DriverAssignmentFitSignalEnum,
     DriverCreateSchema,
     DriverEarningSchema,
     DriverReadSchema,
+    DriverSearchSchema,
     DriverUpdateSchema,
 )
 from core.security import ActiveInactiveStatusEnum, RoleEnum
-import uuid
 
-from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
+from models.trip.trip_enums import (
+    TripResponseView,
+    TripStatusEnum,
+    TripTypeEnum,
+)
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     AdditionalDetailsOnTripStatusChange,
@@ -28,7 +56,13 @@ from services.audit_trail_service import a_log_trip_audit
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from services.trips.upgradation_service import build_trip_upgradation_information
+from utils.utility import validate_date_time
 
+log = logging.getLogger(__name__)
+
+
+ 
 
 def create_driver(
     payload: DriverCreateSchema,
@@ -39,9 +73,9 @@ def create_driver(
     try:
 
         driver = Driver(
-            id=str(uuid.uuid4()),
             name=payload.name,
             phone=payload.phone,
+            secondary_phone=payload.secondary_phone,
             email=payload.email,
             gender=payload.gender,
             dob=payload.dob,
@@ -53,6 +87,8 @@ def create_driver(
             cab_type=payload.cab_type,
             cab_model_and_make=payload.cab_model_and_make,
             cab_registration_number=payload.cab_registration_number,
+            capacity=payload.capacity,
+            color=payload.color,
             cab_amenities=(
                 payload.cab_amenities.model_dump() if payload.cab_amenities else None
             ),
@@ -62,8 +98,9 @@ def create_driver(
                 payload.bank_details.model_dump() if payload.bank_details else None
             ),
             address=payload.address.model_dump() if payload.address else None,
-            is_active=True,
+            is_active=True, #On v2 when we integrate/automate KYC verification of drivers, we will have this field default to False, and as along as the driver does not become kyc_verified, we would not activate them.
             is_available=True,
+            roof_carrier_available=payload.roof_carrier_available,
             created_by=created_by,
         )
         db.add(driver)
@@ -72,8 +109,56 @@ def create_driver(
         return driver
     except Exception as e:
         db.rollback()
+        log.error(f"Error creating driver: {str(e)}")
         raise CabboException(
             f"Error creating driver: {str(e)}", status_code=500, include_traceback=True
+        )
+
+async def create_drivers_in_bulk(payload: Union[List[DriverCreateSchema], List[DriverReadSchema]], db: AsyncSession, created_by: RoleEnum = RoleEnum.driver_admin) -> List[Driver]:
+    """Create multiple drivers in bulk."""
+    try:
+        drivers = []
+        for driver_payload in payload:
+            driver = Driver(
+                name=driver_payload.name,
+                cab_registration_number=driver_payload.cab_registration_number,
+                avg_rating=driver_payload.avg_rating if isinstance(driver_payload, DriverReadSchema) and  hasattr(driver_payload, "avg_rating") else None,
+                cab_model_and_make=driver_payload.cab_model_and_make,
+                cab_type=driver_payload.cab_type,
+                fuel_type=driver_payload.fuel_type,
+                phone=driver_payload.phone,
+                secondary_phone=driver_payload.secondary_phone,
+                color=driver_payload.color,
+                capacity=driver_payload.capacity,
+                payment_mode=driver_payload.payment_mode,
+                payment_phone_number=driver_payload.payment_phone_number,
+                bank_details=(
+                    driver_payload.bank_details.model_dump()
+                    if driver_payload.bank_details
+                    else None
+                ),
+                address=(
+                    driver_payload.address.model_dump()
+                    if driver_payload.address
+                    else None
+                ),
+                is_active=True, #On v2 when we integrate/automate KYC verification of drivers, we will have this field default to False, and as along as the driver does not become kyc_verified, we would not activate them.
+                is_available=True,
+                roof_carrier_available=driver_payload.roof_carrier_available,
+                created_by=created_by,
+            )
+            drivers.append(driver)
+
+        db.add_all(drivers)
+        await db.commit()
+        for driver in drivers:
+            await db.refresh(driver)
+        return drivers
+    except Exception as e:
+        await db.rollback()
+        log.error(f"Error creating drivers in bulk: {str(e)}")
+        raise CabboException(
+            f"Error creating drivers in bulk: {str(e)}", status_code=500, include_traceback=True
         )
 
 
@@ -113,6 +198,258 @@ def get_all_drivers_by_availability(is_available: bool, db: Session):
     return db.query(Driver).filter(Driver.is_available == is_available).all()
 
 
+def search_drivers_paginated(
+    search_in: DriverSearchSchema,
+    db: Session,
+    page: int = 1,
+    limit: int = 50,
+) -> dict:
+    """Search drivers by name and optional filters with paginated results."""
+    page = max(page, 1)
+    limit = min(max(limit, 1), 10)
+    offset = (page - 1) * limit
+
+    name = search_in.name.strip()
+    filters = [Driver.name.ilike(f"%{name}%")]
+
+    if search_in.phone:
+        filters.append(Driver.phone.ilike(f"%{search_in.phone.strip()}%"))
+    if search_in.email:
+        filters.append(Driver.email.ilike(f"%{search_in.email}%"))
+    if search_in.gender:
+        filters.append(Driver.gender == search_in.gender)
+    if search_in.cab_type:
+        filters.append(Driver.cab_type == search_in.cab_type)
+    if search_in.fuel_type:
+        filters.append(Driver.fuel_type == search_in.fuel_type)
+    if search_in.cab_model_and_make:
+        filters.append(
+            Driver.cab_model_and_make.ilike(
+                f"%{search_in.cab_model_and_make.strip()}%"
+            )
+        )
+    if search_in.cab_registration_number:
+        filters.append(
+            Driver.cab_registration_number.ilike(
+                f"%{search_in.cab_registration_number.strip()}%"
+            )
+        )
+    if search_in.capacity:
+        filters.append(Driver.capacity == search_in.capacity.strip())
+    if search_in.color:
+        filters.append(Driver.color.ilike(f"%{search_in.color.strip()}%"))
+    if search_in.roof_carrier_available is not None:
+        filters.append(Driver.roof_carrier_available == search_in.roof_carrier_available)
+    if search_in.is_active is not None:
+        filters.append(Driver.is_active == search_in.is_active)
+    if search_in.is_available is not None:
+        filters.append(Driver.is_available == search_in.is_available)
+    if search_in.kyc_verified is not None:
+        filters.append(Driver.kyc_verified == search_in.kyc_verified)
+
+    total = db.query(func.count(Driver.id)).filter(*filters).scalar() or 0
+    drivers = (
+        db.query(Driver)
+        .filter(*filters)
+        .order_by(Driver.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "items": drivers,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(drivers) < total,
+            "has_previous": page > 1,
+        },
+    }
+
+async def a_search_assignable_drivers_paginated(
+    search_in: DriverSearchSchema,
+    db: AsyncSession,
+    page: int = 1,
+    limit: int = 50,
+) -> dict:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 10)
+    offset = (page - 1) * limit
+    matching_criteria = get_driver_assignment_criteria(search_in)
+    search_in = search_in.model_copy(
+        update={
+            "is_active": True,
+            "is_available": True,
+            "cab_type": None,
+            "fuel_type": None,
+            "capacity": None,
+        }
+    )
+
+    name = search_in.name.strip()
+    filters = [
+        Driver.name.ilike(f"%{name}%"),
+        Driver.is_active == True,
+        Driver.is_available == True,
+    ]
+
+    if search_in.phone:
+        filters.append(Driver.phone.ilike(f"%{search_in.phone.strip()}%"))
+    if search_in.email:
+        filters.append(Driver.email.ilike(f"%{search_in.email}%"))
+    if search_in.gender:
+        filters.append(Driver.gender == search_in.gender)
+    if search_in.cab_model_and_make:
+        filters.append(
+            Driver.cab_model_and_make.ilike(
+                f"%{search_in.cab_model_and_make.strip()}%"
+            )
+        )
+    if search_in.cab_registration_number:
+        filters.append(
+            Driver.cab_registration_number.ilike(
+                f"%{search_in.cab_registration_number.strip()}%"
+            )
+        )
+    if search_in.color:
+        filters.append(Driver.color.ilike(f"%{search_in.color.strip()}%"))
+    if search_in.roof_carrier_available is not None:
+        filters.append(Driver.roof_carrier_available == search_in.roof_carrier_available)
+    if search_in.kyc_verified is not None:
+        filters.append(Driver.kyc_verified == search_in.kyc_verified)
+
+    total_result = await db.execute(select(func.count(Driver.id)).filter(*filters))
+    total = total_result.scalar() or 0
+    query = select(Driver).filter(*filters)
+    if matching_criteria:
+        fit_score = _build_driver_assignment_fit_score_expression(matching_criteria) #Used for ordering the drivers by their fit score for the given criteria. This is used to sort the drivers in descending order of their fit score, so that the best matching drivers are returned first.
+        query = query.order_by(fit_score.desc(), Driver.created_at.desc())
+    else:
+        query = query.order_by(Driver.created_at.desc())
+
+    result = await db.execute(query.offset(offset).limit(limit))
+    drivers = result.scalars().all()
+
+    return {
+        "items": drivers,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": offset + len(drivers) < total,
+            "has_previous": page > 1,
+        },
+    }
+
+
+def get_driver_assignment_criteria(
+    search_in: DriverSearchSchema,
+) -> Optional[DriverAssignmentCriteriaSchema]:
+    if not any([search_in.cab_type, search_in.fuel_type, search_in.capacity]):
+        return None
+    return DriverAssignmentCriteriaSchema(
+        cab_type=search_in.cab_type,
+        fuel_type=search_in.fuel_type,
+        capacity=search_in.capacity,
+    )
+
+
+def _build_driver_assignment_fit_score_expression(
+    criteria: DriverAssignmentCriteriaSchema,
+):
+    score_parts = []
+    if criteria.cab_type is not None:
+        score_parts.append(case((Driver.cab_type == criteria.cab_type, 1), else_=0))
+    if criteria.fuel_type is not None:
+        score_parts.append(case((Driver.fuel_type == criteria.fuel_type, 1), else_=0))
+    if criteria.capacity is not None:
+        score_parts.append(
+            case((Driver.capacity == criteria.capacity.strip(), 1), else_=0)
+        )
+
+    score = score_parts[0]
+    for score_part in score_parts[1:]:
+        score += score_part
+    return score
+
+
+def _driver_field_matches(driver_value, criteria_value) -> bool:
+    if criteria_value is None:
+        return True # If no criteria is specified for a field, we consider it a match by default.
+    if driver_value is None:
+        return False
+    return str(driver_value).strip().lower() == str(criteria_value).strip().lower()
+
+
+def apply_driver_assignment_fit_signals(
+    driver_dict: dict,
+    criteria: Optional[DriverAssignmentCriteriaSchema] = None
+) -> dict:
+    
+    if not criteria:
+        driver_dict["assignment_fit"] = {
+            "level": DriverAssignmentFitLevelEnum.no_criteria,
+            "signals": [],
+            "score": 0,
+            "max_score": 0,
+        }
+        return driver_dict
+
+    checks = [
+        (
+            "cab_type",
+            criteria.cab_type,
+            DriverAssignmentFitSignalEnum.cab_type_mismatch,
+        ),
+        (
+            "fuel_type",
+            criteria.fuel_type,
+            DriverAssignmentFitSignalEnum.fuel_type_mismatch,
+        ),
+        (
+            "capacity",
+            criteria.capacity,
+            DriverAssignmentFitSignalEnum.capacity_mismatch,
+        ),
+    ]
+    active_checks = [
+        (field_name, expected_value, mismatch_signal)
+        for field_name, expected_value, mismatch_signal in checks
+        if expected_value is not None
+    ]
+
+    score = 0
+    signals = []
+    for field_name, expected_value, mismatch_signal in active_checks:
+        if _driver_field_matches(driver_dict.get(field_name), expected_value):
+            score += 1
+        else:
+            signals.append(mismatch_signal)
+
+    max_score = len(active_checks)
+    if max_score == 0:
+        level = DriverAssignmentFitLevelEnum.no_criteria
+    elif score == max_score:
+        level = DriverAssignmentFitLevelEnum.best_fit
+        signals.append(DriverAssignmentFitSignalEnum.good_fit)
+    elif score >= max_score - 1:
+        level = DriverAssignmentFitLevelEnum.good_fit
+    else:
+        level = DriverAssignmentFitLevelEnum.review_fit
+
+    driver_dict["assignment_fit"] = {
+        "level": level,
+        "signals": signals,
+        "score": score,
+        "max_score": max_score,
+    }
+    return driver_dict
+
+
 def get_all_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session):
     """Retrieve all drivers by their active status."""
 
@@ -122,7 +459,9 @@ def get_all_drivers_by_status(status: ActiveInactiveStatusEnum, db: Session):
         return get_all_inactive_drivers(db)
     else:
         raise CabboException(
-            "Invalid status. Use 'active' or 'inactive'.", status_code=400
+            "Invalid status. Use 'active' or 'inactive'.",
+            status_code=400,
+            error_code=INVALID_DRIVER_STATUS,
         )
 
 
@@ -135,7 +474,9 @@ def update_driver(driver_id: str, payload: DriverUpdateSchema, db: Session) -> D
     """Update an existing driver's details."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND
+        )
     for field, value in payload.model_dump(exclude_unset=True).items():
         if hasattr(driver, field) and value is not None:
             setattr(driver, field, value)
@@ -149,7 +490,9 @@ def delete_driver(driver_id: str, db: Session) -> bool:
     """Delete a driver by their ID."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND
+        )
     db.delete(driver)
     db.commit()
     return True
@@ -159,7 +502,9 @@ def activate_driver(driver_id: str, db: Session) -> Driver:
     """Activate a driver by their ID."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND
+        )
     driver.is_active = True
     db.commit()
     db.refresh(driver)
@@ -170,21 +515,25 @@ def deactivate_driver(driver_id: str, db: Session) -> Driver:
     """Deactivate a driver by their ID."""
     driver = get_driver_by_id(driver_id, db)
     if not driver:
-        raise CabboException("Driver not found", status_code=404)
+        raise CabboException(
+            "Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND
+        )
     driver.is_active = False
     db.commit()
     db.refresh(driver)
     return driver
 
-def update_driver_profile_picture(driver: Driver, db: Session, s3_image_info: S3ObjectInfo=None) -> Driver:
+
+def update_driver_profile_picture(
+    driver: Driver, db: Session, s3_image_info: S3ObjectInfo = None
+) -> Driver:
     """Update a driver's profile picture."""
     driver.s3_image_info = s3_image_info.model_dump() if s3_image_info else None
     db.commit()
     db.refresh(driver)
     return driver
 
-
-
+ 
 async def assign_driver_to_trip(
     trip: Trip,
     driver: Driver,
@@ -192,80 +541,105 @@ async def assign_driver_to_trip(
     requestor: User,
     attach_trip_relationships: bool = False,
     validate_time_window: bool = False,
+    view =TripResponseView.CUSTOMER_LIST
 ):
     try:
+        # Check Trip has a valid creator_id
+        if not trip.creator_id:
+                    raise CabboException(
+                        "Trip does not have a valid creator to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_CREATOR_INVALID,
+                    )
+                # Check Trip creator is a customer
+        if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
+                    raise CabboException(
+                        "Trip creator must be a customer to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_CREATOR_NOT_CUSTOMER,
+                    )
+                # Check trip has a non-zero balance_payment, so that customer has paid advance and there is balance to be paid to driver
+        if trip.balance_payment <= 0:
+                    raise CabboException(
+                        "Trip must have a non-zero balance payment to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_BALANCE_PAYMENT_REQUIRED,
+                    )
+        if trip.advance_payment <= 0:
+                    raise CabboException(
+                        "Trip must have a non-zero advance payment to assign a driver.",
+                        status_code=400,
+                        error_code=TRIP_ADVANCE_PAYMENT_REQUIRED,
+                    )
+                # Check Driver is not already assigned to the trip
+        if trip.driver_id == driver.id:
+                    raise CabboException(
+                        "Driver is already assigned to this trip.",
+                        status_code=400,
+                        error_code=DRIVER_ALREADY_ASSIGNED,
+                    )
         # Check Trip is in confirmed status
         if trip.status != TripStatusEnum.confirmed.value:
             raise CabboException(
-                "Trip must be in confirmed status to assign a driver.", status_code=400
+                "Trip must be in confirmed status to assign a driver.",
+                status_code=400,
+                error_code=TRIP_NOT_CONFIRMED,
             )
+
+        # Check Driver is active
+        if not driver.is_active:
+                    raise CabboException(
+                        "Driver is not active.", status_code=400, error_code=DRIVER_NOT_ACTIVE
+                    )
+        
+        # Check Driver is available
+        if not driver.is_available:
+                    raise CabboException(
+                        "Driver is not available.",
+                        status_code=400,
+                        error_code=DRIVER_NOT_AVAILABLE,
+                    )
+
+        # Check Driver has a valid phone number
+        if not driver.phone or driver.phone.strip() == "":
+                    raise CabboException(
+                        "Driver does not have a valid phone number.",
+                        status_code=400,
+                        error_code=DRIVER_PHONE_INVALID,
+                    )
+        
         trip_type = (
             trip.trip_type_master.trip_type
             if hasattr(trip.trip_type_master, "trip_type")
             else None
         )
+        #Check Trip has a valid trip_type
         if not trip_type:
             raise CabboException(
-                "Trip type not found for the trip to assign driver.", status_code=400
+                "Trip type not found for the trip to assign driver.",
+                status_code=400,
+                error_code=TRIP_TYPE_ID_NOT_FOUND,
             )
-        start_datetime = None
-        expected_end_datetime = None
-        if trip.start_datetime.tzinfo is None:
-            start_datetime = trip.start_datetime.replace(tzinfo=timezone.utc)
+        trip_type = TripTypeEnum(trip_type)
 
-        if trip.expected_end_datetime and trip.expected_end_datetime.tzinfo is None:
-            expected_end_datetime = trip.expected_end_datetime.replace(
-                tzinfo=timezone.utc
-            )
+        # When we automate the driver KYC verification process through External Service API, we will also check if the driver is kyc_verified or not.
+        
+        start_datetime =validate_date_time(trip.start_datetime, timezone_str = trip.timezone)
+        expected_end_datetime = validate_date_time(trip.expected_end_datetime, timezone_str = trip.timezone)
+        #Check if the trip is in the past, and if so, raise an exception to prevent assigning a driver to a trip that has already started or ended.
         if validate_time_window:
-            # For airport drop, pickup and hourly rental trip types, block trips that happened in the past but somehow still have confirmed status. This is a bad data issue. Ideally this should not happen, but we are adding this check to prevent assigning drivers to such orphan trips which are in the past and should have been completed or cancelled but are still showing as confirmed due to some data issue.
-            if trip_type in [
-                TripTypeEnum.airport_drop,
-                TripTypeEnum.airport_pickup,
-                TripTypeEnum.local,
-            ] and start_datetime < datetime.now(timezone.utc):
+            now = datetime.now(timezone.utc)
+            latest_assignment_time = _get_latest_driver_assignment_time(
+                trip_type=trip_type,
+                start_datetime=start_datetime,
+                expected_end_datetime=expected_end_datetime,
+            )
+            if now > latest_assignment_time:
                 raise CabboException(
                     "Cannot assign driver to a trip that is in the past.",
                     status_code=400,
+                    error_code=TRIP_IN_PAST,
                 )
-            # For outstation trips, disallow assigning driver if the start date time and the expected end date time both are in the past, as that means the trip is already completed but still showing as confirmed due to some data issue. This is to prevent assigning drivers to such orphan trips.
-            if (
-                trip_type == TripTypeEnum.outstation
-                and start_datetime < datetime.now(timezone.utc)
-                and expected_end_datetime < datetime.now(timezone.utc)
-            ):
-                raise CabboException(
-                    "Cannot assign driver to a trip that is in the past.",
-                    status_code=400,
-                )
-        # Check Trip has a valid creator_id
-        if not trip.creator_id:
-            raise CabboException(
-                "Trip does not have a valid creator to assign a driver.",
-                status_code=400,
-            )
-        # Check Trip creator is a customer
-        if not trip.creator_type or trip.creator_type != RoleEnum.customer.value:
-            raise CabboException(
-                "Trip creator must be a customer to assign a driver.", status_code=400
-            )
-        # Check trip has a non-zero balance_payment, so that customer has paid advance and there is balance to be paid to driver
-        if trip.balance_payment <= 0:
-            raise CabboException(
-                "Trip must have a non-zero balance payment to assign a driver.",
-                status_code=400,
-            )
-        if trip.advance_payment <= 0:
-            raise CabboException(
-                "Trip must have a non-zero advance payment to assign a driver.",
-                status_code=400,
-            )
-        # Check Driver is not already assigned to the trip
-        if trip.driver_id == driver.id:
-            raise CabboException(
-                "Driver is already assigned to this trip.", status_code=400
-            )
-
         # Free up the currently assigned driver (if any)
         if trip.driver_id:
             current_driver = await db.execute(
@@ -280,53 +654,80 @@ async def assign_driver_to_trip(
                 )
                 db.add(current_driver)  # Add the updated driver back to the session
 
-        # Check Driver is active
-        if not driver.is_active:
-            raise CabboException("Driver is not active.", status_code=400)
-
-        # Check Driver is available
-        if not driver.is_available:
-            raise CabboException("Driver is not available.", status_code=400)
-
-        # Check Driver has a valid phone number
-        if not driver.phone or driver.phone.strip() == "":
-            raise CabboException(
-                "Driver does not have a valid phone number.", status_code=400
-            )
-
-        # When we have the driver app we will also check if the driver is kyc_verified or not.
+        # Build upgradation information for the trip assignment
+        upgradation_information = build_trip_upgradation_information(
+            trip=trip,
+            driver=driver,
+            requestor=requestor,
+            reason="allowed_free_upgrade_on_assignment",
+        )
 
         # Assign Driver to Trip
         # Once driver is assigned to trip, the trip status will still be confirmed until the driver admin marks the trip as ongoing after the driver informs the admin on trip start.
         # Since we have the driver_id assigned to a confirmed trip, we can easily find assigned trips for a driver without needing a sub status like 'assigned'. Moreover, we are logging this event in the trip audit log.
         # Later when we have the driver app, the driver can mark the trip as ongoing (post otp from customer) from the app which will update the trip status to ongoing. This will be done same way like Uber, Ola etc.
         trip.driver_id = driver.id
+        trip.upgradation_information = (
+            upgradation_information.model_dump(mode="json", exclude_none=True)
+            if upgradation_information
+            else None
+        )
         # Update Driver availability to False
         driver.is_available = False
 
         await db.commit()
         await db.refresh(trip)
         await db.refresh(driver)
+        audit_reason = f"Driver {driver.name} assigned to trip."
+        if upgradation_information:
+            audit_reason = (
+                f"{audit_reason} Free upgrade applied: "
+                f"{upgradation_information.short_text}."
+            )
+
         await a_log_trip_audit(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor.id,
-            reason=f"Driver {driver.name} assigned to trip.",
+            reason=audit_reason,
             db=db,
         )  # Log the trip status audit entry
         if attach_trip_relationships:
             await attach_relationships_to_trip(
-                trip, db, expose_customer_details=True
+                trip, db, view=view
             )  # Expose customer details for access in notification task
 
         return trip, driver
+    except CabboException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise CabboException(
             f"Error assigning driver to trip: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=DRIVER_OPERATION_FAILED,
         )
+
+
+def _get_latest_driver_assignment_time(
+    trip_type: TripTypeEnum,
+    start_datetime: datetime,
+    expected_end_datetime: Optional[datetime],
+) -> datetime:
+    late_buffer_minutes = TRIP_START_LATE_BUFFER_MINUTES.get(trip_type, 60)
+    fallback_latest_assignment_time = start_datetime + timedelta(
+        minutes=late_buffer_minutes
+    )
+
+    if (
+        expected_end_datetime
+        and expected_end_datetime > fallback_latest_assignment_time
+    ):
+        return expected_end_datetime
+
+    return fallback_latest_assignment_time
 
 
 async def _add_driver_earning_record(
@@ -362,12 +763,13 @@ async def _add_driver_earning_record(
     except Exception as e:
         await db.rollback()
         if silently_fail:
-            print(f"Error adding driver earning record: {str(e)}")
+            log.error(f"Error adding driver earning record: {str(e)}")
             return None
         raise CabboException(
             f"Error adding driver earning record: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=GENERIC_EXCEPTION,
         )
 
 
@@ -377,7 +779,9 @@ async def toggle_availability_of_driver(
     try:
         driver = await a_get_driver_by_id(driver_id, db)
         if not driver:
-            raise CabboException("Driver not found", status_code=404)
+            raise CabboException(
+                "Driver not found", status_code=404, error_code=DRIVER_NOT_FOUND
+            )
         driver.is_available = make_available
         await db.flush()  # Flush to apply the change before commit
         if commit:
@@ -390,6 +794,7 @@ async def toggle_availability_of_driver(
             f"Error updating driver availability: {str(e)}",
             status_code=500,
             include_traceback=True,
+            error_code=DRIVER_OPERATION_FAILED,
         )
 
 
@@ -421,7 +826,7 @@ async def add_driver_earning_record(
         driver_schema = DriverReadSchema.model_validate(driver) if driver else None
         if not driver_schema:
             if silently_fail:
-                print(
+                log.error(
                     f"Driver not found for trip {trip.id} while adding driver earning record."
                 )
                 return None
@@ -434,7 +839,7 @@ async def add_driver_earning_record(
         if existing_record:
             await delete_driver_earning(
                 earning_id=existing_record.id, db=db, commit=commit, hard_delete=True
-            ) #Delete so that we do not hit integrity error.
+            )  # Delete so that we do not hit integrity error.
 
         return await _add_driver_earning_record(
             payload=DriverEarningSchema(
@@ -459,7 +864,7 @@ async def add_driver_earning_record(
 
         traceback.print_exc()
         if silently_fail:
-            print(f"Error in add_driver_earning_record: {str(e)}")
+            log.error(f"Error in add_driver_earning_record: {str(e)}")
             return None
         raise e
 
@@ -473,23 +878,30 @@ async def get_trip_earning_for_driver(
                 DriverEarning.trip_id == trip_id, DriverEarning.driver_id == driver_id
             )
         )
-        return result.scalars().one_or_none() # We expect only one earning record per trip per driver, so using one_or_none to get the record. If there are multiple records for some reason, this will raise an exception which will be caught and logged, and we can investigate the data issue later without impacting the trip completion flow for drivers.
+        return (
+            result.scalars().one_or_none()
+        )  # We expect only one earning record per trip per driver, so using one_or_none to get the record. If there are multiple records for some reason, this will raise an exception which will be caught and logged, and we can investigate the data issue later without impacting the trip completion flow for drivers.
     except Exception as e:
-        print(
+        log.error(
             f"Error fetching driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
         )
         return None
 
 
-async def get_all_earnings_for_driver(driver_id: str, db: AsyncSession) -> list[DriverEarning]:
+async def get_all_earnings_for_driver(
+    driver_id: str, db: AsyncSession
+) -> list[DriverEarning]:
     try:
         result = await db.execute(
             select(DriverEarning).where(DriverEarning.driver_id == driver_id)
         )
         return result.scalars().all()
     except Exception as e:
-        print(f"Error fetching driver earning records for driver {driver_id}: {str(e)}")
+        log.error(
+            f"Error fetching driver earning records for driver {driver_id}: {str(e)}"
+        )
         return []
+
 
 async def has_driver_earning_record_for_trip(
     trip_id: str, driver_id: str, db: AsyncSession
@@ -503,7 +915,7 @@ async def has_driver_earning_record_for_trip(
         record = result.scalars().first()
         return record is not None
     except Exception as e:
-        print(
+        log.error(
             f"Error checking driver earning record for trip {trip_id} and driver {driver_id}: {str(e)}"
         )
         return False
@@ -531,7 +943,9 @@ async def delete_driver_earning(
         return True
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting driver earning record with id {earning_id}: {str(e)}")
+        log.error(
+            f"Error deleting driver earning record with id {earning_id}: {str(e)}"
+        )
         return False
 
 
@@ -554,7 +968,7 @@ async def calculate_average_rating_for_driver(
         None if there are no ratings for the driver.
     """
     try:
-        print(
+        log.info(
             f"Calculating average rating for driver with id {driver_id} with exclude_flagged_ratings={exclude_flagged_ratings} and silently_fail={silently_fail}"
         )
         query = select(func.avg(TripRating.rating)).where(
@@ -562,14 +976,16 @@ async def calculate_average_rating_for_driver(
         )
         if exclude_flagged_ratings:
             # Exclude ratings that are flagged as inappropriate or fake from the average rating calculation for the driver to ensure that the average rating reflects genuine customer feedback and experience with the driver.
-            query = query.where(TripRating.is_flagged == False) #pick up all ratings which are not flagged as inappropriate or fake for the average rating calculation for the driver
+            query = query.where(
+                TripRating.is_flagged == False
+            )  # pick up all ratings which are not flagged as inappropriate or fake for the average rating calculation for the driver
 
         result = await db.execute(query)
         average_rating = result.scalar()
         return round(average_rating, 2) if average_rating is not None else None
     except Exception as e:
         if silently_fail:
-            print(
+            log.error(
                 f"Failed to calculate average rating for the driver with id {driver_id}: {str(e)}"
             )
             return None
@@ -592,7 +1008,7 @@ async def get_average_rating_by_driver_id(
             )
         average_rating = driver.avg_rating
         if average_rating is None:
-            print(
+            log.info(
                 f"Average rating not available for the driver with id {driver_id}. Calculating average rating from existing ratings for the driver."
             )
             # If avg_rating is not available for some reason, calculate it on the fly based on the existing real(not flagged or spam) ratings for the driver in the database and return it without updating it in the database because we do not want to update avg_rating in the database if it is None for some reason because it might be an indication of some issue with the driver rating records in the database and we do not want to override any existing avg_rating value in the database without investigating the issue further. So we will just calculate and return the average rating on the fly without updating it in the database if avg_rating is None for some reason.
@@ -638,51 +1054,60 @@ async def update_average_rating_for_driver(
         exclude_flagged_ratings=exclude_flagged_ratings,
         silently_fail=silently_fail,
     )
-    
+
     try:
-            driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
-            if not driver:
-                if silently_fail:
-                    print(
-                        f"Driver with id {driver_id} not found. Cannot update average rating for the driver."
-                    )
-                    return None
-                raise CabboException(
-                    "Driver not found for the given driver_id", status_code=404
-                )
-            driver.avg_rating = average_rating
-            await db.commit()
-            print(
-                f"Average rating for driver with id {driver_id} updated to {average_rating}"
-            )
-            return average_rating
-    except Exception as e:
-            await db.rollback()
+        driver = await a_get_driver_by_id(driver_id=driver_id, db=db)
+        if not driver:
             if silently_fail:
-                print(
-                    f"Failed to update average rating for the driver with id {driver_id}: {str(e)}"
+                log.info(
+                    f"Driver with id {driver_id} not found. Cannot update average rating for the driver."
                 )
                 return None
             raise CabboException(
-                f"Failed to update average rating for the driver: {str(e)}",
-                status_code=500,
+                "Driver not found for the given driver_id", status_code=404
             )
+        driver.avg_rating = average_rating
+        await db.commit()
+        log.info(
+            f"Average rating for driver with id {driver_id} updated to {average_rating}"
+        )
+        return average_rating
+    except Exception as e:
+        await db.rollback()
+        if silently_fail:
+            log.error(
+                f"Failed to update average rating for the driver with id {driver_id}: {str(e)}"
+            )
+            return None
+        raise CabboException(
+            f"Failed to update average rating for the driver: {str(e)}",
+            status_code=500,
+        )
 
 
-async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Optional[TripStatusEnum] = None) -> list[TripSummarySchema]:
+async def fetch_all_trips_for_driver(
+    driver_id: str, db: AsyncSession, status: Optional[TripStatusEnum] = None
+) -> list[TripSummarySchema]:
     try:
+
         def _evaluate_driver(driver):
             try:
-                driver_schema = DriverReadSchema.model_validate(driver) if driver else None
+                driver_schema = (
+                    DriverReadSchema.model_validate(driver) if driver else None
+                )
                 return driver_schema
             except Exception as e:
+                log.error(f"Error evaluating driver: {str(e)}")
                 return None
 
         def _evaluate_customer(customer):
             try:
-                customer_schema = CustomerBase.model_validate(customer) if customer else None
+                customer_schema = (
+                    CustomerBase.model_validate(customer) if customer else None
+                )
                 return customer_schema
             except Exception as e:
+                log.error(f"Error evaluating customer: {str(e)}")
                 return None
 
         query = select(Trip).where(Trip.driver_id == driver_id)
@@ -699,16 +1124,22 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
 
         for trip in trips:
             await attach_relationships_to_trip(
-                trip, db, expose_customer_details=True
+                trip, db, view=TripResponseView.CUSTOMER_LIST
             )
 
         trip_summaries = [
             TripSummarySchema(
                 trip_id=trip.id,
                 booking_id=trip.booking_id,
-                driver=_evaluate_driver(trip.driver),  # Assuming trip.driver is already a DriverReadWithProfilePicture
-                customer=_evaluate_customer(trip.customer),  # Assuming trip.customer is already a CustomerReadWithProfilePicture
-                trip_type=trip.trip_type_master.trip_type if trip.trip_type_master else None,
+                driver=_evaluate_driver(
+                    trip.driver
+                ),  # Assuming trip.driver is already a DriverReadWithProfilePicture
+                customer=_evaluate_customer(
+                    trip.customer
+                ),  # Assuming trip.customer is already a CustomerReadWithProfilePicture
+                trip_type=(
+                    trip.trip_type_master.trip_type if trip.trip_type_master else None
+                ),
                 status=trip.status,
                 start_datetime=trip.start_datetime,
                 end_datetime=trip.end_datetime,
@@ -730,33 +1161,45 @@ async def fetch_all_trips_for_driver(driver_id: str, db: AsyncSession, status:Op
         raise e
 
 
-async def add_driver_earning_record_manually(trip_id: str, driver_id: str, payload: AdditionalDetailsOnTripStatusChange, db: AsyncSession, requestor:str):
+async def add_driver_earning_record_manually(
+    trip_id: str,
+    driver_id: str,
+    payload: AdditionalDetailsOnTripStatusChange,
+    db: AsyncSession,
+    requestor: str,
+):
     from services.trips.trip_service import async_get_trip_by_id
+
     try:
-        trip= await async_get_trip_by_id(trip_id=trip_id, db=db, expose_customer_details=True, expose_cancellation_detail=True)
+        trip = await async_get_trip_by_id(
+            trip_id=trip_id,
+            db=db,
+            view=TripResponseView.ADMIN_DETAIL,
+        )
         if trip is None:
             raise CabboException(
                 "Trip not found for the specified trip_id.", status_code=404
             )
         if trip.driver_id != driver_id:
             raise CabboException(
-                "The specified driver is not associated with the specified trip.", status_code=400
+                "The specified driver is not associated with the specified trip.",
+                status_code=400,
             )
         if trip.status != TripStatusEnum.completed:
             raise CabboException(
-                "Earnings can only be posted for completed trips. The specified trip is not completed yet.", status_code=400
+                "Earnings can only be posted for completed trips. The specified trip is not completed yet.",
+                status_code=400,
             )
         trip_schema = TripDetailSchema.model_validate(trip)
         earning = await add_driver_earning_record(
-            trip=trip_schema,
-            additional_info=payload,
-            db=db,
-            requestor=requestor)
+            trip=trip_schema, additional_info=payload, db=db, requestor=requestor
+        )
         if earning is None:
             raise CabboException(
-                "Failed to post earnings for the specified driver and trip.", status_code=500
+                "Failed to post earnings for the specified driver and trip.",
+                status_code=500,
             )
-        return DriverEarningSchema.model_validate(earning)  
+        return DriverEarningSchema.model_validate(earning)
     except Exception as e:
         await db.rollback()
         raise e
@@ -837,3 +1280,34 @@ async def fetch_all_drivers_earnings_summary(db: AsyncSession):
         }
     except Exception as e:
         raise e
+
+
+def serialize_driver(driver, trip_dict: dict):
+    driver = DriverReadSchema.model_validate(driver)
+    driver_data = driver.model_dump()
+    trip_dict["driver"] = driver_data
+    trip_dict.pop("driver_id", None)
+    return trip_dict
+
+
+def remove_extra_fields_from_driver(driver_details: dict):
+    driver_profile_picture_info = driver_details.get("s3_image_info", None)
+    if driver_profile_picture_info:
+        image_info = S3ObjectInfo.model_validate(driver_profile_picture_info)
+        driver_details["profile_picture_url"] = image_info.url
+    safe_driver = CustomerSafeDriverReadSchema.model_validate(
+        driver_details
+    ).model_dump(exclude_none=True)
+
+    return safe_driver
+
+def remove_extra_fields_from_driver_for_admin(driver_details: dict):
+    driver_profile_picture_info = driver_details.get("s3_image_info", None)
+    if driver_profile_picture_info:
+        image_info = S3ObjectInfo.model_validate(driver_profile_picture_info)
+        driver_details["profile_picture_url"] = image_info.url
+    safe_driver = AdminSafeDriverReadSchema.model_validate(
+        driver_details
+    ).model_dump(exclude_none=True)
+
+    return safe_driver

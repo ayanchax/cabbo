@@ -230,6 +230,12 @@
             <div class="detail-row"><span class="label">Expected end</span><span class="value">{{ expected_end_date or
                     end_date or '-' }}</span></div>
 
+            {% if timezone %}
+<div style="margin-top:4px; text-align:right; font-size:0.7rem; color:#6b7280;">
+    Timezone: {{ timezone }}
+</div>
+{% endif %}
+
         </div>
 
         <!-- Package Details -->
@@ -297,7 +303,8 @@
                 <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
                     {% for inc in inclusions %}
                     <li style="margin-bottom: 8px; font-size: 12px;">
-                        <span style="margin-right: 8px;">✅</span>{{ inc }}
+                        <span style="margin-right: 8px;">✅</span>{{ inc.label if inc.label is defined else inc }}
+                         
                     </li>
                     {% endfor %}
                 </ul>
@@ -305,7 +312,8 @@
                 <ul style="margin: 8px 0 0 18px; color: #4a5568; font-size: small; list-style: none;">
                     {% for ex in exclusions %}
                     <li style="margin-bottom: 8px; font-size: 12px;">
-                        <span style="margin-right: 8px;">❌</span>{{ ex }}
+                        <span style="margin-right: 8px;">❌</span>{{ ex.label if ex.label is defined else ex }}
+                         
                     </li>
                     {% endfor %}
                 </ul>
@@ -339,7 +347,7 @@
         {% endif %}
 
         <!-- View Trip CTA -->
-        <a href="{{ app_url }}/trips/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
+        <a href="{{ app_url }}/booking/{{ booking_id }}" class="cta" style="color:#fff!important;text-decoration:none;">📲
             View Trip in App</a>
 
         <!-- Footer with Terms & Conditions -->
@@ -348,7 +356,8 @@
             If you have any questions or need to make changes, please contact our support team.<br>
             Wishing you a pleasant journey!<br><br>
             This email was sent by <b>{{ app_name }}</b>.<br>
-            Maa Sarada Tours and Travels, Bangalore, India<br>
+            {{ public_company.legal_name }}<br>
+            CIN: {{ public_company.cin }} | GSTIN: {{ public_company.gstin }}<br>
             &copy; {{ current_year }} {{ app_name }}. All rights reserved.
 
         </div>

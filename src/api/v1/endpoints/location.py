@@ -1,51 +1,85 @@
-from fastapi import APIRouter, Query
-from typing import Union
-from services.location_service import get_state_from_location, get_distance_km
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
+from core.exceptions import PLACE_NOT_FOUND, CabboException
+from core.security import validate_customer_token, validate_user_token
+from models.customer.customer_orm import Customer
+from models.map.location_schema import MapUrl, LocationProximity
+from models.user.user_orm import User
+from services.geography_service import get_allowed_countries
+from services.location_service import (
+    get_map_url_from_place_id,
+    get_location_from_coordinates,
+    get_location_from_place_id,
+    get_location_suggestions,
+)
 
 router = APIRouter()
 
 
-@router.get("/state")
-def get_state(
-    location: Union[str, None] = Query(
-        None, description="Location name or lat,lng as 'lat,lng'"
+@router.get("/search")
+async def search_location(
+    _: Customer = Depends(validate_customer_token),
+    query: str = Query(..., description="Partial location string to search for"),
+    lat: float = Query(None, description="Optional latitude to bias results"),
+    lng: float = Query(None, description="Optional longitude to bias results"),
+    limit: int = Query(5, description="Maximum number of suggestions to return"),
+    session_token: Optional[str] = Query(
+        None, description="Session token for caching and improving location suggestions"
+    ),
+):
+    """
+    Get location suggestions based on a partial query string.
+    """
+
+    return get_location_suggestions(
+        query,
+        allowed_countries=get_allowed_countries(),
+        proximity=LocationProximity(lat=lat, lng=lng) if lat and lng else None,
+        limit=limit,
+        session_token=session_token,
     )
+
+
+@router.get("/reverse-geocode")
+async def reverse_geocode(
+    _: Customer = Depends(validate_customer_token),
+    lat: float = Query(..., description="Latitude for reverse geocoding"),
+    lng: float = Query(..., description="Longitude for reverse geocoding"),
 ):
     """
-    Get the state name for a given location (string or lat,lng as 'lat,lng').
+    Get location details from latitude and longitude by reverse geocoding
     """
-    # If lat,lng string, convert to dict
-    if location and "," in location:
-        try:
-            lat, lng = map(float, location.split(","))
-            location_obj = {"lat": lat, "lng": lng}
-        except Exception:
-            return {"error": "Invalid lat,lng format. Use 'lat,lng' or a place name."}
-    else:
-        location_obj = location
-    state = get_state_from_location(location_obj)
-    return {"state": state}
+    return get_location_from_coordinates(lat, lng)
 
 
-@router.get("/distance")
-def get_distance(
-    origin: str = Query(..., description="Origin as place name or 'lat,lng'"),
-    destination: str = Query(..., description="Destination as place name or 'lat,lng'"),
+@router.get("/place-details")
+async def get_place_details(
+    _: Customer = Depends(validate_customer_token),
+    place_id: str = Query(..., description="Place ID to fetch details for"),
+    session_token: Optional[str] = Query(
+        None, description="Session token for caching and improving location suggestions"
+    ),
 ):
     """
-    Get the driving distance in km between two locations (place names or lat,lng).
+    Get location details from a place_id
     """
+    return get_location_from_place_id(place_id, session_token=session_token)
 
-    def parse_loc(loc):
-        if "," in loc:
-            try:
-                lat, lng = map(float, loc.split(","))
-                return {"lat": lat, "lng": lng}
-            except Exception:
-                return loc  # fallback to string
-        return loc
 
-    origin_obj = parse_loc(origin)
-    destination_obj = parse_loc(destination)
-    distance = get_distance_km(origin_obj, destination_obj)
-    return {"distance_km": distance}
+@router.get("/mapurl", response_model=MapUrl)
+async def get_map_url(
+    _: User = Depends(validate_user_token),
+    place_id: str = Query(..., description="Maps place ID to generate a map URL for"),
+):
+    """
+    Get a Maps URL from a place_id.
+    """
+    map_url = get_map_url_from_place_id(place_id)
+    if not map_url:
+        raise CabboException(
+            "Could not generate Maps URL for the provided place_id",
+            status_code=404,
+            error_code=PLACE_NOT_FOUND,
+        )
+
+    return MapUrl(place_id=place_id.strip(), map_url=map_url)

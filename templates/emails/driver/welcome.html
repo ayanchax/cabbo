@@ -70,8 +70,9 @@
         <hr>
         <p class="footer">
             This email was sent by <b>{{app_name}}</b>.<br>
-            Maa Sarada Tours and Travels, Bangalore, India<br>
-            &copy; 2025 {{app_name}}. All rights reserved.
+            {{ public_company.legal_name }}<br>
+            CIN: {{ public_company.cin }} | GSTIN: {{ public_company.gstin }}<br>
+            &copy; {{ current_year }} {{app_name}}. All rights reserved.
         </p>
     </div>
 </body>

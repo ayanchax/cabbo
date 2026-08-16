@@ -1,7 +1,7 @@
 from typing import Optional
 import uuid
 
-from core.exceptions import CabboException
+from core.exceptions import GENERIC_EXCEPTION, CabboException
 from models.policies.dispute_enum import DisputeTypeEnum
 from models.policies.dispute_schema import DisputeUpdateSchema, InitialDisputeSchema
 from models.support.support_schema import CommentSchema
@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.policies.dispute_orm import Dispute as DisputeORM
 from models.policies.dispute_schema import DisputeSchema
 from sqlalchemy import select
-
-
+import logging
+log = logging.getLogger(__name__)
 async def register_trip_dispute(
     trip: TripDetailSchema,
     payload: Optional[InitialDisputeSchema],
@@ -24,7 +24,7 @@ async def register_trip_dispute(
     """
     existing_dispute = await get_dispute_by_trip_id(trip_id=trip.id, db=db)
     if existing_dispute:
-        print(
+        log.info(
             f"Existing dispute record found for trip {trip.id}, removing it before adding new dispute details"
         )
         await _remove_dispute_by_trip_id(trip_id=trip.id, db=db, hard_delete=True)
@@ -123,7 +123,7 @@ async def _remove_dispute_by_trip_id(
         return False
     except Exception as e:
         await db.rollback()
-        print(f"Error removing dispute record for trip {trip_id}: {str(e)}")
+        log.error(f"Error removing dispute record for trip {trip_id}: {str(e)}")
         return False
 
 async def add_comment_to_dispute_by_trip_id(trip_id: str, comment: CommentSchema, db: AsyncSession, requestor: str) -> Optional[DisputeSchema]:
@@ -152,10 +152,10 @@ async def add_comment_to_dispute_by_trip_id(trip_id: str, comment: CommentSchema
             await db.refresh(dispute_record)
 
             return DisputeSchema.model_validate(dispute_record)
-        raise CabboException("Dispute not found for the specified trip.", status_code=404)
+        raise CabboException("Dispute not found for the specified trip.", status_code=404, error_code=GENERIC_EXCEPTION)
     except Exception as e:
         await db.rollback()
-        print(f"Error adding comment to dispute record for trip {trip_id}: {str(e)}")
+        log.error(f"Error adding comment to dispute record for trip {trip_id}: {str(e)}")
         raise e
 
 async def update_dispute_by_trip_id(trip_id: str, payload: DisputeUpdateSchema, db: AsyncSession, requestor: str)-> Optional[DisputeSchema]:
@@ -199,8 +199,16 @@ async def update_dispute_by_trip_id(trip_id: str, payload: DisputeUpdateSchema, 
             await db.refresh(dispute_record)
 
             return DisputeSchema.model_validate(dispute_record)
-        raise CabboException("Dispute not found for the specified trip.", status_code=404)
+        raise CabboException("Dispute not found for the specified trip.", status_code=404, error_code=GENERIC_EXCEPTION)
     except Exception as e:
         await db.rollback()
-        print(f"Error updating dispute record for trip {trip_id}: {str(e)}")
+        log.error(f"Error updating dispute record for trip {trip_id}: {str(e)}")
         raise e
+    
+def serialize_dispute(dispute, trip_dict: dict):
+    dispute = DisputeSchema.model_validate(dispute)
+    dispute_data = dispute.model_dump()
+    trip_dict["dispute"] = dispute_data
+    trip_dict["dispute"].pop("id", None)
+    trip_dict["dispute"].pop("entity_id", None)
+    return trip_dict

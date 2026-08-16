@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{host}}:{{port}}/api/{{api_version}}/customers/{{customer_id}}/passenger/{{passenger_id}}/update"
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \    \"name\":\"Sam\",\r
+
+    \    \"phone_number\":\"9908109902\"\r
+
+    }"
+order: 2000

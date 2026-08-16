@@ -1,7 +1,7 @@
 from typing import List, Optional, Union
 
 from sqlalchemy import select
-from core.exceptions import CabboException
+from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.security import RoleEnum
 from models.common import AppBackgroundTask, FlagsEnum
 from models.customer.customer_schema import CustomerRead
@@ -9,6 +9,7 @@ from models.driver.driver_orm import TripRating
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.trip.trip_enums import TripStatusEnum
 from models.trip.trip_schema import (
+    CustomerTripRatingReadSchema,
     TripRatingCreateSchema,
     TripRatingResponseSchema,
     TripRatingSchema,
@@ -49,31 +50,14 @@ async def save_trip_review(
     trip = await async_get_trip_by_booking_id(booking_id=booking_id, db=db)
 
     if not trip:
-        raise CabboException("Trip not found for the given booking_id", status_code=404)
+        raise CabboException("Trip not found for the given booking_id", status_code=404, error_code=GENERIC_EXCEPTION)
 
-    if trip.creator_type != RoleEnum.customer:
+    eligible_for_review = (trip.status == TripStatusEnum.completed or trip.status == TripStatusEnum.cancelled) and trip.balance_payment == 0 and trip.creator_type == RoleEnum.customer and trip.creator_id == customer_id and trip.driver_id is not None
+    if  not eligible_for_review:
         raise CabboException(
-            "Only customers can provide rating for trip",
-            status_code=403,
+            "Trip can be rated only if it is completed or cancelled with balance payment made and driver assigned", status_code=400, error_code=GENERIC_EXCEPTION
         )
-
-    if trip.creator_id != customer_id:
-        raise CabboException(
-            "Customer is not the creator of the trip and cannot provide rating for the trip",
-            status_code=403,
-        )
-
-    if trip.status != TripStatusEnum.completed:
-        raise CabboException(
-            "Trip can be rated only if it is completed", status_code=400
-        )
-
-    if not trip.driver_id:
-        raise CabboException(
-            "Driver not assigned for the trip yet. Cannot provide rating for the trip.",
-            status_code=400,
-        )
-
+    
     if validate_time_window:
         # If start_datetime of the trip is in the past then only allow to provide rating
         # We do not want to have spam of ratings for the driver for trips that are scheduled for the future
@@ -85,6 +69,7 @@ async def save_trip_review(
             raise CabboException(
                 "Trip start datetime not available. Cannot validate time window for providing trip rating.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
         current_time = datetime.now(timezone.utc)
 
@@ -92,6 +77,7 @@ async def save_trip_review(
             raise CabboException(
                 "Trip can be rated only if it has started. Cannot provide rating for the trip before it starts.",
                 status_code=400,
+                error_code=GENERIC_EXCEPTION,
             )
 
     # Check if a rating already exists for the trip by the customer for the driver and update the existing rating and feedback with the new values provided in the payload if it exists, otherwise create a new rating entry for the trip by the customer for the driver with the values provided in the payload and return the saved or updated driver rating details including trip_id, driver_id, customer_id,
@@ -106,11 +92,11 @@ async def save_trip_review(
     existing_rating_record = existing_rating_record.scalar_one_or_none()
     response_dict = {"action": None, "message": None}
     if existing_rating_record:
-        await update_trip_review(
-            rating_record=existing_rating_record, payload=payload, db=db
+        raise CabboException(
+            "Trip review already exists for the trip by the customer for the driver",
+            status_code=400,
+            error_code=GENERIC_EXCEPTION,
         )
-        response_dict["action"] = "update"
-        response_dict["message"] = "Your trip review has been updated successfully."
     else:
         await create_trip_review(
             trip_id=trip.id,
@@ -612,3 +598,27 @@ async def update_trip_review_flag_status(
     except Exception as e:
         await db.rollback()
         raise e
+    
+def serialize_rating(trip_dict:dict):
+    rating = trip_dict.get("trip_rating")
+    if isinstance(rating, list):
+        trip_id = trip_dict.get("id")
+        rating = next(
+            (
+                item
+                for item in rating
+                if (item.get("trip_id") if isinstance(item, dict) else getattr(item, "trip_id", None))
+                == trip_id
+            ),
+            None,
+        )
+
+    if rating is not None:
+        rating_schema = CustomerTripRatingReadSchema.model_validate(rating)
+        trip_dict["rating"] = rating_schema.model_dump(exclude_none=True, exclude_unset=True)
+    else:
+        trip_dict["rating"] = None
+
+    trip_dict.pop("trip_rating", None)
+    
+    return trip_dict

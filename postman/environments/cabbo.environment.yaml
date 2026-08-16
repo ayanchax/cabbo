@@ -1,0 +1,27 @@
+name: cabbo
+values:
+  - key: bearer-token
+    secret: true
+  - key: passenger_id
+    value: ''
+  - key: customer_id
+    value: ''
+  - key: hourly_package_id
+    value: ''
+  - key: super-admin-bearer-token
+    secret: true
+  - key: example-admin-user-id
+    value: ''
+  - key: example-driver-id
+    value: ''
+  - key: driver-admin-bearer-token
+    value: ''
+  - key: api_version
+    value: ''
+  - key: host
+    value: ''
+  - key: port
+    value: ''
+  - key: super-admin-secret
+    value: ''
+color: 120
