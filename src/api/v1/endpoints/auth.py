@@ -4,7 +4,11 @@ from core.security import (
     set_cookie,
 )
 from db.database import a_yield_mysql_session
-from services.auth.auth_service import create_session, get_existing_active_session
+from services.auth.auth_service import (
+    create_session,
+    get_existing_active_session,
+    revoke_expired_sessions_in_background,
+)
 from services.auth.session_constants import CUSTOMER_SESSION_COOKIE_NAME, CUSTOMER_SESSION_LIFETIME
 from services.customer_service import (
     a_create_customer,
@@ -240,6 +244,7 @@ async def initiate_login(
 async def login(
     request: Request,
     response: Response,
+    background_tasks: BackgroundTasks,
     payload: CustomerLoginRequest = Depends(validate_customer_login_payload),
     db: AsyncSession = Depends(a_yield_mysql_session),
 ):
@@ -269,6 +274,13 @@ async def login(
 
     #Send cookie from server.
     set_cookie(response=response, key = CUSTOMER_SESSION_COOKIE_NAME, value=session_token, lifetime=CUSTOMER_SESSION_LIFETIME)
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(
+        revoke_expired_sessions_in_background,
+        task_name="revoke_expired_customer_sessions",
+        entity_id=str(customer.id),
+        role=RoleEnum.customer,
+    )
     return CustomerLoginResponse(
         authenticated=True,
     )

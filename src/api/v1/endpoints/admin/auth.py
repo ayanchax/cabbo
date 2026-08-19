@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Request, Response
 from core.exceptions import (
     ALREADY_LOGGED_IN,
     CREDENTIALS_NOT_PROVIDED,
@@ -20,9 +20,17 @@ from models.user.user_schema import (
     UserLoginRequest,
     UserLoginResponse,
 )
-from services.auth.auth_service import create_session, get_existing_active_session
+from services.auth.auth_service import (
+    create_session,
+    get_existing_active_session,
+    revoke_expired_sessions_in_background,
+)
 
-from services.auth.session_constants import SYSTEM_USER_SESSION_COOKIE_NAME, SYSTEM_USER_SESSION_LIFETIME
+from services.auth.session_constants import (
+    SYSTEM_USER_SESSION_COOKIE_NAME,
+    SYSTEM_USER_SESSION_LIFETIME,
+)
+from services.orchestration_service import BackgroundTaskOrchestrator
 from services.user_service import (
     a_get_user_by_username,
 )
@@ -36,6 +44,7 @@ router = APIRouter()
 async def login_admin_user(
     request: Request,
     response: Response,
+    background_tasks: BackgroundTasks,
     payload: UserLoginRequest = Body(...),
     db: AsyncSession = Depends(a_yield_mysql_session),
 ):
@@ -106,4 +115,13 @@ async def login_admin_user(
         value=session_token,
         lifetime=SYSTEM_USER_SESSION_LIFETIME,
     )
+
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(
+        revoke_expired_sessions_in_background,
+        task_name="revoke_expired_system_user_sessions",
+        entity_id=str(user.id),
+        role=RoleEnum.system,
+    )
+
     return UserLoginResponse(authenticated=True)
