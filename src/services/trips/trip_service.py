@@ -1924,17 +1924,21 @@ async def update_non_cost_impacting_trip_fields(
             TripTypeEnum.airport_pickup,
             TripTypeEnum.airport_drop,
         ]:
-            if payload.flight_number is not None:
+            
+            if "flight_number" in payload.model_fields_set:
                 trip.flight_number = payload.flight_number
-            if payload.terminal_number is not None:
-                trip.terminal_number = payload.terminal_number
+
+            if "terminal_number" in payload.model_fields_set:
+                    trip.terminal_number = payload.terminal_number
+
             if trip.placard_required and payload.placard_name is not None:
                 trip.placard_name = payload.placard_name
 
-        if payload.alternate_customer_phone is not None:
+         
+        if "alternate_customer_phone" in payload.model_fields_set:
             trip.alternate_customer_phone = payload.alternate_customer_phone
 
-        if payload.special_needs_requests is not None:
+        if "special_needs_requests" in payload.model_fields_set:
             trip.special_needs_requests = payload.special_needs_requests
 
         await db.commit()
