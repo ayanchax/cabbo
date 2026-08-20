@@ -123,6 +123,10 @@ def classify_trip_type(
     config_store: ConfigStore = None,
 ) -> TripClassificationResult:
     # Rule 1: No dropoff → local (hourly rental, no fixed destination)
+    # Preserve this as rental intent even when pickup resolves to an
+    # outstation-supported state. Outstation needs a concrete destination;
+    # a state-only pickup like "Kerala" with no dropoff should be validated
+    # against local region availability.
     if not dropoff:
         # Not checking if airport pickup here, as customer can want a rental without a fixed destination that happens to be at an airport (e.g. "rent a car for the day, I'll decide where to go later"). 
         return TripClassificationResult(TripTypeEnum.local, None, False)

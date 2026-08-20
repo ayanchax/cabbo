@@ -5,6 +5,8 @@ from core.exceptions import CabboException, GENERIC_EXCEPTION
 from core.trip_helpers import attach_relationships_to_trip
 from models.common import AppBackgroundTask
 from models.customer.customer_orm import Customer
+from models.policies.cancelation_schema import CancelationSchema
+from models.policies.dispute_schema import InitialDisputeSchema
 from models.trip.trip_enums import CancellationSubStatusEnum, TripResponseView, TripStatusEnum, TripTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
@@ -284,7 +286,9 @@ async def _cancelled(
     requestor: Union[User, Customer],
     payload: Optional[AdditionalDetailsOnTripStatusChange],
 ):
-     
+        if not payload:
+            payload = AdditionalDetailsOnTripStatusChange()
+
         existing_cancellation_record = await get_cancellation_by_trip_id(
             trip_id=trip.id, db=db
         )
@@ -314,17 +318,21 @@ async def _cancelled(
                 driver_id=trip.driver_id, db=db, make_available=True, commit=False
             )
 
+        cancelation_detail = payload.cancelation_detail if payload else None
+        if payload and payload.reason:
+            if cancelation_detail:
+                cancelation_detail.reason = cancelation_detail.reason or payload.reason
+            else:
+                cancelation_detail = CancelationSchema(reason=payload.reason)
+
         cancelation_sub_status = get_cancelation_sub_status(
             requestor=requestor,
             creator_id=trip.creator_id,
-            cancelation_detail=payload.cancelation_detail if payload else None,
+            cancelation_detail=cancelation_detail,
         )
+
         cancelation_payload = get_cancelation_payload(
-            cancelation_detail=(
-                payload.cancelation_detail
-                if payload and payload.cancelation_detail
-                else None
-            ),
+            cancelation_detail=cancelation_detail,
             trip_id=trip.id,
             user_id=requestor.id,
             cancelation_sub_status=cancelation_sub_status,
@@ -414,10 +422,20 @@ async def _dispute(
             driver_id=trip.driver_id, db=db, make_available=True, commit=False
         )
 
+        dispute_detail = payload.dispute_detail if payload else None
+        if payload and payload.reason:
+            if dispute_detail:
+                dispute_detail.reason = dispute_detail.reason or payload.reason
+            else:
+                dispute_detail = InitialDisputeSchema(
+                    reason=payload.reason,
+                    dispute_type=None,
+                )
+
         # Log audit trail for marking trip as dispute
         reason = (
-            payload.dispute_detail.reason
-            if payload and payload.dispute_detail and payload.dispute_detail.reason
+            dispute_detail.reason
+            if dispute_detail and dispute_detail.reason
             else "No dispute reason provided"
         )
         log.info(f"Logging audit trail for trip dispute with reason: {reason}")
@@ -440,11 +458,7 @@ async def _dispute(
             fn=register_trip_dispute,
             kwargs={
                 "trip": trip_schema,
-                "payload": (
-                    payload.dispute_detail
-                    if payload and payload.dispute_detail
-                    else None
-                ),
+                "payload": dispute_detail,
                 "db": db,
                 "requestor": requestor.id,
                 "silently_fail": True,  # We want to ensure that even if creating dispute record fails for some reason, it should not affect the main flow of marking trip as dispute and free up driver. So we will silently fail any errors in the background task and log them for future reference.

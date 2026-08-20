@@ -545,6 +545,10 @@ def validate_serviceable_area(
                     status_code=400,
                     error_code=LOCAL_TRIP_ORIGIN_REQUIRED,
                 )
+            # Local rentals are serviceable at region granularity. A pickup may
+            # belong to an outstation-supported state, but without a dropoff it
+            # is still a rental search and must resolve to a configured local
+            # region before packages/pricing can be offered.
             origin_region = get_region_from_location(
                 location=pickup, config_store=config_store
             )
@@ -957,6 +961,10 @@ def validate_initial_serviceable_area(
                     status_code=400,
                     error_code=LOCAL_TRIP_ORIGIN_REQUIRED,
                 )
+            # Local rentals are serviceable at region granularity. A pickup may
+            # belong to an outstation-supported state, but without a dropoff it
+            # is still a rental search and must resolve to a configured local
+            # region before packages/pricing can be offered.
             origin_region = get_region_from_location(
                 location=pickup, config_store=config_store
             )

@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import SESSION_CREATION_FAILED, CabboException
+from db.database import AsyncSessionLocal
 from models.customer.customer_orm import CustomerSession
 from models.customer.customer_schema import CustomerSessionSchema
 from services.auth.session_constants import (
@@ -76,7 +77,7 @@ async def update_customer_session_last_seen(
     db: AsyncSession,
     customer_session: CustomerSession,
     now: datetime | None = None,
-    update_threshold_minutes = 15
+    update_threshold_minutes=15,
 ) -> bool:
     now = as_utc_datetime(now or datetime.now(timezone.utc))
     last_seen_at = as_utc_datetime(customer_session.last_seen_at)
@@ -90,7 +91,10 @@ async def update_customer_session_last_seen(
         await db.rollback()
         return False
 
-async def get_existing_active_customer_session(customer_id:str, db:AsyncSession, now: datetime | None = None):
+
+async def get_existing_active_customer_session(
+    customer_id: str, db: AsyncSession, now: datetime | None = None
+):
     now = now or datetime.now(timezone.utc)
     result = await db.execute(
             select(CustomerSession).where(
@@ -102,3 +106,65 @@ async def get_existing_active_customer_session(customer_id:str, db:AsyncSession,
         )
     customer_session = result.scalar_one_or_none()
     return customer_session
+
+
+async def get_existing_expired_customer_sessions(
+    customer_id: str, db: AsyncSession, now: datetime | None = None
+):
+    now = now or datetime.now(timezone.utc)
+    result = await db.execute(
+        select(CustomerSession).where(
+            CustomerSession.customer_id == customer_id,
+            CustomerSession.expires_at < now,
+            or_(
+                CustomerSession.revoked_at.is_(None),
+                CustomerSession.is_active.is_(True),
+            ),
+        )
+    )
+    return result.scalars().all()
+
+
+async def revoke_expired_customer_sessions(
+    customer_id: str,
+    db: AsyncSession,
+    now: datetime | None = None,
+) -> int:
+    now = now or datetime.now(timezone.utc)
+    try:
+        result = await db.execute(
+            update(CustomerSession)
+            .where(
+                CustomerSession.customer_id == customer_id,
+                CustomerSession.expires_at < now,
+                or_(
+                    CustomerSession.revoked_at.is_(None),
+                    CustomerSession.is_active.is_(True),
+                ),
+            )
+            .values(
+                is_active=False,
+                revoked_at=case(
+                    (CustomerSession.revoked_at.is_(None), now),
+                    else_=CustomerSession.revoked_at,
+                ),
+            )
+        )
+        await db.commit()
+        revoked_count = result.rowcount or 0
+        log.info(
+            "Revoked expired customer sessions",
+            extra={"customer_id": customer_id, "revoked_count": revoked_count},
+        )
+        return revoked_count
+    except Exception as e:
+        await db.rollback()
+        log.error(
+            f"Failed to revoke expired customer sessions for customer {customer_id}: {e}"
+        )
+        return 0
+
+
+async def revoke_expired_customer_sessions_in_background(customer_id: str) -> None:
+    async with AsyncSessionLocal() as db:
+        await revoke_expired_customer_sessions(customer_id=customer_id, db=db)

@@ -15,10 +15,17 @@ from services.auth.customer_session_service import (
     create_customer_session,
     get_customer_session,
     get_existing_active_customer_session,
+    revoke_expired_customer_sessions_in_background,
     revoke_customer_session,
     update_customer_session_last_seen,
 )
-from services.auth.system_user_session_service import create_system_user_session, get_existing_active_system_user_session, get_system_user_session, revoke_system_user_session
+from services.auth.system_user_session_service import (
+    create_system_user_session,
+    get_existing_active_system_user_session,
+    get_system_user_session,
+    revoke_expired_system_user_sessions_in_background,
+    revoke_system_user_session,
+)
 from services.otp_rate_limit_service import get_client_ip
 
 
@@ -91,3 +98,15 @@ async def revoke_session(session_id: str, role: RoleEnum, db: AsyncSession):
     if role == RoleEnum.system:  # System user
         return await revoke_system_user_session(db=db, token_hash=token_hash)
     return False
+
+
+async def revoke_expired_sessions_in_background(
+    entity_id: str,
+    role: RoleEnum,
+) -> None:
+    if role == RoleEnum.customer:
+        await revoke_expired_customer_sessions_in_background(customer_id=entity_id)
+        return
+
+    if role == RoleEnum.system:
+        await revoke_expired_system_user_sessions_in_background(user_id=entity_id)
