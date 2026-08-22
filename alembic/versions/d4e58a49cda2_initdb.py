@@ -1,8 +1,8 @@
-"""initdevdb
+"""initdb
 
-Revision ID: 8fab71f323af
+Revision ID: d4e58a49cda2
 Revises: 
-Create Date: 2026-07-10 02:04:52.011364
+Create Date: 2026-08-22 14:41:30.231174
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision: str = '8fab71f323af'
+revision: str = 'd4e58a49cda2'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -139,8 +139,6 @@ def upgrade() -> None:
     sa.Column('is_email_verified', sa.Boolean(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('bearer_token', sa.Text(), nullable=True),
-    sa.Column('last_seen', sa.DateTime(), nullable=True),
     sa.Column('is_suspended', sa.Boolean(), nullable=False, comment='Indicates if the customer is suspended from using the service due to policy violations or other disputes and issues.'),
     sa.Column('suspension_reason', sa.Text(), nullable=True, comment='If the customer is suspended, this field can store the reason for suspension.'),
     sa.Column('s3_image_info', sa.JSON(), nullable=True, comment="Stores S3 key and URL for the customer's profile picture if using S3 for storage."),
@@ -148,28 +146,14 @@ def upgrade() -> None:
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('id')
     )
+    op.create_index('ix_customers_active_created', 'customers', ['is_active', 'created_at'], unique=False)
     op.create_index(op.f('ix_customers_phone_number'), 'customers', ['phone_number'], unique=True)
-    op.create_table('disputes',
-    sa.Column('id', mysql.CHAR(length=36), nullable=False),
-    sa.Column('entity_id', mysql.CHAR(length=36), nullable=False),
-    sa.Column('reason', sa.String(length=255), nullable=False),
-    sa.Column('dispute_type', sa.Enum('fare', 'service', 'other', 'unknown', name='disputetypeenum'), nullable=False, comment='Type of dispute, e.g., fare, service, etc.'),
-    sa.Column('comments', sa.JSON(), nullable=True),
-    sa.Column('details', sa.JSON(), nullable=True),
-    sa.Column('raised_by', mysql.CHAR(length=36), nullable=False),
-    sa.Column('status', sa.Enum('open', 'in_progress', 'resolved', 'closed', name='ticketstatusenum'), nullable=False),
-    sa.Column('dispute_trigger', sa.Enum('manual', 'automatic', name='disputetriggerenum'), nullable=True, comment="Description of how the dispute was triggered, e.g., 'manual', 'automatic'"),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('entity_id')
-    )
-    op.create_index(op.f('ix_disputes_id'), 'disputes', ['id'], unique=True)
+    op.create_index('ix_customers_verification_flags', 'customers', ['is_active', 'is_phone_verified', 'is_email_verified'], unique=False)
     op.create_table('drivers',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('phone', sa.String(length=32), nullable=False),
+    sa.Column('secondary_phone', sa.String(length=32), nullable=True),
     sa.Column('email', sa.String(length=255), nullable=True),
     sa.Column('gender', sa.Enum('male', 'female', 'transgender', 'prefer_not_to_disclose', name='gender_enum'), nullable=False),
     sa.Column('dob', sa.DateTime(timezone=True), nullable=True),
@@ -182,6 +166,9 @@ def upgrade() -> None:
     sa.Column('fuel_type', sa.Enum('diesel', 'petrol', 'cng', name='fueltypeenum'), nullable=False),
     sa.Column('cab_model_and_make', sa.String(length=255), nullable=False),
     sa.Column('cab_registration_number', sa.String(length=32), nullable=False),
+    sa.Column('capacity', sa.String(length=32), nullable=True),
+    sa.Column('color', sa.String(length=32), nullable=True),
+    sa.Column('roof_carrier_available', sa.Boolean(), nullable=False),
     sa.Column('cab_amenities', sa.JSON(), nullable=True),
     sa.Column('payment_mode', sa.Enum('gpay', 'phonepe', 'paytm', 'bank_transfer', name='paymentmodeenum'), nullable=False),
     sa.Column('payment_phone_number', sa.String(length=32), nullable=True),
@@ -195,14 +182,16 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_by', mysql.CHAR(length=36), nullable=False, comment='ID of the user or system that created this record'),
-    sa.Column('bearer_token', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('cab_registration_number'),
     sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('phone')
+    sa.UniqueConstraint('phone'),
+    sa.UniqueConstraint('secondary_phone')
     )
+    op.create_index('ix_drivers_active_available_created', 'drivers', ['is_active', 'is_available', 'created_at'], unique=False)
     op.create_index(op.f('ix_drivers_created_by'), 'drivers', ['created_by'], unique=False)
     op.create_index(op.f('ix_drivers_id'), 'drivers', ['id'], unique=True)
+    op.create_index('ix_drivers_name', 'drivers', ['name'], unique=False)
     op.create_table('fuel_types_master',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('name', sa.Enum('diesel', 'petrol', 'cng', name='fueltypeenum'), nullable=False),
@@ -216,7 +205,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_fuel_types_master_id'), 'fuel_types_master', ['id'], unique=True)
     op.create_table('kyc_document_types',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
-    sa.Column('document_type', sa.Enum('aadhar_card', 'pan_card', 'driving_license', 'passport', 'voter_id', 'vehicle_registration_certificate', 'vehicle_insurance', 'pollution_certificate', 'bank_statement', 'utility_bill', name='kycdocumenttypeenum'), nullable=False),
+    sa.Column('document_type', sa.Enum('aadhar_card', 'pan_card', 'driving_license', 'passport', 'voter_id', 'vehicle_registration_certificate', 'vehicle_insurance', 'pollution_certificate', 'fitness_certificate', 'bank_statement', 'utility_bill', name='kycdocumenttypeenum'), nullable=False),
     sa.Column('document_alias', sa.String(length=255), nullable=True),
     sa.Column('document_description', sa.String(length=255), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
@@ -238,29 +227,9 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('id')
     )
+    op.create_index(op.f('ix_pre_onboarding_customers_otp_hash'), 'pre_onboarding_customers', ['otp_hash'], unique=False)
     op.create_index(op.f('ix_pre_onboarding_customers_phone_number'), 'pre_onboarding_customers', ['phone_number'], unique=True)
-    op.create_table('refunds',
-    sa.Column('id', mysql.CHAR(length=36), nullable=False),
-    sa.Column('entity_id', sa.String(length=255), nullable=False),
-    sa.Column('policy_id', sa.String(length=255), nullable=True),
-    sa.Column('refund_status', sa.Enum('initiated', 'processed', 'pending', 'completed', 'failed', 'unknown', name='refundstatus'), nullable=True, comment='Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.'),
-    sa.Column('refund_amount', sa.Float(), nullable=False),
-    sa.Column('refund_description', sa.Text(), nullable=False),
-    sa.Column('refund_details', sa.JSON(), nullable=True),
-    sa.Column('refund_initiated_datetime', sa.DateTime(), nullable=True),
-    sa.Column('refund_retried_datetime', sa.DateTime(), nullable=True),
-    sa.Column('refund_type', sa.Enum('full', 'partial', 'other', name='refundtype'), nullable=False),
-    sa.Column('refund_provider', sa.Enum('razorpay', 'stripe', 'phonepe', name='paymentprovider'), nullable=True, comment='Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.'),
-    sa.Column('refund_trigger', sa.Enum('manual', 'automatic', name='refundtrigger'), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_by', mysql.CHAR(length=36), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_refunds_entity_id'), 'refunds', ['entity_id'], unique=True)
-    op.create_index(op.f('ix_refunds_id'), 'refunds', ['id'], unique=True)
-    op.create_index(op.f('ix_refunds_policy_id'), 'refunds', ['policy_id'], unique=False)
+    op.create_index('ix_pre_onboarding_expires_at', 'pre_onboarding_customers', ['expires_at'], unique=False)
     op.create_table('seed_metadata',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('key', sa.Enum('INITIAL_SEED_COMPLETED', 'SEED_MASTER_DATA_V1', 'SEED_GEO_CORE_V1', 'SEED_GEO_REGIONS_V1', 'SEED_SUPPORT_CONTACTS_V1', 'SEED_PRICING_LOCAL_V1', 'SEED_PRICING_OUTSTATION_V1', 'SEED_PRICING_AIRPORT_V1', 'SEED_PRICING_PLATFORM_V1', 'SEED_PRICING_NIGHT_V1', 'SEED_PRICING_PERMIT_V1', 'SEED_PRICING_CANCELLATION_POLICY_V1', name='seed_key_enum'), nullable=False),
@@ -285,6 +254,7 @@ def upgrade() -> None:
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('ix_support_contacts_active_type_created', 'support_contacts', ['is_active', 'support_type', 'created_at'], unique=False)
     op.create_index(op.f('ix_support_contacts_email'), 'support_contacts', ['email'], unique=False)
     op.create_index(op.f('ix_support_contacts_id'), 'support_contacts', ['id'], unique=True)
     op.create_index(op.f('ix_support_contacts_is_active'), 'support_contacts', ['is_active'], unique=False)
@@ -353,22 +323,10 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('hash')
     )
+    op.create_index('ix_temp_trips_creator_created', 'temp_trips', ['creator_id', 'created_at'], unique=False)
     op.create_index(op.f('ix_temp_trips_creator_id'), 'temp_trips', ['creator_id'], unique=False)
     op.create_index(op.f('ix_temp_trips_id'), 'temp_trips', ['id'], unique=True)
     op.create_index(op.f('ix_temp_trips_package_id'), 'temp_trips', ['package_id'], unique=False)
-    op.create_table('trip_cancellations',
-    sa.Column('id', mysql.CHAR(length=36), nullable=False),
-    sa.Column('entity_id', mysql.CHAR(length=36), nullable=False),
-    sa.Column('canceled_by', mysql.CHAR(length=36), nullable=False),
-    sa.Column('cancellation_sub_status', sa.Enum('none', 'customer_cancelled', 'customer_no_show', 'driver_cancelled', 'driver_unavailable', 'driver_no_show', 'other', name='cancellation_sub_status_enum'), nullable=False),
-    sa.Column('reason', sa.String(length=255), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_trip_cancellations_entity_id'), 'trip_cancellations', ['entity_id'], unique=True)
-    op.create_index(op.f('ix_trip_cancellations_id'), 'trip_cancellations', ['id'], unique=True)
     op.create_table('trip_types_master',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('trip_type', sa.Enum('local', 'outstation', 'airport_pickup', 'airport_drop', 'airport_general', name='triptypeenum'), nullable=False),
@@ -395,7 +353,6 @@ def upgrade() -> None:
     sa.Column('dob', sa.DateTime(), nullable=True),
     sa.Column('emergency_contact_name', sa.String(length=255), nullable=True),
     sa.Column('emergency_contact_number', sa.String(length=20), nullable=True),
-    sa.Column('bearer_token', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_modified', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_by', mysql.CHAR(length=36), nullable=False),
@@ -434,6 +391,27 @@ def upgrade() -> None:
     op.create_index('idx_user_recent', 'customer_recent_locations', ['customer_id', 'last_used_at'], unique=False)
     op.create_index(op.f('ix_customer_recent_locations_customer_id'), 'customer_recent_locations', ['customer_id'], unique=False)
     op.create_index(op.f('ix_customer_recent_locations_place_id'), 'customer_recent_locations', ['place_id'], unique=False)
+    op.create_table('customer_sessions',
+    sa.Column('id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('customer_id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('token_hash', sa.String(length=64), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_seen_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('user_agent', sa.String(length=512), nullable=True),
+    sa.Column('ip_address', sa.String(length=45), nullable=True),
+    sa.Column('location', sa.String(length=120), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('session_metadata', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['customer_id'], ['customers.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
+    op.create_index(op.f('ix_customer_sessions_customer_id'), 'customer_sessions', ['customer_id'], unique=False)
+    op.create_index('ix_customer_sessions_customer_id_is_active', 'customer_sessions', ['customer_id', 'is_active'], unique=False)
+    op.create_index(op.f('ix_customer_sessions_expires_at'), 'customer_sessions', ['expires_at'], unique=False)
+    op.create_index(op.f('ix_customer_sessions_token_hash'), 'customer_sessions', ['token_hash'], unique=True)
     op.create_table('fixed_platform_pricing',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('country_id', mysql.CHAR(length=36), nullable=True, comment='FK to countries_master; null means applies to all countries'),
@@ -460,6 +438,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('id'),
     sa.UniqueConstraint('phone_number')
     )
+    op.create_index('ix_passengers_customer_active', 'passengers', ['customer_id', 'is_active'], unique=False)
     op.create_index(op.f('ix_passengers_customer_id'), 'passengers', ['customer_id'], unique=False)
     op.create_table('states_master',
     sa.Column('id', sa.String(length=36), nullable=False),
@@ -477,6 +456,27 @@ def upgrade() -> None:
     op.create_index(op.f('ix_states_master_country_id'), 'states_master', ['country_id'], unique=False)
     op.create_index(op.f('ix_states_master_id'), 'states_master', ['id'], unique=True)
     op.create_index(op.f('ix_states_master_state_code'), 'states_master', ['state_code'], unique=True)
+    op.create_table('system_user_sessions',
+    sa.Column('id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('user_id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('token_hash', sa.String(length=64), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_seen_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('user_agent', sa.String(length=512), nullable=True),
+    sa.Column('ip_address', sa.String(length=45), nullable=True),
+    sa.Column('location', sa.String(length=120), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('session_metadata', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
+    op.create_index('ix_sys_user_sessions_user_id_is_active', 'system_user_sessions', ['user_id', 'is_active'], unique=False)
+    op.create_index(op.f('ix_system_user_sessions_expires_at'), 'system_user_sessions', ['expires_at'], unique=False)
+    op.create_index(op.f('ix_system_user_sessions_token_hash'), 'system_user_sessions', ['token_hash'], unique=True)
+    op.create_index(op.f('ix_system_user_sessions_user_id'), 'system_user_sessions', ['user_id'], unique=False)
     op.create_table('outstation_cab_pricing',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('cab_type_id', mysql.CHAR(length=36), nullable=False),
@@ -497,6 +497,8 @@ def upgrade() -> None:
     sa.UniqueConstraint('state_id', 'cab_type_id', 'fuel_type_id', name='uq_outstation_state_cab_fuel')
     )
     op.create_index(op.f('ix_outstation_cab_pricing_id'), 'outstation_cab_pricing', ['id'], unique=True)
+    op.create_index('ix_outstation_pricing_available', 'outstation_cab_pricing', ['is_available_in_network'], unique=False)
+    op.create_index('ix_outstation_pricing_state_available', 'outstation_cab_pricing', ['state_id', 'is_available_in_network'], unique=False)
     op.create_table('permit_fee_config',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('cab_type_id', mysql.CHAR(length=36), nullable=False),
@@ -513,6 +515,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('cab_type_id', 'fuel_type_id', 'state_id', name='uq_cab_fuel_state')
     )
     op.create_index(op.f('ix_permit_fee_config_id'), 'permit_fee_config', ['id'], unique=True)
+    op.create_index('ix_permit_fee_state', 'permit_fee_config', ['state_id'], unique=False)
     op.create_table('regions_master',
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('region_name', sa.String(length=64), nullable=False),
@@ -556,6 +559,8 @@ def upgrade() -> None:
     sa.UniqueConstraint('region_id', 'cab_type_id', 'fuel_type_id', name='uq_airport_region_cab_fuel')
     )
     op.create_index(op.f('ix_airport_cab_pricing_id'), 'airport_cab_pricing', ['id'], unique=True)
+    op.create_index('ix_airport_pricing_available', 'airport_cab_pricing', ['is_available_in_network'], unique=False)
+    op.create_index('ix_airport_pricing_region_available', 'airport_cab_pricing', ['region_id', 'is_available_in_network'], unique=False)
     op.create_table('cancellation_policies',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('trip_type_id', mysql.CHAR(length=36), nullable=False),
@@ -598,6 +603,8 @@ def upgrade() -> None:
     sa.UniqueConstraint('region_id', 'cab_type_id', 'fuel_type_id', name='uq_local_region_cab_fuel')
     )
     op.create_index(op.f('ix_local_cab_pricing_id'), 'local_cab_pricing', ['id'], unique=True)
+    op.create_index('ix_local_pricing_available', 'local_cab_pricing', ['is_available_in_network'], unique=False)
+    op.create_index('ix_local_pricing_region_available', 'local_cab_pricing', ['region_id', 'is_available_in_network'], unique=False)
     op.create_table('night_pricing_config',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('night_start_hour', sa.Integer(), nullable=False),
@@ -648,6 +655,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_support_routing_rules_state_id'), 'support_routing_rules', ['state_id'], unique=False)
     op.create_index(op.f('ix_support_routing_rules_support_contact_id'), 'support_routing_rules', ['support_contact_id'], unique=False)
     op.create_index(op.f('ix_support_routing_rules_trip_type_scope'), 'support_routing_rules', ['trip_type_scope'], unique=False)
+    op.create_index('ix_support_rule_lookup', 'support_routing_rules', ['is_active', 'scope_type', 'scope_id', 'trip_type_scope', 'priority'], unique=False)
     op.create_table('trip_package_config',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('trip_type_id', mysql.CHAR(length=36), nullable=False),
@@ -765,6 +773,7 @@ def upgrade() -> None:
     sa.Column('indicative_overage_warning', sa.Boolean(), nullable=False),
     sa.Column('alternate_customer_phone', sa.String(length=32), nullable=True),
     sa.Column('passenger_id', mysql.CHAR(length=36), nullable=True, comment='FK to passengers table; null if trip is for self'),
+    sa.Column('upgradation_information', sa.JSON(), nullable=True, comment='JSON/text for upgradation information, if any. This is applicable for scenarios where Cabbo upgrades the trip to a higher car type and/or fuel type or others. The upgradation information will be stored in this field as a JSON object with details of the upgradation and the additional charges, if any.'),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('timezone', sa.String(length=64), nullable=True),
     sa.Column('utc_offset', sa.Integer(), nullable=True),
@@ -775,13 +784,37 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['trip_type_id'], ['trip_types_master.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('ix_trips_active_created', 'trips', ['is_active', 'created_at'], unique=False)
+    op.create_index('ix_trips_active_status_created', 'trips', ['is_active', 'status', 'created_at'], unique=False)
     op.create_index(op.f('ix_trips_booking_id'), 'trips', ['booking_id'], unique=True)
     op.create_index(op.f('ix_trips_creator_id'), 'trips', ['creator_id'], unique=False)
+    op.create_index('ix_trips_customer_bucket', 'trips', ['creator_id', 'creator_type', 'is_active', 'status', 'start_datetime'], unique=False)
     op.create_index(op.f('ix_trips_driver_id'), 'trips', ['driver_id'], unique=False)
+    op.create_index('ix_trips_driver_status', 'trips', ['driver_id', 'is_active', 'status'], unique=False)
     op.create_index(op.f('ix_trips_id'), 'trips', ['id'], unique=True)
     op.create_index(op.f('ix_trips_package_id'), 'trips', ['package_id'], unique=False)
     op.create_index(op.f('ix_trips_passenger_id'), 'trips', ['passenger_id'], unique=False)
     op.create_index(op.f('ix_trips_trip_type_id'), 'trips', ['trip_type_id'], unique=False)
+    op.create_index('ix_trips_type_status_start', 'trips', ['trip_type_id', 'status', 'start_datetime'], unique=False)
+    op.create_table('disputes',
+    sa.Column('id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('entity_id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('reason', sa.String(length=255), nullable=False),
+    sa.Column('dispute_type', sa.Enum('fare', 'service', 'other', 'unknown', name='disputetypeenum'), nullable=False, comment='Type of dispute, e.g., fare, service, etc.'),
+    sa.Column('comments', sa.JSON(), nullable=True),
+    sa.Column('details', sa.JSON(), nullable=True),
+    sa.Column('raised_by', mysql.CHAR(length=36), nullable=False),
+    sa.Column('status', sa.Enum('open', 'in_progress', 'resolved', 'closed', name='ticketstatusenum'), nullable=False),
+    sa.Column('dispute_trigger', sa.Enum('manual', 'automatic', name='disputetriggerenum'), nullable=True, comment="Description of how the dispute was triggered, e.g., 'manual', 'automatic'"),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.ForeignKeyConstraint(['entity_id'], ['trips.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('entity_id')
+    )
+    op.create_index('ix_disputes_active_status_created', 'disputes', ['is_active', 'status', 'created_at'], unique=False)
+    op.create_index(op.f('ix_disputes_id'), 'disputes', ['id'], unique=True)
     op.create_table('driver_earnings',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('driver_id', mysql.CHAR(length=36), nullable=False),
@@ -801,7 +834,47 @@ def upgrade() -> None:
     sa.UniqueConstraint('trip_id')
     )
     op.create_index(op.f('ix_driver_earnings_created_by'), 'driver_earnings', ['created_by'], unique=False)
+    op.create_index('ix_driver_earnings_driver_active_created', 'driver_earnings', ['driver_id', 'is_active', 'created_at'], unique=False)
     op.create_index(op.f('ix_driver_earnings_id'), 'driver_earnings', ['id'], unique=True)
+    op.create_table('refunds',
+    sa.Column('id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('entity_id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('policy_id', sa.String(length=255), nullable=True),
+    sa.Column('refund_status', sa.Enum('initiated', 'processed', 'pending', 'completed', 'failed', 'unknown', name='refundstatus'), nullable=True, comment='Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.'),
+    sa.Column('refund_amount', sa.Float(), nullable=False),
+    sa.Column('refund_description', sa.Text(), nullable=False),
+    sa.Column('refund_details', sa.JSON(), nullable=True),
+    sa.Column('refund_initiated_datetime', sa.DateTime(), nullable=True),
+    sa.Column('refund_retried_datetime', sa.DateTime(), nullable=True),
+    sa.Column('refund_type', sa.Enum('full', 'partial', 'other', name='refundtype'), nullable=False),
+    sa.Column('refund_provider', sa.Enum('razorpay', 'stripe', 'phonepe', name='paymentprovider'), nullable=True, comment='Payment provider used for processing the refund, e.g., Stripe, PayPal, etc.'),
+    sa.Column('refund_trigger', sa.Enum('manual', 'automatic', name='refundtrigger'), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', mysql.CHAR(length=36), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.ForeignKeyConstraint(['entity_id'], ['trips.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_refunds_active_status_created', 'refunds', ['is_active', 'refund_status', 'created_at'], unique=False)
+    op.create_index(op.f('ix_refunds_entity_id'), 'refunds', ['entity_id'], unique=True)
+    op.create_index(op.f('ix_refunds_id'), 'refunds', ['id'], unique=True)
+    op.create_index(op.f('ix_refunds_policy_id'), 'refunds', ['policy_id'], unique=False)
+    op.create_table('trip_cancellations',
+    sa.Column('id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('entity_id', mysql.CHAR(length=36), nullable=False),
+    sa.Column('canceled_by', mysql.CHAR(length=36), nullable=False),
+    sa.Column('cancellation_sub_status', sa.Enum('none', 'customer_cancelled', 'customer_no_show', 'driver_cancelled', 'driver_unavailable', 'driver_no_show', 'other', name='cancellation_sub_status_enum'), nullable=False),
+    sa.Column('reason', sa.String(length=255), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.ForeignKeyConstraint(['entity_id'], ['trips.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_trip_cancellations_active_created', 'trip_cancellations', ['is_active', 'created_at'], unique=False)
+    op.create_index(op.f('ix_trip_cancellations_entity_id'), 'trip_cancellations', ['entity_id'], unique=True)
+    op.create_index(op.f('ix_trip_cancellations_id'), 'trip_cancellations', ['id'], unique=True)
     op.create_table('trip_ratings',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
     sa.Column('driver_id', mysql.CHAR(length=36), nullable=False),
@@ -818,6 +891,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('driver_id', 'trip_id', 'customer_id', name='uq_driver_trip_customer_rating')
     )
+    op.create_index('ix_trip_ratings_customer_flagged', 'trip_ratings', ['customer_id', 'is_flagged'], unique=False)
+    op.create_index('ix_trip_ratings_driver_flagged', 'trip_ratings', ['driver_id', 'is_flagged'], unique=False)
     op.create_index(op.f('ix_trip_ratings_id'), 'trip_ratings', ['id'], unique=True)
     op.create_table('trip_status_audits',
     sa.Column('id', mysql.CHAR(length=36), nullable=False),
@@ -831,27 +906,49 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_trip_status_audits_committer_id'), 'trip_status_audits', ['committer_id'], unique=False)
     op.create_index(op.f('ix_trip_status_audits_id'), 'trip_status_audits', ['id'], unique=True)
+    op.create_index('ix_trip_status_audits_trip_timestamp', 'trip_status_audits', ['trip_id', 'timestamp'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index('ix_trip_status_audits_trip_timestamp', table_name='trip_status_audits')
     op.drop_index(op.f('ix_trip_status_audits_id'), table_name='trip_status_audits')
     op.drop_index(op.f('ix_trip_status_audits_committer_id'), table_name='trip_status_audits')
     op.drop_table('trip_status_audits')
     op.drop_index(op.f('ix_trip_ratings_id'), table_name='trip_ratings')
+    op.drop_index('ix_trip_ratings_driver_flagged', table_name='trip_ratings')
+    op.drop_index('ix_trip_ratings_customer_flagged', table_name='trip_ratings')
     op.drop_table('trip_ratings')
+    op.drop_index(op.f('ix_trip_cancellations_id'), table_name='trip_cancellations')
+    op.drop_index(op.f('ix_trip_cancellations_entity_id'), table_name='trip_cancellations')
+    op.drop_index('ix_trip_cancellations_active_created', table_name='trip_cancellations')
+    op.drop_table('trip_cancellations')
+    op.drop_index(op.f('ix_refunds_policy_id'), table_name='refunds')
+    op.drop_index(op.f('ix_refunds_id'), table_name='refunds')
+    op.drop_index(op.f('ix_refunds_entity_id'), table_name='refunds')
+    op.drop_index('ix_refunds_active_status_created', table_name='refunds')
+    op.drop_table('refunds')
     op.drop_index(op.f('ix_driver_earnings_id'), table_name='driver_earnings')
+    op.drop_index('ix_driver_earnings_driver_active_created', table_name='driver_earnings')
     op.drop_index(op.f('ix_driver_earnings_created_by'), table_name='driver_earnings')
     op.drop_table('driver_earnings')
+    op.drop_index(op.f('ix_disputes_id'), table_name='disputes')
+    op.drop_index('ix_disputes_active_status_created', table_name='disputes')
+    op.drop_table('disputes')
+    op.drop_index('ix_trips_type_status_start', table_name='trips')
     op.drop_index(op.f('ix_trips_trip_type_id'), table_name='trips')
     op.drop_index(op.f('ix_trips_passenger_id'), table_name='trips')
     op.drop_index(op.f('ix_trips_package_id'), table_name='trips')
     op.drop_index(op.f('ix_trips_id'), table_name='trips')
+    op.drop_index('ix_trips_driver_status', table_name='trips')
     op.drop_index(op.f('ix_trips_driver_id'), table_name='trips')
+    op.drop_index('ix_trips_customer_bucket', table_name='trips')
     op.drop_index(op.f('ix_trips_creator_id'), table_name='trips')
     op.drop_index(op.f('ix_trips_booking_id'), table_name='trips')
+    op.drop_index('ix_trips_active_status_created', table_name='trips')
+    op.drop_index('ix_trips_active_created', table_name='trips')
     op.drop_table('trips')
     op.drop_index(op.f('ix_tripwise_pricing_config_id'), table_name='tripwise_pricing_config')
     op.drop_table('tripwise_pricing_config')
@@ -860,6 +957,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_trip_package_config_region_id'), table_name='trip_package_config')
     op.drop_index(op.f('ix_trip_package_config_id'), table_name='trip_package_config')
     op.drop_table('trip_package_config')
+    op.drop_index('ix_support_rule_lookup', table_name='support_routing_rules')
     op.drop_index(op.f('ix_support_routing_rules_trip_type_scope'), table_name='support_routing_rules')
     op.drop_index(op.f('ix_support_routing_rules_support_contact_id'), table_name='support_routing_rules')
     op.drop_index(op.f('ix_support_routing_rules_state_id'), table_name='support_routing_rules')
@@ -872,6 +970,8 @@ def downgrade() -> None:
     op.drop_table('support_routing_rules')
     op.drop_index(op.f('ix_night_pricing_config_id'), table_name='night_pricing_config')
     op.drop_table('night_pricing_config')
+    op.drop_index('ix_local_pricing_region_available', table_name='local_cab_pricing')
+    op.drop_index('ix_local_pricing_available', table_name='local_cab_pricing')
     op.drop_index(op.f('ix_local_cab_pricing_id'), table_name='local_cab_pricing')
     op.drop_table('local_cab_pricing')
     op.drop_index(op.f('ix_cancellation_policies_trip_type_id'), table_name='cancellation_policies')
@@ -879,25 +979,41 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_cancellation_policies_region_id'), table_name='cancellation_policies')
     op.drop_index(op.f('ix_cancellation_policies_id'), table_name='cancellation_policies')
     op.drop_table('cancellation_policies')
+    op.drop_index('ix_airport_pricing_region_available', table_name='airport_cab_pricing')
+    op.drop_index('ix_airport_pricing_available', table_name='airport_cab_pricing')
     op.drop_index(op.f('ix_airport_cab_pricing_id'), table_name='airport_cab_pricing')
     op.drop_table('airport_cab_pricing')
     op.drop_index(op.f('ix_regions_master_state_id'), table_name='regions_master')
     op.drop_index(op.f('ix_regions_master_id'), table_name='regions_master')
     op.drop_index(op.f('ix_regions_master_country_id'), table_name='regions_master')
     op.drop_table('regions_master')
+    op.drop_index('ix_permit_fee_state', table_name='permit_fee_config')
     op.drop_index(op.f('ix_permit_fee_config_id'), table_name='permit_fee_config')
     op.drop_table('permit_fee_config')
+    op.drop_index('ix_outstation_pricing_state_available', table_name='outstation_cab_pricing')
+    op.drop_index('ix_outstation_pricing_available', table_name='outstation_cab_pricing')
     op.drop_index(op.f('ix_outstation_cab_pricing_id'), table_name='outstation_cab_pricing')
     op.drop_table('outstation_cab_pricing')
+    op.drop_index(op.f('ix_system_user_sessions_user_id'), table_name='system_user_sessions')
+    op.drop_index(op.f('ix_system_user_sessions_token_hash'), table_name='system_user_sessions')
+    op.drop_index(op.f('ix_system_user_sessions_expires_at'), table_name='system_user_sessions')
+    op.drop_index('ix_sys_user_sessions_user_id_is_active', table_name='system_user_sessions')
+    op.drop_table('system_user_sessions')
     op.drop_index(op.f('ix_states_master_state_code'), table_name='states_master')
     op.drop_index(op.f('ix_states_master_id'), table_name='states_master')
     op.drop_index(op.f('ix_states_master_country_id'), table_name='states_master')
     op.drop_table('states_master')
     op.drop_index(op.f('ix_passengers_customer_id'), table_name='passengers')
+    op.drop_index('ix_passengers_customer_active', table_name='passengers')
     op.drop_table('passengers')
     op.drop_index(op.f('ix_fixed_platform_pricing_id'), table_name='fixed_platform_pricing')
     op.drop_index(op.f('ix_fixed_platform_pricing_country_id'), table_name='fixed_platform_pricing')
     op.drop_table('fixed_platform_pricing')
+    op.drop_index(op.f('ix_customer_sessions_token_hash'), table_name='customer_sessions')
+    op.drop_index(op.f('ix_customer_sessions_expires_at'), table_name='customer_sessions')
+    op.drop_index('ix_customer_sessions_customer_id_is_active', table_name='customer_sessions')
+    op.drop_index(op.f('ix_customer_sessions_customer_id'), table_name='customer_sessions')
+    op.drop_table('customer_sessions')
     op.drop_index(op.f('ix_customer_recent_locations_place_id'), table_name='customer_recent_locations')
     op.drop_index(op.f('ix_customer_recent_locations_customer_id'), table_name='customer_recent_locations')
     op.drop_index('idx_user_recent', table_name='customer_recent_locations')
@@ -908,38 +1024,37 @@ def downgrade() -> None:
     op.drop_table('users')
     op.drop_index(op.f('ix_trip_types_master_id'), table_name='trip_types_master')
     op.drop_table('trip_types_master')
-    op.drop_index(op.f('ix_trip_cancellations_id'), table_name='trip_cancellations')
-    op.drop_index(op.f('ix_trip_cancellations_entity_id'), table_name='trip_cancellations')
-    op.drop_table('trip_cancellations')
     op.drop_index(op.f('ix_temp_trips_package_id'), table_name='temp_trips')
     op.drop_index(op.f('ix_temp_trips_id'), table_name='temp_trips')
     op.drop_index(op.f('ix_temp_trips_creator_id'), table_name='temp_trips')
+    op.drop_index('ix_temp_trips_creator_created', table_name='temp_trips')
     op.drop_table('temp_trips')
     op.drop_index(op.f('ix_support_contacts_support_type'), table_name='support_contacts')
     op.drop_index(op.f('ix_support_contacts_phone_number'), table_name='support_contacts')
     op.drop_index(op.f('ix_support_contacts_is_active'), table_name='support_contacts')
     op.drop_index(op.f('ix_support_contacts_id'), table_name='support_contacts')
     op.drop_index(op.f('ix_support_contacts_email'), table_name='support_contacts')
+    op.drop_index('ix_support_contacts_active_type_created', table_name='support_contacts')
     op.drop_table('support_contacts')
     op.drop_index(op.f('ix_seed_metadata_key'), table_name='seed_metadata')
     op.drop_index(op.f('ix_seed_metadata_id'), table_name='seed_metadata')
     op.drop_table('seed_metadata')
-    op.drop_index(op.f('ix_refunds_policy_id'), table_name='refunds')
-    op.drop_index(op.f('ix_refunds_id'), table_name='refunds')
-    op.drop_index(op.f('ix_refunds_entity_id'), table_name='refunds')
-    op.drop_table('refunds')
+    op.drop_index('ix_pre_onboarding_expires_at', table_name='pre_onboarding_customers')
     op.drop_index(op.f('ix_pre_onboarding_customers_phone_number'), table_name='pre_onboarding_customers')
+    op.drop_index(op.f('ix_pre_onboarding_customers_otp_hash'), table_name='pre_onboarding_customers')
     op.drop_table('pre_onboarding_customers')
     op.drop_index(op.f('ix_kyc_document_types_id'), table_name='kyc_document_types')
     op.drop_table('kyc_document_types')
     op.drop_index(op.f('ix_fuel_types_master_id'), table_name='fuel_types_master')
     op.drop_table('fuel_types_master')
+    op.drop_index('ix_drivers_name', table_name='drivers')
     op.drop_index(op.f('ix_drivers_id'), table_name='drivers')
     op.drop_index(op.f('ix_drivers_created_by'), table_name='drivers')
+    op.drop_index('ix_drivers_active_available_created', table_name='drivers')
     op.drop_table('drivers')
-    op.drop_index(op.f('ix_disputes_id'), table_name='disputes')
-    op.drop_table('disputes')
+    op.drop_index('ix_customers_verification_flags', table_name='customers')
     op.drop_index(op.f('ix_customers_phone_number'), table_name='customers')
+    op.drop_index('ix_customers_active_created', table_name='customers')
     op.drop_table('customers')
     op.drop_index(op.f('ix_countries_master_id'), table_name='countries_master')
     op.drop_table('countries_master')
