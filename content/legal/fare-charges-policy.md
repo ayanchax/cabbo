@@ -38,6 +38,8 @@ A Cabbo fare may include:
 - Taxes or government charges, where applicable
 - Advance payment and balance amount
 
+Cabbo fees, including platform or convenience fees, may include applicable taxes as required by law. Any balance or usage-based amount payable directly to the driver may be handled separately from Cabbo's online fee collection.
+
 ## Advance And Balance
 
 Cabbo may ask customers to pay an advance amount online to confirm a booking. The remaining balance must be paid directly to the driver.

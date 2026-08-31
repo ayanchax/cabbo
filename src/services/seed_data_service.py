@@ -16,6 +16,7 @@ from models.pricing.pricing_schema import (
     PermitFeeConfigurationSchema,
     TripPackageConfigSchema,
 )
+from models.taxation.tax_schema import TaxConfigurationSchema
 from models.seed.seed_enum import SeedKeyEnum
 from models.seed.seed_orm import SeedMetaData
 from models.seed.seed_schema import SeedRegistryEntry
@@ -46,6 +47,11 @@ from services.pricing_service import (
     create_outstation_cab_pricing,
     create_permit_fee_configuration,
     create_trip_package_pricing_configuration,
+)
+from services.tax_service import (
+    PLATFORM_FEE_TAX_SCOPE,
+    create_tax_configuration,
+    get_active_tax_configuration,
 )
 from services.support_service import seed_customer_support_contact_for_serviceable_geographies
 from services.user_service import create_super_admin_user
@@ -221,6 +227,13 @@ PLATFORM_FEE_BY_COUNTRY = {
     # Future countries:
     # "US": 2.5,  # $2.5 for USA
     # "AE": 10.0, # AED 10 for UAE
+}
+
+PLATFORM_FEE_TAX_BY_COUNTRY = {
+    "IN": {
+        "tax_type": "GST",
+        "rate_percent": 18.0,
+    },
 }
 
 
@@ -1302,6 +1315,35 @@ def _seed_fixed_platform_pricing(session: Session):
         create_fixed_platform_fee(payload, session)
 
 
+def _seed_platform_fee_tax(session: Session):
+    countries = get_all_countries(session)
+    for country in countries:
+        country_code = country.country_code
+        tax_config = PLATFORM_FEE_TAX_BY_COUNTRY.get(country_code)
+
+        if tax_config is None:
+            log.info(f"No platform fee tax configured for {country_code}. Skipping.")
+            continue
+
+        existing_tax_config = get_active_tax_configuration(
+            db=session,
+            country_id=country.id,
+            tax_scope=PLATFORM_FEE_TAX_SCOPE,
+        )
+        if existing_tax_config:
+            log.info(f"Platform fee tax already configured for {country_code}. Skipping.")
+            continue
+
+        payload = TaxConfigurationSchema(
+            country_id=country.id,
+            tax_type=tax_config["tax_type"],
+            tax_scope=PLATFORM_FEE_TAX_SCOPE,
+            rate_percent=tax_config["rate_percent"],
+            is_active=True,
+        )
+        create_tax_configuration(payload, session)
+
+
 def _seed_night_pricing(session: Session):
     regions = get_all_regions(session)
     states = get_all_states(session)
@@ -1586,6 +1628,11 @@ SEED_REGISTRY: list[SeedRegistryEntry] = [
     SeedRegistryEntry(
         key=SeedKeyEnum.SEED_PRICING_PLATFORM_V1,
         func=_seed_fixed_platform_pricing,
+        depends_on=[SeedKeyEnum.SEED_GEO_CORE_V1],
+    ),
+    SeedRegistryEntry(
+        key=SeedKeyEnum.SEED_TAX_PLATFORM_FEE_V1,
+        func=_seed_platform_fee_tax,
         depends_on=[SeedKeyEnum.SEED_GEO_CORE_V1],
     ),
     SeedRegistryEntry(

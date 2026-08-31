@@ -110,6 +110,7 @@ class TripDetails(BaseModel):
     parking: Optional[float] = None
     permit_fee: Optional[float] = None
     platform_fee: Optional[float] = None
+    tax_inclusive: Optional[bool] = None
     final_price: Optional[float] = None
     final_display_price: Optional[float] = None
     advance_payment: Optional[float] = None
@@ -516,6 +517,9 @@ class TripDetailSchema(BaseModel):
     )
     platform_fee: Optional[float] = Field(
         None, description="Platform fee charged by the system"
+    )
+    tax_inclusive: Optional[bool] = Field(
+        None, description="Indicates whether displayed Cabbo fees include applicable taxes"
     )
     final_price: Optional[float] = Field(
         None, description="Final price calculated for the trip"

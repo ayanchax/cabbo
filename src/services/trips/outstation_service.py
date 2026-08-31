@@ -47,7 +47,7 @@ from services.configuration_service import get_state_from_location_v2
 from services.location_service import get_distance_km
 
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
-from services.pricing_service import compute_final_platform_fee
+from services.pricing_service import compute_base_platform_fee, compute_platform_fee_with_tax
 from services.validation_service import validate_outstation_trip_schedule
 from utils.utility import format_trip_datetime
 import logging
@@ -396,18 +396,22 @@ def get_outstation_trip_options(
             # + overage_amount # We do not include overage amount in the price shown to customer until they actually incur the overage, and that is why we have a disclaimer for overage charges in the UI, we will charge the overage amount directly on the trip fare when the trip is completed and customer has incurred the overage
         )
         # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
-        platform_fee_amount = compute_final_platform_fee(
+        platform_fee_base = compute_base_platform_fee(
             total_price=total_price_before_platform_fee,
             fixed_fee=config_store.platform_fee.fixed_platform_fee,
             dynamic_percent=platform_fee_percent,
             min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
             max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
+        platform_fee_components = compute_platform_fee_with_tax(
+            platform_fee_base=platform_fee_base,
+            tax_config=config_store.platform_fee_tax,
+        )
         price_breakdown = OutstationPricingBreakdownSchema(
             base_fare=math.ceil(base_price),
             driver_allowance=math.ceil(driver_allowance_amount),
             permit_fee=math.ceil(permit_fee),
-            platform_fee=platform_fee_amount,
+            **platform_fee_components,
         )
         extra_day_rate = math.ceil(
             overage_amount_per_km  * min_included_km_per_day + driver_allowance_per_day
@@ -425,7 +429,7 @@ def get_outstation_trip_options(
         )
 
         total_price = math.ceil(
-                total_price_before_platform_fee + platform_fee_amount
+                total_price_before_platform_fee + price_breakdown.platform_fee
             )
         rate_per_km = round(total_price / included_km, 2)
 
