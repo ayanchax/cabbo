@@ -79,7 +79,7 @@ You must not carry illegal, unsafe, hazardous, or restricted items in the vehicl
 
 ## Payments
 
-Cabbo may collect advance payment, full payment, platform fee, cancellation fee, or other charges depending on the booking type and payment method.
+Cabbo may collect advance payment, full payment, platform fee, cancellation fee, applicable taxes on Cabbo fees, or other charges depending on the booking type and payment method.
 
 Some bookings may have a balance amount or pay-to-driver amount. You are responsible for paying the balance, tolls, parking, permits, waiting, overage, and other applicable charges that are shown during booking or become payable during the ride.
 

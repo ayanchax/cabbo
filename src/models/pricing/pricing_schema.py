@@ -72,6 +72,10 @@ class AirportCabPricingSchema(CabPricingBaseSchema):
 class PricingBreakdownBaseSchema(BaseModel):
     base_fare: float
     platform_fee: float
+    platform_fee_base: Optional[float] = None
+    platform_fee_tax: Optional[float] = None
+    platform_fee_tax_rate_percent: Optional[float] = None
+    platform_fee_tax_type: Optional[str] = None
 
     class Config:
         from_attributes = True

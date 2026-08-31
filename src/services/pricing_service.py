@@ -41,7 +41,10 @@ from core.exceptions import (
     TOLLS_ESTIMATION_UNSUPPORTED_TRIP_TYPE,
 )
 from models.trip.trip_schema import TripBookRequest, TripSearchOption
+from models.taxation.tax_schema import TaxConfigurationSchema
 import logging
+
+from services.tax_service import compute_tax_on_base_platform_fee
 
 log = logging.getLogger(__name__)
 
@@ -632,7 +635,14 @@ def round_fee(x):
     return int(math.ceil(x / 10.0)) * 10 - 1
 
 
-def compute_final_platform_fee(
+def compute_platform_fee_with_tax(
+    platform_fee_base: float,
+    tax_config: Optional[TaxConfigurationSchema] = None,
+) -> dict:
+    return compute_tax_on_base_platform_fee(platform_fee_base=platform_fee_base, tax_config=tax_config)
+
+
+def compute_base_platform_fee(
     total_price: float,
     fixed_fee: float,  # Cost recovery component of the platform fee, which is a fixed amount per trip to cover basic costs like payment gateway fees, SMS/OTP costs, and infrastructure costs. This ensures that the platform recovers its base costs on every trip, regardless of the total price.
     dynamic_percent: float,  # Margin component of the platform fee, which is a percentage of the total trip price. This allows the platform to earn more on higher-value trips while keeping fees reasonable on lower-value trips.
