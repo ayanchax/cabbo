@@ -17,6 +17,7 @@ from .policies.dispute_orm import Dispute
 from .user.user_orm import User, SystemUserSession
 from .seed.seed_orm import SeedMetaData
 from .support.support_orm import SupportContact, SupportRoutingRule
+from .taxation.tax_orm import TaxConfiguration
 
 __all__ = [
     "SeedMetaData",
@@ -27,5 +28,6 @@ __all__ = [
     "OutstationCabPricing", "LocalCabPricing", "AirportCabPricing", "NightPricingConfiguration",
     "CommonPricingConfiguration", "FixedPlatformPricingConfiguration", "PermitFeeConfiguration",
     "Trip", "Refund", "Dispute", "Driver","DriverEarning","TripRating","TripTypeMaster", "TripStatusAudit","TripPackageConfig",
-    "TempTrip", "User","SystemUserSession", "SupportContact", "SupportRoutingRule"
+    "TempTrip", "User","SystemUserSession", "SupportContact", "SupportRoutingRule",
+    "TaxConfiguration"
 ]

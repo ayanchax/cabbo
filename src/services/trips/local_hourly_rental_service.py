@@ -42,7 +42,7 @@ from services.cab_service import get_car_type_rank, get_recommended_car_type
 from services.configuration_service import get_region_from_location
 
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
-from services.pricing_service import compute_final_platform_fee
+from services.pricing_service import compute_base_platform_fee, compute_platform_fee_with_tax
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import format_trip_datetime, to_timezone_aware_datetime, validate_date_time
 import logging
@@ -262,20 +262,24 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         total_price_before_platform_fee = base_fare  + driver_allowance_amount
 
         # Platform fee is a sum of a fixed cost(infra cost) to service and a percentage of the total price calculated before adding platform fee/convenience fee
-        platform_fee_amount= compute_final_platform_fee(
+        platform_fee_base= compute_base_platform_fee(
             total_price=total_price_before_platform_fee,
             fixed_fee=config_store.platform_fee.fixed_platform_fee,
             dynamic_percent=platform_fee_percent,
             min_cap=configuration.auxiliary_pricing.common.min_platform_fee,
             max_cap=configuration.auxiliary_pricing.common.max_platform_fee,
         )
+        platform_fee_components = compute_platform_fee_with_tax(
+            platform_fee_base=platform_fee_base,
+            tax_config=config_store.platform_fee_tax,
+        )
 
         price_breakdown = LocalPricingBreakdownSchema(
             base_fare=math.ceil(base_fare),
-            platform_fee=platform_fee_amount,
             driver_allowance=(
                 math.ceil(package.driver_allowance) if package.driver_allowance else 0.0
             ),
+            **platform_fee_components,
         )
         # For local trips, we can't estimate distance in advance since routes are uncertain and hence no est_km is provided.
         # Overage charges will be initially presented as 0.00 and will be calculated only if the customer exceeds the included hours or km, we keep them informed through a disclaimer message that extra charges may apply at the end of the trip.

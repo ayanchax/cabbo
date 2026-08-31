@@ -19,6 +19,7 @@ class SeedKeyEnum(str, Enum):
     SEED_PRICING_OUTSTATION_V1="seed.pricing.outstation.v1"
     SEED_PRICING_AIRPORT_V1="seed.pricing.airport.v1"
     SEED_PRICING_PLATFORM_V1="seed.pricing.platform.v1"
+    SEED_TAX_PLATFORM_FEE_V1 = "seed.tax.platform.fee.v1"
     SEED_PRICING_NIGHT_V1="seed.pricing.night.v1"
     SEED_PRICING_PERMIT_V1="seed.pricing.permit.v1"
     SEED_PRICING_CANCELLATION_POLICY_V1="seed.pricing.cancellation.policy.v1"

@@ -21,6 +21,7 @@ from models.pricing.pricing_schema import (
     MasterPricingConfiguration,
     OutstationCabPricingSchema,
 )
+from models.taxation.tax_schema import TaxConfigurationSchema
 from models.trip.trip_enums import TripTypeEnum
 from models.trip.trip_schema import TripTypeSchema
 from services.cab_service import a_get_all_cabs
@@ -43,6 +44,7 @@ from services.pricing_service import (
     a_get_night_pricing_configuration,
     a_get_permit_fee_configuration,
 )
+from services.tax_service import PLATFORM_FEE_TAX_SCOPE, a_get_active_tax_configuration
 
 from core.config import settings
 import logging
@@ -123,6 +125,10 @@ class ConfigStore(BaseModel):
     platform_fee: FixedPlatformFeeConfigurationSchema = Field(
         default_factory=FixedPlatformFeeConfigurationSchema,
         description="In-memory store for fixed platform fee configurations",
+    )
+    platform_fee_tax: Optional[TaxConfigurationSchema] = Field(
+        default=None,
+        description="Active tax configuration for Cabbo platform fee",
     )
 
     # ✅ Private attributes using PrivateAttr (not validated by Pydantic)
@@ -281,6 +287,7 @@ class ConfigStore(BaseModel):
         self.fuel_types = []
         self.trip_types = []
         self.platform_fee = FixedPlatformFeeConfigurationSchema()
+        self.platform_fee_tax = None
         self._store.clear()
         self._is_initialized = False
         self._last_loaded_at = None
@@ -313,6 +320,7 @@ class ConfigStore(BaseModel):
             List[FuelTypeSchema],
             List[TripTypeSchema],
             FixedPlatformFeeConfigurationSchema,
+            TaxConfigurationSchema,
         ],
     ):
         """Set a configuration value."""
@@ -423,6 +431,15 @@ class ConfigStore(BaseModel):
     def get_platform_fee(self) -> FixedPlatformFeeConfigurationSchema:
         """Retrieve fixed platform fee configurations from the store."""
         return self.platform_fee
+
+    def _set_platform_fee_tax(self, tax_data: Optional[TaxConfigurationSchema]):
+        """Load platform fee tax configuration into the store."""
+        self.platform_fee_tax = tax_data
+        self.set("platform_fee_tax", tax_data)
+
+    def get_platform_fee_tax(self) -> Optional[TaxConfigurationSchema]:
+        """Retrieve platform fee tax configuration from the store."""
+        return self.platform_fee_tax
 
     # ===== DATA RETRIEVAL HELPERS =====
     async def _retrieve_and_set_cabs(self, db: AsyncSession):
@@ -696,6 +713,14 @@ class ConfigStore(BaseModel):
         if not platform_fee:
             return
         self._set_platform_fee(platform_fee)
+        country = self.geographies.country_server
+        if country and country.id:
+            platform_fee_tax = await a_get_active_tax_configuration(
+                db=db,
+                country_id=country.id,
+                tax_scope=PLATFORM_FEE_TAX_SCOPE,
+            )
+            self._set_platform_fee_tax(platform_fee_tax)
 
     async def _retrieve_trip_configs(
         self, id: str, db: AsyncSession

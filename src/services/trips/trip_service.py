@@ -99,12 +99,39 @@ import logging
 log = logging.getLogger(__name__)
 
 
- 
+PLATFORM_FEE_BREAKDOWN_KEYS = {
+    "platform_fee",
+    "platform_fee_base",
+    "platform_fee_tax",
+    "platform_fee_tax_rate_percent",
+    "platform_fee_tax_type",
+}
+
+
+def remove_platform_fee_audit_fields(price_breakdown: Optional[dict]) -> Optional[dict]:
+    if not isinstance(price_breakdown, dict):
+        return price_breakdown
+    return {
+        key: value
+        for key, value in price_breakdown.items()
+        if key not in PLATFORM_FEE_BREAKDOWN_KEYS or key == "platform_fee"
+    }
+
+
+def is_platform_fee_tax_inclusive(price_breakdown: Optional[dict]) -> bool:
+    if not isinstance(price_breakdown, dict):
+        return False
+    platform_fee_tax = price_breakdown.get("platform_fee_tax", None)
+    if not platform_fee_tax:
+        return False
+    return isinstance(platform_fee_tax, (int, float)) and platform_fee_tax > 0
+
+
 def serialize_trip(
     trip: Trip,
     view: TripResponseView = TripResponseView.ADMIN_DETAIL,
 ) -> dict:
-    
+
     if not trip:
         raise CabboException(
             "Trip not found",
@@ -130,8 +157,6 @@ def serialize_trip(
     rating = trip_dict.get("trip_rating")
     refund = trip_dict.get("refund")
     upgradation_information = trip_dict.get("upgradation_information")
-     
-
 
     if driver:  # Serialize the driver if it exists
         from services.driver_service import serialize_driver
@@ -203,7 +228,7 @@ def serialize_trip(
 
     if options.expose_trip_refund:
         trip_dict = apply_trip_refund_details(trip_dict=trip_dict, refund=refund)
-            
+
     if options.expose_trip_flags:
         trip_dict = apply_trip_flags(trip_dict=trip_dict, driver=driver)
 
@@ -280,10 +305,15 @@ def serialize_trip(
                 driver_details=trip_details["driver"]
             )
 
+        price_breakdown = trip_details.get("price_breakdown", None)
+        if price_breakdown:
+            trip_details["tax_inclusive"] = is_platform_fee_tax_inclusive(
+                price_breakdown
+            )
+            trip_details["price_breakdown"] = remove_platform_fee_audit_fields(
+                price_breakdown
+            )
     return remove_none_recursive(trip_details)
-
-
-
 
 
 def _has_assigned_driver(trip_dict: dict, driver=None) -> bool:
@@ -811,8 +841,6 @@ async def a_delete_temp_trip(requestor: str, db: AsyncSession):
             error_code=GENERIC_EXCEPTION,
         )
 
-
- 
 
 async def a_create_temporary_trip(
     booking_request: TripBookRequest, requestor: str, db: AsyncSession
@@ -1470,6 +1498,9 @@ def remove_platform_payment_fields(trip: dict):
     price_breakdown = trip.get("price_breakdown")
     if isinstance(price_breakdown, dict):
         price_breakdown.pop("platform_fee", None)
+        for key in PLATFORM_FEE_BREAKDOWN_KEYS:
+            if key != "platform_fee":
+                price_breakdown.pop(key, None)
     return trip
 
 
