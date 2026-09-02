@@ -151,8 +151,8 @@ class CommonPricingConfigurationSchema(BaseModel):
     dynamic_platform_fee_percent: Optional[float] = None  # e.g., 5.0 for 5%
     min_included_hours: Optional[int] = None  # Local cab minimum included hours
     max_included_hours: Optional[int] = None  # Local cab maximum included hours
-    min_included_km: Optional[int] = None  # For local cab minimum included km
-    max_included_km: Optional[int] = None  # For local cab maximum included
+    min_included_km: Optional[int] = None  # For airport transfers, this is the minimum billable km floor; local/outstation use it according to their package/domain rules
+    max_included_km: Optional[int] = None  # Not an airport transfer billing cap; airport fares bill the estimated route km, while extreme airport-looking routes are handled by trip classification/max distance checks
     min_platform_fee: Optional[float] = None  # Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.
     max_platform_fee: Optional[float] = None  # Maximum platform fee charged to customer
     min_outbound_distance_km: Optional[float] = None  # For airport trips and outstation trips minimum distance threshold for fare calculation, e.g., 2 km for airport trips and 121 km for outstation trips
@@ -163,7 +163,6 @@ class CommonPricingConfigurationSchema(BaseModel):
     placard_charge: Optional[float] = (
         None  # Only for airport pickup, can be null for others
     )
-    max_included_km: Optional[int] = None  # For airport pickup/drop
     overage_warning_km_threshold: Optional[float] = (
         None  # For airport pickup/drop and outstation
     )

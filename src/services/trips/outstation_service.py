@@ -431,7 +431,7 @@ def get_outstation_trip_options(
         total_price = math.ceil(
                 total_price_before_platform_fee + price_breakdown.platform_fee
             )
-        rate_per_km = round(total_price / included_km, 2)
+        rate_per_km = round(price_breakdown.base_fare / included_km)
 
         option = TripSearchOption(
             car_type=CarTypeEnum(cab_type_schema.name),
