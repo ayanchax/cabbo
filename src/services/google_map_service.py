@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 GOOGLE_API_KEY = settings.GOOGLE_MAPS_API_KEY
 BASE_URL = "https://maps.googleapis.com/maps/api"
 PLACES_BASE_URL = "https://places.googleapis.com/v1/places"
+PLACES_NEARBY_SEARCH_API = f"{PLACES_BASE_URL}:searchNearby"
 PUBLIC_PLACES_URL = "https://www.google.com/maps/search/?api=1"
 AUTOCOMPLETE_API = f"{BASE_URL}/place/autocomplete/json"
 PLACE_API = f"{BASE_URL}/place/details/json"
@@ -127,10 +128,18 @@ def get_location_from_place_id(
     location = result["geometry"]["location"]
     address_components = result.get("address_components", [])
     geo = _extract_geo_from_components(address_components)
+    mobility_hub_place_id = None
     mobility_hub = (
         _extract_mobility_hub(result.get("types", []))
         or _infer_mobility_hub_from_name(result.get("name"))
     )
+    # If mobility_hub is still None, try to infer from nearby airport sub-places.
+    if mobility_hub is None:
+        mobility_hub, mobility_hub_place_id = _infer_airport_subplace_from_nearby_places(
+            result.get("name"), location.get("lat"), location.get("lng")
+        )
+    #In future, we can keep on inferring mobility hub from other nearby places like bus stations, railway stations, etc. But for now, we are only inferring airport sub-places as that is the most common use case and we do not cater to railway/bus station pickup and drop off yet. So we will keep it simple for now and only infer airport sub-places.
+
     return LocationInfo(
         display_name=result.get("name"),
         place_id=place_id,
@@ -138,6 +147,7 @@ def get_location_from_place_id(
         lng=location.get("lng"),
         address=result.get("formatted_address"),
         mobility_hub=mobility_hub,
+        mobility_hub_place_id=mobility_hub_place_id,
         **geo,
     )
 
@@ -145,6 +155,7 @@ def get_location_from_place_id(
 # Maps Google place types to MobilityHub enum values (priority order — first match wins)
 _GOOGLE_MOBILITY_TYPE_MAP: dict[str, MobilityHub] = {
     "airport": MobilityHub.airport,
+    "international_airport": MobilityHub.airport,
     "train_station": MobilityHub.railway_station,
     "bus_station": MobilityHub.bus_station,
     "taxi_stand": MobilityHub.taxi_stand,
@@ -154,6 +165,26 @@ _GOOGLE_MOBILITY_TYPE_MAP: dict[str, MobilityHub] = {
 }
 
 
+_NEARBY_AIRPORT_FIELD_MASK = "places.id,places.primaryType,places.types"
+_AIRPORT_SUBPLACE_SEARCH_RADIUS_METERS = 5000.0
+_AIRPORT_SUBPLACE_KEYWORDS = (
+    "terminal",
+    "arrival",
+    "arrivals",
+    "departure",
+    "departures",
+)
+_NON_AIRPORT_TERMINAL_KEYWORDS = (
+    "bus",
+    "railway",
+    "train",
+    "metro",
+    "subway",
+    "ferry",
+    "port",
+)
+
+
 def _extract_mobility_hub(types: list) -> Optional[MobilityHub]:
     """Return the first MobilityHub match from a Google place types list."""
     for t in (types or []):
@@ -161,6 +192,68 @@ def _extract_mobility_hub(types: list) -> Optional[MobilityHub]:
         if hub:
             return hub
     return None
+
+
+def _extract_mobility_hub_from_place_context(place: dict) -> Optional[MobilityHub]:
+    """Extract a mobility hub from a Places API (New) place payload."""
+    return _extract_mobility_hub(
+        [place.get("primaryType")] + place.get("types", [])
+    )
+
+
+@lru_cache(maxsize=2000)
+def _cached_nearby_airport_places(lat: float, lng: float):
+    headers = {
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": _NEARBY_AIRPORT_FIELD_MASK,
+    }
+    body = {
+        "includedTypes": ["airport"],
+        "maxResultCount": 3,
+        "locationRestriction": {
+            "circle": {
+                "center": {
+                    "latitude": lat,
+                    "longitude": lng,
+                },
+                "radius": _AIRPORT_SUBPLACE_SEARCH_RADIUS_METERS,
+            }
+        },
+    }
+
+    return safe_request(
+        PLACES_NEARBY_SEARCH_API,
+        headers=headers,
+        method="POST",
+        json=body,
+    )
+
+
+def _infer_airport_subplace_from_nearby_places(
+    name: Optional[str],
+    lat: Optional[float],
+    lng: Optional[float],
+) -> tuple[Optional[MobilityHub], Optional[str]]:
+    """Classify airport sub-places when Google finds an airport around them."""
+    if lat is None or lng is None or not name:
+        return None, None
+
+    name_lower = name.lower()
+    if not any(keyword in name_lower for keyword in _AIRPORT_SUBPLACE_KEYWORDS):
+        return None, None
+    if any(keyword in name_lower for keyword in _NON_AIRPORT_TERMINAL_KEYWORDS):
+        return None, None
+
+    data = _cached_nearby_airport_places(round_value(lat), round_value(lng))
+    log_lru_cache("nearby_airport_places", _cached_nearby_airport_places)
+
+    for place in data.get("places", []):
+        if _extract_mobility_hub_from_place_context(place) == MobilityHub.airport:
+            # Return the first nearby airport place ID along with the mobility hub type.
+            # In future we can return all nearby airports and let the user choose, but for now we just return the first one as this is more practical for our use case (airport sub-places). Plus also within a 5km radius there is usually only one airport anyway.
+            return MobilityHub.airport, place.get("id")
+
+    return None, None
 
 
 # Ordered most-specific first so generic "station" never shadows "railway station" etc.
