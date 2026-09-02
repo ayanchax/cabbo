@@ -397,7 +397,7 @@ def match_location_to_airport(
     """Return the first airport from `airports` that matches `location`.
 
     Checks in priority order:
-      1. place_id  — exact string match (fastest, most reliable)
+      1. place_id or mobility_hub_place_id — exact string match (fastest, most reliable)
       2. display_name — case-insensitive prefix in either direction
       3. address  — case-insensitive prefix in either direction
       4. lat/lng  — proximity within ~10 m (0.0001 degree tolerance)
@@ -406,10 +406,18 @@ def match_location_to_airport(
     if not location or not airports:
         return None
 
-    # 1. place_id exact match
-    if location.place_id:
+    # 1. place_id exact match, including canonical hub id for sub-places like terminals
+    location_place_ids = {
+        pid
+        for pid in [
+            location.place_id, #the place user selected
+            getattr(location, "mobility_hub_place_id", None), #the canonical master place id for the mobility hub (e.g. airport) if the user selected a sub-place like a terminal within the airport. This is the most reliable way to match an airport when the user selects a sub-place within it.
+        ]
+        if pid
+    }
+    if location_place_ids:
         for airport in airports:
-            if airport.place_id and airport.place_id == location.place_id:
+            if airport.place_id and airport.place_id in location_place_ids:
                 return airport
 
     # 2. display_name prefix match

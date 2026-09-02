@@ -116,9 +116,16 @@ def convert_based_on_currency(
         )
         return amount
     
-def safe_request(url, params=None, headers=None, timeout=3):
+def safe_request(url, params=None, headers=None, timeout=3, method="GET", json=None):
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=timeout)
+        response = requests.request(
+            method,
+            url,
+            params=params,
+            json=json,
+            headers=headers,
+            timeout=timeout,
+        )
         response.raise_for_status()
         return response.json()
     except Exception as e:

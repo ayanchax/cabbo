@@ -1,0 +1,11 @@
+drivers:
+  - name: Nur
+    phone: "+919954728155"
+    avg_rating: 4.0
+    cab_registration_number: KA01AS2568
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
