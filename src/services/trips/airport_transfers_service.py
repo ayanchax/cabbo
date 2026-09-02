@@ -192,45 +192,24 @@ def _get_airport_pickup_pricing_configuration_by_region(
 
 
 def _get_airport_trips_disclaimer_lines(
-    overage_amount_per_km: float,
-    currency: str,
-    included_kms: Union[int, float] = 0,
-    indicative_overage_warning: bool = False,
     includes_placard: bool = False,
     includes_parking: bool = False,
     includes_tolls: bool = False,
-):
+) -> List[str]:
     """
-    Returns the disclaimer lines for airport trips, including overage charges and placard fees.
+    Returns the disclaimer lines for airport trips.
 
-    This function provides the standard disclaimer lines that are used in airport trip pricing
-    calculations, ensuring that customers are aware of potential extra charges.
+    Airport transfers are priced upfront from the estimated route distance, so the
+    standard disclaimer should not ask drivers to collect route-distance overages.
 
     Returns:
         List[str]: A list of disclaimer lines for airport trips.
     """
-    lines = []
-
-    if indicative_overage_warning:
-        rounded_overage_amount_per_km = (
-            int(math.ceil(overage_amount_per_km))
-            if overage_amount_per_km is not None
-            else 0
-        )
-        if rounded_overage_amount_per_km > 0:
-            lines.append(
-                f"This route is close to or may exceed the {included_kms} km included with this airport transfer. If the final trip distance exceeds {included_kms} km, an additional charge of {currency}{rounded_overage_amount_per_km} per km will apply - pay the driver directly."
-            )
-
-    lines.extend(
-        _get_airport_trips_common_disclaimer_lines(
-            includes_tolls=includes_tolls,
-            includes_parking=includes_parking,
-            includes_placard=includes_placard,
-        )
+    return _get_airport_trips_common_disclaimer_lines(
+        includes_tolls=includes_tolls,
+        includes_parking=includes_parking,
+        includes_placard=includes_placard,
     )
-
-    return lines
 
 
 def _get_airport_trips_common_disclaimer_lines(
@@ -269,7 +248,7 @@ def _get_airport_trips_common_disclaimer_lines(
         included_charges_text = f" This fare includes {included_charges_label}."
 
     return [
-        f"Fare applies to the selected airport transfer route.{included_charges_text} Extra charges may apply for customer-requested route changes, detours, additional stops, waiting, or charges outside the selected fare."
+        f"Fare applies to the selected airport transfer route.{included_charges_text} Extra charges may apply for customer-requested route changes, detours, additional stops, waiting, paid parkings or charges outside the selected fare."
     ]
 
 
@@ -335,10 +314,7 @@ def get_airport_pickup_trip_options(
     platform_fee_percent = (
         configuration.auxiliary_pricing.common.dynamic_platform_fee_percent
     )
-    max_included_km = configuration.auxiliary_pricing.common.max_included_km
-    warning_km_threshold = (
-        configuration.auxiliary_pricing.common.overage_warning_km_threshold
-    )
+    min_included_km = configuration.auxiliary_pricing.common.min_included_km or 0
     options: List[TripSearchOption] = []
 
     for pricing, cab_type, fuel_type in airport_pricings:
@@ -347,25 +323,21 @@ def get_airport_pickup_trip_options(
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
         base_fare_per_km = pricing_schema.fare_per_km
 
-        overage_amount_per_km = pricing_schema.overage_amount_per_km
         placard_charge = (
             configuration.auxiliary_pricing.common.placard_charge
             if search_in.placard_required
             and configuration.auxiliary_pricing.common.placard_charge is not None
             else 0.0
         )
-        base_price = base_fare_per_km * min(est_km, max_included_km)
-        overage_amount = max(0, est_km - max_included_km) * overage_amount_per_km
-        # Total price includes base fare, toll and parking charges and placard charges (if any)
-        # We wont add the overage charge to the total price for airport pickups because overages is an estimation and not a fixed charge
-        # Overages will apply if at the end of the trip the actual distance covered(as reported by driver) is more than the estimated distance
-        # This indicator is to ensure that the customer is aware that overage charges may apply for this route
+        billable_km = max(est_km, min_included_km)
+        base_price = base_fare_per_km * billable_km
+        # Airport transfers are deterministic route fares. Extreme distances are
+        # routed to the correct domain during trip-type classification, so
+        # max_included_km is not used as a billing cap here.
         total_price_before_platform_fee = math.ceil(
             base_price + toll + parking + placard_charge
         )
 
-        margin = max_included_km - est_km  # Allow negative values for overage
-        indicative_overage_warning = margin <= warning_km_threshold
         # Platform fee is a sum of a fixed cost(infra cost) to service fee and a percentage of the total price calculated before adding platform fee/convenience fee
         platform_fee_base = compute_base_platform_fee(
             total_price=total_price_before_platform_fee,
@@ -389,10 +361,6 @@ def get_airport_pickup_trip_options(
             **platform_fee_components,
         )
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
-            overage_amount_per_km,
-            currency,
-            max_included_km,
-            indicative_overage_warning=indicative_overage_warning,
             includes_placard=search_in.placard_required,
             includes_parking=True,
             includes_tolls=search_in.toll_road_preferred,
@@ -402,7 +370,7 @@ def get_airport_pickup_trip_options(
             total_price_before_platform_fee + price_breakdown.platform_fee
         )
 
-        rate_per_km = round(total_price / max_included_km, 2)
+        rate_per_km = round(price_breakdown.base_fare / billable_km)
 
         option = TripSearchOption(
             car_type=CarTypeEnum(cab_type_schema.name),  # Use display name
@@ -422,17 +390,13 @@ def get_airport_pickup_trip_options(
             ),
             fuel_type=fuel_type_schema.name,  # Use display name from schema
             total_price=total_price,
-            included_kms=max_included_km,
+            included_kms=billable_km,
             price_breakdown=price_breakdown,
             package=package_label,  # Use package string for display
             package_short_label=package_short_label,
             overages=(
                 OveragesSchema(
-                    indicative_overage_warning=indicative_overage_warning,
-                    overage_amount_per_km=overage_amount_per_km,
-                    overage_estimate_amount=(
-                        math.ceil(overage_amount) if indicative_overage_warning else 0.0
-                    ),
+                    indicative_overage_warning=False,
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),
@@ -538,10 +502,7 @@ def get_airport_dropoff_trip_options(
     platform_fee_percent = (
         configuration.auxiliary_pricing.common.dynamic_platform_fee_percent
     )
-    max_included_km = configuration.auxiliary_pricing.common.max_included_km
-    warning_km_threshold = (
-        configuration.auxiliary_pricing.common.overage_warning_km_threshold
-    )
+    min_included_km = configuration.auxiliary_pricing.common.min_included_km or 0
     parking = 0.0  # No parking charges for airport drop
     options: List[TripSearchOption] = []
     for pricing, cab_type, fuel_type in airport_pricings:
@@ -549,16 +510,12 @@ def get_airport_dropoff_trip_options(
         cab_type_schema = CabTypeSchema.model_validate(cab_type)
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
         base_fare_per_km = pricing_schema.fare_per_km
-        overage_amount_per_km = pricing_schema.overage_amount_per_km
-        base_price = base_fare_per_km * min(est_km, max_included_km)
-        overage_amount = max(0, est_km - max_included_km) * overage_amount_per_km
-        # Total price includes base fare, toll and parking charges (if any)
-        # We wont add the overage charge to the total price for airport pickups because overages is an estimation and not a fixed charge
-        # Overages will apply if at the end of the trip the actual distance is more than the estimated distance
-        # This indicator is to ensure that the customer is aware that overage charges may apply for this route
+        billable_km = max(est_km, min_included_km)
+        base_price = base_fare_per_km * billable_km
+        # Airport transfers are deterministic route fares. Extreme distances are
+        # routed to the correct domain during trip-type classification, so
+        # max_included_km is not used as a billing cap here.
         total_price_before_platform_fee = math.ceil(base_price + toll + parking)
-        margin = max_included_km - est_km  # Allow negative values for overage
-        indicative_overage_warning = margin <= warning_km_threshold
         # Platform fee is a sum of a fixed cost to service fee and a percentage of the total price calculated before adding platform fee
         platform_fee_base = compute_base_platform_fee(
             total_price=total_price_before_platform_fee,
@@ -579,17 +536,13 @@ def get_airport_dropoff_trip_options(
             **platform_fee_components,
         )
         disclaimer_lines = _get_airport_trips_disclaimer_lines(
-            overage_amount_per_km,
-            currency,
-            max_included_km,
-            indicative_overage_warning=indicative_overage_warning,
             includes_tolls=search_in.toll_road_preferred,
         )
 
         total_price = math.ceil(
             total_price_before_platform_fee + price_breakdown.platform_fee
         )
-        rate_per_km = round(total_price / max_included_km, 2)
+        rate_per_km = round(price_breakdown.base_fare / billable_km)
 
         option = TripSearchOption(
             car_type=CarTypeEnum(cab_type_schema.name),  # Use display name
@@ -609,16 +562,12 @@ def get_airport_dropoff_trip_options(
             fuel_type=fuel_type_schema.name,  # Use display name
             total_price=total_price,
             price_breakdown=price_breakdown,
-            included_kms=max_included_km,
+            included_kms=billable_km,
             package=package_label,
             package_short_label=package_short_label,
             overages=(
                 OveragesSchema(
-                    indicative_overage_warning=indicative_overage_warning,
-                    overage_amount_per_km=overage_amount_per_km,
-                    overage_estimate_amount=(
-                        math.ceil(overage_amount) if indicative_overage_warning else 0.0
-                    ),
+                    indicative_overage_warning=False,
                     disclaimer=disclaimer_lines,
                 ).model_dump(exclude_none=True, exclude_unset=True)
             ),

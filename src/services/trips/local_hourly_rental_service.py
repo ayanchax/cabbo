@@ -300,7 +300,8 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             )
         #We are also calculating the rate per minute for local trips to provide better price transparency to customers, as local trips are primarily charged based on time rather than distance. This allows customers to understand how much they are paying for each minute of their trip, which can help them make more informed decisions about their booking and manage their trip duration effectively to avoid overage charges. The rate per minute is calculated by dividing the total price (including platform fee and driver allowance) by the total included minutes in the selected package.
         rate_per_minute = round(total_price / total_included_minutes, 2)
-        rate_per_km = round(total_price / package.included_km, 2) 
+        # Local rentals are sold as time packages; rate_per_km is kept only for schema consistency and is not product-facing.
+        rate_per_km = round(total_price / package.included_km) 
         
         option = TripSearchOption(
             car_type=CarTypeEnum(cab_type_schema.name),
