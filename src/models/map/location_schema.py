@@ -30,6 +30,7 @@ class LocationInfo(BaseModel):
     region_code: Optional[str] = Field(None, description="Region code (e.g., BLR, MYS)")
     postal_code: Optional[str] = Field(None, description="Postal/ZIP code")
     mobility_hub: Optional[MobilityHub] = Field(None, description="Mobility establishment type (airport, railway station, etc.) — populated from Google place types")
+    mobility_hub_place_id: Optional[str] = Field(None, description="Canonical Google place ID of the resolved mobility hub, if this location is a mobility hub sub-place")
     class Config:
         extra="allow"
         exclude_none = True  # Exclude fields with None values from the model dump
