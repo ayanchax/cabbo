@@ -232,10 +232,10 @@ class CommonPricingConfiguration(Base):
     )  # Local cab maximum included hours
     min_included_km = Column(
         Integer, nullable=True, default=None
-    )  # For local cab minimum included km
+    )  # For airport transfers, this is the minimum billable km floor; local/outstation use it according to their package/domain rules
     max_included_km = Column(
         Integer, nullable=True, default=None
-    )  # For local cab maximum included km
+    )  # Not an airport transfer billing cap; airport fares bill the estimated route km, while extreme airport-looking routes are handled by trip classification/max distance checks
     #Platform fee capping fields to ensure that we have a minimum and maximum platform fee charged to customer for each trip type in each region or state, regardless of total fare, to ensure that we cover our costs for low-fare trips and do not overcharge for high-fare trips.
     #This is important since the dynamic platform fee is calculated as percentage of total fare and can be very low for low-fare trips and very high for high-fare trips, which can lead to undercharging or overcharging customers and can impact our unit economics and customer satisfaction.
     min_platform_fee = Column(Float, nullable=True, comment="Minimum platform fee charged to customer for this trip type in this region or state, regardless of total fare. This helps ensure that we cover our costs for low-fare trips.")
