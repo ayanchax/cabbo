@@ -229,7 +229,7 @@ def _get_airport_trips_common_disclaimer_lines(
     """
     included_charges = []
     if includes_tolls:
-        included_charges.append("selected toll-road tolls")
+        included_charges.append("standard airport toll-road charge")
     if includes_parking:
         included_charges.append("airport parking")
     if includes_placard:
@@ -247,8 +247,14 @@ def _get_airport_trips_common_disclaimer_lines(
             )
         included_charges_text = f" This fare includes {included_charges_label}."
 
+    toll_scope_text = (
+        " The included toll-road charge covers the standard airport toll for this route only."
+        if includes_tolls
+        else ""
+    )
+
     return [
-        f"Fare applies to the selected airport transfer route.{included_charges_text} Extra charges may apply for customer-requested route changes, detours, additional stops, waiting, paid parkings or charges outside the selected fare."
+        f"Fare applies to the selected airport transfer route.{included_charges_text}{toll_scope_text} Extra charges may apply for additional toll gates, customer-requested route changes, detours, additional stops, waiting, paid parkings or charges outside the selected fare."
     ]
 
 
