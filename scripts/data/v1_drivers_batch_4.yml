@@ -1,0 +1,24 @@
+drivers:
+  - name: Moula Khan
+    phone: "+919686779573"
+    avg_rating: 4.0
+    cab_registration_number: KA04AF7384
+    cab_model_and_make: Innova Crysta
+    cab_type: SUV+
+    fuel_type: diesel
+    capacity: "7+1"
+    color: White
+    roof_carrier_available: true
+
+  - name: Hussain Ahmed
+    phone: "+917483841743"
+    avg_rating: 4.0
+    cab_registration_number: KA03AQ6128
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: cng
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+   
