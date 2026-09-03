@@ -57,7 +57,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from services.trips.upgradation_service import build_trip_upgradation_information
-from utils.utility import validate_date_time
+from utils.utility import as_utc_datetime
 
 log = logging.getLogger(__name__)
 
@@ -624,8 +624,12 @@ async def assign_driver_to_trip(
 
         # When we automate the driver KYC verification process through External Service API, we will also check if the driver is kyc_verified or not.
         
-        start_datetime =validate_date_time(trip.start_datetime, timezone_str = trip.timezone)
-        expected_end_datetime = validate_date_time(trip.expected_end_datetime, timezone_str = trip.timezone)
+        start_datetime = as_utc_datetime(trip.start_datetime)
+        expected_end_datetime = (
+            as_utc_datetime(trip.expected_end_datetime)
+            if trip.expected_end_datetime
+            else None
+        )
         #Check if the trip is in the past, and if so, raise an exception to prevent assigning a driver to a trip that has already started or ended.
         if validate_time_window:
             now = datetime.now(timezone.utc)
