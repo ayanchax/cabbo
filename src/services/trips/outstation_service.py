@@ -704,8 +704,16 @@ def populate_best_choice_recommendation(
         option
         for option in sorted_options
         if option.car_type == recommended_car_type
-        and option.fuel_type == FuelTypeEnum.diesel
+        and option.fuel_type == FuelTypeEnum.hybrid
     ]
+
+    if not recommended_candidates:
+        recommended_candidates = [
+            option
+            for option in sorted_options
+            if option.car_type == recommended_car_type
+            and option.fuel_type == FuelTypeEnum.diesel
+        ]
 
     if not recommended_candidates:
         recommended_candidates = [

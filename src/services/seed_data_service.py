@@ -22,6 +22,7 @@ from models.seed.seed_orm import SeedMetaData
 from models.seed.seed_schema import SeedRegistryEntry
 from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum, TripTypeEnum
 from models.trip.trip_orm import TripTypeMaster
+from models.cab.cab_orm import FuelType
 from services.airport_service import create_master_airports_data, get_all_airports
 from services.cab_service import create_cabs, get_all_cabs
 from services.kyc_service import create_master_kyc_data
@@ -174,6 +175,7 @@ FUEL_TYPES_SEED_DATA = [
     FuelTypeEnum.petrol,
     FuelTypeEnum.diesel,
     FuelTypeEnum.cng,
+    FuelTypeEnum.hybrid,
 ]
 
 HOURLY_RENTAL_PACKAGES_SEED_DATA = {
@@ -359,6 +361,9 @@ def _seed_cab_types(session: Session):
 def _seed_fuel_types(session: Session):
     # Seed fuel types master data
     create_fuel_types(FUEL_TYPES_SEED_DATA, session)
+    session.query(FuelType).filter(FuelType.name == FuelTypeEnum.cng).update(
+        {"is_active": False}
+    )
 
 
 def _seed_kyc_document_types(session: Session):
@@ -385,6 +390,18 @@ def _seed_support_contacts(session: Session):
 
 
 # Seed pricing data for local, airport and outstation trips
+def _add_hybrid_prices_from_cng(price_map: dict) -> dict:
+    """Seed Hybrid with CNG-equivalent economics while keeping CNG configurable."""
+    for value in price_map.values():
+        if isinstance(value, dict):
+            _add_hybrid_prices_from_cng(value)
+
+    if FuelTypeEnum.cng in price_map and FuelTypeEnum.hybrid not in price_map:
+        price_map[FuelTypeEnum.hybrid] = price_map[FuelTypeEnum.cng]
+
+    return price_map
+
+
 def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
     """Return region-wise price map for the given trip type."""
     # We will define pricing for Bangalore (BLR) region for local and airport trips
@@ -560,7 +577,7 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
                 },
             },
         }
-        return region_wise_price_map
+        return _add_hybrid_prices_from_cng(region_wise_price_map)
 
     if trip_type in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
         region_wise_price_map = {
@@ -621,7 +638,7 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
                 },
             }
         }
-        return region_wise_price_map
+        return _add_hybrid_prices_from_cng(region_wise_price_map)
     if trip_type == TripTypeEnum.outstation:
         region_wise_price_map = {
             "KA": {
@@ -985,7 +1002,7 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
                 },
             },
         }
-        return region_wise_price_map
+        return _add_hybrid_prices_from_cng(region_wise_price_map)
     return {}
 
 
@@ -1006,7 +1023,9 @@ def _seed_local_cab_pricing(session: Session):
         for cab in cab_types:
             for fuel in fuel_types:
                 # Local
-                if cab.name == CarTypeEnum.hatchback and fuel.name in [
+                if fuel.name == FuelTypeEnum.cng:
+                    is_available_in_network = False
+                elif cab.name == CarTypeEnum.hatchback and fuel.name in [
                     FuelTypeEnum.petrol,
                     FuelTypeEnum.diesel,
                 ]:
@@ -1078,10 +1097,11 @@ def _seed_outstation_cab_pricing(session: Session):
         for cab in cab_types:
             for fuel in fuel_types:
                 # Outstation
-                if cab.name == CarTypeEnum.hatchback and fuel.name in [
+                if fuel.name == FuelTypeEnum.cng:
+                    is_available_in_network = False
+                elif cab.name == CarTypeEnum.hatchback and fuel.name in [
                     FuelTypeEnum.petrol,
                     FuelTypeEnum.diesel,
-                    FuelTypeEnum.cng,
                 ]:
                     is_available_in_network = False
                 elif cab.name == CarTypeEnum.suv and fuel.name in [
@@ -1152,7 +1172,9 @@ def _seed_airport_cab_pricing(session: Session):
         for cab in cab_types:
             for fuel in fuel_types:
                 # Airport
-                if cab.name == CarTypeEnum.hatchback and fuel.name in [
+                if fuel.name == FuelTypeEnum.cng:
+                    is_available_in_network = False
+                elif cab.name == CarTypeEnum.hatchback and fuel.name in [
                     FuelTypeEnum.petrol,
                     FuelTypeEnum.diesel,
                 ]:
@@ -1481,7 +1503,7 @@ def _get_weekly_permit_fee_per_state():
         },
         # Add more states as needed
     }
-    return weekly_permit_fees_mapping
+    return _add_hybrid_prices_from_cng(weekly_permit_fees_mapping)
 
 
 def _seed_permit_fee_pricing(session: Session):
