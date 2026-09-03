@@ -1,0 +1,12 @@
+drivers:
+  - name: Albab
+    phone: "+919395134293"
+    avg_rating: 4.2
+    cab_registration_number: KA01AQ0741
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White
+
+  
