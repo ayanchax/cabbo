@@ -30,8 +30,6 @@ from services.geography_service import (
     a_get_all_countries,
     a_get_all_regions,
     a_get_all_states,
-    a_get_region_by_id,
-    a_get_state_by_id,
 )
 from services.pricing_service import (
     a_get_base_pricings_airport,
@@ -493,6 +491,11 @@ class ConfigStore(BaseModel):
     async def _retrieve_and_set_outstation_pricing(self, db: AsyncSession):
         """Load outstation master data from the database into the store."""
         self.log.info("Loading outstation pricing data into ConfigStore...")
+        states_by_id = {
+            str(state.id): state
+            for state in self.geographies.states.values()
+            if state.id
+        }
         outstation_trip_type = await self._retrieve_trip_type(
             trip_type=TripTypeEnum.outstation, db=db
         )
@@ -517,7 +520,7 @@ class ConfigStore(BaseModel):
             _fuel: FuelTypeSchema = FuelTypeSchema.model_validate(fuel)
             if _pricing.state_id:
 
-                state = await a_get_state_by_id(_pricing.state_id, db)
+                state = states_by_id.get(str(_pricing.state_id))
 
                 if state:
                     state_code = state.state_code
@@ -531,7 +534,7 @@ class ConfigStore(BaseModel):
         for trip_config in trip_configs:
             if trip_config.state_id:
 
-                state = await a_get_state_by_id(trip_config.state_id, db)
+                state = states_by_id.get(str(trip_config.state_id))
                 if state:
                     state_code = state.state_code
                     if state_code not in outstation_data:
@@ -575,6 +578,11 @@ class ConfigStore(BaseModel):
     async def _retrieve_and_set_local_pricing(self, db: AsyncSession):
         """Load local pricing data from the database into the store."""
         self.log.info("Loading local pricing data into ConfigStore...")
+        regions_by_id = {
+            str(region.id): region
+            for region in self.geographies.regions.values()
+            if region.id
+        }
         local_trip_type = await self._retrieve_trip_type(trip_type=TripTypeEnum.local, db=db)
         if not local_trip_type:
             return
@@ -592,7 +600,7 @@ class ConfigStore(BaseModel):
             _cab = CabTypeSchema.model_validate(cab)
             _fuel = FuelTypeSchema.model_validate(fuel)
             if _pricing.region_id:
-                region = await a_get_region_by_id(_pricing.region_id, db)
+                region = regions_by_id.get(str(_pricing.region_id))
 
                 if region:
                     region_code = region.region_code
@@ -605,7 +613,7 @@ class ConfigStore(BaseModel):
 
         for trip_config in trip_configs:
             if trip_config.region_id:
-                region = await a_get_region_by_id(trip_config.region_id, db)
+                region = regions_by_id.get(str(trip_config.region_id))
                 if region:
                     region_code = region.region_code
                     if region_code not in local_data:
@@ -646,6 +654,11 @@ class ConfigStore(BaseModel):
     async def _retrieve_and_set_airport_pricing(self, trip_type: TripTypeEnum, db: AsyncSession):
         """Load all airport pricing data from the database into the store."""
         self.log.info("Loading airport pricing data into ConfigStore...")
+        regions_by_id = {
+            str(region.id): region
+            for region in self.geographies.regions.values()
+            if region.id
+        }
         if trip_type not in [TripTypeEnum.airport_pickup, TripTypeEnum.airport_drop]:
             return
         airport_trip_type = await self._retrieve_trip_type(trip_type=trip_type, db=db)
@@ -664,7 +677,7 @@ class ConfigStore(BaseModel):
             _fuel = FuelTypeSchema.model_validate(fuel)
 
             if _pricing.region_id:
-                region = await a_get_region_by_id(_pricing.region_id, db)
+                region = regions_by_id.get(str(_pricing.region_id))
                 if region:
                     region_code = region.region_code
                     if region_code not in airport_data:
@@ -677,7 +690,7 @@ class ConfigStore(BaseModel):
                     )
         for trip_config in trip_configs:
             if trip_config.region_id:
-                region = await a_get_region_by_id(trip_config.region_id, db)
+                region = regions_by_id.get(str(trip_config.region_id))
                 if region:
                     region_code = region.region_code
                     if region_code not in airport_data:
