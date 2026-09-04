@@ -252,8 +252,15 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
 
     for pricing, cab_type, fuel_type in local_pricings:
         pricing_schema = LocalCabPricingSchema.model_validate(pricing)
+        #Despite picking only available pricings in network that pairs with active cab types and fuel types from the configuration store at app startup, we are adding an additional check here to ensure that only active and available cab-fuel pairs are considered for pricing. This is a safeguard against any potential misconfigurations or changes in the configuration that might introduce inactive or unavailable options. By skipping any inactive or unavailable cab-fuel pairs, we ensure that customers are only presented with valid and bookable options, enhancing the user experience and preventing potential booking issues.
+        if not pricing_schema.is_available_in_network:
+            continue  # Skip pricings for cab-fuel pairs not available in the network
         cab_type_schema = CabTypeSchema.model_validate(cab_type)
+        if not cab_type_schema.is_active:
+            continue  # Skip inactive cab types
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
+        if not fuel_type_schema.is_active:
+            continue  # Skip inactive fuel types
         hourly_rate = pricing_schema.hourly_rate
         max_included_hours = configuration.auxiliary_pricing.common.max_included_hours
         base_hours = min(package.included_hours, max_included_hours)
@@ -548,8 +555,16 @@ def populate_best_choice_recommendation(
         option
         for option in sorted_options
         if option.car_type == recommended_car_type
-        and option.fuel_type == FuelTypeEnum.diesel
+        and option.fuel_type == FuelTypeEnum.hybrid
     ]
+
+    if not recommended_candidates:
+        recommended_candidates = [
+            option
+            for option in sorted_options
+            if option.car_type == recommended_car_type
+            and option.fuel_type == FuelTypeEnum.diesel
+        ]
 
     if not recommended_candidates:
         recommended_candidates = [

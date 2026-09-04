@@ -22,8 +22,10 @@ from utils.coercions import coerce_car_type, coerce_fuel_type
 log = logging.getLogger(__name__)
 
 ALLOWED_FUEL_UPGRADES = {
+    (FuelTypeEnum.petrol, FuelTypeEnum.hybrid),
+    (FuelTypeEnum.cng, FuelTypeEnum.hybrid),
+    (FuelTypeEnum.hybrid, FuelTypeEnum.diesel),
     (FuelTypeEnum.cng, FuelTypeEnum.diesel),
-    (FuelTypeEnum.diesel, FuelTypeEnum.petrol),
 }
 
 ALLOWED_CAB_TYPE_UPGRADES = {
@@ -40,6 +42,7 @@ def _format_enum_value(value) -> str:
 def _format_fuel_value(value) -> str:
     fuel_labels = {
         FuelTypeEnum.cng: "CNG",
+        FuelTypeEnum.hybrid: "Hybrid",
         FuelTypeEnum.diesel: "Diesel",
         FuelTypeEnum.petrol: "Petrol",
     }
@@ -122,7 +125,7 @@ def build_trip_upgradation_information(
     long_text = (
     f"Your booked preference was {from_label}. "
     f"Cabbo upgraded you to {to_label} at no extra charge."
-)   #Example: "Your booked preference was CNG Hatchback. Cabbo upgraded you to Diesel Sedan at no extra charge."
+)   #Example: "Your booked preference was Hybrid Hatchback. Cabbo upgraded you to Diesel Sedan at no extra charge."
 
     
     return TripUpgradationInformationSchema(
