@@ -333,8 +333,16 @@ def get_airport_pickup_trip_options(
 
     for pricing, cab_type, fuel_type in airport_pricings:
         pricing_schema = AirportCabPricingSchema.model_validate(pricing)
+        if not pricing_schema.is_available_in_network:
+            continue  # Skip pricings for cab-fuel pairs not available in the network
         cab_type_schema = CabTypeSchema.model_validate(cab_type)
+        #Despite picking only available pricings in network that pairs with active cab types and fuel types from the configuration store at app startup, we are adding an additional check here to ensure that only active and available cab-fuel pairs are considered for pricing. This is a safeguard against any potential misconfigurations or changes in the configuration that might introduce inactive or unavailable options. By skipping any inactive or unavailable cab-fuel pairs, we ensure that customers are only presented with valid and bookable options, enhancing the user experience and preventing potential booking issues.
+        if not cab_type_schema.is_active:
+                continue  # Skip inactive cab types
+                
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
+        if not fuel_type_schema.is_active:
+                continue  # Skip inactive fuel types
         base_fare_per_km = pricing_schema.fare_per_km
 
         placard_charge = (
@@ -521,8 +529,15 @@ def get_airport_dropoff_trip_options(
     options: List[TripSearchOption] = []
     for pricing, cab_type, fuel_type in airport_pricings:
         pricing_schema = AirportCabPricingSchema.model_validate(pricing)
+        #Despite picking only available pricings in network that pairs with active cab types and fuel types from the configuration store at app startup, we are adding an additional check here to ensure that only active and available cab-fuel pairs are considered for pricing. This is a safeguard against any potential misconfigurations or changes in the configuration that might introduce inactive or unavailable options. By skipping any inactive or unavailable cab-fuel pairs, we ensure that customers are only presented with valid and bookable options, enhancing the user experience and preventing potential booking issues.
+        if not pricing_schema.is_available_in_network:
+            continue  # Skip pricings for cab-fuel pairs not available in the network
         cab_type_schema = CabTypeSchema.model_validate(cab_type)
+        if not cab_type_schema.is_active:
+            continue  # Skip inactive cab types
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
+        if not fuel_type_schema.is_active:
+            continue  # Skip inactive fuel types
         base_fare_per_km = pricing_schema.fare_per_km
         billable_km = max(est_km, min_included_km)
         base_price = base_fare_per_km * billable_km
