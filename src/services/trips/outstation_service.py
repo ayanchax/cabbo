@@ -354,8 +354,16 @@ def get_outstation_trip_options(
     options: List[TripSearchOption] = []
     for pricing, cab_type, fuel_type in outstation_pricings:
         pricing_schema = OutstationCabPricingSchema.model_validate(pricing)
+        #Despite picking only available pricings in network that pairs with active cab types and fuel types from the configuration store at app startup, we are adding an additional check here to ensure that only active and available cab-fuel pairs are considered for pricing. This is a safeguard against any potential misconfigurations or changes in the configuration that might introduce inactive or unavailable options. By skipping any inactive or unavailable cab-fuel pairs, we ensure that customers are only presented with valid and bookable options, enhancing the user experience and preventing potential booking issues.
+        if not pricing_schema.is_available_in_network:
+                    continue  # Skip pricings for cab-fuel pairs not available in the network
         cab_type_schema = CabTypeSchema.model_validate(cab_type)
+        if not cab_type_schema.is_active:
+            continue  # Skip inactive cab types
+        
         fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
+        if not fuel_type_schema.is_active:
+            continue  # Skip inactive fuel types
         # Calculate interstate permit fee if applicable per cab type and fuel type for the unique states crossed
         if is_interstate and unique_states:
             if (
@@ -704,8 +712,16 @@ def populate_best_choice_recommendation(
         option
         for option in sorted_options
         if option.car_type == recommended_car_type
-        and option.fuel_type == FuelTypeEnum.diesel
+        and option.fuel_type == FuelTypeEnum.hybrid
     ]
+
+    if not recommended_candidates:
+        recommended_candidates = [
+            option
+            for option in sorted_options
+            if option.car_type == recommended_car_type
+            and option.fuel_type == FuelTypeEnum.diesel
+        ]
 
     if not recommended_candidates:
         recommended_candidates = [

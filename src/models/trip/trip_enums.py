@@ -56,6 +56,8 @@ class FuelTypeEnum(str, enum.Enum):
     diesel = "diesel"
     petrol = "petrol"
     cng = "cng"
+    hybrid = "hybrid" # can be cng+petrol or cng+diesel or petrol+diesel
+
 
 
 # Car Type Enum defines the type of car preferred for the trip.

@@ -116,7 +116,7 @@ class TempTrip(Base):
         Enum(CarTypeEnum), nullable=True, default=CarTypeEnum.sedan
     )
     preferred_fuel_type = Column(
-        Enum(FuelTypeEnum), nullable=True, default=FuelTypeEnum.diesel
+        Enum(FuelTypeEnum), nullable=True, default=FuelTypeEnum.hybrid
     )
     in_car_amenities = Column(
         JSON, nullable=True
