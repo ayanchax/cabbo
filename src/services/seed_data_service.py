@@ -1023,12 +1023,7 @@ def _seed_local_cab_pricing(session: Session):
         for cab in cab_types:
             for fuel in fuel_types:
                 # Local
-                if fuel.name == FuelTypeEnum.cng:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.hatchback and fuel.name in [
-                    FuelTypeEnum.petrol,
-                    FuelTypeEnum.diesel,
-                ]:
+                if cab.name == CarTypeEnum.hatchback or fuel.name == FuelTypeEnum.cng:
                     is_available_in_network = False
                 elif cab.name == CarTypeEnum.suv and fuel.name in [
                     FuelTypeEnum.diesel,
@@ -1097,12 +1092,7 @@ def _seed_outstation_cab_pricing(session: Session):
         for cab in cab_types:
             for fuel in fuel_types:
                 # Outstation
-                if fuel.name == FuelTypeEnum.cng:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.hatchback and fuel.name in [
-                    FuelTypeEnum.petrol,
-                    FuelTypeEnum.diesel,
-                ]:
+                if cab.name == CarTypeEnum.hatchback or fuel.name == FuelTypeEnum.cng:
                     is_available_in_network = False
                 elif cab.name == CarTypeEnum.suv and fuel.name in [
                     FuelTypeEnum.diesel,
@@ -1172,12 +1162,7 @@ def _seed_airport_cab_pricing(session: Session):
         for cab in cab_types:
             for fuel in fuel_types:
                 # Airport
-                if fuel.name == FuelTypeEnum.cng:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.hatchback and fuel.name in [
-                    FuelTypeEnum.petrol,
-                    FuelTypeEnum.diesel,
-                ]:
+                if cab.name == CarTypeEnum.hatchback or fuel.name == FuelTypeEnum.cng:
                     is_available_in_network = False
                 elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel]:
                     is_available_in_network = False

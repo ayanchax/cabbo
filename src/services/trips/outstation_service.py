@@ -716,6 +716,7 @@ def populate_best_choice_recommendation(
     ]
 
     if not recommended_candidates:
+        #If no hybrid options are available, we will look for diesel options as the next best choice. Diesel cars are often preferred for outstation trips due to their fuel efficiency and performance over long distances. This ensures that we still provide a recommendation that aligns with the user's preferences and trip requirements.
         recommended_candidates = [
             option
             for option in sorted_options
@@ -724,12 +725,14 @@ def populate_best_choice_recommendation(
         ]
 
     if not recommended_candidates:
+        # If no hybrid or diesel options are available, we will look for petrol or any other options as the next best choice. Petrol cars are commonly used and widely available, making them a suitable alternative when other fuel types are not present. This ensures that we still provide a recommendation that aligns with the user's preferences and trip requirements.
         recommended_candidates = [
             option
             for option in sorted_options
             if option.car_type == recommended_car_type
         ]
 
+    #Minimum price recommendation: Among the recommended candidates, we will select the option with the lowest total price as the best choice for the user. This ensures that we provide a cost-effective recommendation while still considering the user's preferred car type and fuel type. If no recommended candidates are available, we will default to the first option in the sorted list (if any) to ensure that the user still receives a recommendation.
     recommended_option = min(
         recommended_candidates,
         key=lambda option: option.total_price,
