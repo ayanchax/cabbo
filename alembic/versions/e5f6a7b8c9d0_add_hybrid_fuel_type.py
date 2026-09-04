@@ -191,6 +191,36 @@ def upgrade() -> None:
         WHERE fuel.name = 'cng'
         """
     )
+    op.execute(
+        """
+        UPDATE local_cab_pricing pricing
+        JOIN fuel_types_master fuel ON fuel.id = pricing.fuel_type_id
+        JOIN cab_types_master cab ON cab.id = pricing.cab_type_id
+        SET pricing.is_available_in_network = FALSE
+        WHERE fuel.name = 'hybrid'
+          AND cab.name IN ('hatchback', 'Hatchback')
+        """
+    )
+    op.execute(
+        """
+        UPDATE airport_cab_pricing pricing
+        JOIN fuel_types_master fuel ON fuel.id = pricing.fuel_type_id
+        JOIN cab_types_master cab ON cab.id = pricing.cab_type_id
+        SET pricing.is_available_in_network = FALSE
+        WHERE fuel.name = 'hybrid'
+          AND cab.name IN ('hatchback', 'Hatchback')
+        """
+    )
+    op.execute(
+        """
+        UPDATE outstation_cab_pricing pricing
+        JOIN fuel_types_master fuel ON fuel.id = pricing.fuel_type_id
+        JOIN cab_types_master cab ON cab.id = pricing.cab_type_id
+        SET pricing.is_available_in_network = FALSE
+        WHERE fuel.name = 'hybrid'
+          AND cab.name IN ('hatchback', 'Hatchback')
+        """
+    )
 
 
 def downgrade() -> None:
