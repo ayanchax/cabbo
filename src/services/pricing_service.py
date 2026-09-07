@@ -652,24 +652,22 @@ def compute_base_platform_fee(
     """
         Computes final platform fee with:
         - fixed + dynamic %
-        - min/max capping
+        - max capping only; min_cap is accepted for compatibility but not enforced
         - rounding to nearest 9/10 pricing psychology so that prices end with 9 (e.g. 149 instead of 150) which is known to increase conversion rates by creating a perception of a better deal.
 
         Platform fee:
 
     Fixed (cost recovery)
     Dynamic % (margin)
-    Caps (trust control)
+    Max cap (customer trust control)
     Rounding (UX psychology)
     """
 
     # Step 1: Raw computation
     fee = fixed_fee + (dynamic_percent * total_price / 100)
 
-    # Step 2: Apply caps
-    if min_cap is not None:
-        fee = max(fee, min_cap)
-
+    # Step 2: Apply only max cap so low-value trips are not forced upward.
+    # However, high value trips are capped to avoid customer trust issues.
     if max_cap is not None:
         fee = min(fee, max_cap)
     after_cap_fee = fee
@@ -683,7 +681,8 @@ Platform Fee Computation:
 Base Price: {total_price}
 Fixed Fee: {fixed_fee}
 Dynamic %: {dynamic_percent}
-After Cap: {after_cap_fee}
+Min Cap Ignored: {min_cap}
+After Max Cap: {after_cap_fee}
 Final Rounded: {final_fee}
 """
     )
