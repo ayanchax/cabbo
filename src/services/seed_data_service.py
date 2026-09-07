@@ -219,12 +219,12 @@ PLATFORM_FEE_BY_COUNTRY = {
     # These are fixed platform fees per booking per country
     # The fees are in local currency of the country
     # These are seed data and can be updated later via admin interface
-    #Breakdown of estimated costs for platform fee for a typical ₹800 local trip in India:
-    # Payment gateway (Razorpay): ~2% of ₹800 = ₹16
-    # SMS by Twilio / OTP: ₹8 per SMS segment
-    # Infra (Railway Backend, Digital Ocean MySQL Managed DB): ₹10–₹20
-    # Misc (email by Brevo(300/day free), logging to Sentry, etc): ₹5
-    # Google Mapping and location services: ₹5–₹10
+    # Breakdown of estimated costs for platform fee for a typical INR 800 local trip in India:
+    # Payment gateway (Razorpay): 2% per booking Example: ~2% of INR 800 = INR 16
+    # SMS/OTP via MSG91: ~INR 0.25 per OTP/SMS
+    # Infra (Railway Backend + Aiven MySQL): roughly USD 7/month total, amortized by booking volume
+    # Misc (Brevo email free tier, logging to Sentry, etc): low variable cost at current scale
+    # Google mapping and location services: INR 5-INR 10 depending usage
     "IN": 65,  # 65 INR for India, sweet spot to cover costs and ensure profitability while remaining competitive.
     # Future countries:
     # "US": 2.5,  # $2.5 for USA
@@ -1064,8 +1064,8 @@ def _seed_local_cab_pricing(session: Session):
                 min_included_km=40,  # Minimum 40 km included for local trips
                 max_included_km=120,  # Maximum 120 km included for local trips
                 region_id=region_id,
-                min_platform_fee=100,  # Minimum platform fee of Rs. 50 for local trips
-                max_platform_fee=400,  # Maximum platform fee of Rs. 200 for local trips
+                min_platform_fee=100,  # Minimum platform fee of Rs. 100 for local trips
+                max_platform_fee=400,  # Maximum platform fee of Rs. 400 for local trips
                 #We do not need distance thresholds for local trips as fare is primarily time based and distance is secondary, but we can keep some reasonable thresholds to manage outliers and for better fare estimation for users
                 prior_booking_window_hours=6,  # Assuming a standard prior booking window of 24 hours for local trips
             )
@@ -1128,7 +1128,7 @@ def _seed_outstation_cab_pricing(session: Session):
         common_payload: CommonPricingConfigurationSchema = (
             CommonPricingConfigurationSchema(
                 trip_type_id=trip_type_id_map[TripTypeEnum.outstation],
-                dynamic_platform_fee_percent=1.5,  # 3% platform fee/convenience fee
+                dynamic_platform_fee_percent=1.5,  # 1.5% platform fee/convenience fee
                 overage_warning_km_threshold=50,  # Warning threshold for overages
                 state_id=state_id,
                 min_included_km=300,   # For outstation trips, we have 300km included kms per day as a standard, but for fare estimation purposes we can keep a reasonable range of included kms based on the package and trip duration
@@ -1196,8 +1196,8 @@ def _seed_airport_cab_pricing(session: Session):
                 toll=120,  # toll for airport pickup set to 120 if customer opts for it
                 parking=100,  # parking charge for airport pickup
                 region_id=region_id,
-                min_platform_fee=150,  # Minimum platform fee of Rs. 100 for airport pickup trips
-                max_platform_fee=500,  # Maximum platform fee of Rs. 400 for airport pickup trips
+                min_platform_fee=150,  # Minimum platform fee of Rs. 150 for airport pickup trips
+                max_platform_fee=500,  # Maximum platform fee of Rs. 500 for airport pickup trips
                 min_outbound_distance_km=2,  # Minimum distance threshold for fare calculation, e.g., 2 km for airport trips
                 max_distance_km=84,  # Maximum distance threshold for fare calculation, e.g., 42 km for airport trips
                 prior_booking_window_hours=3,  # Assuming a standard prior booking window of 6 hours for airport pickup trips considering the short notice nature of these trips
