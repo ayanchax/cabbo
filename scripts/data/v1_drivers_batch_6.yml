@@ -1,0 +1,12 @@
+drivers:
+  - name: Abdul Salam
+    phone: "+919845483462"
+    avg_rating: 4.3
+    cab_registration_number: KA03AC6139
+    cab_model_and_make: Toyota Etios
+    cab_type: Premium Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: Silver
+
+  
