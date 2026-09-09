@@ -46,6 +46,61 @@ def _drop_fk_for_column(table_name: str, column_name: str) -> None:
     op.execute("DEALLOCATE PREPARE drop_fk_stmt")
 
 
+def _drop_index_if_exists(table_name: str, index_name: str) -> None:
+    op.execute(
+        f"""
+        SET @index_name := (
+            SELECT index_name
+            FROM information_schema.STATISTICS
+            WHERE table_schema = DATABASE()
+              AND table_name = '{table_name}'
+              AND index_name = '{index_name}'
+            LIMIT 1
+        )
+        """
+    )
+    op.execute(
+        f"""
+        SET @drop_index_sql := IF(
+            @index_name IS NOT NULL,
+            CONCAT('ALTER TABLE `{table_name}` DROP INDEX `', @index_name, '`'),
+            'SELECT 1'
+        )
+        """
+    )
+    op.execute("PREPARE drop_index_stmt FROM @drop_index_sql")
+    op.execute("EXECUTE drop_index_stmt")
+    op.execute("DEALLOCATE PREPARE drop_index_stmt")
+
+
+def _create_index_if_not_exists(table_name: str, index_name: str, columns: list[str]) -> None:
+    column_sql = ", ".join(f"`{column}`" for column in columns)
+    op.execute(
+        f"""
+        SET @index_name := (
+            SELECT index_name
+            FROM information_schema.STATISTICS
+            WHERE table_schema = DATABASE()
+              AND table_name = '{table_name}'
+              AND index_name = '{index_name}'
+            LIMIT 1
+        )
+        """
+    )
+    op.execute(
+        f"""
+        SET @create_index_sql := IF(
+            @index_name IS NULL,
+            'CREATE INDEX `{index_name}` ON `{table_name}` ({column_sql})',
+            'SELECT 1'
+        )
+        """
+    )
+    op.execute("PREPARE create_index_stmt FROM @create_index_sql")
+    op.execute("EXECUTE create_index_stmt")
+    op.execute("DEALLOCATE PREPARE create_index_stmt")
+
+
 def _collapse_pricing_table(table_name: str, jurisdiction_column: str, rate_column: str) -> None:
     op.execute(
         f"""
@@ -146,15 +201,21 @@ def upgrade() -> None:
     )
     _collapse_permit_fee_table()
 
-    op.drop_constraint("uq_local_region_cab_fuel", "local_cab_pricing", type_="unique")
-    op.drop_constraint("uq_airport_region_cab_fuel", "airport_cab_pricing", type_="unique")
-    op.drop_constraint("uq_outstation_state_cab_fuel", "outstation_cab_pricing", type_="unique")
-    op.drop_constraint("uq_cab_fuel_state", "permit_fee_config", type_="unique")
-
     _drop_fk_for_column("local_cab_pricing", "fuel_type_id")
     _drop_fk_for_column("airport_cab_pricing", "fuel_type_id")
     _drop_fk_for_column("outstation_cab_pricing", "fuel_type_id")
     _drop_fk_for_column("permit_fee_config", "fuel_type_id")
+
+    _create_index_if_not_exists("local_cab_pricing", "ix_local_cab_pricing_region_id", ["region_id"])
+    _create_index_if_not_exists("airport_cab_pricing", "ix_airport_cab_pricing_region_id", ["region_id"])
+    _create_index_if_not_exists("outstation_cab_pricing", "ix_outstation_cab_pricing_state_id", ["state_id"])
+    _create_index_if_not_exists("permit_fee_config", "ix_permit_fee_config_cab_type_id", ["cab_type_id"])
+    _create_index_if_not_exists("permit_fee_config", "ix_permit_fee_config_state_id", ["state_id"])
+
+    _drop_index_if_exists("local_cab_pricing", "uq_local_region_cab_fuel")
+    _drop_index_if_exists("airport_cab_pricing", "uq_airport_region_cab_fuel")
+    _drop_index_if_exists("outstation_cab_pricing", "uq_outstation_state_cab_fuel")
+    _drop_index_if_exists("permit_fee_config", "uq_cab_fuel_state")
 
     op.drop_column("local_cab_pricing", "fuel_type_id")
     op.drop_column("airport_cab_pricing", "fuel_type_id")
