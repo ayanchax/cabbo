@@ -261,7 +261,7 @@ class TripSearchRequest(BaseModel):
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     car_capacity:Optional[VehicleCapacitySchema] = None
-    fuel_type: FuelTypeEnum
+    fuel_type: Optional[FuelTypeEnum] = None
     total_price: float
     price_breakdown: Union[
         AirportPricingBreakdownSchema,

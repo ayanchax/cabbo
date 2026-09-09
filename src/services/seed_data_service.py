@@ -402,6 +402,17 @@ def _add_hybrid_prices_from_cng(price_map: dict) -> dict:
     return price_map
 
 
+def _get_unified_price_from_fuel_map(price_map: dict) -> float:
+    values = sorted(value for value in price_map.values() if value is not None)
+    if not values:
+        return 0.0
+    return values[len(values) // 2]
+
+
+def _is_cab_available_for_pricing(cab_name: CarTypeEnum) -> bool:
+    return cab_name != CarTypeEnum.hatchback
+
+
 def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
     """Return region-wise price map for the given trip type."""
     # We will define pricing for Bangalore (BLR) region for local and airport trips
@@ -1007,11 +1018,9 @@ def _get_region_wise_price_map(trip_type: TripTypeEnum) -> dict:
 
 
 def _seed_local_cab_pricing(session: Session):
-    # Seed local cab pricing data per cab type and fuel type and region
+    # Seed local cab pricing data per cab type and region.
     price_map = _get_region_wise_price_map(TripTypeEnum.local)
     cab_types = get_all_cabs(session)
-    fuel_types = get_all_fuel_types(session)
-    is_available_in_network = True
     trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
 
@@ -1021,35 +1030,21 @@ def _seed_local_cab_pricing(session: Session):
             continue
         region_id = region.id
         for cab in cab_types:
-            for fuel in fuel_types:
-                # Local
-                if cab.name == CarTypeEnum.hatchback or fuel.name == FuelTypeEnum.cng:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.suv and fuel.name in [
-                    FuelTypeEnum.diesel,
-                    FuelTypeEnum.cng,
-                ]:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.suv_plus and fuel.name in [
-                    FuelTypeEnum.cng
-                ]:
-                    is_available_in_network = False
-                else:
-                    is_available_in_network = True
-                payload: LocalCabPricingSchema = LocalCabPricingSchema(
-                    is_available_in_network=is_available_in_network,
-                    cab_type_id=cab.id,
-                    fuel_type_id=fuel.id,
-                    hourly_rate=region_data["hourly_rates"][cab.name][fuel.name],
-                    overage_amount_per_hour=region_data["overage_amount_per_hour"][
-                        cab.name
-                    ][fuel.name],
-                    overage_amount_per_km=region_data["overage_amount_per_km"][
-                        cab.name
-                    ][fuel.name],
-                    region_id=region_id,
-                )
-                create_local_cab_pricing(payload, session)
+            payload: LocalCabPricingSchema = LocalCabPricingSchema(
+                is_available_in_network=_is_cab_available_for_pricing(cab.name),
+                cab_type_id=cab.id,
+                hourly_rate=_get_unified_price_from_fuel_map(
+                    region_data["hourly_rates"][cab.name]
+                ),
+                overage_amount_per_hour=_get_unified_price_from_fuel_map(
+                    region_data["overage_amount_per_hour"][cab.name]
+                ),
+                overage_amount_per_km=_get_unified_price_from_fuel_map(
+                    region_data["overage_amount_per_km"][cab.name]
+                ),
+                region_id=region_id,
+            )
+            create_local_cab_pricing(payload, session)
 
         # Keeping a separate tripwise pricing configuration for local trips as these will be redundant if kept within LocalCabPricing table.
         # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing configuration
@@ -1076,11 +1071,9 @@ def _seed_local_cab_pricing(session: Session):
 
 
 def _seed_outstation_cab_pricing(session: Session):
-    # Seed outstation cab pricing data per cab type and fuel type
+    # Seed outstation cab pricing data per cab type.
     price_map = _get_region_wise_price_map(TripTypeEnum.outstation)
     cab_types = get_all_cabs(session)
-    fuel_types = get_all_fuel_types(session)
-    is_available_in_network = True
     trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
 
@@ -1090,36 +1083,22 @@ def _seed_outstation_cab_pricing(session: Session):
             continue  # if seed data for state is not found in StateModel, skip to next
         state_id = state.id
         for cab in cab_types:
-            for fuel in fuel_types:
-                # Outstation
-                if cab.name == CarTypeEnum.hatchback or fuel.name == FuelTypeEnum.cng:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.suv and fuel.name in [
-                    FuelTypeEnum.diesel,
-                    FuelTypeEnum.cng,
-                ]:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.suv_plus and fuel.name in [
-                    FuelTypeEnum.cng
-                ]:
-                    is_available_in_network = False
-                else:
-                    is_available_in_network = True
-                payload: OutstationCabPricingSchema = OutstationCabPricingSchema(
-                    is_available_in_network=is_available_in_network,
-                    cab_type_id=cab.id,
-                    fuel_type_id=fuel.id,
-                    base_fare_per_km=state_data["base_fare"][cab.name][fuel.name],
-                    driver_allowance_per_day=state_data["driver_allowance_per_day"][
-                        cab.name
-                    ][fuel.name],
-                    min_included_km_per_day=state_data["min_km_per_day"][cab.name],
-                    overage_amount_per_km=state_data["overage_amount_per_km"][cab.name][
-                        fuel.name
-                    ],
-                    state_id=state_id,
-                )
-                create_outstation_cab_pricing(payload, session)
+            payload: OutstationCabPricingSchema = OutstationCabPricingSchema(
+                is_available_in_network=_is_cab_available_for_pricing(cab.name),
+                cab_type_id=cab.id,
+                base_fare_per_km=_get_unified_price_from_fuel_map(
+                    state_data["base_fare"][cab.name]
+                ),
+                driver_allowance_per_day=_get_unified_price_from_fuel_map(
+                    state_data["driver_allowance_per_day"][cab.name]
+                ),
+                min_included_km_per_day=state_data["min_km_per_day"][cab.name],
+                overage_amount_per_km=_get_unified_price_from_fuel_map(
+                    state_data["overage_amount_per_km"][cab.name]
+                ),
+                state_id=state_id,
+            )
+            create_outstation_cab_pricing(payload, session)
 
                 # Keeping a separate tripwise pricing configuration for outstation trips as these will be redundant if kept within OutstationCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
@@ -1147,11 +1126,9 @@ def _seed_outstation_cab_pricing(session: Session):
 
 
 def _seed_airport_cab_pricing(session: Session):
-    # Seed airport cab pricing data per cab type and fuel type
+    # Seed airport cab pricing data per cab type.
     price_map = _get_region_wise_price_map(TripTypeEnum.airport_pickup)
     cab_types = get_all_cabs(session)
-    fuel_types = get_all_fuel_types(session)
-    is_available_in_network = True
     trip_type_master_objs = get_all_trip_types(session)
     trip_type_id_map = {obj.trip_type: obj.id for obj in trip_type_master_objs}
     for region_code, region_data in price_map.items():
@@ -1160,29 +1137,18 @@ def _seed_airport_cab_pricing(session: Session):
             continue
         region_id = region.id
         for cab in cab_types:
-            for fuel in fuel_types:
-                # Airport
-                if cab.name == CarTypeEnum.hatchback or fuel.name == FuelTypeEnum.cng:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.suv and fuel.name in [FuelTypeEnum.diesel]:
-                    is_available_in_network = False
-                elif cab.name == CarTypeEnum.suv_plus and fuel.name in [
-                    FuelTypeEnum.cng
-                ]:
-                    is_available_in_network = False
-                else:
-                    is_available_in_network = True
-                payload: AirportCabPricingSchema = AirportCabPricingSchema(
-                    is_available_in_network=is_available_in_network,
-                    cab_type_id=cab.id,
-                    fuel_type_id=fuel.id,
-                    fare_per_km=region_data["fare_per_km"][cab.name][fuel.name],
-                    overage_amount_per_km=region_data["overage_amount_per_km"][
-                        cab.name
-                    ][fuel.name],
-                    region_id=region_id,
-                )
-                create_airport_cab_pricing(payload, session)
+            payload: AirportCabPricingSchema = AirportCabPricingSchema(
+                is_available_in_network=_is_cab_available_for_pricing(cab.name),
+                cab_type_id=cab.id,
+                fare_per_km=_get_unified_price_from_fuel_map(
+                    region_data["fare_per_km"][cab.name]
+                ),
+                overage_amount_per_km=_get_unified_price_from_fuel_map(
+                    region_data["overage_amount_per_km"][cab.name]
+                ),
+                region_id=region_id,
+            )
+            create_airport_cab_pricing(payload, session)
 
                 # Keeping a separate tripwise pricing configuration for airport trips as these will be redundant if kept within AirportCabPricing table.
                 # Hence to preserve normalization of DB, we are keeping a separate table for tripwise pricing
@@ -1495,24 +1461,24 @@ def _seed_permit_fee_pricing(session: Session):
     permit_fee_config_per_state = _get_weekly_permit_fee_per_state()
     states = get_all_states(session)
     cab_types = get_all_cabs(session)
-    fuel_types = get_all_fuel_types(session)
     for state in states:
         state_code = state.state_code.upper()
         fee_map = permit_fee_config_per_state.get(state_code, None)
         if not fee_map:
             continue
         for cab in cab_types:
-            for fuel in fuel_types:
-                weekly_fee = fee_map.get(cab.name, {}).get(fuel.name, None)
-                if not weekly_fee:
-                    continue
-                payload: PermitFeeConfigurationSchema = PermitFeeConfigurationSchema(
-                    state_id=state.id,
-                    cab_type_id=cab.id,
-                    fuel_type_id=fuel.id,
-                    permit_fee=weekly_fee,
-                )
-                create_permit_fee_configuration(payload, session)
+            fuel_fee_map = fee_map.get(cab.name, {})
+            if not fuel_fee_map:
+                continue
+            weekly_fee = _get_unified_price_from_fuel_map(fuel_fee_map)
+            if not weekly_fee:
+                continue
+            payload: PermitFeeConfigurationSchema = PermitFeeConfigurationSchema(
+                state_id=state.id,
+                cab_type_id=cab.id,
+                permit_fee=weekly_fee,
+            )
+            create_permit_fee_configuration(payload, session)
 
 
 # End of pricing data seeding

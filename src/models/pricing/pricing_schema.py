@@ -2,7 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 from typing import Dict, List, Optional, Union
 
-from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema
+from models.cab.cab_schema import CabTypeSchema
 from models.policies.cancelation_schema import CancelationPolicySchema
 
 
@@ -12,9 +12,8 @@ from models.policies.cancelation_schema import CancelationPolicySchema
 class CabPricingBaseSchema(BaseModel):
     id: Optional[Union[int, str]]=Field(None, description="Unique identifier for the cab pricing record")  # Can be str (UUID) or int (DB ID)
     cab_type_id: Union[str, int] = Field(..., description="Identifier for the cab type")  # Can be str (UUID) or int (DB ID)
-    fuel_type_id: Union[str, int] = Field(..., description="Identifier for the fuel type")  # Can be str (UUID) or int (DB ID)
     is_available_in_network: bool = Field(
-        True, description="Indicates if this cab and fuel type combination is available for network trips"
+        True, description="Indicates if this cab type is available for network trips"
     )
 
     class Config:
@@ -56,7 +55,6 @@ class LocalCabPricingSchema(CabPricingBaseSchema):
 # Airport-specific pricing schema
 class AirportCabPricingSchema(CabPricingBaseSchema):
     cab_type_id: Optional[str]
-    fuel_type_id: Optional[str]
     fare_per_km: float
     overage_amount_per_km: float
     region_id: Optional[str] = None
@@ -185,7 +183,6 @@ class PermitFeeConfigurationSchema(BaseModel):
     id: Optional[str]= None
     state_id: str  # FK to State.id
     cab_type_id: str  # FK to CabType.id
-    fuel_type_id: str  # FK to FuelType.id
     permit_fee: float  # Permit fee amount
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -196,7 +193,7 @@ class PermitFeeConfigurationSchema(BaseModel):
         extra = "allow"
 
 
-# Fixed platform fee configuration schema is used to define fixed platform fee per booking irrespective of cab type, fuel type, trip type, region, state etc.
+# Fixed platform fee configuration schema is used to define fixed platform fee per booking irrespective of cab type, trip type, region, state etc.
 class FixedPlatformFeeConfigurationSchema(BaseModel):
     id: Optional[str]= None
     fixed_platform_fee: float = Field(0.0, description="Fixed platform fee per booking")  # e.g., 50.0 for ₹50
@@ -245,6 +242,7 @@ class AuxiliaryPricingConfiguration(BaseModel):
     common: Optional[CommonPricingConfigurationSchema] = None
     night: Optional[NightPricingConfigurationSchema] = None # Includes region wise and state wise night pricing configurations for outstation and local
     permit: Optional[PermitFeeConfigurationSchema] = None # Includes permit fee configurations state wise for outstation trips
+    permits_by_cab_type_id: Optional[Dict[str, PermitFeeConfigurationSchema]] = None # Cab-specific permit fee configurations for outstation trips
     #Cancellation policies is by trip type and state wise for outstation trips and region wise for local and airport transfers, as cancellation policies can vary significantly based on these factors. For example, outstation trips might have different cancellation policies compared to local trips, and within outstation trips, the policies might differ based on the state due to varying regulations and business considerations.
     cancellation_policy: Optional[Dict[str, CancelationPolicySchema]] = None  # Cancellation policy configuration for outstation trips
     
@@ -259,7 +257,6 @@ class MasterPricingConfiguration(BaseModel):
                 LocalCabPricingSchema,
             ],
             CabTypeSchema,
-            FuelTypeSchema,
         ]
     ] = []
     auxiliary_pricing: AuxiliaryPricingConfiguration = Field(default_factory=AuxiliaryPricingConfiguration)

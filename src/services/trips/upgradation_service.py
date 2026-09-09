@@ -9,7 +9,6 @@ from models.driver.driver_orm import Driver
 
 from models.trip.trip_enums import (
     CarTypeEnum,
-    FuelTypeEnum,
 )
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
@@ -17,16 +16,9 @@ from models.trip.trip_schema import (
 )
 from models.user.user_orm import User
 
-from utils.coercions import coerce_car_type, coerce_fuel_type
+from utils.coercions import coerce_car_type
 
 log = logging.getLogger(__name__)
-
-ALLOWED_FUEL_UPGRADES = {
-    (FuelTypeEnum.petrol, FuelTypeEnum.hybrid),
-    (FuelTypeEnum.cng, FuelTypeEnum.hybrid),
-    (FuelTypeEnum.hybrid, FuelTypeEnum.diesel),
-    (FuelTypeEnum.cng, FuelTypeEnum.diesel),
-}
 
 ALLOWED_CAB_TYPE_UPGRADES = {
     (CarTypeEnum.hatchback, CarTypeEnum.sedan),
@@ -37,16 +29,6 @@ ALLOWED_CAB_TYPE_UPGRADES = {
 
 def _format_enum_value(value) -> str:
     return value.value if hasattr(value, "value") else str(value)
-
-
-def _format_fuel_value(value) -> str:
-    fuel_labels = {
-        FuelTypeEnum.cng: "CNG",
-        FuelTypeEnum.hybrid: "Hybrid",
-        FuelTypeEnum.diesel: "Diesel",
-        FuelTypeEnum.petrol: "Petrol",
-    }
-    return fuel_labels.get(coerce_fuel_type(value), _format_enum_value(value))
 
 
 def _format_car_value(value) -> str:
@@ -68,8 +50,6 @@ def build_trip_upgradation_information(
 ) -> Optional[TripUpgradationInformationSchema]:
     preferred_car_type = coerce_car_type(trip.preferred_car_type)
     assigned_car_type = coerce_car_type(driver.cab_type)
-    preferred_fuel_type = coerce_fuel_type(trip.preferred_fuel_type)
-    assigned_fuel_type = coerce_fuel_type(driver.fuel_type)
 
     upgrade_types = []
     invalid_reasons = []
@@ -86,18 +66,6 @@ def build_trip_upgradation_information(
                 f"cab type {preferred_car_type.value} -> {assigned_car_type.value}"
             )
 
-    if (
-        preferred_fuel_type
-        and assigned_fuel_type
-        and preferred_fuel_type != assigned_fuel_type
-    ):
-        if (preferred_fuel_type, assigned_fuel_type) in ALLOWED_FUEL_UPGRADES:
-            upgrade_types.append("fuel_upgrade")
-        else:
-            invalid_reasons.append(
-                f"fuel type {preferred_fuel_type.value} -> {assigned_fuel_type.value}"
-            )
-
     if invalid_reasons:
         # We won't allow a driver assignment that downgrades or mismatches the customer's booked cab preference. Raise an exception with the reasons.
         raise CabboException(
@@ -110,14 +78,8 @@ def build_trip_upgradation_information(
     if not upgrade_types:
         return None
 
-    from_label_parts = [
-        _format_fuel_value(preferred_fuel_type) if preferred_fuel_type else None,
-        _format_car_value(preferred_car_type) if preferred_car_type else None,
-    ]
-    to_label_parts = [
-        _format_fuel_value(assigned_fuel_type) if assigned_fuel_type else None,
-        _format_car_value(assigned_car_type) if assigned_car_type else None,
-    ]
+    from_label_parts = [_format_car_value(preferred_car_type) if preferred_car_type else None]
+    to_label_parts = [_format_car_value(assigned_car_type) if assigned_car_type else None]
 
     from_label = " ".join(part for part in from_label_parts if part)
     to_label = " ".join(part for part in to_label_parts if part)
@@ -125,16 +87,16 @@ def build_trip_upgradation_information(
     long_text = (
     f"Your booked preference was {from_label}. "
     f"Cabbo upgraded you to {to_label} at no extra charge."
-)   #Example: "Your booked preference was Hybrid Hatchback. Cabbo upgraded you to Diesel Sedan at no extra charge."
+)   #Example: "Your booked preference was Hatchback. Cabbo upgraded you to Sedan at no extra charge."
 
     
     return TripUpgradationInformationSchema(
         upgraded=True,
         upgrade_types=upgrade_types,
         from_cab_type=preferred_car_type,
-        from_fuel_type=preferred_fuel_type,
+        from_fuel_type=None,
         to_cab_type=assigned_car_type,
-        to_fuel_type=assigned_fuel_type,
+        to_fuel_type=None,
         additional_charges=0.0,
         short_text=short_text,
         long_text=long_text,
