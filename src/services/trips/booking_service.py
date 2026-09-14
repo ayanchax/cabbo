@@ -190,7 +190,6 @@ async def a_create_confirmed_trip_from_temp_trip(
         num_other_bags=temp_trip.num_other_bags,
         num_luggages=temp_trip.num_luggages,
         preferred_car_type=temp_trip.preferred_car_type,
-        preferred_fuel_type=temp_trip.preferred_fuel_type,
         in_car_amenities=(
             temp_trip.in_car_amenities if temp_trip.in_car_amenities else None
         ),

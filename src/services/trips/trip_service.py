@@ -940,7 +940,6 @@ async def a_create_temporary_trip(
         num_other_bags=booking_request.preferences.num_other_bags,
         num_luggages=booking_request.preferences.total_luggages,
         preferred_car_type=booking_request.preferences.preferred_car_type,
-        preferred_fuel_type=None,
         in_car_amenities=(
             booking_request.metadata.in_car_amenities.model_dump()
             if booking_request.metadata.in_car_amenities
