@@ -104,7 +104,14 @@ def _create_index_if_not_exists(table_name: str, index_name: str, columns: list[
 def _collapse_pricing_table(table_name: str, jurisdiction_column: str, rate_column: str) -> None:
     op.execute(
         f"""
-        CREATE TEMPORARY TABLE tmp_{table_name}_keep AS
+        CREATE TEMPORARY TABLE tmp_{table_name}_keep (
+            id CHAR(36) NOT NULL PRIMARY KEY
+        )
+        """
+    )
+    op.execute(
+        f"""
+        INSERT INTO tmp_{table_name}_keep (id)
         SELECT id
         FROM (
             SELECT
@@ -154,7 +161,14 @@ def _collapse_pricing_table(table_name: str, jurisdiction_column: str, rate_colu
 def _collapse_permit_fee_table() -> None:
     op.execute(
         """
-        CREATE TEMPORARY TABLE tmp_permit_fee_config_keep AS
+        CREATE TEMPORARY TABLE tmp_permit_fee_config_keep (
+            id CHAR(36) NOT NULL PRIMARY KEY
+        )
+        """
+    )
+    op.execute(
+        """
+        INSERT INTO tmp_permit_fee_config_keep (id)
         SELECT id
         FROM (
             SELECT
