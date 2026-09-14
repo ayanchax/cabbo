@@ -151,7 +151,7 @@ def create_trip_types(trip_types: list, db: Session):
 def generate_trip_field_dictionary(
     search_in: TripSearchRequest,
     car_type: str,
-    fuel_type: str,
+    fuel_type: Optional[str],
     option: TripSearchOption,
 ):
     """Generates a dictionary of trip fields for the booking option and preferences.
@@ -161,7 +161,7 @@ def generate_trip_field_dictionary(
     Args:
         search_in (TripSearchRequest): The trip search request containing user preferences.
         car_type (str): The car type selected for the trip.
-        fuel_type (str): The fuel type selected for the trip.
+        fuel_type (Optional[str]): Deprecated customer-facing fuel type.
         option (TripSearchOption): The trip search option containing pricing and breakdown details.
 
     Returns:
@@ -171,9 +171,10 @@ def generate_trip_field_dictionary(
     """
     option_dict = {
         "car_type": car_type,  # Use display name from schema
-        "fuel_type": fuel_type,  # Use display name from schema
         "total_price": option.total_price,
     }
+    if fuel_type:
+        option_dict["fuel_type"] = fuel_type
     preference_dict = {
         "trip_type": search_in.trip_type,
         "origin": search_in.origin.model_dump(exclude_none=True, exclude_unset=True) if search_in.origin else None,

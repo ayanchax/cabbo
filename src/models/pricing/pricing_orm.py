@@ -22,7 +22,7 @@ class OutstationCabPricing(Base):
     __tablename__ = "outstation_cab_pricing"
     __table_args__ = (
         UniqueConstraint(
-            "state_id", "cab_type_id", "fuel_type_id", name="uq_outstation_state_cab_fuel"
+            "state_id", "cab_type_id", name="uq_outstation_state_cab"
         ),
         Index("ix_outstation_pricing_available", "is_available_in_network"),
         Index("ix_outstation_pricing_state_available", "state_id", "is_available_in_network"),
@@ -36,9 +36,6 @@ class OutstationCabPricing(Base):
     )
     cab_type_id = Column(
         MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
-    )
-    fuel_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     base_fare_per_km = Column(Float, nullable=False)
     driver_allowance_per_day = Column(Float, nullable=False)
@@ -74,7 +71,7 @@ class LocalCabPricing(Base):
     __tablename__ = "local_cab_pricing"
     __table_args__ = (
         UniqueConstraint(
-            "region_id", "cab_type_id", "fuel_type_id", name="uq_local_region_cab_fuel"
+            "region_id", "cab_type_id", name="uq_local_region_cab"
         ),
         Index("ix_local_pricing_available", "is_available_in_network"),
         Index("ix_local_pricing_region_available", "region_id", "is_available_in_network"),
@@ -88,9 +85,6 @@ class LocalCabPricing(Base):
     )
     cab_type_id = Column(
         MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
-    )
-    fuel_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     hourly_rate = Column(Float, nullable=False)
     overage_amount_per_hour = Column(Float, nullable=False)
@@ -118,7 +112,7 @@ class AirportCabPricing(Base):
     __tablename__ = "airport_cab_pricing"
     __table_args__ = (
         UniqueConstraint(
-            "region_id", "cab_type_id", "fuel_type_id", name="uq_airport_region_cab_fuel"
+            "region_id", "cab_type_id", name="uq_airport_region_cab"
         ),
         Index("ix_airport_pricing_available", "is_available_in_network"),
         Index("ix_airport_pricing_region_available", "region_id", "is_available_in_network"),
@@ -132,9 +126,6 @@ class AirportCabPricing(Base):
     )
     cab_type_id = Column(
         MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
-    )
-    fuel_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     fare_per_km = Column(Float, nullable=False)
     overage_amount_per_km = Column(Float, nullable=False)
@@ -316,7 +307,7 @@ class FixedPlatformPricingConfiguration(Base):
 
 
 # Since Permit fee varies by state, so we have the state_id foreign key here instead of region_id
-# Since Permit fee varies by state, cab type and fuel type, we have those foreign keys as well and hence we cannot keep these settings in the CommonPricingConfiguration table
+# Since Permit fee varies by state and cab type, we keep it separate from CommonPricingConfiguration.
 class PermitFeeConfiguration(Base):
     __tablename__ = "permit_fee_config"
     id = Column(
@@ -328,9 +319,6 @@ class PermitFeeConfiguration(Base):
     )
     cab_type_id = Column(
         MySQL_CHAR(36), ForeignKey("cab_types_master.id"), nullable=False
-    )
-    fuel_type_id = Column(
-        MySQL_CHAR(36), ForeignKey("fuel_types_master.id"), nullable=False
     )
     state_id = Column(
         MySQL_CHAR(36), ForeignKey("states_master.id"), nullable=False
@@ -353,7 +341,7 @@ class PermitFeeConfiguration(Base):
     # Add a composite unique constraint
     __table_args__ = (
         UniqueConstraint(
-            "cab_type_id", "fuel_type_id", "state_id", name="uq_cab_fuel_state"
+            "cab_type_id", "state_id", name="uq_cab_state"
         ),
         Index("ix_permit_fee_state", "state_id"),
     )

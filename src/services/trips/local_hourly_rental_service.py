@@ -17,7 +17,7 @@ from core.trip_helpers import (
     generate_trip_hash,
     get_default_trip_amenities,
 )
-from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema, VehicleCapacitySchema
+from models.cab.cab_schema import CabTypeSchema, VehicleCapacitySchema
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import PassengerRequest
@@ -30,7 +30,7 @@ from models.pricing.pricing_schema import (
     OveragesSchema,
     TripPackageConfigSchema,
 )
-from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
+from models.trip.trip_enums import CarTypeEnum
 from models.trip.trip_orm import Trip
 from models.trip.trip_schema import (
     TripSearchAdditionalData,
@@ -42,7 +42,10 @@ from services.cab_service import get_car_type_rank, get_recommended_car_type
 from services.configuration_service import get_region_from_location
 
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
-from services.pricing_service import compute_base_platform_fee, compute_platform_fee_with_tax
+from services.pricing_service import (
+    compute_base_platform_fee,
+    compute_platform_fee_with_tax,
+)
 from services.validation_service import validate_local_trip_schedule
 from utils.utility import format_trip_datetime, to_timezone_aware_datetime, validate_date_time
 import logging
@@ -250,7 +253,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
     options: List[TripSearchOption] = []
 
 
-    for pricing, cab_type, fuel_type in local_pricings:
+    for pricing, cab_type in local_pricings:
         pricing_schema = LocalCabPricingSchema.model_validate(pricing)
         #Despite picking only available pricings in network that pairs with active cab types and fuel types from the configuration store at app startup, we are adding an additional check here to ensure that only active and available cab-fuel pairs are considered for pricing. This is a safeguard against any potential misconfigurations or changes in the configuration that might introduce inactive or unavailable options. By skipping any inactive or unavailable cab-fuel pairs, we ensure that customers are only presented with valid and bookable options, enhancing the user experience and preventing potential booking issues.
         if not pricing_schema.is_available_in_network:
@@ -258,9 +261,6 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         cab_type_schema = CabTypeSchema.model_validate(cab_type)
         if not cab_type_schema.is_active:
             continue  # Skip inactive cab types
-        fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
-        if not fuel_type_schema.is_active:
-            continue  # Skip inactive fuel types
         hourly_rate = pricing_schema.hourly_rate
         max_included_hours = configuration.auxiliary_pricing.common.max_included_hours
         base_hours = min(package.included_hours, max_included_hours)
@@ -301,7 +301,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
         )
 
         
-        package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
+        package_label = f"{package_short_label} | AC {cab_type_schema.name}({cab_type_schema.capacity})"
         total_price=math.ceil(
                 total_price_before_platform_fee + price_breakdown.platform_fee
             )
@@ -320,7 +320,6 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
                 rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
                 roof_carrier=cab_type_schema.roof_carrier
             ),
-            fuel_type=fuel_type_schema.name,  # Use display name from schema
             total_price=total_price,
             price_breakdown=price_breakdown,
             included_hours=package_included_hours,
@@ -339,7 +338,7 @@ def get_local_trip_options(search_in: TripSearchRequest, config_store: ConfigSto
             rate_per_km=rate_per_km,
         )
         option_dict, preference_dict = generate_trip_field_dictionary(
-            search_in, cab_type_schema.name, fuel_type_schema.name, option
+            search_in, cab_type_schema.name, None, option
         )
 
         hash = generate_trip_hash(
@@ -550,28 +549,9 @@ def populate_best_choice_recommendation(
         key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
     )
 
-    
     recommended_candidates = [
-        option
-        for option in sorted_options
-        if option.car_type == recommended_car_type
-        and option.fuel_type == FuelTypeEnum.hybrid
+        option for option in sorted_options if option.car_type == recommended_car_type
     ]
-
-    if not recommended_candidates:
-        recommended_candidates = [
-            option
-            for option in sorted_options
-            if option.car_type == recommended_car_type
-            and option.fuel_type == FuelTypeEnum.diesel
-        ]
-
-    if not recommended_candidates:
-        recommended_candidates = [
-            option
-            for option in sorted_options
-            if option.car_type == recommended_car_type
-        ]
 
     recommended_option = min(
         recommended_candidates,

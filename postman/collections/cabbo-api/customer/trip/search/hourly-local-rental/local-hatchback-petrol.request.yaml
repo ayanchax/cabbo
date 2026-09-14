@@ -37,7 +37,6 @@ body:
 
     \    \"preferred_car_type\": \"Hatchback\",\r
 
-    \    \"preferred_fuel_type\": \"petrol\",\r
 
     \    \"package_id\": \"{{hourly_package_id}}\"\r
 
