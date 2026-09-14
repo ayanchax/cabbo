@@ -22,7 +22,7 @@ from core.trip_helpers import (
     get_default_trip_amenities,
 )
 from core.config import settings
-from models.cab.cab_schema import CabTypeSchema, FuelTypeSchema, VehicleCapacitySchema
+from models.cab.cab_schema import CabTypeSchema, VehicleCapacitySchema
 from models.customer.customer_orm import Customer
 from models.customer.customer_schema import CustomerRead
 from models.customer.passenger_schema import PassengerRequest
@@ -41,13 +41,16 @@ from models.trip.trip_schema import (
     TripSearchRequest,
     TripSearchResponse,
 )
-from models.trip.trip_enums import CarTypeEnum, FuelTypeEnum
+from models.trip.trip_enums import CarTypeEnum
 from services.cab_service import get_car_type_rank, get_recommended_car_type
 from services.configuration_service import get_state_from_location_v2
 from services.location_service import get_distance_km
 
 from services.policy_service import get_refund_and_cancellation_policy_by_jurisdiction_code, get_refund_and_cancellation_policy_lines
-from services.pricing_service import compute_base_platform_fee, compute_platform_fee_with_tax
+from services.pricing_service import (
+    compute_base_platform_fee,
+    compute_platform_fee_with_tax,
+)
 from services.validation_service import validate_outstation_trip_schedule
 from utils.utility import format_trip_datetime
 import logging
@@ -352,7 +355,7 @@ def get_outstation_trip_options(
     # Fetch all outstation cab pricings
     outstation_pricings = configuration.base_pricing
     options: List[TripSearchOption] = []
-    for pricing, cab_type, fuel_type in outstation_pricings:
+    for pricing, cab_type in outstation_pricings:
         pricing_schema = OutstationCabPricingSchema.model_validate(pricing)
         #Despite picking only available pricings in network that pairs with active cab types and fuel types from the configuration store at app startup, we are adding an additional check here to ensure that only active and available cab-fuel pairs are considered for pricing. This is a safeguard against any potential misconfigurations or changes in the configuration that might introduce inactive or unavailable options. By skipping any inactive or unavailable cab-fuel pairs, we ensure that customers are only presented with valid and bookable options, enhancing the user experience and preventing potential booking issues.
         if not pricing_schema.is_available_in_network:
@@ -361,18 +364,15 @@ def get_outstation_trip_options(
         if not cab_type_schema.is_active:
             continue  # Skip inactive cab types
         
-        fuel_type_schema = FuelTypeSchema.model_validate(fuel_type)
-        if not fuel_type_schema.is_active:
-            continue  # Skip inactive fuel types
-        # Calculate interstate permit fee if applicable per cab type and fuel type for the unique states crossed
+        # Calculate interstate permit fee for the cab type currently being priced.
+        permit_fee = 0.0
+        permits_by_cab_type_id = configuration.auxiliary_pricing.permits_by_cab_type_id or {}
+        permit_config = permits_by_cab_type_id.get(str(pricing_schema.cab_type_id))
         if is_interstate and unique_states:
-            if (
-                total_trip_days <= 7
-            ):  # If the trip is less than or equal to 7 days, charge permit fee once as permit fee is configured per week basis
-                permit_fee = configuration.auxiliary_pricing.permit.permit_fee
+            weekly_fee = permit_config.permit_fee if permit_config else 0.0
+            if total_trip_days <= 7:
+                permit_fee = weekly_fee
             else:
-                weekly_fee = configuration.auxiliary_pricing.permit.permit_fee
-                # Calculate pro-rata fee for days beyond the first week
                 permit_fee = weekly_fee + ((total_trip_days - 7) * (weekly_fee / 7))
 
         base_fare_per_km = pricing_schema.base_fare_per_km
@@ -394,7 +394,7 @@ def get_outstation_trip_options(
         package_short_label = (
             f"{included_km} km | Round trip | ({total_trip_days} days)"
         )
-        package_label = f"{package_short_label} - AC {cab_type_schema.name}({cab_type_schema.capacity}) - ({fuel_type_schema.name})"
+        package_label = f"{package_short_label} - AC {cab_type_schema.name}({cab_type_schema.capacity})"
 
         # Total before platform fee/convenience fee
         total_price_before_platform_fee = (
@@ -450,7 +450,6 @@ def get_outstation_trip_options(
                 rank=get_car_type_rank(CarTypeEnum(cab_type_schema.name)),
                 roof_carrier=cab_type_schema.roof_carrier
             ),
-            fuel_type=fuel_type_schema.name,
             total_price=total_price,
             price_breakdown=price_breakdown,
             included_kms=included_km,
@@ -471,7 +470,7 @@ def get_outstation_trip_options(
         )
 
         option_dict, preference_dict = generate_trip_field_dictionary(
-            search_in, cab_type_schema.name, fuel_type_schema.name, option
+            search_in, cab_type_schema.name, None, option
         )
         hash = generate_trip_hash(
             option_dict, preference_dict
@@ -707,30 +706,9 @@ def populate_best_choice_recommendation(
         key=lambda option: derive_trip_sort_priority(recommended_car_type, option),
     )
 
-    
     recommended_candidates = [
-        option
-        for option in sorted_options
-        if option.car_type == recommended_car_type
-        and option.fuel_type == FuelTypeEnum.hybrid
+        option for option in sorted_options if option.car_type == recommended_car_type
     ]
-
-    if not recommended_candidates:
-        #If no hybrid options are available, we will look for diesel options as the next best choice. Diesel cars are often preferred for outstation trips due to their fuel efficiency and performance over long distances. This ensures that we still provide a recommendation that aligns with the user's preferences and trip requirements.
-        recommended_candidates = [
-            option
-            for option in sorted_options
-            if option.car_type == recommended_car_type
-            and option.fuel_type == FuelTypeEnum.diesel
-        ]
-
-    if not recommended_candidates:
-        # If no hybrid or diesel options are available, we will look for petrol or any other options as the next best choice. Petrol cars are commonly used and widely available, making them a suitable alternative when other fuel types are not present. This ensures that we still provide a recommendation that aligns with the user's preferences and trip requirements.
-        recommended_candidates = [
-            option
-            for option in sorted_options
-            if option.car_type == recommended_car_type
-        ]
 
     #Minimum price recommendation: Among the recommended candidates, we will select the option with the lowest total price as the best choice for the user. This ensures that we provide a cost-effective recommendation while still considering the user's preferred car type and fuel type. If no recommended candidates are available, we will default to the first option in the sorted list (if any) to ensure that the user still receives a recommendation.
     recommended_option = min(

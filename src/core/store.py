@@ -20,6 +20,7 @@ from models.pricing.pricing_schema import (
     LocalCabPricingSchema,
     MasterPricingConfiguration,
     OutstationCabPricingSchema,
+    PermitFeeConfigurationSchema,
 )
 from models.taxation.tax_schema import TaxConfigurationSchema
 from models.trip.trip_enums import TripTypeEnum
@@ -40,7 +41,7 @@ from services.pricing_service import (
     a_get_common_pricing_configurations_by_trip_type_id,
     a_get_fixed_platform_pricing_configuration,
     a_get_night_pricing_configuration,
-    a_get_permit_fee_configuration,
+    a_get_permit_fee_configurations,
 )
 from services.tax_service import PLATFORM_FEE_TAX_SCOPE, a_get_active_tax_configuration
 
@@ -511,13 +512,12 @@ class ConfigStore(BaseModel):
         outstation_data: dict[str, MasterPricingConfiguration] = {}
 
         # First, group base pricings by state_code
-        for pricing, cab, fuel in base_pricings:
-            # Model validate pricing, cab, fuel
+        for pricing, cab in base_pricings:
+            # Model validate pricing and cab.
             _pricing: OutstationCabPricingSchema = (
                 OutstationCabPricingSchema.model_validate(pricing)
             )
             _cab: CabTypeSchema = CabTypeSchema.model_validate(cab)
-            _fuel: FuelTypeSchema = FuelTypeSchema.model_validate(fuel)
             if _pricing.state_id:
 
                 state = states_by_id.get(str(_pricing.state_id))
@@ -528,9 +528,7 @@ class ConfigStore(BaseModel):
                         outstation_data[state_code] = (
                             self._initialize_pricing_configuration()
                         )
-                    outstation_data[state_code].base_pricing.append(
-                        (_pricing, _cab, _fuel)
-                    )
+                    outstation_data[state_code].base_pricing.append((_pricing, _cab))
         for trip_config in trip_configs:
             if trip_config.state_id:
 
@@ -551,15 +549,20 @@ class ConfigStore(BaseModel):
                         outstation_data[state_code].auxiliary_pricing.night = (
                             night_pricing_schema
                         )
-                    # Get the permit fee configuration for the state and set it
-                    permit_fee_schema = await a_get_permit_fee_configuration(
+                    # Get the permit fee configurations for the state and set them by cab type
+                    permit_fee_schemas = await a_get_permit_fee_configurations(
                         db=db, state_id=state.id
                     )
 
-                    if permit_fee_schema:
-                        outstation_data[state_code].auxiliary_pricing.permit = (
-                            permit_fee_schema
+                    if permit_fee_schemas:
+                        permits_by_cab_type_id: dict[str, PermitFeeConfigurationSchema] = (
+                            {
+                                str(permit_fee.cab_type_id): permit_fee
+                                for permit_fee in permit_fee_schemas
+                            }
                         )
+                        outstation_data[state_code].auxiliary_pricing.permits_by_cab_type_id = permits_by_cab_type_id
+                        outstation_data[state_code].auxiliary_pricing.permit = permit_fee_schemas[0]
         # Load cancelation policy config in store for outstation trips for each state
         for state_code, pricing_config in outstation_data.items():
             cancellation_policies = await a_get_cancellation_policies_by_state_code(
@@ -593,12 +596,11 @@ class ConfigStore(BaseModel):
         # Group by region_code
         local_data: dict[str, MasterPricingConfiguration] = {}
         # First, group base pricings by region_code
-        for pricing, cab, fuel in base_pricings:
-            # Model validate pricing, cab, fuel
+        for pricing, cab in base_pricings:
+            # Model validate pricing and cab.
 
             _pricing = LocalCabPricingSchema.model_validate(pricing)
             _cab = CabTypeSchema.model_validate(cab)
-            _fuel = FuelTypeSchema.model_validate(fuel)
             if _pricing.region_id:
                 region = regions_by_id.get(str(_pricing.region_id))
 
@@ -609,7 +611,7 @@ class ConfigStore(BaseModel):
                             self._initialize_pricing_configuration()
                         )
 
-                    local_data[region_code].base_pricing.append((_pricing, _cab, _fuel))
+                    local_data[region_code].base_pricing.append((_pricing, _cab))
 
         for trip_config in trip_configs:
             if trip_config.region_id:
@@ -670,11 +672,10 @@ class ConfigStore(BaseModel):
         # Group by region_code
         airport_data: dict[str, MasterPricingConfiguration] = {}
         # First, group base pricings by region_code
-        for pricing, cab, fuel in base_pricings:
-            # Model validate pricing, cab, fuel
+        for pricing, cab in base_pricings:
+            # Model validate pricing and cab.
             _pricing = AirportCabPricingSchema.model_validate(pricing)
             _cab = CabTypeSchema.model_validate(cab)
-            _fuel = FuelTypeSchema.model_validate(fuel)
 
             if _pricing.region_id:
                 region = regions_by_id.get(str(_pricing.region_id))
@@ -685,9 +686,7 @@ class ConfigStore(BaseModel):
                             self._initialize_pricing_configuration()
                         )
 
-                    airport_data[region_code].base_pricing.append(
-                        (_pricing, _cab, _fuel)
-                    )
+                    airport_data[region_code].base_pricing.append((_pricing, _cab))
         for trip_config in trip_configs:
             if trip_config.region_id:
                 region = regions_by_id.get(str(trip_config.region_id))

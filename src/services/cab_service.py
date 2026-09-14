@@ -216,7 +216,6 @@ def serialize_fleet(trip: Trip,  trip_dict: dict):
     )
     trip_dict["fleet"] = {
         "car_type": trip.preferred_car_type if trip.preferred_car_type else None,
-        "fuel_type": trip.preferred_fuel_type if trip.preferred_fuel_type else None,
         **(preferred_cab.model_dump() if preferred_cab else {}),
     }
     return trip_dict

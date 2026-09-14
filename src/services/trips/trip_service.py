@@ -21,7 +21,6 @@ from models.pricing.pricing_schema import (
 )
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_enums import (
-    FuelTypeEnum,
     TripResponseView,
     TripStatusEnum,
     TripTypeEnum,
@@ -718,7 +717,6 @@ def _set_default_preferences(search_in: TripSearchRequest):
     Ensures all required trip search preferences have sensible defaults.
 
     - Sets 'preferred_car_type' based on passenger and luggage totals.
-    - Sets 'preferred_fuel_type' to FuelTypeEnum.hybrid if not provided.
     - Ensures at least one adult is present (defaults to 1 if missing or < 1).
     - Ensures number of children is not negative (defaults to 0 if missing or < 0).
 
@@ -731,8 +729,6 @@ def _set_default_preferences(search_in: TripSearchRequest):
     if search_in.num_children is None or search_in.num_children < 0:
         search_in.num_children = 0
 
-    if not search_in.preferred_fuel_type:
-        search_in.preferred_fuel_type = FuelTypeEnum.hybrid
     total_num_people = search_in.total_passengers
     total_num_luggages = search_in.total_luggages
     search_in.preferred_car_type = get_recommended_car_type(
@@ -944,7 +940,6 @@ async def a_create_temporary_trip(
         num_other_bags=booking_request.preferences.num_other_bags,
         num_luggages=booking_request.preferences.total_luggages,
         preferred_car_type=booking_request.preferences.preferred_car_type,
-        preferred_fuel_type=booking_request.preferences.preferred_fuel_type,
         in_car_amenities=(
             booking_request.metadata.in_car_amenities.model_dump()
             if booking_request.metadata.in_car_amenities

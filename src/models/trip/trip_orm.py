@@ -140,8 +140,11 @@ class Trip(Base):
     preferred_car_type = Column(
         Enum(CarTypeEnum), nullable=True, default=CarTypeEnum.sedan
     )
+
+    # The preferred_fuel_type field will be removed in future versions of the system.
+    
     preferred_fuel_type = Column(
-        Enum(FuelTypeEnum), nullable=True, default=FuelTypeEnum.hybrid
+        Enum(FuelTypeEnum), nullable=True, default=None
     )
     in_car_amenities = Column(
         JSON, nullable=True

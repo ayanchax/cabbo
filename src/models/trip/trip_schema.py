@@ -100,7 +100,6 @@ class TripDetails(BaseModel):
 
     # Car and fuel preferences
     preferred_car_type: Optional[CarTypeEnum] = None
-    preferred_fuel_type: Optional[FuelTypeEnum] = None
     in_car_amenities: Optional[dict] = None
 
     # Financials
@@ -190,7 +189,6 @@ class TripSearchRequest(BaseModel):
     num_backpacks: Optional[int] = 0
     num_other_bags: Optional[int] = 0
     preferred_car_type: Optional[CarTypeEnum] = None
-    preferred_fuel_type: Optional[FuelTypeEnum] = None
     package_id: Optional[str] = None  # For local trips
     flight_number: Optional[str] = None  # For airport pickup
     terminal_number: Optional[str] = None  # For airport pickup
@@ -261,7 +259,7 @@ class TripSearchRequest(BaseModel):
 class TripSearchOption(BaseModel):
     car_type: CarTypeEnum
     car_capacity:Optional[VehicleCapacitySchema] = None
-    fuel_type: FuelTypeEnum
+    fuel_type: Optional[FuelTypeEnum] = None
     total_price: float
     price_breakdown: Union[
         AirportPricingBreakdownSchema,
@@ -476,9 +474,7 @@ class TripDetailSchema(BaseModel):
     preferred_car_type: Optional[CarTypeEnum] = Field(
         None, description="Preferred car type"
     )
-    preferred_fuel_type: Optional[FuelTypeEnum] = Field(
-        None, description="Preferred fuel type"
-    )
+     
     upgradation_information: Optional[TripUpgradationInformationSchema] = Field(
         None,
         description="Cab/fuel upgrade information when assigned vehicle improves on the booked preference",
