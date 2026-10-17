@@ -22,11 +22,19 @@ TRIP_START_LATE_BUFFER_MINUTES = {
 }
 
 
-# Dashboard lookahead for surfacing unassigned upcoming trips as needing a driver.
+# Admin assignment window and dashboard lookahead for unassigned upcoming trips.
 # Stale/unknown trips still need immediate review and recovery regardless of this window.
 TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES = {
-    TripTypeEnum.airport_drop: 120,
-    TripTypeEnum.airport_pickup: 120,
-    TripTypeEnum.local: 240,
+    TripTypeEnum.airport_drop: 720,
+    TripTypeEnum.airport_pickup: 720,
+    TripTypeEnum.local: 720,
     TripTypeEnum.outstation: 2880,
+}
+
+# Customer-facing driver-details notice, independent of the admin assignment window.
+TRIP_DRIVER_ASSIGNMENT_NOTICE_MINUTES = {
+    TripTypeEnum.airport_drop: 60,
+    TripTypeEnum.airport_pickup: 60,
+    TripTypeEnum.local: 120,
+    TripTypeEnum.outstation: 1440,
 }
