@@ -312,7 +312,11 @@ async def update_status(
     )  # Adding time window validation to ensure that trip status updates are happening within the expected time windows based on the trip type and real-world conditions, which will help us maintain data integrity and provide a better experience for our customers and drivers by ensuring that the trip statuses are accurate and reflect the real-world status of the trips.
     if not trip_schema:
         raise CabboException("Failed to update trip status", status_code=500, error_code=GENERIC_EXCEPTION)
-    if background_task and not is_stale_record_correction:
+    # Preserve earnings and dispute records for stale corrections; refunds stay manual.
+    if background_task and (
+        not is_stale_record_correction
+        or status in (TripStatusEnum.completed, TripStatusEnum.dispute)
+    ):
         orchestrator = BackgroundTaskOrchestrator(background_tasks)
         orchestrator.add_task(
             background_task.fn,
@@ -358,14 +362,13 @@ async def assign_driver(
         view =TripResponseView.ADMIN_DETAIL
     )  # Attaching trip relationships with customer details exposed, so that it can be used in the notification task to notify customer about driver assignment and trip confirmation
 
-    # Background job to notify customer via email, if email is provided
-    if not is_stale_record_correction:
-        orchestrator = BackgroundTaskOrchestrator(background_tasks)
-        orchestrator.add_task(
-            notify_customer_booking_confirmed,
-            task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
-            booking=assigned_trip,
-        )
+    # Notify the customer after assignment, including stale trip corrections.
+    orchestrator = BackgroundTaskOrchestrator(background_tasks)
+    orchestrator.add_task(
+        notify_customer_booking_confirmed,
+        task_name="NotifyCustomerOnBookingConfirmedAndDriverAssigned",
+        booking=assigned_trip,
+    )
 
     #  As of now, before assigning, driver admin will call the driver first, confirm their availability; and inform about the trip, final fare payout and customer manually. If they agree, driver admin will assign the trip to them.
     #  Not implementing extra notification system for driver at the moment to save cost. Driver admin can use the existing communication channels(phone) to inform the driver about the trip details and confirm  their availability before assignment
