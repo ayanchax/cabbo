@@ -1,0 +1,12 @@
+drivers:
+  - name: Abdul
+    phone: "+916900606648"
+    avg_rating: 4.4
+    cab_registration_number: KA660594
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: diesel
+    capacity: "4+1"
+    color: White
+
+  
