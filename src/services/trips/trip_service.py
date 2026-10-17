@@ -3,7 +3,10 @@ import json
 from typing import Literal, Optional, Union
 
 from core.exceptions import CabboException, GENERIC_EXCEPTION
-from core.buffers import TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES
+from core.buffers import (
+    TRIP_DRIVER_ASSIGNMENT_LOOKAHEAD_MINUTES,
+    TRIP_DRIVER_ASSIGNMENT_NOTICE_MINUTES,
+)
 from core.security import RoleEnum, verify_hash
 from core.store import ConfigStore
 from core.trip_constants import TRIP_MESSAGES, TRIP_RESPONSE_OPTIONS
@@ -384,8 +387,9 @@ def _format_minutes_for_display(minutes: int) -> dict:
     }
 
 
-def _format_driver_assignment_notice(assignment_lookahead_minutes: int) -> dict:
-    notice_minutes = max(1, assignment_lookahead_minutes // 2)
+def _format_driver_assignment_notice(
+    assignment_lookahead_minutes: int, notice_minutes: int
+) -> dict:
     return {
         "assignment_lookahead_minutes": assignment_lookahead_minutes,
         "notice_minutes": notice_minutes,
@@ -394,6 +398,23 @@ def _format_driver_assignment_notice(assignment_lookahead_minutes: int) -> dict:
 
 
 def get_driver_assignment_notice(trip_type: Optional[TripTypeEnum]) -> Optional[dict]:
+    """Build customer-facing timing metadata for sharing driver details.
+
+    The customer UI uses ``notice_minutes`` and the display fields to describe
+    when driver details are usually shared before pickup. This timing is
+    configured independently of the earlier admin assignment window, allowing
+    operators to assign a driver before the time communicated to the customer.
+    ``assignment_lookahead_minutes`` describes that admin window; it does not
+    determine the customer-facing display text.
+
+    Args:
+        trip_type: Trip type used to select the configured timings.
+
+    Returns:
+        Notice minutes, display fields, and admin lookahead minutes, or ``None``
+        when no trip type is provided. This helper does not check trip status
+        or whether a driver has already been assigned.
+    """
     if not trip_type:
         return None
 
@@ -401,10 +422,31 @@ def get_driver_assignment_notice(trip_type: Optional[TripTypeEnum]) -> Optional[
         trip_type,
         1440,
     )
-    return _format_driver_assignment_notice(assignment_lookahead_minutes)
+    notice_minutes = TRIP_DRIVER_ASSIGNMENT_NOTICE_MINUTES.get(trip_type, 720)
+    return _format_driver_assignment_notice(assignment_lookahead_minutes, notice_minutes)
 
 
 def get_admin_driver_assignment_notice(trip_dict: dict, driver=None) -> Optional[dict]:
+    """Build the admin notice shown before a trip's assignment window opens.
+
+    Uses the operational assignment lookahead, independently of the customer
+    notice timing, to calculate when assignment opens relative to pickup.
+    This helper only supplies presentation metadata; it does not validate an
+    assignment request or change driver availability.
+
+    Args:
+        trip_dict: Serialized trip containing its status, trip type, pickup
+            datetime, and optionally its label and assigned-driver details.
+        driver: Optional driver object used alongside the serialized trip to
+            determine whether a driver is already assigned.
+
+    Returns:
+        Lookahead minutes and display text, the UTC window-opening datetime,
+        whole minutes until opening, and an admin message. Returns ``None``
+        for assigned trips, trips not labeled upcoming, statuses other than
+        created or confirmed, missing trip type or pickup datetime, or an
+        assignment window that has already opened.
+    """
     label = trip_dict.get("label") or get_trip_label(trip_dict)
     status = coerce_trip_status(trip_dict.get("status"))
     has_driver = _has_assigned_driver(trip_dict=trip_dict, driver=driver)
@@ -453,7 +495,6 @@ def get_admin_driver_assignment_notice(trip_dict: dict, driver=None) -> Optional
         "minutes_until_assignment_window": minutes_until_assignment_window,
         "message": (
             f"Driver assignment window will open {assignment_lookahead_display['display_text']} before pickup. "
-            "This trip is upcoming and does not need driver action as of yet."
         ),
     }
 
