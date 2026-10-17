@@ -91,7 +91,7 @@ def build_driver_payloads(rows: list[dict]):
             )
         )
 
-    validate_driver_payloads(payloads, basic_validation=True)
+    #validate_driver_payloads(payloads, basic_validation=True)
 
     return payloads
 

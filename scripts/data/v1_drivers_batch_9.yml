@@ -1,0 +1,14 @@
+drivers:
+  - name: Saif Uddin
+    phone: "+918095908025"
+    avg_rating: 4.7
+    cab_registration_number: KA01AP4649
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: hybrid
+    capacity: "4+1"
+    color: White
+    roof_carrier_available: true
+
+
+  
