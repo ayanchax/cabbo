@@ -1,0 +1,13 @@
+drivers:
+  - name: Mahid Choudhury
+    phone: "+919395652826"
+    avg_rating: 4.0
+    cab_registration_number: KA51AL9232
+    cab_model_and_make: Maruti Suzuki Dzire zxi plus
+    cab_type: Sedan
+    fuel_type: hybrid
+    capacity: "4+1"
+    color: White
+
+
+  

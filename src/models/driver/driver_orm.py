@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 class Driver(Base):
     __tablename__ = "drivers"
     __table_args__ = (
+        UniqueConstraint("phone", "cab_registration_number", name="uq_drivers_phone_cab_registration"),
         Index("ix_drivers_name", "name"),
         Index("ix_drivers_active_available_created", "is_active", "is_available", "created_at"),
     )
@@ -41,7 +42,7 @@ class Driver(Base):
         index=True,
     )
     name = Column(String(255), nullable=False)
-    phone = Column(String(32), nullable=False, unique=True) #When driver app is opened for drivers, we will use this as the primary phone number for OTP authentication as they login, just like we do for customers.
+    phone = Column(String(32), nullable=False) #When driver app is opened for drivers, we will use this as the primary phone number for OTP authentication as they login, just like we do for customers.
     secondary_phone = Column(String(32), nullable=True, unique=True) #Alternate phone number for the driver, if provided, we will use this as the secondary internal phone number to connect to the driver from admin backend - this will not be exposed to the customer, and will be used for internal purposes only. If not provided, we will use the primary phone number for internal purposes as well.
     email = Column(String(255), nullable=True, unique=True)
     #Secondary data
@@ -61,7 +62,7 @@ class Driver(Base):
     )  # sedan, suv, hatchback, etc.
     fuel_type = Column(Enum(FuelTypeEnum), nullable=False, default=FuelTypeEnum.diesel)  # petrol, diesel, electric, hybrid
     cab_model_and_make = Column(String(255), nullable=False) # Cab model and make free text (e.g., Maruti Swift) 
-    cab_registration_number = Column(String(32), nullable=False, unique=True) # e.g., KA-01-AB-1234
+    cab_registration_number = Column(String(32), nullable=False) # e.g., KA-01-AB-1234
     capacity = Column(String(32), nullable=True, default="4+1") # Cab capacity in terms of number of passengers (e.g., 4+1, 6+1, etc)
     color = Column(String(32), nullable=True) # Cab color (e.g., White, Black, Silver, Polar White etc.)
     roof_carrier_available = Column(Boolean, default=False, nullable=False) # Whether the cab has a roof carrier available for luggage or not
