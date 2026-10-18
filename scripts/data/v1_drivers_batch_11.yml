@@ -1,0 +1,13 @@
+drivers:
+  - name: Kamil Ahmed
+    phone: "+919113025147"
+    avg_rating: 4.4
+    cab_registration_number: KA53AC9349
+    cab_model_and_make: Maruti Suzuki Ertiga VXi
+    cab_type: SUV
+    fuel_type: hybrid
+    capacity: "6+1"
+    color: Polar white
+
+
+  
