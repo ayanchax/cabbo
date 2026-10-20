@@ -1,0 +1,13 @@
+drivers:
+  - name: Islam Uddin
+    phone: "+916900811805"
+    avg_rating: 4.6
+    cab_registration_number: KA53AC0111
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: hybrid
+    capacity: "4+1"
+    color: White
+
+
+  
