@@ -12,6 +12,7 @@ from .policies.cancelation_orm import CancellationPolicy
 from .pricing.pricing_orm import OutstationCabPricing, LocalCabPricing, AirportCabPricing, NightPricingConfiguration, CommonPricingConfiguration, FixedPlatformPricingConfiguration, PermitFeeConfiguration
 from .trip.trip_orm import Trip, TripTypeMaster, TripStatusAudit,TripPackageConfig
 from .trip.temp_trip_orm import TempTrip
+from .financial.payment_webhook_orm import PaymentWebhookEvent
 from .policies.refund_orm import Refund
 from .policies.dispute_orm import Dispute
 from .user.user_orm import User, SystemUserSession

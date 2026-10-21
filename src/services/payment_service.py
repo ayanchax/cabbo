@@ -1,14 +1,19 @@
+from models.financial.payments_enum import ReconciliationStateEnum
 from typing import Optional
 
 from core.exceptions import UNSUPPORTED_PAYMENT_PROVIDER, CabboException
 from models.customer.customer_orm import Customer
 from models.financial.payments_schema import PaymentNotesSchema
+from models.financial.payments_schema import RazorPayPaymentResponse
+from models.financial.payments_schema import ReconciliationOutcome
 from models.policies.refund_enum import PaymentProvider
 from models.pricing.pricing_schema import Currency
 from core.config import settings
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
 from services.razorpay_service import (
+    parse_razorpay_webhook,
+    fetch_razorpay_order_payment,
     get_initialization_refund_response,
     get_razorpay_payment_order,
     get_razorpay_refund_status,
@@ -20,6 +25,39 @@ from services.razorpay_service import (
 )
 
 PAYMENT_PROVIDER = settings.PAYMENT_PROVIDER
+
+
+async def receive_payment_webhook(provider: str, raw_body: bytes, signature: str, event_id: str, db):
+    """Authenticate and durably enqueue a provider event before HTTP acknowledgement."""
+    import hashlib
+    from fastapi import HTTPException
+    from services.payment_webhook_service import a_store_payment_webhook
+
+    if provider != settings.PAYMENT_PROVIDER or provider != PaymentProvider.razorpay.value:
+        raise HTTPException(status_code=503, detail="Payment webhook provider is not enabled")
+    notice = parse_razorpay_webhook(raw_body, signature)
+    if notice is None:
+        return False
+    await a_store_payment_webhook(notice, event_id, hashlib.sha256(raw_body).hexdigest(), db)
+    return True
+
+
+def fetch_payment_order_status(order_id: str, expected_amount: int, expected_currency: str) -> ReconciliationOutcome:
+    """Route reconciliation reads and payment-response formatting to the provider."""
+    if settings.PAYMENT_PROVIDER == PaymentProvider.razorpay.value:
+        outcome = fetch_razorpay_order_payment(order_id, expected_amount, expected_currency)
+        if outcome.state == ReconciliationStateEnum.captured:
+            outcome.payment_info = RazorPayPaymentResponse(
+                    razorpay_order_id=order_id,
+                    razorpay_payment_id=outcome.payment_id,
+                    razorpay_signature=None,
+            )
+        return outcome
+    raise CabboException(
+        "Payment reconciliation is not supported for the configured payment provider",
+        status_code=400,
+        error_code=UNSUPPORTED_PAYMENT_PROVIDER,
+    )
 
 
 def get_booking_payment_order(

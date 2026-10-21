@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from services.trips.temp_trip_service import preserve_temp_trip
 import json
 import math
 import re
@@ -209,17 +210,28 @@ async def a_validate_booking_request_hash(
             select(TempTrip).filter(
                 TempTrip.hash == booking_request.option.hash,
                 TempTrip.creator_id == requestor,
-            )
+            ).with_for_update()
         )
         existing_temp_trip = result.scalars().first()
         if existing_temp_trip:
+            ppm = existing_temp_trip.payment_provider_metadata
+            if preserve_temp_trip(ppm):
+                order_id = ppm.get(f"{settings.PAYMENT_PROVIDER}_order_id") if isinstance(ppm, dict) else None
+                if not order_id:
+                    raise CabboException(
+                        "Booking has unresolved payment details. Please contact support before retrying payment.",
+                        status_code=409,
+                        error_code=GENERIC_EXCEPTION,
+                    )
+                # Age and explicit replacement do not establish payment failure.
+                return existing_temp_trip, order_id
             # Ensure both datetimes are timezone-aware (UTC)
             created_at = existing_temp_trip.created_at
             if created_at.tzinfo is None:
                 created_at = created_at.replace(tzinfo=timezone.utc)
 
             if created_at < datetime.now(timezone.utc) - timedelta(minutes=29):
-                # If the temp trip is older than 29 minutes, we consider it expired and remove it to allow fresh booking attempts, since Razorpay orders typically expire after 30 minutes, so a temp trip older than 29 minutes is unlikely to be valid.
+                # Only records without payment references may expire by local age.
                 await db.delete(existing_temp_trip)
                 await db.commit()
                 return None, None

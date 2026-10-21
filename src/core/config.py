@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     PAYMENT_PROVIDER: str
     RAZOR_PAY_KEY_ID: str
     RAZOR_PAY_KEY_SECRET: str
+    RAZOR_PAY_WEBHOOK_SECRET: Optional[str] = None
     
     # Cabbo specific settings for internal application functionality, such as trip booking, super admin access, default user password, timezone settings, etc. These settings are mandatory for all environments, as they are core to the application's functionality and user experience.
     CABBO_TRIP_BOOKING_SECRET_KEY: str

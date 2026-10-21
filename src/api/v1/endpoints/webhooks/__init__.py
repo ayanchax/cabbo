@@ -1,0 +1,1 @@
+"""Provider-authenticated webhook endpoints."""

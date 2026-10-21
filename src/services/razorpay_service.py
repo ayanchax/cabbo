@@ -1,3 +1,5 @@
+from models.financial.payments_schema import ReconciliationOutcome
+from models.financial.payments_enum import ReconciliationStateEnum
 import sys
 from pathlib import Path
 from typing import Optional
@@ -22,6 +24,11 @@ from models.financial.payments_schema import (
 from sqlalchemy.orm import Session
 import razorpay
 from core.config import settings
+import hashlib
+import hmac
+import json
+from fastapi import HTTPException
+from models.financial.payments_schema import PaymentWebhookNotice
 from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
@@ -279,6 +286,62 @@ def get_razorpay_payment_order(
         return trip_id, _get_razorpay_existing_order(razorpay_order=razorpay_schema, order_id=existing_order_id)
 
 
+def parse_razorpay_webhook(raw_body: bytes, signature: str) -> Optional[PaymentWebhookNotice]:
+    """Authenticate the exact bytes before interpreting any event fields."""
+    secret = settings.RAZOR_PAY_WEBHOOK_SECRET
+    if not secret:
+        raise HTTPException(status_code=503, detail="Payment webhook is not configured")
+    expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    if (not signature or len(signature) != 64
+            or any(char not in "0123456789abcdef" for char in signature)
+            or not hmac.compare_digest(expected, signature)):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        payload = json.loads(raw_body)
+        if not isinstance(payload, dict) or not isinstance(payload.get("event"), str):
+            raise ValueError("Missing event")
+        if payload["event"] != "payment.captured":
+            return None
+        payment = payload["payload"]["payment"]["entity"]
+        if (payment.get("status") != "captured"
+                or not isinstance(payment.get("order_id"), str) or not payment["order_id"].startswith("order_")
+                or not isinstance(payment.get("id"), str) or not payment["id"].startswith("pay_")
+                or len(payment["order_id"]) > 64 or len(payment["id"]) > 64):
+            raise ValueError("Invalid payment entity")
+        return PaymentWebhookNotice(provider="razorpay", event_type=payload["event"],
+                                    order_id=payment["order_id"], payment_id=payment["id"])
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
+
+def fetch_razorpay_order_payment(order_id: str, expected_amount: int, expected_currency: str) -> ReconciliationOutcome:
+    """Read provider truth without relying on a browser callback or signature.
+
+    Never infer final failure from an unpaid order or a failed attempt: late
+    authorisation can still follow. Exceptions are handled as unresolved upstream.
+    """
+    client = razorpay.Client(
+        auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET),
+    )
+    order = client.order.fetch(order_id, timeout=10)
+    if (expected_amount <= 0 or order.get("id") != order_id
+            or order.get("amount") != expected_amount
+            or order.get("currency") != expected_currency):
+        return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="order_mismatch")
+    payments = client.order.payments(order_id, timeout=10).get("items", [])
+    captured = [p for p in payments if p.get("status") == "captured"]
+    if not captured:
+        return ReconciliationOutcome()
+    if len(captured) != 1:
+        return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="multiple_captured_payments")
+    payment = captured[0]
+    if (payment.get("order_id") != order_id or payment.get("amount") != expected_amount
+            or payment.get("currency") != expected_currency or not payment.get("id")
+            or payment.get("amount_refunded", 0) != 0 or payment.get("refund_status")):
+        return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="payment_mismatch_or_refund")
+    return ReconciliationOutcome(state=ReconciliationStateEnum.captured, payment_id=payment["id"])
+
+
 def verify_razorpay_payment(
     payment_detail: dict,
     expected_order_id: Optional[str] = None,
@@ -343,7 +406,8 @@ def verify_razorpay_payment(
             )
             return False
 
-        if payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value:
+        if (payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value
+                and payment.get("amount_refunded", 0) == 0 and not payment.get("refund_status")):
             log.debug(
                 f"Payment {payment_id} verified successfully."
             )

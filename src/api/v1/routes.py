@@ -30,8 +30,10 @@ from api.v1.endpoints.admin import (
 )
 from api.v1.endpoints.customer.trip import trip as trip_router
 from api.v1.endpoints.admin.trip import trip as admin_trip_ep
+from api.v1.endpoints.webhooks.razorpay import router as razorpay_webhook_router
 
 router = APIRouter()
+router.include_router(razorpay_webhook_router, prefix="/webhooks")
 router.include_router(auth_ep.router, prefix="/auth", tags=["auth"])
 router.include_router(customer_ep.router, prefix="/customer")
 router.include_router(trip_router.router, prefix="/trips")

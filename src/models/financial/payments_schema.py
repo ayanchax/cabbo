@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel
+from models.financial.payments_enum import ReconciliationStateEnum
 
 from models.customer.customer_schema import CustomerPayment
 
@@ -50,6 +51,21 @@ class RazorPayPaymentResponse(BaseModel):
     class Config:
         from_attributes = True
         extra = "allow"  # Allow additional fields not defined in the schema
+
+class PaymentWebhookNotice(BaseModel):
+    provider: str
+    event_type: str
+    order_id: str
+    payment_id: str
+
+
+class ReconciliationOutcome(BaseModel):
+    """Result of a provider payment check, enriched by the payment service."""
+    state: ReconciliationStateEnum = ReconciliationStateEnum.checking
+    reason: Optional[str] = None
+    payment_id: Optional[str] = None
+    payment_info: Optional[RazorPayPaymentResponse] = None
+
 
 class BankDetailsSchema(BaseModel):
     account_holder_name: str  # Name of the bank account holder

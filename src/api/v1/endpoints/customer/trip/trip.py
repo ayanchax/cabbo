@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Response
 from core.security import validate_customer_token
 from core.trip_helpers import get_prior_booking_window_hours, get_trip_constraints_by_trip_type
-from db.database import a_yield_mysql_session, yield_mysql_session
+from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
 from models.trip.trip_enums import TripStatusEnum, TripTypeEnum
 from models.trip.trip_schema import (
     TripBookRequest,
     TripOut,
     TripSearchRequest,
+    BookingPaymentStatus,
 )
 
-from sqlalchemy.orm import Session
 from services.configuration_service import get_all_cabs
 from services.trips.trip_service import get_trip_messages
 from services.trips.booking_service import (
@@ -20,6 +20,7 @@ from services.trips.booking_service import (
     initiate_trip_booking,
 )
 from services.trips.search_service import search
+from services.trips.reconciliation_service import a_reconcile_booking
 from utils.utility import remove_none_recursive
 from .reviews import router as trip_reviews
 from .refunds import router as trip_refunds
@@ -86,6 +87,18 @@ async def init_booking(
 
 
 
+@router.get("/booking-status/{temp_trip_id}", response_model=BookingPaymentStatus, tags=["customer-trip-booking"])
+async def booking_status(
+    temp_trip_id: str,
+    response: Response,
+    db: AsyncSession = Depends(a_yield_mysql_session),
+    current_customer: Customer = Depends(validate_customer_token),
+):
+    """Check and recover payment using provider truth, even without a checkout callback."""
+    response.headers["Cache-Control"] = "no-store"
+    return await a_reconcile_booking(temp_trip_id, current_customer.id, db)
+
+
 @router.post("/confirm-booking", response_model=dict, tags=["customer-trip-booking"])
 async def confirm_booking(
     booking: TripOut,
@@ -100,7 +113,7 @@ async def confirm_booking(
     )
     return {
         "booking_id": created_trip.booking_id,
-        **get_trip_messages(status=TripStatusEnum.confirmed),
+        **get_trip_messages(status=created_trip.status),
     }
 
 
@@ -114,14 +127,15 @@ async def cleanup_temp_trip_booking(
 ):
     """
     Cleanup trip data for the customer.
-    This endpoint is invoked silently from frontend when the customer abandons the trip search or payment page midway or payment fails.
+    This endpoint is invoked silently when checkout is abandoned or reports failure.
+    Payment-linked booking details are retained until payment reconciliation.
     """
     is_deleted = await a_delete_temp_trip_by_booking_id(
         booking_id=booking_id, requestor=current_customer.id, db=db
     )
     if is_deleted:
         return {"message": "Trip data cleaned up successfully."}
-    return {"message": "Failed to clean up trip data."}
+    return {"message": "Trip data retained because payment may be unresolved or cleanup could not complete."}
 
 
 @router.get(

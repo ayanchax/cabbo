@@ -1,4 +1,6 @@
+from models.financial.payments_enum import ReconciliationStateEnum
 from decimal import Decimal
+import asyncio
 import secrets
 import string
 from datetime import datetime, timezone
@@ -40,10 +42,30 @@ from services.validation_service import (
 )
 from core.config import settings
 from utils.utility import money, convert_based_on_currency
-from sqlalchemy import select
+from services.trips.temp_trip_service import preserve_temp_trip
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 log = logging.getLogger(__name__)
+
+
+async def a_existing_booking(temp_trip_id:str, requestor:str, db:AsyncSession, order_id:str=None):
+    """Current locking read also recognises an operator recovery with a new trip ID."""
+    identity = Trip.id == temp_trip_id
+    if order_id:
+        identity = or_(identity, Trip.payment_provider_metadata[f"{settings.PAYMENT_PROVIDER}_order_id"].as_string() == order_id)
+    result = await db.execute(
+        select(Trip).where(identity, Trip.creator_id == requestor).with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalars().first()
+
+
+async def a_existing_booking_response(trip:Trip, db):
+    return TripCreate(
+        trip_id=trip.id, booking_id=trip.booking_id, status=trip.status,
+        payment_info=None, trip_details=await a_populate_trip_schema(trip=trip, db=db),
+    )
 
 
 async def a_generate_booking_id(
@@ -148,6 +170,32 @@ async def a_create_confirmed_trip_from_temp_trip(
     audit_reason: str = "Trip confirmed",
 ) -> TripCreate:
     """Async version of _create_confirmed_trip_from_temp_trip."""
+    # Every finalisation path serialises on the same temporary booking row.
+    temp_trip_id, creator_id = temp_trip.id, temp_trip.creator_id
+    metadata = temp_trip.payment_provider_metadata or {}
+    order_id = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
+    result = await db.execute(
+        select(TempTrip).where(TempTrip.id == temp_trip_id).with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    locked_temp_trip = result.scalars().first()
+    existing = await a_existing_booking(temp_trip_id, creator_id, db, order_id)
+    if existing:
+        return await a_existing_booking_response(existing, db)
+    if locked_temp_trip is None:
+        raise CabboException("Temporary booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
+    temp_trip = locked_temp_trip
+    start = temp_trip.start_datetime
+    if start is None or start.replace(tzinfo=start.tzinfo or timezone.utc) <= datetime.now(timezone.utc):
+        temp_trip.payment_provider_metadata = {
+            **(temp_trip.payment_provider_metadata or {}),
+            "reconciliation_state": ReconciliationStateEnum.review_required, "reconciliation_reason": "pickup_time_passed",
+        }
+        await db.commit()
+        raise CabboException(
+            "Payment received; booking requires fulfilment review. Please contact support.",
+            status_code=409, error_code=PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION,
+        )
     trip_type = await a_get_trip_type_by_trip_type_id(temp_trip.trip_type_id, db)
     if not trip_type:
         raise CabboException(
@@ -257,10 +305,10 @@ async def a_create_confirmed_trip_from_temp_trip(
             db=db,
         )  # Log the trip status audit entry
         log.info(f"Trip confirmed for trip ID: {trip.id}")
-        # After confirming the trip, delete the temporary(one or more) trip details for this customer
-        await a_delete_temp_trip(
-            requestor=temp_trip.creator_id, db=db
-        )  # Clean up all temporary trip details for this customer.
+        # This exact booking is now durably confirmed; other orders may still be unresolved.
+        # Safely delete record from temp trip
+        await db.delete(temp_trip)
+        await db.commit()
         trip_schema = await a_populate_trip_schema(
             trip=trip, db=db
         )  # Populate the trip schema with necessary details
@@ -313,6 +361,12 @@ async def initiate_trip_booking(
             booking_request=booking_request, customer=customer, temp_trip=existing_valid_temp_trip_details, currency=currency, existing_order_id=order_id
         )
             if order is None:
+                if preserve_temp_trip(existing_valid_temp_trip_details.payment_provider_metadata):
+                    raise CabboException(
+                        "Payment status is unresolved. Please check your booking before retrying payment.",
+                        status_code=409,
+                        error_code=GENERIC_EXCEPTION,
+                    )
                 #Silently delete the existing temp trip details if the associated payment order is not valid or cannot be retrieved, to allow the booking process to start fresh and avoid potential issues with stale or orphaned temp trip records that are not linked to valid payment orders. This ensures data integrity and a smoother booking experience for the customer.
                 await a_delete_temp_trip_by_booking_id(booking_id=existing_valid_temp_trip_details.id, requestor=customer.id, db=db)
             else:
@@ -376,6 +430,7 @@ async def a_mark_temp_trip_payment_verified(
     payment_info: RazorPayPaymentResponse,
     db: AsyncSession,
     payment_verified_via: str = "checkout_api",
+    commit: bool = True,
 ) -> None:
     """
     Async version of _mark_temp_trip_payment_verified.
@@ -396,8 +451,11 @@ async def a_mark_temp_trip_payment_verified(
             "payment_verified_at": datetime.now(timezone.utc).isoformat(),
         }
         temp_trip.payment_provider_metadata = provider_metadata
-        await db.commit()
-        await db.refresh(temp_trip)
+        if commit:
+            await db.commit()
+            await db.refresh(temp_trip)
+        else:
+            await db.flush()
     except Exception as e:
         await db.rollback()
         log.error(f"Failed to mark payment as verified for trip {temp_trip.id}: {e}")
@@ -429,17 +487,23 @@ async def confirm_trip_booking(booking_request: TripOut, customer: Customer, db:
             "Booking Trip ID is required to confirm the booking", status_code=400, error_code=GENERIC_EXCEPTION
         )
 
-    # Check if the booking request already exists in the main Trip table
-    existing_trip = await a_is_existing_trip_booking(
-        trip_id=booking_request.trip_id, requestor=customer.id, db=db
+    # Use the same lock order as reconciliation and finalisation.
+    result = await db.execute(
+        select(TempTrip).where(TempTrip.id == booking_request.trip_id, TempTrip.creator_id == customer.id)
+        .with_for_update().execution_options(populate_existing=True)
     )
-    if existing_trip: # Idempotency check: If the trip booking already exists, raise an exception to prevent duplicate bookings and ensure that the booking process is idempotent, allowing clients to safely retry requests without creating multiple bookings for the same trip.
-        raise CabboException("Booking already exists", status_code=400, error_code=ALREADY_BOOKED_ON_THIS_SLOT)
+    temp_trip = result.scalars().first()
+    order_id = (temp_trip.payment_provider_metadata or {}).get(f"{settings.PAYMENT_PROVIDER}_order_id") if temp_trip else None
+    existing_trip = await a_existing_booking(booking_request.trip_id, customer.id, db)
+    if existing_trip:
+        return await a_existing_booking_response(existing_trip, db)
 
-    # Check in database if the booking exists
-    temp_trip = await a_get_temp_trip_by_trip_id_and_requestor(
-        trip_id=booking_request.trip_id, requestor=customer.id, db=db
-    )
+    if order_id:
+        existing_trip = await a_existing_booking(booking_request.trip_id, customer.id, db, order_id)
+        if existing_trip:
+            return await a_existing_booking_response(existing_trip, db)
+    if temp_trip is None:
+        raise CabboException("Booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
 
     currency = get_currency()
     provider_metadata = temp_trip.payment_provider_metadata or {}
@@ -471,7 +535,8 @@ async def confirm_trip_booking(booking_request: TripOut, customer: Customer, db:
 
 
     # Verify the payment details in the booking request
-    payment_verified = verify_payment(
+    payment_verified = await asyncio.to_thread(
+        verify_payment,
         payment_details=booking_request.payment_info.model_dump(),
         expected_order_id=expected_order_id,
         expected_amount=expected_amount,
@@ -485,6 +550,7 @@ async def confirm_trip_booking(booking_request: TripOut, customer: Customer, db:
         payment_info=booking_request.payment_info,
         db=db,
         payment_verified_via=f"{settings.PAYMENT_PROVIDER} checkout api",
+        commit=False,
     )
 
     # If payment is verified, create a new Trip object from the TempTrip object and confirm the booking
@@ -600,7 +666,7 @@ async def a_delete_temp_trip_by_booking_id(
     result = await db.execute(
         select(TempTrip).filter(
             TempTrip.id == booking_id, TempTrip.creator_id == requestor
-        )
+        ).with_for_update()
     )
     temp_trip = result.scalars().first()
     if not temp_trip:
@@ -609,6 +675,10 @@ async def a_delete_temp_trip_by_booking_id(
             status_code=404,
             error_code=UNAUTHORIZED,
         )
+    if preserve_temp_trip(temp_trip.payment_provider_metadata):
+        await db.commit()
+        log.info(f"Temporary trip preserved pending payment reconciliation: {booking_id}")
+        return False
     try:
         await db.delete(temp_trip)
         await db.commit()

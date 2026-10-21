@@ -3,6 +3,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from scheduler.tasks.process_refund import sync_pending_refund_statuses_task
 from .cleanup_temp_trips import cleanup_temp_trips_task
+from .reconcile_bookings import reconcile_bookings_task
 
 CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES = 60
 REFUND_POLL_INTERVAL_MINUTES = 720 # 12 hours, can be adjusted based on typical refund processing times and desired sync frequency
@@ -10,6 +11,12 @@ REFUND_POLL_INTERVAL_MINUTES = 720 # 12 hours, can be adjusted based on typical 
 
 # Centralized TASKS list for the scheduler to consume
 TASKS: List[Dict[str, Any]] = [
+    {
+        "func": reconcile_bookings_task,
+        "trigger": IntervalTrigger(minutes=1),
+        "id": "ap_scheduler_job:reconcile_bookings",
+        "max_instances": 1,
+    },
     {
         "func": cleanup_temp_trips_task,
         "trigger": IntervalTrigger(minutes=CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES),
