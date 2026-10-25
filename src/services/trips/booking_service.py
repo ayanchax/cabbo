@@ -43,7 +43,8 @@ from services.validation_service import (
 from core.config import settings
 from utils.utility import money, convert_based_on_currency
 from services.trips.temp_trip_service import preserve_temp_trip
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 log = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ async def a_existing_booking(temp_trip_id:str, requestor:str, db:AsyncSession, o
     """Current locking read also recognises an operator recovery with a new trip ID."""
     identity = Trip.id == temp_trip_id
     if order_id:
-        identity = or_(identity, Trip.payment_provider_metadata[f"{settings.PAYMENT_PROVIDER}_order_id"].as_string() == order_id)
+        identity = or_(identity, and_(Trip.payment_provider == settings.PAYMENT_PROVIDER, Trip.payment_order_id == order_id))
     result = await db.execute(
         select(Trip).where(identity, Trip.creator_id == requestor).with_for_update()
         .execution_options(populate_existing=True)
@@ -62,10 +63,19 @@ async def a_existing_booking(temp_trip_id:str, requestor:str, db:AsyncSession, o
 
 
 async def a_existing_booking_response(trip:Trip, db):
-    return TripCreate(
-        trip_id=trip.id, booking_id=trip.booking_id, status=trip.status,
-        payment_info=None, trip_details=await a_populate_trip_schema(trip=trip, db=db),
-    )
+    return await a_booking_confirmation_response(trip, None, db)
+
+
+async def a_booking_confirmation_response(trip:Trip, payment_info, db) -> TripCreate:
+    """Response enrichment must never turn a committed booking into payment failure."""
+    identifiers = dict(trip_id=trip.id, booking_id=trip.booking_id, status=trip.status)
+    try:
+        details = await a_populate_trip_schema(trip=trip, db=db)
+        return TripCreate(**identifiers, payment_info=payment_info, trip_details=details)
+    except Exception:
+        await db.rollback()  # End a failed read transaction; the booking is already committed.
+        log.exception("Booking %s exists; trip detail response unavailable", identifiers["trip_id"])
+        return TripCreate(**identifiers, payment_info=payment_info, trip_details=None)
 
 
 async def a_generate_booking_id(
@@ -283,49 +293,66 @@ async def a_create_confirmed_trip_from_temp_trip(
             else None
         ),
         passenger_id=temp_trip.passenger_id if temp_trip.passenger_id else None,
-        payment_provider_metadata=(
-            temp_trip.payment_provider_metadata
-            if temp_trip.payment_provider_metadata
-            else (payment_info.model_dump(exclude_none=True) if payment_info else None)
-        ),
+        payment_provider=settings.PAYMENT_PROVIDER if order_id else None,
+        payment_order_id=order_id,
+        payment_provider_metadata=(temp_trip.payment_provider_metadata or
+                                   (payment_info.model_dump(exclude_none=True) if payment_info else None)),
         timezone=temp_trip.timezone if temp_trip.timezone else settings.CABBO_DEFAULT_TIMEZONE,
         utc_offset=temp_trip.utc_offset if temp_trip.utc_offset else settings.CABBO_DEFAULT_UTC_OFFSET
     )
 
     try:
         db.add(trip)
-        await db.commit()
-        await db.refresh(trip)
+        await db.flush()
         # Here we will perform a trip status audit log entry
-        await a_log_trip_audit(
+        audit = await a_log_trip_audit(
             trip_id=trip.id,
             status=trip.status,
             committer_id=requestor,
             reason=audit_reason,
             db=db,
+            commit=False,
+            raise_on_error=True,
         )  # Log the trip status audit entry
-        log.info(f"Trip confirmed for trip ID: {trip.id}")
-        # This exact booking is now durably confirmed; other orders may still be unresolved.
-        # Safely delete record from temp trip
+        if audit is None:
+            raise RuntimeError("Confirmation audit was not recorded")
+        # Consume only this staging row in the same transaction as the trip/audit.
         await db.delete(temp_trip)
         await db.commit()
-        trip_schema = await a_populate_trip_schema(
-            trip=trip, db=db
-        )  # Populate the trip schema with necessary details
-        return TripCreate(
-            trip_id=trip.id,
-            booking_id=trip.booking_id,
-            payment_info=payment_info,
-            status=trip.status,
-            trip_details=trip_schema,
-        )
-
+    except IntegrityError:
+        await db.rollback()
+        existing = await a_existing_booking(temp_trip_id, creator_id, db, order_id)
+        if existing:
+            return await a_existing_booking_response(existing, db)
+        # An order already attached to another owner must never be exposed/reused.
+        result = await db.execute(select(Trip).where(
+            Trip.payment_provider == settings.PAYMENT_PROVIDER, Trip.payment_order_id == order_id,
+        ).with_for_update()) if order_id else None
+        conflict = result.scalars().first() if result is not None else None
+        if conflict:
+            result = await db.execute(select(TempTrip).where(TempTrip.id == temp_trip_id).with_for_update())
+            pending = result.scalars().first()
+            if pending:
+                pending.payment_provider_metadata = {
+                    **(pending.payment_provider_metadata or {}),
+                    "reconciliation_state": ReconciliationStateEnum.review_required,
+                    "reconciliation_reason": "payment_order_already_assigned",
+                }
+                await db.commit()
+            raise CabboException("Payment requires booking review. Please contact Cabbo support.",
+                                 status_code=409, error_code=PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION)
+        raise CabboException("Booking confirmation pending; please check booking status or contact Cabbo support.",
+                             status_code=500, error_code=PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION)
     except Exception as e:
         await db.rollback()
-        log.error(e)
+        log.exception("Booking finalisation pending for temporary booking %s", temp_trip_id)
         raise CabboException(
-            f"Failed to confirm trip booking: {str(e)}", status_code=500, error_code=GENERIC_EXCEPTION
+            "Payment received; booking confirmation is pending. Please check booking status or contact Cabbo support.",
+            status_code=500, error_code=PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION,
         )
+
+    log.info("Trip confirmed for trip ID: %s", trip.id)
+    return await a_booking_confirmation_response(trip, payment_info, db)
 
 
 async def initiate_trip_booking(
@@ -582,13 +609,7 @@ async def a_recover_payment_verified_temp_trip(
                     f"Existing trip {existing_trip.id} has incomplete payment metadata"
                 )
 
-        return TripCreate(
-            trip_id=existing_trip.id,
-            booking_id=existing_trip.booking_id,
-            payment_info=payment_info,
-            status=existing_trip.status,
-            trip_details=await a_populate_trip_schema(trip=existing_trip, db=db),
-        )
+        return await a_booking_confirmation_response(existing_trip, payment_info, db)
 
     result = await db.execute(select(TempTrip).filter(TempTrip.id == temp_trip_id))
     temp_trip = result.scalars().first()

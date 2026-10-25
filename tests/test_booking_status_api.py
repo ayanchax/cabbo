@@ -6,7 +6,7 @@ import unittest
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Response
 from unittest.mock import AsyncMock, MagicMock
 
-from sqlalchemy import Column, DateTime, JSON, String, create_engine, or_, select
+from sqlalchemy import Column, DateTime, JSON, String, create_engine, or_, and_, select
 from sqlalchemy.orm import Session, declarative_base
 
 from test_temp_trip_cleanup import load_function
@@ -31,6 +31,8 @@ class Booked(Base):
     booking_id = Column(String)
     status = Column(String)
     payment_provider_metadata = Column(JSON)
+    payment_provider = Column(String)
+    payment_order_id = Column(String)
 
 
 class BookingStatusTests(unittest.IsolatedAsyncioTestCase):
@@ -58,7 +60,7 @@ class BookingStatusTests(unittest.IsolatedAsyncioTestCase):
         fn = load_function(path, name, settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay"),
                            _status_response=self.response, POLL_INTERVAL_SECONDS=10,
                            TRIP_NOT_FOUND="not_found", AsyncSessionLocal=lambda: None)
-        fn.__globals__.update(select=select, or_=or_, TempTrip=Temp, Trip=Booked,
+        fn.__globals__.update(select=select, or_=or_, and_=and_, TempTrip=Temp, Trip=Booked,
                               CabboException=BookingError)
         return fn
 
@@ -78,6 +80,7 @@ class BookingStatusTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_returns_confirmed_or_cancelled_booking_without_mutation(self):
         self.session.add(Booked(id="manual", creator_id="owner", booking_id="RENTAL-1", status="cancelled",
+                                payment_provider="razorpay", payment_order_id="order_1",
                                 payment_provider_metadata={"razorpay_order_id": "order_1"}))
         self.session.commit()
         result = await self.fn("a_get_booking_payment_status")("booking", "owner", self.db)

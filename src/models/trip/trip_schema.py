@@ -167,7 +167,7 @@ class TripCreate(BaseModel):
     )
     payment_info: Optional[RazorPayPaymentResponse]  # Payment details is mandatory
     status: TripStatusEnum = TripStatusEnum.pending  # Initial status of the trip
-    trip_details: TripDetails
+    trip_details: Optional[TripDetails] = None
 
 
 class TripOut(BaseModel):

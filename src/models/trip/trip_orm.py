@@ -19,15 +19,18 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from db.database import Base
 from datetime import datetime, timezone
 from core.config import settings
+from models.policies.refund_enum import PaymentProvider
 
 class Trip(Base):
     __tablename__ = "trips"
     __table_args__ = (
+        UniqueConstraint("payment_provider", "payment_order_id", name="uq_trips_payment_order"),
         Index("ix_trips_active_created", "is_active", "created_at"),
         Index("ix_trips_active_status_created", "is_active", "status", "created_at"),
         Index(
@@ -52,6 +55,8 @@ class Trip(Base):
     booking_id = Column(
         String(64), nullable=False, unique=True, index=True
     )  # Unique booking reference ID which is shown to customer and driver
+    payment_provider = Column(Enum(PaymentProvider, name="payment_provider_enum"), nullable=True)
+    payment_order_id = Column(String(255, collation="utf8mb4_bin"), nullable=True)
     #  Creator information
     creator_id = Column(
         MySQL_CHAR(36),

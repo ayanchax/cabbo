@@ -86,6 +86,13 @@ async def init_booking(
 
 
 
+# DEPRECATED: Keep /confirm-booking and /cleanup/{booking_id} active for legacy
+# clients until testing of the enhanced booking and reconciliation flow is complete
+# in dev and prod. New clients should request reconciliation via the booking payment
+# POST endpoint, then poll its GET status endpoint after any checkout outcome.
+# Once validation and client migration are complete, permanently remove both legacy
+# routes from all active dev/prod deployment branches. If desired, preserve their
+# implementation in a dedicated archive branch for historical reference only.
 @router.post("/confirm-booking", response_model=dict, tags=["customer-trip-booking"])
 async def confirm_booking(
     booking: TripOut,
@@ -104,6 +111,8 @@ async def confirm_booking(
     }
 
 
+# DEPRECATED: Retained temporarily under the retirement plan above; the enhanced
+# flow must not invoke cleanup after checkout success, failure, or dismissal.
 @router.delete(
     "/cleanup/{booking_id}", response_model=dict, tags=["customer-trip-booking"]
 )

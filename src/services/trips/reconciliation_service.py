@@ -6,7 +6,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -55,7 +55,7 @@ async def a_get_booking_payment_status(temp_trip_id: str, requestor: str, db: As
     order_id = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
     identity = Trip.id == temp_trip_id
     if order_id:
-        identity = or_(identity, Trip.payment_provider_metadata[f"{settings.PAYMENT_PROVIDER}_order_id"].as_string() == order_id)
+        identity = or_(identity, and_(Trip.payment_provider == settings.PAYMENT_PROVIDER, Trip.payment_order_id == order_id))
     result = await db.execute(select(Trip).where(identity, Trip.creator_id == requestor))
     existing = result.scalars().first()
     if existing:
@@ -207,6 +207,12 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
         return _status_response(temp_trip_id, trip=trip)
     except Exception:
         await db.rollback()
+        # A response/read error can follow an already committed booking.
+        existing = await a_existing_booking(temp_trip_id, requestor, db, order_id)
+        if existing:
+            response = _status_response(temp_trip_id, trip=existing)
+            await db.commit()
+            return response
         log.exception("Booking confirmation pending after reconciliation for %s", temp_trip_id)
         return _status_response(temp_trip_id)
 
