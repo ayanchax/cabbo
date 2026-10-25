@@ -16,10 +16,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from services.trips.temp_trip_service import preserve_temp_trip
 from models.financial.payments_enum import ReconciliationStateEnum
 from models.trip.trip_enums import TripStatusEnum
+from models.policies.refund_enum import PaymentProvider
 
 # Load just the payment models, avoiding unrelated app/settings imports.
 _schema_tree = ast.parse((ROOT / "src/models/financial/payments_schema.py").read_text(encoding="utf-8"))
-_schema_scope = dict(BaseModel=BaseModel, Optional=Optional, ReconciliationStateEnum=ReconciliationStateEnum)
+_schema_scope = dict(BaseModel=BaseModel, Optional=Optional, ReconciliationStateEnum=ReconciliationStateEnum, PaymentProvider=PaymentProvider)
 for _node in _schema_tree.body:
     if isinstance(_node, ast.ClassDef) and _node.name in {"RazorPayPaymentResponse", "ReconciliationOutcome", "PaymentWebhookNotice"}:
         exec(compile(ast.Module(body=[_node], type_ignores=[]), "payments_schema.py", "exec"), _schema_scope)

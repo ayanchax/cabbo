@@ -74,13 +74,13 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
         self.provider = MagicMock(return_value=ReconciliationOutcome(state=ReconciliationStateEnum.captured, payment_info=payment_info))
         self.existing = AsyncMock(return_value=None)
         self.finalise = AsyncMock(return_value=SimpleNamespace(trip_id="booking", booking_id="RENTAL-1", status="confirmed"))
-        self.response = load_function("src/services/trips/reconciliation_service.py", "status_response", POLL_INTERVAL_SECONDS=10)
+        self.response = load_function("src/services/trips/reconciliation_service.py", "_status_response", POLL_INTERVAL_SECONDS=10)
 
     def function(self):
         return load_function(
             "src/services/trips/reconciliation_service.py", "a_reconcile_booking",
             asyncio=asyncio, settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay"),
-            a_existing_booking=self.existing, status_response=self.response,
+            a_existing_booking=self.existing, _status_response=self.response,
             get_currency=lambda: SimpleNamespace(code="INR", lowest_unit_conversion_factor=100),
             convert_based_on_currency=lambda value, factor: value * factor,
             fetch_payment_order_status=self.provider,
@@ -103,6 +103,17 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
         reconcile.__globals__["settings"] = SimpleNamespace(PAYMENT_PROVIDER="another_provider")
         await reconcile("booking", "customer", self.db)
         self.provider.assert_called_once_with("order_other", 15300, "INR")
+
+    async def test_requested_check_keeps_scheduler_followup_due_when_unresolved(self):
+        self.temp.payment_provider_metadata.update(
+            reconciliation_request_pending=True,
+            reconciliation_next_check_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        )
+        self.provider.return_value = ReconciliationOutcome()
+        await self.function()("booking", "customer", self.db)
+        metadata = self.temp.payment_provider_metadata
+        self.assertFalse(metadata["reconciliation_request_pending"])
+        self.assertLessEqual(datetime.fromisoformat(metadata["reconciliation_next_check_at"]), datetime.now(timezone.utc))
 
     async def test_records_configured_provider_provenance(self):
         await self.function()("booking", "customer", self.db)
@@ -173,7 +184,7 @@ class AdminReconciliationTests(unittest.IsolatedAsyncioTestCase):
             router=SimpleNamespace(post=lambda *args, **kwargs: lambda fn: fn),
             Depends=lambda dependency: None, User=object,
             a_yield_mysql_session=lambda: None, validate_user_token=lambda: None,
-            RoleEnum=SimpleNamespace(super_admin="super_admin", customer_admin="customer_admin"),
+            RoleEnum=SimpleNamespace(super_admin="super_admin", customer_admin="customer_admin", finance_admin="finance_admin"),
             a_reconcile_booking_as_admin=reconcile)
         endpoint.__globals__["CabboException"] = BookingError
         return endpoint

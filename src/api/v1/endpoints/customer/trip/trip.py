@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Path, Response
+from fastapi import APIRouter, Depends, Path
 from core.security import validate_customer_token
 from core.trip_helpers import get_prior_booking_window_hours, get_trip_constraints_by_trip_type
 from db.database import a_yield_mysql_session
@@ -8,7 +8,6 @@ from models.trip.trip_schema import (
     TripBookRequest,
     TripOut,
     TripSearchRequest,
-    BookingPaymentStatus,
 )
 
 from services.configuration_service import get_all_cabs
@@ -20,7 +19,6 @@ from services.trips.booking_service import (
     initiate_trip_booking,
 )
 from services.trips.search_service import search
-from services.trips.reconciliation_service import a_reconcile_booking
 from utils.utility import remove_none_recursive
 from .reviews import router as trip_reviews
 from .refunds import router as trip_refunds
@@ -86,17 +84,6 @@ async def init_booking(
     return response
 
 
-
-@router.get("/booking-status/{temp_trip_id}", response_model=BookingPaymentStatus, tags=["customer-trip-booking"])
-async def booking_status(
-    temp_trip_id: str,
-    response: Response,
-    db: AsyncSession = Depends(a_yield_mysql_session),
-    current_customer: Customer = Depends(validate_customer_token),
-):
-    """Check and recover payment using provider truth, even without a checkout callback."""
-    response.headers["Cache-Control"] = "no-store"
-    return await a_reconcile_booking(temp_trip_id, current_customer.id, db)
 
 
 @router.post("/confirm-booking", response_model=dict, tags=["customer-trip-booking"])

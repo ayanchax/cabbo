@@ -13,11 +13,11 @@ from models.financial.payments_enum import ReconciliationStateEnum
 from models.trip.temp_trip_orm import TempTrip
 from scheduler.task_registry import task
 from services.trips.reconciliation_service import a_reconcile_booking
+from utils.retry import get_retry_delay_seconds
 
 log = logging.getLogger(__name__)
 _DEFAULT_BATCH_SIZE = settings.RECONCILE_BATCH_SIZE
 _CLAIM_NEXT_ATTEMPT_AFTER_SECONDS = 900 #15 mins
-_MAX_BACKOFF_SECONDS = 900 #15 minutes
 
 
 @task(task_id="reconcile_bookings", description="Reconciles unresolved booking payment orders")
@@ -45,13 +45,14 @@ async def _claim_bookings(db, batch_size=_DEFAULT_BATCH_SIZE):
     order_id = metadata[f"{settings.PAYMENT_PROVIDER}_order_id"].as_string()
     state = metadata["reconciliation_state"].as_string()
     due = metadata["reconciliation_next_check_at"].as_string()
+    requested = metadata["reconciliation_request_pending"].as_boolean()
     result = await db.execute(
         select(TempTrip).where(
             order_id.is_not(None), order_id != "",
             or_(state.is_(None), state.notin_([
                 ReconciliationStateEnum.review_required.value, ReconciliationStateEnum.booked.value,
             ])),
-            or_(due.is_(None), due <= now.isoformat()),
+            or_(due.is_(None), due <= now.isoformat(), requested.is_(True)),
         ).order_by(due.asc(), TempTrip.created_at.asc(), TempTrip.id.asc())
         .limit(batch_size).with_for_update(skip_locked=True)
         .execution_options(populate_existing=True)
@@ -60,6 +61,8 @@ async def _claim_bookings(db, batch_size=_DEFAULT_BATCH_SIZE):
     for temp_trip in result.scalars().all():
         details = dict(temp_trip.payment_provider_metadata or {})
         details["reconciliation_next_check_at"] = (now + timedelta(seconds=_CLAIM_NEXT_ATTEMPT_AFTER_SECONDS)).isoformat()
+        # The durable lease now owns this request. A crash is recovered when it expires.
+        details["reconciliation_request_pending"] = False
         temp_trip.payment_provider_metadata = details
         claimed.append((temp_trip.id, temp_trip.creator_id))
     await db.commit()
@@ -79,13 +82,13 @@ async def _schedule_next_check(db, temp_trip_id, state=None):
     details = dict(temp_trip.payment_provider_metadata or {})
     if state == ReconciliationStateEnum.booked:
         details["reconciliation_state"] = ReconciliationStateEnum.booked.value
-    # Cap the exponent as well as the delay for indefinitely abandoned orders.
+    # Preserve the full attempt count; only the helper's delay calculation is capped.
     try:
         previous_attempts = int(details.get("reconciliation_attempts", 0))
     except (TypeError, ValueError):
         previous_attempts = 0
-    attempts = min(max(previous_attempts, 0) + 1, 16)
-    delay = min(60 * 2 ** (attempts - 1), _MAX_BACKOFF_SECONDS)
+    attempts = max(previous_attempts, 0) + 1
+    delay = get_retry_delay_seconds(attempts)
     details.update(
         reconciliation_attempts=attempts,
         reconciliation_next_check_at=(datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(),

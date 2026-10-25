@@ -10,16 +10,18 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import HTTPException
-from sqlalchemy import Column, DateTime, Index, Integer, String, create_engine, select
+from sqlalchemy import Column, Enum, DateTime, Index, Integer, String, create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, declarative_base
 
 from test_temp_trip_cleanup import ROOT, PaymentWebhookNotice, load_function
 from test_booking_reconciliation_scheduler import Base as BookingBase, TemporaryBooking
 from models.financial.payments_enum import ReconciliationStateEnum
+from models.policies.refund_enum import PaymentProvider
+from utils.retry import get_retry_delay_seconds
 
 Base = declarative_base()
-scope = dict(Base=Base, Column=Column, DateTime=DateTime, Index=Index, Integer=Integer,
+scope = dict(Base=Base, Column=Column, Enum=Enum, PaymentProvider=PaymentProvider, DateTime=DateTime, Index=Index, Integer=Integer,
              String=String, datetime=datetime, timezone=timezone)
 tree = ast.parse((ROOT / "src/models/financial/payment_webhook_orm.py").read_text())
 node = next(n for n in tree.body if isinstance(n, ast.ClassDef))
@@ -33,7 +35,8 @@ class SignatureTests(unittest.TestCase):
         self.parse = load_function(
             "src/services/razorpay_service.py", "parse_razorpay_webhook", Optional=Optional,
             PaymentWebhookNotice=PaymentWebhookNotice, settings=self.settings,
-            HTTPException=HTTPException, hashlib=hashlib, hmac=hmac, json=json)
+            HTTPException=HTTPException, hashlib=hashlib, hmac=hmac, json=json,
+            EXPECTED_SIGNATURE_LENGTH=64, SERIES_CHARACTERS="0123456789abcdef", PaymentProvider=PaymentProvider)
         self.body = json.dumps({"event": "payment.captured", "payload": {"payment": {"entity": {
             "id": "pay_1", "order_id": "order_1", "status": "captured"}}}}).encode()
 
@@ -92,7 +95,8 @@ class InboxTests(unittest.IsolatedAsyncioTestCase):
                            PaymentWebhookNotice=PaymentWebhookNotice,
                            PaymentWebhookEvent=PaymentWebhookEvent, HTTPException=HTTPException,
                            IntegrityError=IntegrityError, settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay"),
-                           a_reconcile_booking=self.reconcile, AsyncSessionLocal=lambda: None)
+                           a_reconcile_booking=self.reconcile, AsyncSessionLocal=lambda: None, _EVENT_ID_MAX_LENGTH=255, _WEBHOOK_CLAIM_NEXT_ATTEMPT_AFTER_MINUTES=15, _DEFAULT_PAYMENT_WEBHOOK_BATCH_SIZE=20,
+                           get_retry_delay_seconds=get_retry_delay_seconds)
         fn.__globals__.update(select=select, TempTrip=TemporaryBooking, Trip=TemporaryBooking)
         return fn
 
@@ -160,6 +164,17 @@ class InboxTests(unittest.IsolatedAsyncioTestCase):
         await self.process()
         self.assertIsNone(self.event().processed_at)
         self.reconcile.assert_not_awaited()
+
+    async def test_webhook_counter_remains_accurate_while_delay_is_capped(self):
+        await self.store()
+        self.event().attempts = 16
+        self.session.commit()
+        before = datetime.now(timezone.utc)
+        await self.process()  # Unknown association remains pending and is retried.
+        event = self.event()
+        self.assertEqual(event.attempts, 17)
+        scheduled = event.next_attempt_at.replace(tzinfo=event.next_attempt_at.tzinfo or timezone.utc)
+        self.assertAlmostEqual((scheduled - before).total_seconds(), 900, delta=2)
 
 
 class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):

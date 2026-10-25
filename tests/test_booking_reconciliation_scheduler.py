@@ -10,6 +10,7 @@ from sqlalchemy.dialects import mysql
 
 from test_temp_trip_cleanup import load_function
 from models.financial.payments_enum import ReconciliationStateEnum
+from utils.retry import get_retry_delay_seconds
 
 Base = declarative_base()
 
@@ -50,8 +51,9 @@ class SchedulerTests(unittest.IsolatedAsyncioTestCase):
 
     def function(self, name):
         fn = load_function("src/scheduler/tasks/reconcile_bookings.py", name,
-                           settings=SimpleNamespace(PAYMENT_PROVIDER="configured_provider"),
-                           or_=or_, BATCH_SIZE=20, CLAIM_SECONDS=900, MAX_BACKOFF_SECONDS=900)
+                           settings=SimpleNamespace(PAYMENT_PROVIDER="configured_provider", RECONCILE_BOOKING_INTERVAL_MINUTES=1),
+                           or_=or_, _DEFAULT_BATCH_SIZE=20, _CLAIM_NEXT_ATTEMPT_AFTER_SECONDS=900,
+                           get_retry_delay_seconds=get_retry_delay_seconds)
         fn.__globals__["TempTrip"] = TemporaryBooking
         from sqlalchemy import select
         fn.__globals__["select"] = select
@@ -102,6 +104,16 @@ class SchedulerTests(unittest.IsolatedAsyncioTestCase):
         self.session.refresh(booking)
         self.assertEqual(booking.payment_provider_metadata["reconciliation_state"], "review_required")
 
+    async def test_attempt_counter_continues_past_previous_cap(self):
+        booking = self.add("retry", {"configured_provider_order_id": "order_1", "reconciliation_attempts": 16})
+        before = datetime.now(timezone.utc)
+        await self.function("_schedule_next_check")(self.db, "retry")
+        self.session.refresh(booking)
+        metadata = booking.payment_provider_metadata
+        self.assertEqual(metadata["reconciliation_attempts"], 17)
+        delay = (datetime.fromisoformat(metadata["reconciliation_next_check_at"]) - before).total_seconds()
+        self.assertAlmostEqual(delay, 900, delta=2)
+
     async def test_existing_manual_booking_is_excluded_after_processing(self):
         self.add("manual", {"configured_provider_order_id": "order_1"})
         await self.function("_schedule_next_check")(self.db, "manual", ReconciliationStateEnum.booked)
@@ -122,7 +134,7 @@ class SchedulerRunnerTests(unittest.IsolatedAsyncioTestCase):
         schedule = AsyncMock()
         run = load_function(
             "src/scheduler/tasks/reconcile_bookings.py", "_run_booking_reconciliation",
-            BATCH_SIZE=20, AsyncSessionLocal=MagicMock(return_value=context),
+            settings=SimpleNamespace(RECONCILE_BOOKING_INTERVAL_MINUTES=1), _DEFAULT_BATCH_SIZE=20, AsyncSessionLocal=MagicMock(return_value=context),
             _claim_bookings=AsyncMock(return_value=[("first", "customer"), ("second", "customer")]),
             a_reconcile_booking=reconcile, _schedule_next_check=schedule)
         await run()

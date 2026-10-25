@@ -15,6 +15,7 @@ from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip
 from services.trips.reconciliation_service import a_reconcile_booking
 from sqlalchemy.ext.asyncio import AsyncSession
+from utils.retry import get_retry_delay_seconds
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ async def _claim_payment_webhooks(db:AsyncSession, batch_size=_DEFAULT_PAYMENT_W
     for event in result.scalars().all():
         event.attempts += 1
         event.next_attempt_at = now + timedelta(minutes=_WEBHOOK_CLAIM_NEXT_ATTEMPT_AFTER_MINUTES)
-        claimed.append((event.provider, event.event_id, event.order_id))
+        claimed.append((getattr(event.provider, "value", event.provider), event.event_id, event.order_id))
     await db.commit()
     return claimed
 
@@ -105,7 +106,12 @@ async def a_process_payment_webhooks(session_factory=AsyncSessionLocal, *, event
                     if state in (ReconciliationStateEnum.booked, ReconciliationStateEnum.review_required):
                         event.processed_at = datetime.now(timezone.utc)
                     else:
-                        delay = min(60 * 2 ** min(max(event.attempts - 1, 0), 4), 900)
+                            #60 is the initial delay.
+                            # 2 doubles it per attempt.
+                            # max(..., 0) prevents a negative exponent.
+                            # 4 caps the exponent before calculating the power.
+                            # 900 caps the resulting delay at 15 minutes.
+                        delay = get_retry_delay_seconds(event.attempts)
                         event.next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
                     await db.commit()
             except Exception:

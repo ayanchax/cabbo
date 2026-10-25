@@ -6,7 +6,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -21,6 +21,7 @@ from services.trips.booking_service import (
     a_existing_booking,
 )
 from utils.utility import convert_based_on_currency
+from db.database import AsyncSessionLocal
 
 log = logging.getLogger(__name__)
 POLL_INTERVAL_SECONDS = 10
@@ -42,6 +43,84 @@ def _status_response(temp_trip_id, state: ReconciliationStateEnum = Reconciliati
         can_retry_payment=False,
         message=messages[ReconciliationStateEnum.booked if trip else state],
     )
+
+
+async def a_get_booking_payment_status(temp_trip_id: str, requestor: str, db: AsyncSession) -> BookingPaymentStatus:
+    """Read persisted status only: no locks, provider calls, queueing or writes."""
+    result = await db.execute(select(TempTrip).where(
+        TempTrip.id == temp_trip_id, TempTrip.creator_id == requestor,
+    ))
+    temp_trip = result.scalars().first()
+    metadata = (temp_trip.payment_provider_metadata or {}) if temp_trip else {}
+    order_id = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
+    identity = Trip.id == temp_trip_id
+    if order_id:
+        identity = or_(identity, Trip.payment_provider_metadata[f"{settings.PAYMENT_PROVIDER}_order_id"].as_string() == order_id)
+    result = await db.execute(select(Trip).where(identity, Trip.creator_id == requestor))
+    existing = result.scalars().first()
+    if existing:
+        return _status_response(temp_trip_id, trip=existing)
+    if temp_trip is None:
+        raise CabboException("Booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
+    state = (ReconciliationStateEnum.review_required
+             if metadata.get("reconciliation_state") == ReconciliationStateEnum.review_required.value
+             else ReconciliationStateEnum.checking)
+    return _status_response(temp_trip_id, state)
+
+
+async def a_request_booking_reconciliation(temp_trip_id: str, requestor: str, db: AsyncSession) -> BookingPaymentStatus:
+    """Durably queue an owned booking; repeated requests preserve a pending request."""
+    result = await db.execute(select(TempTrip).where(
+        TempTrip.id == temp_trip_id, TempTrip.creator_id == requestor,
+    ).with_for_update().execution_options(populate_existing=True))
+    temp_trip = result.scalars().first()
+    metadata = dict(temp_trip.payment_provider_metadata or {}) if temp_trip else {}
+    order_id = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
+    existing = await a_existing_booking(temp_trip_id, requestor, db, order_id)
+    if existing:
+        response = _status_response(temp_trip_id, trip=existing)
+        await db.commit()
+        return response
+    if temp_trip is None:
+        raise CabboException("Booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
+    if metadata.get("reconciliation_state") == ReconciliationStateEnum.review_required:
+        await db.commit()
+        return _status_response(temp_trip_id, ReconciliationStateEnum.review_required)
+    if not order_id:
+        raise CabboException("Booking has no payment order", status_code=409, error_code=TRIP_NOT_FOUND)
+    if not metadata.get("reconciliation_request_pending"):
+        now = datetime.now(timezone.utc)
+        requested_at = metadata.get("reconciliation_requested_at")
+        try:
+            recent_request = requested_at and 0 <= (now - datetime.fromisoformat(requested_at)).total_seconds() < POLL_INTERVAL_SECONDS
+        except (TypeError, ValueError):
+            recent_request = False
+        if not recent_request:
+            metadata.update(
+                reconciliation_request_pending=True,
+                reconciliation_requested_at=now.isoformat(),
+            )
+            # Leave any active scheduler lease intact. Pending requests are also
+            # selected explicitly, so queueing never depends on browser survival.
+            temp_trip.payment_provider_metadata = metadata
+    await db.commit()
+    return _status_response(temp_trip_id)
+
+
+async def a_process_booking_reconciliation_request(temp_trip_id: str, requestor: str, session_factory=AsyncSessionLocal):
+    """Best-effort fast path; scheduler recovers the persisted request after a crash."""
+    async with session_factory() as db:
+        try:
+            result = await db.execute(select(TempTrip).where(
+                TempTrip.id == temp_trip_id, TempTrip.creator_id == requestor,
+            ).with_for_update().execution_options(populate_existing=True))
+            temp_trip = result.scalars().first()
+            if temp_trip is None or not (temp_trip.payment_provider_metadata or {}).get("reconciliation_request_pending"):
+                return
+            await a_reconcile_booking(temp_trip_id, requestor, db)
+        except Exception:
+            await db.rollback()
+            log.exception("Requested reconciliation pending for booking %s", temp_trip_id)
 
 
 async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSession, *, actor_id: str = None, force_provider_check: bool = False) -> BookingPaymentStatus:
@@ -83,6 +162,11 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
         except (TypeError, ValueError):
             pass
     metadata["reconciliation_checked_at"] = now.isoformat()
+    if metadata.get("reconciliation_request_pending"):
+        # An immediate customer check must not leave unresolved payment behind
+        # an older scheduler backoff. Continue on the next scheduled run.
+        metadata["reconciliation_next_check_at"] = now.isoformat()
+    metadata["reconciliation_request_pending"] = False
     if actor_id:
         metadata["reconciliation_requested_by"] = actor_id
     outcome = ReconciliationOutcome()
