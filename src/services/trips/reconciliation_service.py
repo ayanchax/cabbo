@@ -1,5 +1,6 @@
+"""Payment recovery shared by customer polling, scheduler and webhook"""
+
 from models.financial.payments_schema import ReconciliationOutcome
-"""Payment recovery shared by customer polling and future scheduled/webhook work."""
 from models.financial.payments_enum import ReconciliationStateEnum
 import asyncio
 import logging
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 POLL_INTERVAL_SECONDS = 10
 
 
-def status_response(temp_trip_id, state: ReconciliationStateEnum = ReconciliationStateEnum.checking, trip:Trip=None) -> BookingPaymentStatus:
+def _status_response(temp_trip_id, state: ReconciliationStateEnum = ReconciliationStateEnum.checking, trip:Trip=None) -> BookingPaymentStatus:
     messages = {
         ReconciliationStateEnum.checking: "We're checking your payment. Please don't pay again yet.",
         ReconciliationStateEnum.booked: "Your booking is available in your trips.",
@@ -58,14 +59,14 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
     order_id:str = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
     existing = await a_existing_booking(temp_trip_id, requestor, db, order_id)
     if existing:
-        response = status_response(temp_trip_id, trip=existing)
+        response = _status_response(temp_trip_id, trip=existing)
         await db.commit()
         return response
     if not temp_trip:
         raise CabboException("Booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
     if metadata.get("reconciliation_state") == ReconciliationStateEnum.review_required:
         await db.commit()
-        return status_response(temp_trip_id, ReconciliationStateEnum.review_required)
+        return _status_response(temp_trip_id, ReconciliationStateEnum.review_required)
     now = datetime.now(timezone.utc)
     checked_at = metadata.get("reconciliation_checked_at")
     if checked_at and not force_provider_check:
@@ -78,7 +79,7 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
             checked = datetime.fromisoformat(checked_at)
             if 0 <= (now - checked).total_seconds() < POLL_INTERVAL_SECONDS:
                 await db.commit()
-                return status_response(temp_trip_id)
+                return _status_response(temp_trip_id)
         except (TypeError, ValueError):
             pass
     metadata["reconciliation_checked_at"] = now.isoformat()
@@ -106,22 +107,24 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
         if start is None or start.replace(tzinfo=start.tzinfo or timezone.utc) <= now:
             state = ReconciliationStateEnum.review_required
             metadata.update(reconciliation_state=state, reconciliation_reason="pickup_time_passed")
-            log.error("Captured payment requires fulfilment review for temporary booking %s", temp_trip_id)
+            log.error("Captured payment requires backend fulfilment review for temporary booking %s", temp_trip_id)
     temp_trip.payment_provider_metadata = metadata
     # Persist evidence first; a failed finalisation remains recoverable.
     await db.commit()
     if state != ReconciliationStateEnum.captured:
-        return status_response(temp_trip_id, state)
+        return _status_response(temp_trip_id, state)
     try:
+        #At this point, since payment status is verified as captured, we can move the temp trip to final trip table with status as confirmed.
+        # PAYMENT VERIFIED VIA RECONCIALITAION - TempTrip is hence ELIGIBLE TO MOVE TO `Trips` table as confirmed booking.
         trip = await a_create_confirmed_trip_from_temp_trip(
             temp_trip=temp_trip, requestor=actor_id or requestor, payment_info=payment_info, db=db,
             audit_reason="Booking confirmed by payment reconciliation",
         )
-        return status_response(temp_trip_id, trip=trip)
+        return _status_response(temp_trip_id, trip=trip)
     except Exception:
         await db.rollback()
         log.exception("Booking confirmation pending after reconciliation for %s", temp_trip_id)
-        return status_response(temp_trip_id)
+        return _status_response(temp_trip_id)
 
 
 async def a_reconcile_booking_as_admin(temp_trip_id: str, admin_user_id: str, db: AsyncSession) -> BookingPaymentStatus:

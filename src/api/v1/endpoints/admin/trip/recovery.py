@@ -26,7 +26,7 @@ async def reconcile_booking(
 
     Uses normal throttling and fulfilment checks; does not override review or refund.
     """
-    if current_user.role not in [RoleEnum.super_admin, RoleEnum.customer_admin]:
+    if current_user.role not in [RoleEnum.super_admin, RoleEnum.customer_admin, RoleEnum.finance_admin]:
         raise CabboException(
             "You do not have permission to reconcile bookings.",
             status_code=403,

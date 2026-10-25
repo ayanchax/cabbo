@@ -6,7 +6,7 @@ from typing import Optional
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
-from models.policies.refund_enum import RefundType
+from models.policies.refund_enum import PaymentProvider, RefundType
 
 from enum import Enum
 import logging
@@ -37,6 +37,7 @@ from utils.utility import convert_based_on_currency
 
 log = logging.getLogger(__name__)
 
+
 RAZOR_PAY_CLIENT = razorpay.Client(
     auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
 )
@@ -45,6 +46,10 @@ RAZOR_PAY_CLIENT_DETAILS = {
     "name": f"{APP_NAME.capitalize()} Trip Booking Service",
     "description": "Service for booking trips and managing payments.",
 }
+
+EXPECTED_SIGNATURE_LENGTH = 64
+SERIES_CHARACTERS="0123456789abcdef"
+
 
 
 class RazorPayRefundStatusEnum(str, Enum):
@@ -292,8 +297,8 @@ def parse_razorpay_webhook(raw_body: bytes, signature: str) -> Optional[PaymentW
     if not secret:
         raise HTTPException(status_code=503, detail="Payment webhook is not configured")
     expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-    if (not signature or len(signature) != 64
-            or any(char not in "0123456789abcdef" for char in signature)
+    if (not signature or len(signature) != EXPECTED_SIGNATURE_LENGTH
+            or any(char not in SERIES_CHARACTERS for char in signature)
             or not hmac.compare_digest(expected, signature)):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
     try:
@@ -303,12 +308,12 @@ def parse_razorpay_webhook(raw_body: bytes, signature: str) -> Optional[PaymentW
         if payload["event"] != "payment.captured":
             return None
         payment = payload["payload"]["payment"]["entity"]
-        if (payment.get("status") != "captured"
+        if (payment.get("status") != ReconciliationStateEnum.captured.value
                 or not isinstance(payment.get("order_id"), str) or not payment["order_id"].startswith("order_")
                 or not isinstance(payment.get("id"), str) or not payment["id"].startswith("pay_")
-                or len(payment["order_id"]) > 64 or len(payment["id"]) > 64):
+                or len(payment["order_id"]) > EXPECTED_SIGNATURE_LENGTH or len(payment["id"]) > EXPECTED_SIGNATURE_LENGTH):
             raise ValueError("Invalid payment entity")
-        return PaymentWebhookNotice(provider="razorpay", event_type=payload["event"],
+        return PaymentWebhookNotice(provider=PaymentProvider.razorpay, event_type=payload["event"],
                                     order_id=payment["order_id"], payment_id=payment["id"])
     except (ValueError, TypeError, KeyError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid webhook payload")

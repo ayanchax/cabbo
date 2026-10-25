@@ -15,30 +15,30 @@ from scheduler.task_registry import task
 from services.trips.reconciliation_service import a_reconcile_booking
 
 log = logging.getLogger(__name__)
-BATCH_SIZE = 20
-CLAIM_SECONDS = 900 #15 mins
-MAX_BACKOFF_SECONDS = 900
+_DEFAULT_BATCH_SIZE = settings.RECONCILE_BATCH_SIZE
+_CLAIM_NEXT_ATTEMPT_AFTER_SECONDS = 900 #15 mins
+_MAX_BACKOFF_SECONDS = 900 #15 minutes
 
 
 @task(task_id="reconcile_bookings", description="Reconciles unresolved booking payment orders")
-def reconcile_bookings_task():
-    asyncio.run(_run_scheduled_booking_reconciliation())
+def reconcile_bookings_task(batch_size:int= _DEFAULT_BATCH_SIZE):
+    asyncio.run(_run_scheduled_booking_reconciliation(batch_size=batch_size))
 
 
-async def _run_scheduled_booking_reconciliation():
+async def _run_scheduled_booking_reconciliation(batch_size:int= _DEFAULT_BATCH_SIZE):
     # APScheduler uses a new event loop for each run. Never reuse pooled async
     # connections belonging to the API loop or a previous scheduler invocation.
     engine = create_async_engine(ASYNC_DATABASE_URL, connect_args=ASYNC_CONNECT_ARGS)
     sessions = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         from services.payment_webhook_service import a_process_payment_webhooks
-        await a_process_payment_webhooks(session_factory=sessions)
-        await _run_booking_reconciliation(session_factory=sessions)
+        await a_process_payment_webhooks(session_factory=sessions, batch_size=batch_size)
+        await _run_booking_reconciliation(session_factory=sessions, batch_size=batch_size)
     finally:
         await engine.dispose()
 
 
-async def _claim_bookings(db, batch_size=BATCH_SIZE):
+async def _claim_bookings(db, batch_size=_DEFAULT_BATCH_SIZE):
     """Persist leases before network calls; other scheduler workers skip claimed rows."""
     now = datetime.now(timezone.utc)
     metadata = TempTrip.payment_provider_metadata
@@ -59,7 +59,7 @@ async def _claim_bookings(db, batch_size=BATCH_SIZE):
     claimed = []
     for temp_trip in result.scalars().all():
         details = dict(temp_trip.payment_provider_metadata or {})
-        details["reconciliation_next_check_at"] = (now + timedelta(seconds=CLAIM_SECONDS)).isoformat()
+        details["reconciliation_next_check_at"] = (now + timedelta(seconds=_CLAIM_NEXT_ATTEMPT_AFTER_SECONDS)).isoformat()
         temp_trip.payment_provider_metadata = details
         claimed.append((temp_trip.id, temp_trip.creator_id))
     await db.commit()
@@ -73,7 +73,7 @@ async def _schedule_next_check(db, temp_trip_id, state=None):
         .execution_options(populate_existing=True)
     )
     temp_trip = result.scalars().first()
-    if temp_trip is None:  # Successful finalisation normally consumes the temporary row.
+    if temp_trip is None:  # Successful finalisation normally consumes the temporary row as the temp trip has been moved already to Trip.
         await db.commit()
         return
     details = dict(temp_trip.payment_provider_metadata or {})
@@ -85,7 +85,7 @@ async def _schedule_next_check(db, temp_trip_id, state=None):
     except (TypeError, ValueError):
         previous_attempts = 0
     attempts = min(max(previous_attempts, 0) + 1, 16)
-    delay = min(60 * 2 ** (attempts - 1), MAX_BACKOFF_SECONDS)
+    delay = min(60 * 2 ** (attempts - 1), _MAX_BACKOFF_SECONDS)
     details.update(
         reconciliation_attempts=attempts,
         reconciliation_next_check_at=(datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(),
@@ -94,9 +94,9 @@ async def _schedule_next_check(db, temp_trip_id, state=None):
     await db.commit()
 
 
-async def _run_booking_reconciliation(batch_size=BATCH_SIZE, session_factory=AsyncSessionLocal):
-    if not 1 <= batch_size <= BATCH_SIZE:
-        raise ValueError(f"batch_size must be between 1 and {BATCH_SIZE}")
+async def _run_booking_reconciliation(batch_size=_DEFAULT_BATCH_SIZE, session_factory=AsyncSessionLocal):
+    if not 1 <= batch_size <= _DEFAULT_BATCH_SIZE:
+        raise ValueError(f"batch_size must be between 1 and {_DEFAULT_BATCH_SIZE}")
     async with session_factory() as db:
         try:
             claimed = await _claim_bookings(db, batch_size) #Claim/pick up unresolved payment linked bookings for reconcialation.
@@ -122,4 +122,10 @@ async def _run_booking_reconciliation(batch_size=BATCH_SIZE, session_factory=Asy
                 await db.rollback()
                 # The persisted claim expires, allowing recovery even if rescheduling fails.
                 log.exception("Could not reschedule booking reconciliation for %s", temp_trip_id)
-    log.info("Scheduled booking reconciliation processed %s bookings", len(claimed))
+    if not claimed or len(claimed)==0:
+        log.info(f"No bookings qualified for reconciliation in this run.")
+    else:
+        log.info("Scheduled booking reconciliation processed %s bookings", len(claimed))
+    next_scheduler_run = datetime.now(timezone.utc) + timedelta(minutes=settings.RECONCILE_BOOKING_INTERVAL_MINUTES)
+    log.info(f"Next scheduler run: {next_scheduler_run}")
+

@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Index, Integer, String
+from sqlalchemy import Column, Enum, DateTime, Index, Integer, String
 from db.database import Base
+from models.policies.refund_enum import PaymentProvider
 
 
 class PaymentWebhookEvent(Base):
@@ -9,7 +10,7 @@ class PaymentWebhookEvent(Base):
     __tablename__ = "payment_webhook_events"
     __table_args__ = (Index("ix_payment_webhooks_due", "processed_at", "next_attempt_at"),)
 
-    provider = Column(String(32), primary_key=True)
+    provider = Column(Enum(PaymentProvider, name="payment_provider_enum"), primary_key=True) 
     event_id = Column(String(255), primary_key=True)
     event_type = Column(String(64), nullable=False)
     order_id = Column(String(64), nullable=False)

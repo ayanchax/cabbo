@@ -14,13 +14,17 @@ from models.financial.payments_schema import PaymentWebhookNotice
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_orm import Trip
 from services.trips.reconciliation_service import a_reconcile_booking
+from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger(__name__)
 
+_EVENT_ID_MAX_LENGTH = 255
+_WEBHOOK_CLAIM_NEXT_ATTEMPT_AFTER_MINUTES=15
+_DEFAULT_PAYMENT_WEBHOOK_BATCH_SIZE=settings.RECONCILE_BATCH_SIZE
 
-async def a_store_payment_webhook(notice: PaymentWebhookNotice, event_id: str, body_hash: str, db):
+async def a_store_payment_webhook(notice: PaymentWebhookNotice, event_id: str, body_hash: str, db:AsyncSession):
     """Acknowledge only after a verified notice is committed to the durable inbox."""
-    if not event_id or len(event_id) > 255:
+    if not event_id or len(event_id) > _EVENT_ID_MAX_LENGTH:
         raise HTTPException(status_code=400, detail="Missing or invalid webhook event ID")
     key = {"provider": notice.provider, "event_id": event_id}
     existing = await db.get(PaymentWebhookEvent, key)
@@ -31,7 +35,7 @@ async def a_store_payment_webhook(notice: PaymentWebhookNotice, event_id: str, b
             await db.commit()
             return
         except IntegrityError:
-            await db.rollback()  # A concurrent delivery may have committed first.
+            await db.rollback()  # A concurrent delivery may have committed first, perhaps from the scheduler or UI flow.
             existing = await db.get(PaymentWebhookEvent, key)
             if existing is None:
                 raise
@@ -40,7 +44,7 @@ async def a_store_payment_webhook(notice: PaymentWebhookNotice, event_id: str, b
         raise HTTPException(status_code=400, detail="Webhook event ID conflicts with an existing event")
 
 
-async def _claim_payment_webhooks(db, batch_size=20, event_id=None):
+async def _claim_payment_webhooks(db:AsyncSession, batch_size=_DEFAULT_PAYMENT_WEBHOOK_BATCH_SIZE, event_id=None):
     now = datetime.now(timezone.utc)
     query = select(PaymentWebhookEvent).where(
         PaymentWebhookEvent.provider == settings.PAYMENT_PROVIDER,
@@ -56,14 +60,15 @@ async def _claim_payment_webhooks(db, batch_size=20, event_id=None):
     claimed = []
     for event in result.scalars().all():
         event.attempts += 1
-        event.next_attempt_at = now + timedelta(minutes=15)
+        event.next_attempt_at = now + timedelta(minutes=_WEBHOOK_CLAIM_NEXT_ATTEMPT_AFTER_MINUTES)
         claimed.append((event.provider, event.event_id, event.order_id))
     await db.commit()
     return claimed
 
 
-async def a_process_payment_webhooks(session_factory=AsyncSessionLocal, *, event_id=None, batch_size=20):
-    """Fast-path background delivery and scheduled retry both drain the same inbox."""
+async def a_process_payment_webhooks(session_factory=AsyncSessionLocal, *, event_id=None, batch_size=_DEFAULT_PAYMENT_WEBHOOK_BATCH_SIZE):
+    """Fast-path background delivery and scheduled retry both drain the same inbox - TempTrips->Trips table."""
+    claimed=[]
     try:
         async with session_factory() as db:
             claimed = await _claim_payment_webhooks(db, batch_size, event_id)
@@ -106,3 +111,5 @@ async def a_process_payment_webhooks(session_factory=AsyncSessionLocal, *, event
             except Exception:
                 await db.rollback()
                 log.exception("Could not update payment webhook event %s", identifier)
+    if not claimed or len(claimed)==0:
+        log.info("No claimed webhook events picked in this run.")

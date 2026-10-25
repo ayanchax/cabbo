@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from models.financial.payments_enum import ReconciliationStateEnum
 
 from models.customer.customer_schema import CustomerPayment
+from models.policies.refund_enum import PaymentProvider
 
 class PaymentOrderSchema(BaseModel):
     id: Optional[str] = None  # Order ID from vendor (e.g., Razorpay)
@@ -53,7 +54,7 @@ class RazorPayPaymentResponse(BaseModel):
         extra = "allow"  # Allow additional fields not defined in the schema
 
 class PaymentWebhookNotice(BaseModel):
-    provider: str
+    provider: PaymentProvider
     event_type: str
     order_id: str
     payment_id: str

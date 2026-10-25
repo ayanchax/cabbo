@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     #Optional logging directory for storing application logs. This setting is optional and can be left empty if logs are not required to be stored in a specific directory within container. If provided, it should point to the directory where application logs will be saved.
     # Generally this is turned off in dev and prod environments, but can be turned on in local environment for debugging and troubleshooting purposes. In production, logs are generally sent to a centralized logging system or service Sentry for better monitoring and analysis.
     LOG_DIR: Optional[str]=None
+
+    RECONCILE_BOOKING_INTERVAL_MINUTES:int
+    RECONCILE_BATCH_SIZE:int
     
     class Config:
         env_file = load_env() #Get environment file path from the environment service, which will load the appropriate .env file based on the current environment (local, dev, prod). This allows for dynamic loading of environment variables based on the deployment environment.
