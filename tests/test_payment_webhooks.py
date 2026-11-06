@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
+import razorpay
 from types import SimpleNamespace
 from typing import Optional
 import unittest
@@ -35,8 +36,9 @@ class SignatureTests(unittest.TestCase):
         self.parse = load_function(
             "src/services/razorpay_service.py", "parse_razorpay_webhook", Optional=Optional,
             PaymentWebhookNotice=PaymentWebhookNotice, settings=self.settings,
-            HTTPException=HTTPException, hashlib=hashlib, hmac=hmac, json=json,
-            EXPECTED_SIGNATURE_LENGTH=64, SERIES_CHARACTERS="0123456789abcdef", PaymentProvider=PaymentProvider)
+            HTTPException=HTTPException, json=json, razorpay=razorpay,
+            RAZOR_PAY_CLIENT=razorpay.Client(auth=("test_key", "test_secret")),
+            EXPECTED_SIGNATURE_LENGTH=64, PaymentProvider=PaymentProvider)
         self.body = json.dumps({"event": "payment.captured", "payload": {"payment": {"entity": {
             "id": "pay_1", "order_id": "order_1", "status": "captured"}}}}).encode()
 
@@ -60,6 +62,16 @@ class SignatureTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as error:
             self.parse(self.body, "")
         self.assertEqual(error.exception.status_code, 503)
+
+    def test_utf8_body_is_verified_without_changing_bytes(self):
+        body = self.body[:-1] + ', "note": "caf\u00e9"}'.encode("utf-8")
+        self.assertEqual(self.parse(body, self.signature(body)).payment_id, "pay_1")
+
+    def test_invalid_utf8_body_is_rejected(self):
+        body = b"\xff"
+        with self.assertRaises(HTTPException) as error:
+            self.parse(body, self.signature(body))
+        self.assertEqual(error.exception.status_code, 400)
 
     def test_signed_malformed_payload_is_rejected(self):
         for body in (b"{", b"[]", b'{"event":"payment.captured","payload":{}}'):

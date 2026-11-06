@@ -24,8 +24,6 @@ from models.financial.payments_schema import (
 from sqlalchemy.orm import Session
 import razorpay
 from core.config import settings
-import hashlib
-import hmac
 import json
 from fastapi import HTTPException
 from models.financial.payments_schema import PaymentWebhookNotice
@@ -48,7 +46,6 @@ RAZOR_PAY_CLIENT_DETAILS = {
 }
 
 EXPECTED_SIGNATURE_LENGTH = 64
-SERIES_CHARACTERS="0123456789abcdef"
 
 
 
@@ -293,14 +290,21 @@ def get_razorpay_payment_order(
 
 def parse_razorpay_webhook(raw_body: bytes, signature: str) -> Optional[PaymentWebhookNotice]:
     """Authenticate the exact bytes before interpreting any event fields."""
+    
     secret = settings.RAZOR_PAY_WEBHOOK_SECRET
     if not secret:
         raise HTTPException(status_code=503, detail="Payment webhook is not configured")
-    expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-    if (not signature or len(signature) != EXPECTED_SIGNATURE_LENGTH
-            or any(char not in SERIES_CHARACTERS for char in signature)
-            or not hmac.compare_digest(expected, signature)):
+    if not signature or not signature.isascii():
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        # The Python SDK expects text and re-encodes it as UTF-8 for verification.
+        body = raw_body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload") from exc
+    try:
+        RAZOR_PAY_CLIENT.utility.verify_webhook_signature(body, signature, secret)
+    except razorpay.errors.SignatureVerificationError as exc:
+        raise HTTPException(status_code=401, detail="Invalid webhook signature") from exc
     try:
         payload = json.loads(raw_body)
         if not isinstance(payload, dict) or not isinstance(payload.get("event"), str):
