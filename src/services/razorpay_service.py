@@ -666,7 +666,13 @@ if __name__ == "__main__":
     #     "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
     # )
     # log.info(is_razorpay_payment_settled(test_payment_id))
-    pass
+    #pass
     # order_id = "order_TwTPg1EgpBYtvU"
     # expected_amount = 14100  # Amount in paise (e.g., 100.00 INR)   
     # print(fetch_razorpay_order_payment(order_id, expected_amount, "INR"))
+    pass
+    # payment = RAZOR_PAY_CLIENT.payment.fetch("pay_TwmN55LYhgCdnk")
+    # print({
+    # key: payment.get(key)
+    # for key in ("id", "order_id", "status", "captured")
+    #     })

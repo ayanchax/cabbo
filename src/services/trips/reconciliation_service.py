@@ -143,12 +143,16 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
         return response
     if not temp_trip:
         raise CabboException("Booking not found", status_code=404, error_code=TRIP_NOT_FOUND)
-    if metadata.get("reconciliation_state") == ReconciliationStateEnum.review_required:
+    expired_review = metadata.get("reconciliation_reason") in (
+        "automatic_reconciliation_expired", "automatic_reconciliation_unavailable",
+    )
+    if (metadata.get("reconciliation_state") == ReconciliationStateEnum.review_required
+            and not (expired_review and (force_provider_check or actor_id))):
         await db.commit()
         return _status_response(temp_trip_id, ReconciliationStateEnum.review_required)
     now = datetime.now(timezone.utc)
     checked_at = metadata.get("reconciliation_checked_at")
-    if checked_at and not force_provider_check:
+    if checked_at and not force_provider_check and not actor_id:
         try:
 #             Prevents checking the payment provider too frequently.
 #             It converts the stored last-check timestamp into a datetime.
@@ -170,16 +174,36 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
     if actor_id:
         metadata["reconciliation_requested_by"] = actor_id
     outcome = ReconciliationOutcome()
+    provider_checked = False
     if order_id:
         currency = get_currency()
         expected_amount = int(convert_based_on_currency(temp_trip.platform_fee, currency.lowest_unit_conversion_factor))
         try:
             outcome = await asyncio.to_thread(fetch_payment_order_status, order_id, expected_amount, currency.code)
+            provider_checked = True
         except Exception:
             # Do not expose provider responses, credentials or customer payment details.
             log.warning("Provider check unavailable for temporary booking %s", temp_trip_id)
     state = outcome.state
+    # Check provider truth one last time before ending automatic polling. Age
+    # alone never means payment failure, and payment evidence must be retained.
+    created_at = temp_trip.created_at
+    age_hours = (now - created_at.replace(tzinfo=created_at.tzinfo or timezone.utc)).total_seconds() / 3600
+    if (order_id and state == ReconciliationStateEnum.checking
+            and age_hours >= settings.RECONCILE_ACTIVE_WINDOW_HOURS
+            and not metadata.get("payment_verified")
+            and metadata.get("reconciliation_state") != ReconciliationStateEnum.captured
+            and not metadata.get(f"{settings.PAYMENT_PROVIDER}_payment_id")):
+        state = ReconciliationStateEnum.review_required
+        outcome.reason = ("automatic_reconciliation_expired" if provider_checked
+                          else "automatic_reconciliation_unavailable")
+        metadata["reconciliation_polling_stopped_at"] = now.isoformat()
+        log.warning("Automatic payment reconciliation ended for temporary booking %s: %s. If the customer has paid, please review the evidence and confirm the booking from admin operations console.",
+                    temp_trip_id, outcome.reason)
     metadata["reconciliation_state"] = state
+    if expired_review and state != ReconciliationStateEnum.review_required:
+        metadata.pop("reconciliation_reason", None)
+        metadata.pop("reconciliation_polling_stopped_at", None)
     if outcome.reason:
         metadata["reconciliation_reason"] = outcome.reason
     if state == ReconciliationStateEnum.captured:

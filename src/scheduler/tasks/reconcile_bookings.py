@@ -136,5 +136,5 @@ async def _run_booking_reconciliation(batch_size=_DEFAULT_BATCH_SIZE, session_fa
     next_scheduler_run = datetime.now(timezone.utc) + timedelta(minutes=settings.RECONCILE_BOOKING_INTERVAL_MINUTES)
     log.info(f"Next scheduler run: {next_scheduler_run}")
 
-#Note: If reconciliation is unable to move trips to booked state after multiple attempts, 
-# the temp booking will be removed anyway by the cleanup_temp_trips task after TTL expiry. The task runs every hour and removes temp trips older than 30 mins.
+# Unresolved orders leave automatic polling after the configured active window
+# and are retained for review. Cleanup never deletes payment-linked temp trips.

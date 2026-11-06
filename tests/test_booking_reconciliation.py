@@ -79,7 +79,7 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
     def function(self):
         return load_function(
             "src/services/trips/reconciliation_service.py", "a_reconcile_booking",
-            asyncio=asyncio, settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay"),
+            asyncio=asyncio, settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay", RECONCILE_ACTIVE_WINDOW_HOURS=48),
             a_existing_booking=self.existing, _status_response=self.response,
             get_currency=lambda: SimpleNamespace(code="INR", lowest_unit_conversion_factor=100),
             convert_based_on_currency=lambda value, factor: value * factor,
@@ -96,11 +96,60 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("razorpay_signature", self.temp.payment_provider_metadata)
         self.finalise.assert_awaited_once()
 
+    async def test_old_unpaid_order_stops_polling_and_keeps_booking(self):
+        self.temp.created_at = datetime.now(timezone.utc) - timedelta(hours=49)
+        self.provider.return_value = ReconciliationOutcome()
+        reconcile = self.function()
+        result = await reconcile("booking", "customer", self.db)
+        self.assertEqual(result.state, ReconciliationStateEnum.review_required)
+        self.assertEqual(self.temp.payment_provider_metadata["reconciliation_reason"], "automatic_reconciliation_expired")
+        self.assertEqual(self.temp.payment_provider_metadata["razorpay_order_id"], "order_1")
+        await reconcile("booking", "customer", self.db)
+        self.provider.assert_called_once()
+        self.finalise.assert_not_awaited()
+
+    async def test_old_unavailable_order_requires_review(self):
+        self.temp.created_at = datetime.now(timezone.utc) - timedelta(hours=49)
+        self.provider.side_effect = RuntimeError("order not found or provider unavailable")
+        result = await self.function()("booking", "customer", self.db)
+        self.assertEqual(result.state, ReconciliationStateEnum.review_required)
+        self.assertEqual(self.temp.payment_provider_metadata["reconciliation_reason"], "automatic_reconciliation_unavailable")
+
+    async def test_old_captured_payment_still_finalises(self):
+        self.temp.created_at = datetime.now(timezone.utc) - timedelta(hours=49)
+        self.assertEqual((await self.function()("booking", "customer", self.db)).state, ReconciliationStateEnum.booked)
+        self.finalise.assert_awaited_once()
+
+    async def test_payment_evidence_is_not_expired(self):
+        self.temp.created_at = datetime.now(timezone.utc) - timedelta(hours=49)
+        self.temp.payment_provider_metadata["payment_verified"] = True
+        self.provider.return_value = ReconciliationOutcome()
+        self.assertEqual((await self.function()("booking", "customer", self.db)).state, ReconciliationStateEnum.checking)
+
+    async def test_webhook_and_admin_can_recover_expired_review(self):
+        for trigger in ({"force_provider_check": True}, {"actor_id": "admin"}):
+            with self.subTest(trigger=trigger):
+                self.temp.payment_provider_metadata.update(
+                    reconciliation_state="review_required",
+                    reconciliation_reason="automatic_reconciliation_expired",
+                    reconciliation_checked_at=datetime.now(timezone.utc).isoformat(),
+                )
+                result = await self.function()("booking", "customer", self.db, **trigger)
+                self.assertEqual(result.state, ReconciliationStateEnum.booked)
+                self.assertNotIn("reconciliation_reason", self.temp.payment_provider_metadata)
+
+    async def test_forced_check_does_not_bypass_payment_mismatch_review(self):
+        self.temp.payment_provider_metadata.update(
+            reconciliation_state="review_required", reconciliation_reason="order_mismatch")
+        result = await self.function()("booking", "customer", self.db, force_provider_check=True)
+        self.assertEqual(result.state, ReconciliationStateEnum.review_required)
+        self.provider.assert_not_called()
+
     async def test_uses_configured_provider_order_key(self):
         self.temp.payment_provider_metadata = {"another_provider_order_id": "order_other"}
         self.provider.return_value = ReconciliationOutcome()
         reconcile = self.function()
-        reconcile.__globals__["settings"] = SimpleNamespace(PAYMENT_PROVIDER="another_provider")
+        reconcile.__globals__["settings"] = SimpleNamespace(PAYMENT_PROVIDER="another_provider", RECONCILE_ACTIVE_WINDOW_HOURS=48)
         await reconcile("booking", "customer", self.db)
         self.provider.assert_called_once_with("order_other", 15300, "INR")
 

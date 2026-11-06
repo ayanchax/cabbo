@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Optional
 from pydantic_settings import BaseSettings
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from rich.console import Console
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.environment_service import load_env
@@ -129,6 +129,8 @@ class Settings(BaseSettings):
 
     RECONCILE_BOOKING_INTERVAL_MINUTES:int
     RECONCILE_BATCH_SIZE:int
+    # Retain unresolved bookings for review after automatic polling ends.
+    RECONCILE_ACTIVE_WINDOW_HOURS: int = Field(default=48, ge=1)
     
     class Config:
         env_file = load_env() #Get environment file path from the environment service, which will load the appropriate .env file based on the current environment (local, dev, prod). This allows for dynamic loading of environment variables based on the deployment environment.
