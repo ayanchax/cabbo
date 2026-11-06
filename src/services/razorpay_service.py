@@ -1,11 +1,11 @@
-from models.financial.payments_schema import ReconciliationOutcome
-from models.financial.payments_enum import ReconciliationStateEnum
 import sys
 from pathlib import Path
 from typing import Optional
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
+from models.financial.payments_schema import ReconciliationOutcome
+from models.financial.payments_enum import ReconciliationStateEnum
 from models.policies.refund_enum import PaymentProvider, RefundType
 
 from enum import Enum
@@ -313,6 +313,7 @@ def parse_razorpay_webhook(raw_body: bytes, signature: str) -> Optional[PaymentW
                 or not isinstance(payment.get("id"), str) or not payment["id"].startswith("pay_")
                 or len(payment["order_id"]) > EXPECTED_SIGNATURE_LENGTH or len(payment["id"]) > EXPECTED_SIGNATURE_LENGTH):
             raise ValueError("Invalid payment entity")
+        # We accept only payment.captured events, since we want to reconcile only successful payments. Other events like payment.failed or payment.authorized are ignored as for those the trip itself is not created.
         return PaymentWebhookNotice(provider=PaymentProvider.razorpay, event_type=payload["event"],
                                     order_id=payment["order_id"], payment_id=payment["id"])
     except (ValueError, TypeError, KeyError, AttributeError):
@@ -657,7 +658,11 @@ def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str, silently
 
 if __name__ == "__main__":
     # Quick test to verify Razorpay integration is working
-    test_payment_id = (
-        "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
-    )
-    log.info(is_razorpay_payment_settled(test_payment_id))
+    # test_payment_id = (
+    #     "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
+    # )
+    # log.info(is_razorpay_payment_settled(test_payment_id))
+    pass
+    # order_id = "order_TwTPg1EgpBYtvU"
+    # expected_amount = 14100  # Amount in paise (e.g., 100.00 INR)   
+    # print(fetch_razorpay_order_payment(order_id, expected_amount, "INR"))

@@ -107,6 +107,7 @@ async def _run_booking_reconciliation(batch_size=_DEFAULT_BATCH_SIZE, session_fa
             await db.rollback()
             log.exception("Could not claim bookings for reconciliation")
             return
+    moved = 0
     for temp_trip_id, requestor in claimed:
         # Each booking gets its own transaction/session, so one error cannot poison the batch.
         async with session_factory() as db:
@@ -116,6 +117,8 @@ async def _run_booking_reconciliation(batch_size=_DEFAULT_BATCH_SIZE, session_fa
                 state = outcome.state
                 if state == ReconciliationStateEnum.review_required:
                     log.warning("Booking reconciliation requires operator review: %s", temp_trip_id)
+                if state == ReconciliationStateEnum.captured or state == ReconciliationStateEnum.booked:
+                    moved += 1
             except Exception:
                 await db.rollback()
                 log.exception("Scheduled booking reconciliation failed for %s", temp_trip_id)
@@ -129,6 +132,9 @@ async def _run_booking_reconciliation(batch_size=_DEFAULT_BATCH_SIZE, session_fa
         log.info(f"No bookings qualified for reconciliation in this run.")
     else:
         log.info("Scheduled booking reconciliation processed %s bookings", len(claimed))
+        log.info("Total bookings moved via reconciliation: %s", moved)
     next_scheduler_run = datetime.now(timezone.utc) + timedelta(minutes=settings.RECONCILE_BOOKING_INTERVAL_MINUTES)
     log.info(f"Next scheduler run: {next_scheduler_run}")
 
+#Note: If reconciliation is unable to move trips to booked state after multiple attempts, 
+# the temp booking will be removed anyway by the cleanup_temp_trips task after TTL expiry. The task runs every hour and removes temp trips older than 30 mins.

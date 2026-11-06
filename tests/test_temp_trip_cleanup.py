@@ -68,6 +68,32 @@ def async_db(rows):
 
 
 class CleanupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_scheduler_closes_session_before_disposing_its_engine(self):
+        for fail in (False, True):
+            with self.subTest(fail=fail):
+                events = []
+                engine = SimpleNamespace(dispose=AsyncMock(side_effect=lambda: events.append("dispose")))
+                context = MagicMock()
+                db = object()
+                context.__aenter__ = AsyncMock(return_value=db)
+                context.__aexit__ = AsyncMock(side_effect=lambda *args: events.append("close"))
+                sessions = MagicMock(return_value=context)
+                create_engine = MagicMock(return_value=engine)
+                make_sessions = MagicMock(return_value=sessions)
+                cleanup = AsyncMock(return_value=2, side_effect=RuntimeError("failed") if fail else None)
+                run = load_function(
+                    "src/scheduler/tasks/cleanup_temp_trips.py", "_run_cleanup_temp_trips",
+                    create_async_engine=create_engine, sessionmaker=make_sessions,
+                    ASYNC_DATABASE_URL="test-url", ASYNC_CONNECT_ARGS={"ssl": "test-ssl"},
+                    a_cleanup_expired_temp_trips=cleanup,
+                )
+                run.__globals__["log"] = MagicMock()
+                await run(ttl_minutes=45)
+                create_engine.assert_called_once_with("test-url", connect_args={"ssl": "test-ssl"})
+                make_sessions.assert_called_once_with(engine, class_=object, expire_on_commit=False)
+                cleanup.assert_awaited_once_with(db=db, ttl_minutes=45)
+                self.assertEqual(events, ["close", "dispose"])
+
     def test_retention_policy(self):
         for metadata in ({"razorpay_order_id": "order_1"},
                          {"razorpay_payment_id": "pay_1"},

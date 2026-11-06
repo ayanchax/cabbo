@@ -1,8 +1,9 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from db.database import AsyncSessionLocal
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from db.database import ASYNC_DATABASE_URL, ASYNC_CONNECT_ARGS
 from models.trip.temp_trip_orm import TempTrip
 from scheduler.task_registry import task
 from services.trips.temp_trip_service import preserve_temp_trip
@@ -18,12 +19,17 @@ def cleanup_temp_trips_task(ttl_minutes: int = TTL_MINUTES_DEFAULT):
 
 
 async def _run_cleanup_temp_trips(ttl_minutes: int = TTL_MINUTES_DEFAULT):
-    async with AsyncSessionLocal() as db:
-        try:
+    # Each scheduler invocation has its own loop; connections must stay on it.
+    engine = create_async_engine(ASYNC_DATABASE_URL, connect_args=ASYNC_CONNECT_ARGS)
+    sessions = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with sessions() as db:
             removed = await a_cleanup_expired_temp_trips(db=db, ttl_minutes=ttl_minutes)
             log.info(f"cleanup_temp_trips removed {removed} rows")
-        except Exception:
-            log.error("cleanup_temp_trips failed")
+    except Exception:
+        log.exception("cleanup_temp_trips failed")
+    finally:
+        await engine.dispose()
 
 
 async def a_cleanup_expired_temp_trips(
