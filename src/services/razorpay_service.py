@@ -4,7 +4,9 @@ from typing import Optional
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
-from models.policies.refund_enum import RefundType
+from models.financial.payments_schema import ReconciliationOutcome
+from models.financial.payments_enum import ReconciliationStateEnum
+from models.policies.refund_enum import PaymentProvider, RefundType
 
 from enum import Enum
 import logging
@@ -22,6 +24,11 @@ from models.financial.payments_schema import (
 from sqlalchemy.orm import Session
 import razorpay
 from core.config import settings
+import hashlib
+import hmac
+import json
+from fastapi import HTTPException
+from models.financial.payments_schema import PaymentWebhookNotice
 from models.pricing.pricing_schema import Currency
 from models.trip.temp_trip_orm import TempTrip
 from models.trip.trip_schema import TripBookRequest
@@ -29,6 +36,7 @@ from utils.redaction import summarize_provider_entity
 from utils.utility import convert_based_on_currency
 
 log = logging.getLogger(__name__)
+
 
 RAZOR_PAY_CLIENT = razorpay.Client(
     auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET)
@@ -38,6 +46,10 @@ RAZOR_PAY_CLIENT_DETAILS = {
     "name": f"{APP_NAME.capitalize()} Trip Booking Service",
     "description": "Service for booking trips and managing payments.",
 }
+
+EXPECTED_SIGNATURE_LENGTH = 64
+SERIES_CHARACTERS="0123456789abcdef"
+
 
 
 class RazorPayRefundStatusEnum(str, Enum):
@@ -279,6 +291,63 @@ def get_razorpay_payment_order(
         return trip_id, _get_razorpay_existing_order(razorpay_order=razorpay_schema, order_id=existing_order_id)
 
 
+def parse_razorpay_webhook(raw_body: bytes, signature: str) -> Optional[PaymentWebhookNotice]:
+    """Authenticate the exact bytes before interpreting any event fields."""
+    secret = settings.RAZOR_PAY_WEBHOOK_SECRET
+    if not secret:
+        raise HTTPException(status_code=503, detail="Payment webhook is not configured")
+    expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    if (not signature or len(signature) != EXPECTED_SIGNATURE_LENGTH
+            or any(char not in SERIES_CHARACTERS for char in signature)
+            or not hmac.compare_digest(expected, signature)):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        payload = json.loads(raw_body)
+        if not isinstance(payload, dict) or not isinstance(payload.get("event"), str):
+            raise ValueError("Missing event")
+        if payload["event"] != "payment.captured":
+            return None
+        payment = payload["payload"]["payment"]["entity"]
+        if (payment.get("status") != ReconciliationStateEnum.captured.value
+                or not isinstance(payment.get("order_id"), str) or not payment["order_id"].startswith("order_")
+                or not isinstance(payment.get("id"), str) or not payment["id"].startswith("pay_")
+                or len(payment["order_id"]) > EXPECTED_SIGNATURE_LENGTH or len(payment["id"]) > EXPECTED_SIGNATURE_LENGTH):
+            raise ValueError("Invalid payment entity")
+        # We accept only payment.captured events, since we want to reconcile only successful payments. Other events like payment.failed or payment.authorized are ignored as for those the trip itself is not created.
+        return PaymentWebhookNotice(provider=PaymentProvider.razorpay, event_type=payload["event"],
+                                    order_id=payment["order_id"], payment_id=payment["id"])
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
+
+def fetch_razorpay_order_payment(order_id: str, expected_amount: int, expected_currency: str) -> ReconciliationOutcome:
+    """Read provider truth without relying on a browser callback or signature.
+
+    Never infer final failure from an unpaid order or a failed attempt: late
+    authorisation can still follow. Exceptions are handled as unresolved upstream.
+    """
+    client = razorpay.Client(
+        auth=(settings.RAZOR_PAY_KEY_ID, settings.RAZOR_PAY_KEY_SECRET),
+    )
+    order = client.order.fetch(order_id, timeout=10)
+    if (expected_amount <= 0 or order.get("id") != order_id
+            or order.get("amount") != expected_amount
+            or order.get("currency") != expected_currency):
+        return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="order_mismatch")
+    payments = client.order.payments(order_id, timeout=10).get("items", [])
+    captured = [p for p in payments if p.get("status") == "captured"]
+    if not captured:
+        return ReconciliationOutcome()
+    if len(captured) != 1:
+        return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="multiple_captured_payments")
+    payment = captured[0]
+    if (payment.get("order_id") != order_id or payment.get("amount") != expected_amount
+            or payment.get("currency") != expected_currency or not payment.get("id")
+            or payment.get("amount_refunded", 0) != 0 or payment.get("refund_status")):
+        return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="payment_mismatch_or_refund")
+    return ReconciliationOutcome(state=ReconciliationStateEnum.captured, payment_id=payment["id"])
+
+
 def verify_razorpay_payment(
     payment_detail: dict,
     expected_order_id: Optional[str] = None,
@@ -343,7 +412,8 @@ def verify_razorpay_payment(
             )
             return False
 
-        if payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value:
+        if (payment["status"] == RazorPayPaymentStatusEnum.CAPTURED.value
+                and payment.get("amount_refunded", 0) == 0 and not payment.get("refund_status")):
             log.debug(
                 f"Payment {payment_id} verified successfully."
             )
@@ -588,7 +658,11 @@ def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str, silently
 
 if __name__ == "__main__":
     # Quick test to verify Razorpay integration is working
-    test_payment_id = (
-        "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
-    )
-    log.info(is_razorpay_payment_settled(test_payment_id))
+    # test_payment_id = (
+    #     "pay_SO51bSsBCz3BHV"  # Replace with a valid payment ID for testing
+    # )
+    # log.info(is_razorpay_payment_settled(test_payment_id))
+    pass
+    # order_id = "order_TwTPg1EgpBYtvU"
+    # expected_amount = 14100  # Amount in paise (e.g., 100.00 INR)   
+    # print(fetch_razorpay_order_payment(order_id, expected_amount, "INR"))

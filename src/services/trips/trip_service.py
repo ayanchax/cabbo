@@ -23,6 +23,7 @@ from models.pricing.pricing_schema import (
     TripPackageConfigSchema,
 )
 from models.trip.temp_trip_orm import TempTrip
+from services.trips.temp_trip_service import preserve_temp_trip
 from models.trip.trip_enums import (
     TripResponseView,
     TripStatusEnum,
@@ -94,7 +95,7 @@ from services.validation_service import validate_serviceable_area, validate_trip
 from utils.coercions import coerce_refund_status, coerce_trip_filter_date, coerce_trip_status, coerce_trip_type
 from utils.utility import remove_none_recursive, validate_date_time
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from core.config import settings
 import logging
 
@@ -841,15 +842,16 @@ async def validate_trip_search(
 
 def delete_temp_trip(requestor: str, db: Session):
     """
-    Deletes all temporary trip details for the given requestor.
-    We delete all temporary trip records for the requestor to ensure no stale temporary data remains in the system.
+    Deletes temporary trip details without payment references for the requestor.
     Args:
         requestor (str): The user or system initiating the deletion.
         db (Session): The database session for ORM operations.
     """
     try:
-        # Delete all temporary trip records for the requestor
-        db.query(TempTrip).filter(TempTrip.creator_id == requestor).delete()
+        rows = db.query(TempTrip).filter(TempTrip.creator_id == requestor).with_for_update().all()
+        for temp_trip in rows:
+            if not preserve_temp_trip(temp_trip.payment_provider_metadata):
+                db.delete(temp_trip)
         db.commit()
         log.info(f"Temporary trip details deleted for requestor: {requestor}")
     except Exception as e:
@@ -866,8 +868,12 @@ async def a_delete_temp_trip(requestor: str, db: AsyncSession):
     Async version of delete_temp_trip.
     """
     try:
-        # Delete all temporary trip records for the requestor
-        await db.execute(delete(TempTrip).where(TempTrip.creator_id == requestor))
+        result = await db.execute(
+            select(TempTrip).where(TempTrip.creator_id == requestor).with_for_update()
+        )
+        for temp_trip in result.scalars().all():
+            if not preserve_temp_trip(temp_trip.payment_provider_metadata):
+                await db.delete(temp_trip)
         await db.commit()
         log.info(f"Temporary trip details deleted for requestor: {requestor}")
     except Exception as e:

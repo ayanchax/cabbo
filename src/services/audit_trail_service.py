@@ -57,7 +57,8 @@ async def a_log_trip_audit(
     status: TripStatusEnum,
     committer_id: str,
     reason: Optional[str] = None,
-    commit: bool = True
+    commit: bool = True,
+    raise_on_error: bool = False,
 ):
     """
     Function to log trip status audit entries.
@@ -69,6 +70,7 @@ async def a_log_trip_audit(
         changed_by (Optional[RoleEnum]): The role of the user making the change.
         reason (Optional[str]): Reason for the status change, if applicable.
         commit (bool): Whether to commit the transaction after logging.
+        raise_on_error (bool): Propagate failures so the atomic caller owns rollback.
     Returns:
         TripStatusAudit: The created audit log entry.
     Raises:
@@ -89,5 +91,8 @@ async def a_log_trip_audit(
         log.info(f"Trip audit log created for trip ID: {trip_id} by {committer_id}")
         return audit
     except Exception as e:
+        if raise_on_error:
+            # Atomic callers own the transaction and must see audit failures.
+            raise
         await db.rollback()
         log.error(f"Failed to log trip audit entry: {e}")

@@ -1,5 +1,6 @@
+from models.financial.payments_enum import ReconciliationStateEnum
 from pydantic import BaseModel, Field, computed_field, field_validator
-from typing import Any, Dict, NamedTuple, Optional, List, Union
+from typing import Any, Dict, NamedTuple, Optional, List, Union, Literal
 from datetime import datetime
 from core.exceptions import INVALID_TRIP_TYPE, CabboException
 from models.cab.cab_schema import VehicleCapacitySchema
@@ -148,6 +149,17 @@ class TripDetails(BaseModel):
         exclude_none = True  # Exclude fields with None values from the model dump
 
 
+class BookingPaymentStatus(BaseModel):
+    temp_trip_id: str
+    state: Literal[ReconciliationStateEnum.checking, ReconciliationStateEnum.booked, ReconciliationStateEnum.review_required]
+    trip_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    trip_status: Optional[TripStatusEnum] = None
+    retry_after_seconds: Optional[int] = None
+    can_retry_payment: bool = False
+    message: str
+
+
 class TripCreate(BaseModel):
     trip_id: str  # Unique trip ID for the trip for internal use
     booking_id: Optional[str] = (
@@ -155,7 +167,7 @@ class TripCreate(BaseModel):
     )
     payment_info: Optional[RazorPayPaymentResponse]  # Payment details is mandatory
     status: TripStatusEnum = TripStatusEnum.pending  # Initial status of the trip
-    trip_details: TripDetails
+    trip_details: Optional[TripDetails] = None
 
 
 class TripOut(BaseModel):
