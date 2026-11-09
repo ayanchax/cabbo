@@ -58,6 +58,25 @@ class ProviderTests(unittest.TestCase):
         self.client.order.payments.return_value = {"items": [self.payment, dict(self.payment, id="pay_2")]}
         self.assertEqual(self.fetch("order_1", 15300, "INR").state, "review_required")
 
+    def test_unpaid_order_retry_requires_complete_failed_or_empty_attempts(self):
+        order = self.client.order.fetch.return_value
+        order.update(status="created", attempts=0, amount_paid=0, amount_due=15300)
+        self.client.order.payments.return_value = {"items": []}
+        self.assertTrue(self.fetch("order_1", 15300, "INR").can_retry_payment)
+        order.update(status="attempted", attempts=1)
+        self.payment["status"] = "failed"
+        self.client.order.payments.return_value = {"items": [self.payment]}
+        self.assertTrue(self.fetch("order_1", 15300, "INR").can_retry_payment)
+        for status in ("authorized", "created", "pending", "refunded", "unknown"):
+            self.payment["status"] = status
+            self.assertFalse(self.fetch("order_1", 15300, "INR").can_retry_payment)
+        self.payment["status"] = "failed"
+        for changes in ({"status": "paid"}, {"attempts": 2}, {"amount_paid": 1}, {"amount_due": 1}):
+            original = dict(order)
+            order.update(changes)
+            self.assertFalse(self.fetch("order_1", 15300, "INR").can_retry_payment)
+            order.update(original)
+
     def test_failed_attempt_does_not_hide_a_captured_payment(self):
         self.client.order.payments.return_value = {
             "items": [dict(self.payment, id="pay_failed", status="failed"), self.payment]}
@@ -95,6 +114,32 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.temp.payment_provider_metadata["payment_verified"])
         self.assertNotIn("razorpay_signature", self.temp.payment_provider_metadata)
         self.finalise.assert_awaited_once()
+
+    async def test_retry_decision_is_persisted_and_provider_error_revokes_it(self):
+        self.provider.return_value = ReconciliationOutcome(can_retry_payment=True)
+        result = await self.function()("booking", "customer", self.db)
+        self.assertTrue(result.can_retry_payment)
+        self.assertTrue(self.temp.payment_provider_metadata["can_retry_payment"])
+        # A refresh within the throttle window reuses the fresh provider decision.
+        result = await self.function()("booking", "customer", self.db)
+        self.assertTrue(result.can_retry_payment)
+        self.provider.assert_called_once()
+        self.provider.side_effect = RuntimeError("provider unavailable")
+        result = await self.function()("booking", "customer", self.db, force_provider_check=True)
+        self.assertFalse(result.can_retry_payment)
+        self.assertFalse(self.temp.payment_provider_metadata["can_retry_payment"])
+
+    async def test_retry_is_blocked_for_expiry_payment_evidence_or_past_pickup(self):
+        self.provider.return_value = ReconciliationOutcome(can_retry_payment=True)
+        for evidence in ({"payment_verified": True}, {"razorpay_payment_id": "pay_1"}):
+            self.temp.payment_provider_metadata = {"razorpay_order_id": "order_1", **evidence}
+            self.assertFalse((await self.function()("booking", "customer", self.db)).can_retry_payment)
+        self.temp.payment_provider_metadata = {"razorpay_order_id": "order_1"}
+        self.temp.start_datetime = datetime.now(timezone.utc) - timedelta(minutes=1)
+        self.assertFalse((await self.function()("booking", "customer", self.db)).can_retry_payment)
+        self.temp.payment_provider_metadata = {"razorpay_order_id": "order_1"}
+        self.temp.created_at = datetime.now(timezone.utc) - timedelta(hours=49)
+        self.assertFalse((await self.function()("booking", "customer", self.db)).can_retry_payment)
 
     async def test_old_unpaid_order_stops_polling_and_keeps_booking(self):
         self.temp.created_at = datetime.now(timezone.utc) - timedelta(hours=49)

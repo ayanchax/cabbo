@@ -66,6 +66,7 @@ class ReconciliationOutcome(BaseModel):
     reason: Optional[str] = None
     payment_id: Optional[str] = None
     payment_info: Optional[RazorPayPaymentResponse] = None
+    can_retry_payment: bool = False
 
 
 class BankDetailsSchema(BaseModel):

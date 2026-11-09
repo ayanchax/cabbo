@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
 from core.security import validate_customer_token
 from db.database import a_yield_mysql_session
 from models.customer.customer_orm import Customer
@@ -52,9 +52,10 @@ async def request_booking_reconciliation(
 async def booking_status(
     temp_trip_id: str,
     response: Response,
+    check_payment_status: bool = Query(False, description="Await payment reconciliation using the existing ten-second provider-check throttle. May update or confirm the booking."),
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    """Read stored booking/payment status without triggering reconciliation."""
+    """Read stored status, optionally reconciling payment before responding."""
     response.headers["Cache-Control"] = "no-store"
-    return await a_get_booking_payment_status(temp_trip_id, current_customer.id, db)
+    return await a_get_booking_payment_status(temp_trip_id, current_customer.id, db, check_payment_status=check_payment_status)
