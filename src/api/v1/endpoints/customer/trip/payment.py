@@ -56,6 +56,6 @@ async def booking_status(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_customer: Customer = Depends(validate_customer_token),
 ):
-    """Read stored status, optionally reconciling payment before responding."""
+    """Read stored status, optionally reconciling payment before responding back. This endpoint is throttled to avoid excessive provider calls."""
     response.headers["Cache-Control"] = "no-store"
     return await a_get_booking_payment_status(temp_trip_id, current_customer.id, db, check_payment_status=check_payment_status)
