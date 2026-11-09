@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import unittest
-from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Query, Response
 from unittest.mock import AsyncMock, MagicMock
 
 from sqlalchemy import Column, DateTime, JSON, String, create_engine, or_, and_, select
@@ -78,6 +78,28 @@ class BookingStatusTests(unittest.IsolatedAsyncioTestCase):
         self.db.commit.assert_not_awaited()
         self.assertTrue(all(stmt._for_update_arg is None for stmt in self.statements))
 
+    async def test_optional_check_awaits_reconciliation_with_owner_and_request_session(self):
+        reconcile = AsyncMock(return_value=SimpleNamespace(state="checking", can_retry_payment=True))
+        get_status = self.fn("a_get_booking_payment_status")
+        get_status.__globals__["a_reconcile_booking"] = reconcile
+        result = await get_status("booking", "owner", self.db, check_payment_status=True)
+        self.assertTrue(result.can_retry_payment)
+        reconcile.assert_awaited_once_with("booking", "owner", self.db)
+        self.db.execute.assert_not_awaited()
+
+    async def test_get_returns_only_fresh_persisted_retry_decision(self):
+        for age, state, expected in ((0, "checking", True), (11, "checking", False),
+                                     (0, "review_required", False), (0, "captured", False)):
+            self.temp.payment_provider_metadata = {
+                "razorpay_order_id": "order_1", "reconciliation_state": state,
+                "can_retry_payment": True,
+                "reconciliation_checked_at": (datetime.now(timezone.utc) - timedelta(seconds=age)).isoformat(),
+            }
+            self.session.commit()
+            result = await self.fn("a_get_booking_payment_status")("booking", "owner", self.db)
+            self.assertEqual(result.can_retry_payment, expected)
+        self.db.commit.assert_not_awaited()
+
     async def test_get_returns_confirmed_or_cancelled_booking_without_mutation(self):
         self.session.add(Booked(id="manual", creator_id="owner", booking_id="RENTAL-1", status="cancelled",
                                 payment_provider="razorpay", payment_order_id="order_1",
@@ -145,7 +167,7 @@ class BookingStatusTests(unittest.IsolatedAsyncioTestCase):
 class BookingStatusRouteTests(unittest.IsolatedAsyncioTestCase):
     def test_openapi_exposes_post_202_and_read_only_get(self):
         router = APIRouter()
-        dependencies = dict(router=router, Response=Response, BackgroundTasks=BackgroundTasks,
+        dependencies = dict(router=router, Response=Response, BackgroundTasks=BackgroundTasks, Query=Query,
                             Depends=Depends, Customer=object,
                             a_yield_mysql_session=lambda: None, validate_customer_token=lambda: None)
         load_function("src/api/v1/endpoints/customer/trip/payment.py", "booking_status",
@@ -164,15 +186,15 @@ class BookingStatusRouteTests(unittest.IsolatedAsyncioTestCase):
                              router=SimpleNamespace(get=lambda *args, **kwargs: lambda fn: fn,
                                                     post=lambda *args, **kwargs: lambda fn: fn),
                              Response=object, BackgroundTasks=object, Customer=object,
-                             Depends=lambda dep: None, a_yield_mysql_session=lambda: None,
+                             Depends=lambda dep: None, Query=Query, a_yield_mysql_session=lambda: None,
                              validate_customer_token=lambda: None, **dependencies)
 
     async def test_get_calls_reader_only(self):
         reader = AsyncMock(return_value="stored_status")
         response = SimpleNamespace(headers={})
         fn = self.fn("booking_status", a_get_booking_payment_status=reader)
-        self.assertEqual(await fn("booking", response, "db", SimpleNamespace(id="owner")), "stored_status")
-        reader.assert_awaited_once_with("booking", "owner", "db")
+        self.assertEqual(await fn("booking", response, False, "db", SimpleNamespace(id="owner")), "stored_status")
+        reader.assert_awaited_once_with("booking", "owner", "db", check_payment_status=False)
         self.assertEqual(response.headers["Cache-Control"], "no-store")
 
     async def test_post_schedules_only_after_durable_queue_succeeds(self):

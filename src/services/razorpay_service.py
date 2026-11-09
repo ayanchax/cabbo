@@ -338,10 +338,20 @@ def fetch_razorpay_order_payment(order_id: str, expected_amount: int, expected_c
             or order.get("amount") != expected_amount
             or order.get("currency") != expected_currency):
         return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="order_mismatch")
-    payments = client.order.payments(order_id, timeout=10).get("items", [])
+    payments = client.order.payments(order_id, timeout=10)["items"]
     captured = [p for p in payments if p.get("status") == "captured"]
     if not captured:
-        return ReconciliationOutcome()
+        # Require the complete attempt list and an unpaid order. Unknown or
+        # in-flight attempts must never enable another checkout.
+        can_retry = (
+            order.get("status") in ("created", "attempted")
+            and order.get("amount_paid") == 0
+            and order.get("amount_due") == expected_amount
+            and type(order.get("attempts")) is int
+            and order["attempts"] == len(payments)
+            and all(p.get("status") == "failed" for p in payments)
+        )
+        return ReconciliationOutcome(can_retry_payment=can_retry)
     if len(captured) != 1:
         return ReconciliationOutcome(state=ReconciliationStateEnum.review_required, reason="multiple_captured_payments")
     payment = captured[0]

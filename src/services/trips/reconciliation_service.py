@@ -27,7 +27,19 @@ log = logging.getLogger(__name__)
 POLL_INTERVAL_SECONDS = 10
 
 
-def _status_response(temp_trip_id, state: ReconciliationStateEnum = ReconciliationStateEnum.checking, trip:Trip=None) -> BookingPaymentStatus:
+def _status_response(temp_trip_id, state: ReconciliationStateEnum = ReconciliationStateEnum.checking, trip:Trip=None, *, metadata=None) -> BookingPaymentStatus:
+    metadata = metadata or {}
+    can_retry = False
+    if (not trip and state == ReconciliationStateEnum.checking
+            and metadata.get("reconciliation_state") == ReconciliationStateEnum.checking
+            and metadata.get("can_retry_payment") is True
+            and not metadata.get("payment_verified")):
+        try:
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(metadata["reconciliation_checked_at"])).total_seconds()
+            can_retry = 0 <= age < POLL_INTERVAL_SECONDS
+
+        except (KeyError, TypeError, ValueError):
+            pass
     messages = {
         ReconciliationStateEnum.checking: "We're checking your payment. Please don't pay again yet.",
         ReconciliationStateEnum.booked: "Your booking is available in your trips.",
@@ -40,13 +52,16 @@ def _status_response(temp_trip_id, state: ReconciliationStateEnum = Reconciliati
         booking_id=trip.booking_id if trip else None,
         trip_status=trip.status if trip else None,
         retry_after_seconds=POLL_INTERVAL_SECONDS if not trip and state == ReconciliationStateEnum.checking else None,
-        can_retry_payment=False,
-        message=messages[ReconciliationStateEnum.booked if trip else state],
+        can_retry_payment=can_retry,
+        message=("You can resume payment using your existing order." if can_retry
+                 else messages[ReconciliationStateEnum.booked if trip else state]),
     )
 
 
-async def a_get_booking_payment_status(temp_trip_id: str, requestor: str, db: AsyncSession) -> BookingPaymentStatus:
-    """Read persisted status only: no locks, provider calls, queueing or writes."""
+async def a_get_booking_payment_status(temp_trip_id: str, requestor: str, db: AsyncSession, check_payment_status: bool = False) -> BookingPaymentStatus:
+    """Read stored status by default; optionally await throttled reconciliation."""
+    if check_payment_status:
+        return await a_reconcile_booking(temp_trip_id, requestor, db)
     result = await db.execute(select(TempTrip).where(
         TempTrip.id == temp_trip_id, TempTrip.creator_id == requestor,
     ))
@@ -65,7 +80,7 @@ async def a_get_booking_payment_status(temp_trip_id: str, requestor: str, db: As
     state = (ReconciliationStateEnum.review_required
              if metadata.get("reconciliation_state") == ReconciliationStateEnum.review_required.value
              else ReconciliationStateEnum.checking)
-    return _status_response(temp_trip_id, state)
+    return _status_response(temp_trip_id, state, metadata=metadata)
 
 
 async def a_request_booking_reconciliation(temp_trip_id: str, requestor: str, db: AsyncSession) -> BookingPaymentStatus:
@@ -162,7 +177,7 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
             checked = datetime.fromisoformat(checked_at)
             if 0 <= (now - checked).total_seconds() < POLL_INTERVAL_SECONDS:
                 await db.commit()
-                return _status_response(temp_trip_id)
+                return _status_response(temp_trip_id, metadata=metadata)
         except (TypeError, ValueError):
             pass
     metadata["reconciliation_checked_at"] = now.isoformat()
@@ -216,11 +231,21 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
             state = ReconciliationStateEnum.review_required
             metadata.update(reconciliation_state=state, reconciliation_reason="pickup_time_passed")
             log.error("Captured payment requires backend fulfilment review for temporary booking %s", temp_trip_id)
+    start = temp_trip.start_datetime
+    metadata["can_retry_payment"] = bool(
+        provider_checked and outcome.can_retry_payment
+        and state == ReconciliationStateEnum.checking
+        and age_hours < settings.RECONCILE_ACTIVE_WINDOW_HOURS
+        and not metadata.get("payment_verified")
+        and not metadata.get(f"{settings.PAYMENT_PROVIDER}_payment_id")
+        and start is not None
+        and start.replace(tzinfo=start.tzinfo or timezone.utc) > now
+    )
     temp_trip.payment_provider_metadata = metadata
     # Persist evidence first; a failed finalisation remains recoverable.
     await db.commit()
     if state != ReconciliationStateEnum.captured:
-        return _status_response(temp_trip_id, state)
+        return _status_response(temp_trip_id, state, metadata=metadata)
     try:
         #At this point, since payment status is verified as captured, we can move the temp trip to final trip table with status as confirmed.
         # PAYMENT VERIFIED VIA RECONCIALITAION - TempTrip is hence ELIGIBLE TO MOVE TO `Trips` table as confirmed booking.
