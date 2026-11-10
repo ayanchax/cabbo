@@ -6,9 +6,7 @@ from models.policies.refund_enum import RefundStatus
 from models.user.user_orm import User
 from models.policies.refund_schema import RefundSchema
 from sqlalchemy.ext.asyncio import AsyncSession
-from scheduler.tasks.process_refund import process_single_refund
-from services.orchestration_service import BackgroundTaskOrchestrator
-from services.payment_service import get_refund_status
+from services.refund_service import queue_refund_retry
 from services.refund_service import fetch_all_refund_details, fetch_refund_detail_by_booking_id, fetch_refund_detail_by_booking_id_and_customer_id, fetch_refund_detail_by_refund_id, fetch_refund_details_by_customer_id, get_refund_details_by_trip_id, initiate_refund_by_booking_id
 
 router = APIRouter()
@@ -93,16 +91,16 @@ async def get_refund_status_by_refund_id(
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
 ):
-    """Get refund status of a trip from the payment provider by refund_id."""
+    """Read the refund status maintained by the durable provider-sync worker."""
     current_user_role = current_user.role
     if current_user_role not in [RoleEnum.super_admin, RoleEnum.finance_admin]:
         raise HTTPException(
             status_code=403, detail="You do not have permission to access this resource."
         )
-    refund_status = get_refund_status(refund_id, db)
-    if not refund_status:
+    refund = await fetch_refund_detail_by_refund_id(str(refund_id), db)
+    if not refund:
         raise HTTPException(status_code=404, detail="Refund status not found.")
-    return refund_status
+    return refund.refund_status
 
 # - Get endpoint for fetching refund detail by refund_id - finance_admin, super_admin
 @router.get("/refund/{refund_id}", response_model=RefundSchema)
@@ -141,6 +139,7 @@ async def get_refund_detail_by_trip_id(
     return refund_detail
 
 # Initiate a refund record for a trip by booking_id - finance_admin, super_admin, if the workflow based refund initiation failed to complete/execute successfully/create a refund initiation record in database(Refer #status_service.py._cancelled() method)
+@router.post("/booking/{booking_id}/initiate-refund")
 @router.get("/booking/{booking_id}/initiate-refund")
 async def init_refund_by_booking_id(
     booking_id: str | UUID,
@@ -156,13 +155,14 @@ async def init_refund_by_booking_id(
     refund_initiated= await initiate_refund_by_booking_id(booking_id=booking_id, db=db, requestor=current_user.id)
     if not refund_initiated:
         raise HTTPException(status_code=400, detail="Refund initiation failed.")
-    return {"message": "Refund initiation successful."}
+    return {"message": "Refund intent queued for scheduler processing."}
 
 
-#Attempt to force issue a refund by calling the process_single_refund of the process_refund scheduler task.
+# Keep the legacy GET alias for existing admin clients; prefer POST for mutations.
+@router.post("/booking/{booking_id}/issue-refund")
 @router.get("/booking/{booking_id}/issue-refund")
 async def issue_refund_by_booking_id(
-    background_tasks: BackgroundTasks,
+    _: BackgroundTasks,
     booking_id: str | UUID,
     db: AsyncSession = Depends(a_yield_mysql_session),
     current_user: User = Depends(validate_user_token),
@@ -184,10 +184,10 @@ async def issue_refund_by_booking_id(
         #Refetch newly formed refund record now.
         refund = await fetch_refund_detail_by_booking_id(booking_id=booking_id, db= db, use_orm=True)
 
-    # Orchestrate the refund issuance job in background.
-    orchestrator = BackgroundTaskOrchestrator(background_tasks)
-    orchestrator.add_task(
-            process_single_refund, task_name="ProcessRefundOnDemand", db=db, refund=refund
-        )
-    return {"message": "Refund issue request has been placed successfully."}
+    if refund is None:
+        raise HTTPException(status_code=404, detail="Refund intent could not be loaded.")
+    # Do not send request-scoped ORM/session objects into background processing.
+    # The scheduler revalidates and uses the original durable idempotency key.
+    await queue_refund_retry(refund.id, db, current_user.id)
+    return {"message": "Refund processing queued for the scheduler."}
 

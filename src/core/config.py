@@ -131,7 +131,12 @@ class Settings(BaseSettings):
     RECONCILE_BATCH_SIZE:int
     # Retain unresolved bookings for review after automatic polling ends.
     RECONCILE_ACTIVE_WINDOW_HOURS: int = Field(default=48, ge=1)
+    # The refund worker submits new intents as well as polling existing refunds.
+    REFUND_POLL_INTERVAL_MINUTES: int = Field(default=1, ge=1)
     
+    #Clean up temp trip interval for removing abandoned temp trips without payment references. This is a mandatory setting for all environments, as it is used for cleaning up abandoned temp trips and freeing up resources in the database. The interval is set in minutes and should be a positive integer value.
+    CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES:int = Field(default=60, ge=1)
+
     class Config:
         env_file = load_env() #Get environment file path from the environment service, which will load the appropriate .env file based on the current environment (local, dev, prod). This allows for dynamic loading of environment variables based on the deployment environment.
                               # Here we just load the env file path and let pydantic do the rest of the work of loading the env vars into the settings object. This is a cleaner approach than loading the env vars directly in this file, as it allows for better separation of concerns and easier testing.

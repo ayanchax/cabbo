@@ -5,8 +5,8 @@ from scheduler.tasks.process_refund import sync_pending_refund_statuses_task
 from .cleanup_temp_trips import cleanup_temp_trips_task
 from .reconcile_bookings import reconcile_bookings_task
 from core.config import settings
-CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES = 60
-REFUND_POLL_INTERVAL_MINUTES = 720 # 12 hours, can be adjusted based on typical refund processing times and desired sync frequency
+CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES = settings.CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES
+REFUND_POLL_INTERVAL_MINUTES = settings.REFUND_POLL_INTERVAL_MINUTES
 RECONCILE_BOOKING_INTERVAL_MINUTES = settings.RECONCILE_BOOKING_INTERVAL_MINUTES
 
 # Centralized TASKS list for the scheduler to consume
@@ -31,5 +31,6 @@ TASKS: List[Dict[str, Any]] = [
         "func": sync_pending_refund_statuses_task,   
         "trigger": IntervalTrigger(minutes=REFUND_POLL_INTERVAL_MINUTES),
         "id": "ap_scheduler_job:sync_pending_refund_statuses",
+        "max_instances": 1,
     },
 ]

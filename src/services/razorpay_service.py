@@ -6,7 +6,7 @@ parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 from models.financial.payments_schema import ReconciliationOutcome
 from models.financial.payments_enum import ReconciliationStateEnum
-from models.policies.refund_enum import PaymentProvider, RefundType
+from models.policies.refund_enum import PaymentProvider
 
 from enum import Enum
 import logging
@@ -46,6 +46,11 @@ RAZOR_PAY_CLIENT_DETAILS = {
 }
 
 EXPECTED_SIGNATURE_LENGTH = 64
+
+
+def create_razorpay_refund_client():
+    """Give each refund operation its own SDK client in the worker thread."""
+    return RAZOR_PAY_CLIENT  # Razorpay SDK is thread-safe, so we can reuse the same client instance
 
 
 
@@ -453,198 +458,6 @@ def verify_razorpay_payment(
         return False
 
 
-def initiate_razorpay_refund(
-    payment_id: str,
-    refund_amount: float,
-    notes: PaymentNotesSchema,
-    currency: Currency,
-) -> dict:
-    """
-    Initiate a refund for a Razorpay payment.
-
-    Args:
-        payment_id (str): The Razorpay payment ID to refund.
-        refund_amount (float): The amount to refund in rupees.
-        trip_id (str): The ID of the trip associated with the refund.
-        customer (CustomerRead): The customer details associated with the refund.
-        currency (Currency): The currency used in the transaction.
-
-    Returns:
-        dict: A dictionary containing the refund details.
-    """
-    refund_data = {}
-    try:
-        client = RAZOR_PAY_CLIENT
-        client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
-
-        refund_data = {
-            "amount": int(
-                convert_based_on_currency(
-                    refund_amount, currency.lowest_unit_conversion_factor
-                )
-            ),  # Convert rupees to paise
-        }
-
-        if notes:
-            refund_data["notes"] = {
-                "reference_source_id": str(notes.reference_source_id or ""),
-                "refund_type": str(notes.refund_type or ""),
-                "requestor": str(notes.requestor or ""),
-                "customer_name": str(notes.customer.name if notes.customer else ""),
-            }
-
-        # Guard: check if a refund already exists for this payment before initiating a new one
-        # For Cabbo, a payment is always refunded once (full or partial) — this prevents duplicate refunds
-        existing_refunds = client.payment.fetch_multiple_refund(payment_id)
-        if existing_refunds and existing_refunds.get("items"):
-            existing_refund = existing_refunds["items"][
-                0
-            ]  # Assuming only one refund per payment, take the first one
-            log.info(
-                f"Refund already exists for payment {payment_id} with status {existing_refund.get('status')}, returning existing refund instead of initiating new one"
-            )
-
-            return {
-                **existing_refund,
-                "amount": float(
-                    convert_based_on_currency(
-                        existing_refund.get("amount", 0),
-                        currency.lowest_unit_conversion_factor,
-                        convert_to_lowest=False,
-                    )
-                ),
-            }
-
-        refund = client.payment.refund(payment_id, refund_data)
-
-        if not refund or "id" not in refund:
-            return _populate_failed_razorpay_refund_response(
-                payment_id=payment_id,
-                refund_amount=refund_amount,
-                notes=notes,
-                currency_conversion_factor=currency.lowest_unit_conversion_factor,
-                currency_code=currency.code,
-            )
-
-        # Format the refund response
-        formatted_refund = {
-            **refund,
-            "amount": float(
-                convert_based_on_currency(
-                    refund.get("amount", 0),
-                    currency.lowest_unit_conversion_factor,
-                    convert_to_lowest=False,
-                )
-            ),  # Convert paise to rupees
-        }
-
-        log.info(
-            f"Razorpay refund initiated successfully: "
-            f"{summarize_provider_entity(formatted_refund)}"
-        )
-        return formatted_refund
-
-    except razorpay.errors.BadRequestError as e:
-        log.error(f"Razorpay refund creation failed: {str(e)}")
-
-        return _populate_failed_razorpay_refund_response(
-            payment_id=payment_id,
-            refund_amount=refund_amount,
-            notes=notes,
-            currency_conversion_factor=currency.lowest_unit_conversion_factor,
-            currency_code=currency.code,
-        )
-
-    except Exception as e:
-        log.error(f"Unexpected error during Razorpay refund creation: {str(e)}")
-
-        return _populate_failed_razorpay_refund_response(
-            payment_id=payment_id,
-            refund_amount=refund_amount,
-            notes=notes,
-            currency_conversion_factor=currency.lowest_unit_conversion_factor,
-            currency_code=currency.code,
-        )
-
-
-def get_razorpay_refund_status(refund_id: str) -> RazorPayRefundStatusEnum:
-    """
-    Get the status of a Razorpay refund.
-
-    Args:
-        refund_id (str): The Razorpay refund ID.
-
-    Returns:
-        RazorPayRefundStatusEnum: The status of the refund.
-    """
-    # Razorpay refund IDs start with "rfnd_"; payment IDs start with "pay_".
-    # A payment ID here means initiation failed — there is nothing to poll.
-
-    if not refund_id or not refund_id.startswith("rfnd_"):
-        log.warning(
-            f"[razorpay_service] Skipping refund status check for {refund_id}: "
-            f"no valid razorpay refund ID (got: {refund_id!r})"
-        )
-        return (
-            RazorPayRefundStatusEnum.FAILED
-        )  # Treat missing/invalid refund ID as failed status since there is nothing to poll
-
-    client = RAZOR_PAY_CLIENT
-    client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
-    try:
-        refund = client.refund.fetch(refund_id)
-        status = refund.get("status")
-        if status in RazorPayRefundStatusEnum._value2member_map_:
-            return RazorPayRefundStatusEnum(status)
-        else:
-            log.error(f"Unknown refund status received from Razorpay: {status}")
-            return RazorPayRefundStatusEnum.FAILED  # Treat unknown status as failed
-    except razorpay.errors.BadRequestError as e:
-        log.error(f"Failed to fetch Razorpay refund status for {refund_id}: {str(e)}")
-        return RazorPayRefundStatusEnum.FAILED  # Treat errors as failed status
-    except Exception as e:
-        log.error(
-            f"Unexpected error while fetching Razorpay refund status for {refund_id}: {str(e)}"
-        )
-        return (
-            RazorPayRefundStatusEnum.FAILED
-        )  # Treat unexpected errors as failed status
-
-
-def is_razorpay_payment_settled(payment_id: str) -> bool:
-    """
-    Check if a Razorpay payment is settled (captured).
-    Args:
-        payment_id (str): The Razorpay payment ID to check.
-    Returns:
-        bool: True if the payment is settled, False otherwise.
-    """
-    client = RAZOR_PAY_CLIENT
-    client.set_app_details(RAZOR_PAY_CLIENT_DETAILS)
-    try:
-        payment = client.payment.fetch(payment_id)
-        log.info(
-            f"Razorpay payment settlement check: "
-            f"{summarize_provider_entity(payment)}"
-        )
-        settlement_id = payment.get("settlement_id", None)
-        status = payment.get("status", None)
-        refund_status = payment.get("refund_status", None)
-        return (
-            settlement_id is not None
-            or status == RazorPayPaymentStatusEnum.REFUNDED.value
-            or refund_status in (RefundType.full.value, RefundType.partial.value)
-        )  # If settlement_id is present or payment is refunded, payment is settled
-    except razorpay.errors.BadRequestError as e:
-        log.error(f"Failed to fetch Razorpay payment status for {payment_id}: {str(e)}")
-        return False  # Treat errors as not settled
-    except Exception as e:
-        log.error(
-            f"Unexpected error while fetching Razorpay payment status for {payment_id}: {str(e)}"
-        )
-        return False  # Treat unexpected errors as not settled
-
-
 def get_initialization_refund_response(
     payment_id: str,
     refund_amount: float,
@@ -658,16 +471,6 @@ def get_initialization_refund_response(
         currency_conversion_factor=currency.lowest_unit_conversion_factor,
         currency_code=currency.code,
     )
-
-
-def is_eligible_razorpay_identifier(id: str):
-    return id and (
-        id.startswith("pay_") or id.startswith("rfnd_")
-    )  # Razorpay payment IDs start with "pay_", refund IDs start with "rfnd_"
-
-
-def is_eligible_to_attempt_razor_pay_refund_initiation(payment_id: str, silently_fail=False):
-    return payment_id and payment_id.startswith("pay_")
 
 
 if __name__ == "__main__":

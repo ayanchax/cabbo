@@ -6,6 +6,8 @@ class ReconciliationStateEnum(str, enum.Enum):
     captured = "captured"
     booked = "booked"
     review_required = "review_required"
+    created="created"
+    authorized="authorized"
 
 
 class PaymentModeEnum(str, enum.Enum):

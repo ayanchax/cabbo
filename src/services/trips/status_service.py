@@ -295,7 +295,7 @@ async def _cancelled(
         if existing_cancellation_record:
             # Clean bad data
             await remove_cancellation_by_trip_id(
-                trip_id=trip.id, db=db, hard_delete=True
+                trip_id=trip.id, db=db, hard_delete=True, commit=False
             )
 
         # A canceled trip may or may not have an assigned driver, so we do not check for driver assignment before allowing cancellation. We allow cancellation of a trip without an assigned driver because sometimes customers may want to cancel a trip before a driver is assigned to avoid any inconvenience and also to allow them to book a new trip with correct details if they made any mistake in the initial booking.
@@ -368,25 +368,19 @@ async def _cancelled(
             db=db,
             commit=False,  # Defer commit to batch with trip update
         )
-        await db.flush()  # Flush to ensure the status update and audit log is saved before any further operations
-        await db.commit()
-        await db.refresh(trip)
+        await db.flush()
         await attach_relationships_to_trip(
             trip, db, view=TripResponseView.ADMIN_DETAIL
         )
         trip_schema = TripDetailSchema.model_validate(trip)
-
-        background_task = AppBackgroundTask(
-            fn=refund_advance_payment_to_customer_on_cancellation,
-            kwargs={
-                "trip": trip_schema,
-                "db": db,
-                "cancelation_sub_status": cancelation_sub_status,
-                "silently_fail": True,  # We want to ensure that even if refunding advance payment fails for some reason, it should not affect the main flow of trip cancellation and marking driver available. So we will silently fail any errors in the background task and log them for future reference.
-                "requestor": requestor.id,
-            },
+        # Persist the obligation before acknowledging cancellation. Losing a
+        # background task must never leave a refundable cancellation untracked.
+        await refund_advance_payment_to_customer_on_cancellation(
+            trip=trip_schema, db=db, cancelation_sub_status=cancelation_sub_status,
+            requestor=requestor.id, commit=False,
         )
-        return trip_schema, background_task
+        await db.commit()
+        return trip_schema, None
      
 
 async def _dispute(

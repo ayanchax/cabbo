@@ -8,6 +8,7 @@ from models.trip.temp_trip_orm import TempTrip
 from scheduler.task_registry import task
 from services.trips.temp_trip_service import preserve_temp_trip
 import logging
+from core.config import settings
 
 TTL_MINUTES_DEFAULT = 30
 log = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ async def a_cleanup_expired_temp_trips(
                 f"cleanup_temp_trips preserved {skipped_verified} payment-linked rows pending reconciliation."
             )
         log.info(f"cleanup_temp_trips removed {removed} abandoned rows.")
+        next_scheduler_run = datetime.now(timezone.utc) + timedelta(minutes=settings.CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES)
+        log.info(f"Next scheduler run: {next_scheduler_run}")
+        
         return removed
     except Exception as e:
         await db.rollback()

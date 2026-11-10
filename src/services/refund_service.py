@@ -1,4 +1,6 @@
+from core import refund_error_codes as refund_errors
 from datetime import datetime, timezone
+from uuid import uuid4, uuid5, NAMESPACE_URL
 from typing import Optional, Union
 
 from core.exceptions import GENERIC_EXCEPTION, TRIP_NOT_FOUND, CabboException
@@ -22,6 +24,7 @@ from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_schema import RefundSchema
 from core.config import settings
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from services.cancelation_service import get_cancelation_policy_id
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,13 +32,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.notification_service import notify_refund_processed_to_customer, notify_trip_cancellation_to_customer
 from services.payment_service import (
     get_initial_refund_response,
-    initiate_refund,
-    is_payment_settled,
 )
 import logging
 
 
 log = logging.getLogger(__name__)
+
+
+async def get_refund_for_processing(refund_id: str, db: AsyncSession) -> Optional[RefundORM]:
+    """Lock the intent and load relationships needed by the async worker.
+
+    The caller owns commit/rollback, keeping this lock through processing.
+    Eager loading avoids implicit database I/O when building notifications.
+    """
+    result = await db.execute(
+        select(RefundORM).where(RefundORM.id == refund_id)
+        .options(joinedload(RefundORM.trip).joinedload(Trip.customer))
+        .with_for_update().execution_options(populate_existing=True)
+    )
+    return result.scalars().unique().first()
 
 
 async def refund_advance_payment_to_customer_on_cancellation(
@@ -45,6 +60,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
     config_store: ConfigStore = None,
     silently_fail: bool = False,
     requestor: str = None,
+    commit: bool = True,
 ):
     try:
         is_existing_refund = await _is_existing_refund(
@@ -132,18 +148,19 @@ async def refund_advance_payment_to_customer_on_cancellation(
 
             else:
                 log.info(
-                    f"Trip type {trip.trip_type_master.trip_type.value} not eligible for cancellation refund"
+                    f"No automatic refund policy for trip type {trip.trip_type_master.trip_type.value}; finance review required"
                 )
-                return False
-            # Note : Cancellation policy can be None if there is no cancellation policy defined for that trip type and region/state in the config store, in that case we will not be able to process the refund workflow for that trip because we don't have the necessary information about the refund eligibility and refund amount calculation based on the cancellation time and free cancellation cutoff time without the cancellation policy details, so we will log it and skip the refund workflow for that trip. It is important to have cancellation policies defined for all trip types and regions/states in the config store to ensure smooth processing of refunds for cancellations and to avoid any confusion or bad customer experience due to lack of clarity on refund eligibility and refund amounts for different cancellation scenarios.
-            # Cancellation policy can also be None, if it is cancelled by cabbo and we are treating it as full refund without checking any cancellation policy, because in that case it is not the fault of customer and we should refund the advance payment in full without checking any cancellation policy, but we will log it for our reference and analysis to see how many cancellations are done by cabbo and how many of them are eligible for full refund without checking cancellation policy because they are canceled by cabbo and it is not the fault of customer.
+                return await _record_refund_review(
+                    trip, db, refund_errors.UNSUPPORTED_REFUND_POLICY, requestor, commit)
+            # Missing policy is unknown entitlement: retain a review record.
 
             if not cancellation_policy:
 
                 log.info(
                     f"Cannot process refund workflow. Reason: No cancelation policy defined for '{trip.trip_type_master.trip_type.value}' trips in this state/region. To issue a refund for this trip, please create a cancellation policy for trip type '{trip.trip_type_master.trip_type.value}' in the config store with appropriate data based on your business rules."
                 )
-                return False
+                return await _record_refund_review(
+                    trip, db, refund_errors.MISSING_CANCELLATION_POLICY, requestor, commit)
             # Check if the cancellation is eligible for refund based on the cancellation policy and the time of cancellation
             free_cutoff_minutes = cancellation_policy.free_cutoff_minutes
             cancelation_time = (
@@ -151,11 +168,17 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 if trip.cancellation and trip.cancellation.created_at
                 else datetime.now(timezone.utc)
             )
+            if trip.start_datetime is None:
+                return await _record_refund_review(
+                    trip, db, refund_errors.MISSING_TRIP_START_TIME, requestor, commit)
+            # MySQL DateTime may arrive without tzinfo; policy calculations use UTC.
+            cancelation_time = cancelation_time.replace(tzinfo=cancelation_time.tzinfo or timezone.utc)
+            start_datetime = trip.start_datetime.replace(tzinfo=trip.start_datetime.tzinfo or timezone.utc)
             # If cancellation is done before free cutoff time, then full refund is applicable, if cancellation is done after free cutoff time but before trip start time, then partial refund is applicable, if cancellation is done after trip start time, then no refund is applicable.
             # trip.start_datetime and cancelation_time < trip.start_datetime
-            if trip.start_datetime and cancelation_time < trip.start_datetime:
+            if cancelation_time < start_datetime:
                 time_diff = (
-                    trip.start_datetime - cancelation_time
+                    start_datetime - cancelation_time
                 ).total_seconds() / 60  # Time difference in minutes
                 if (
                     time_diff >= free_cutoff_minutes
@@ -176,7 +199,7 @@ async def refund_advance_payment_to_customer_on_cancellation(
                         / 100
                     )
             else:  # Cancellation is done after trip start time, then no refund is applicable
-                if cancelation_time > trip.start_datetime:
+                if cancelation_time >= start_datetime:
                     log.info(
                         f"Cancellation for trip {trip.id} is done after trip start time, hence not eligible for refund"
                     )
@@ -187,7 +210,6 @@ async def refund_advance_payment_to_customer_on_cancellation(
 
         if (
             refund_amount > 0.0
-            and trip.payment_provider_metadata
             and (
                 eligible_for_full_refund
                 or eligible_for_partial_configuration_based_refund
@@ -198,21 +220,20 @@ async def refund_advance_payment_to_customer_on_cancellation(
             )
             currency_symbol = config_store.geographies.country_server.currency_symbol
             log.info(
-                f"Initiating refund of amount {currency_symbol}{refund_amount} for trip {trip.id} through payment provider {settings.PAYMENT_PROVIDER}"
+                    f"Queueing refund intent for {currency_symbol}{refund_amount} for trip {trip.id} through payment provider {settings.PAYMENT_PROVIDER}"
             )
             key = f"{settings.PAYMENT_PROVIDER}_payment_id"
-            payment_id = trip.payment_provider_metadata.get(key)
+            payment_id = (trip.payment_provider_metadata or {}).get(key)
             if not payment_id:
                 log.error(
                     f"No payment ID found in payment_provider_metadata for trip {trip.id}, cannot initiate refund"
                 )
-                return False
+                # Preserve the obligation; the worker can recover the ID or flag review.
 
             if not trip.customer:
                 log.error(
                     f"No customer information found for trip {trip.id}, cannot initiate refund"
                 )
-                return False
             refund_type = (
                 RefundType.full if eligible_for_full_refund else RefundType.partial
             )
@@ -220,17 +241,17 @@ async def refund_advance_payment_to_customer_on_cancellation(
             policy_id = get_cancelation_policy_id(policy=cancellation_policy)
             refund_status = RefundStatus.initiated
 
-            refund_description = f" {refund_status.upper()}. {refund_type.capitalize()} refund for cancellation of trip {trip.id} with cancellation sub status {cancelation_sub_status.value}"
+            refund_description = f"Queued {refund_type.value} refund for cancellation of trip {trip.id} with cancellation sub status {cancelation_sub_status.value}"
             notes = PaymentNotesSchema(
                 reference_source_id=trip.id,
                 refund_type=refund_type.value,
                 canceled_by_cabbo=canceled_by_cabbo,
                 original_amount=trip.advance_payment,
                 refund_amount=refund_amount,
-                requestor=trip.customer.id,
+                requestor=trip.customer.id if trip.customer else requestor,
                 customer=CustomerPayment(
-                    id=trip.customer.id,
-                    name=trip.customer.name,
+                    id=trip.customer.id if trip.customer else None,
+                    name=trip.customer.name if trip.customer else "",
                 ),
             )
 
@@ -245,10 +266,14 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 notes=notes,
                 currency=currency,
             )
+            initial_refund_response.update(
+                _currency_code=currency.code,
+                _currency_factor=currency.lowest_unit_conversion_factor,
+            )
 
             new_refund_record = await _add_refund_details_for_trip(
                 refund=RefundSchema(
-                    id=initial_refund_response.get("id"),
+                    id=str(uuid4()),
                     policy_id=policy_id,
                     entity_id=trip.id,
                     refund_status=refund_status,
@@ -261,38 +286,20 @@ async def refund_advance_payment_to_customer_on_cancellation(
                 ),
                 db=db,
                 created_by=requestor or RoleEnum.system.value,
-                commit=False,  # We will commit after sending notification to customer, so that if there is any failure in sending notification to customer then we can rollback the transaction and not save the refund details in the database because it is important to send notification to customer about the refund initiation and if we fail to send notification to customer then it can lead to bad customer experience and confusion for customer about the refund status. So we will commit the transaction only after successfully sending notification to customer.
+                commit=False,  # Cancellation and refund intent share the caller's transaction.
             )
             if not new_refund_record:
                 log.error(
                     f"Failed to add refund details in the database for trip {trip.id} after refund initiation, rolling back the transaction"
                 )
-                await db.rollback()
-                return False
+                raise RuntimeError("Could not persist cancellation refund intent")
             log.info(
                 f"Refund details added in the database for trip {trip.id} after refund initiation with refund amount {refund_amount} and refund description: {refund_description}"
             )
 
-            await db.commit()
-
-            if initial_refund_response.get("id"):
-                log.info(
-                    f"Sending notification to customer about trip cancellation for trip {trip.id}..."
-                )
-                decimal_places = (
-                    config_store.geographies.country_server.currency_decimal_places
-                )
-                formatted_refund_amount = f"{refund_amount:.{decimal_places}f}"
-                formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"
-                # Send notification to customer about the trip cancellation and also the refund initiation in system.
-                await notify_trip_cancellation_to_customer(
-                    customer=trip.customer,
-                    refund_amount=formatted_refund_amount,
-                    refund_type=refund_type,
-                    currency=config_store.geographies.country_server.currency_symbol,
-                    booking_id=trip.booking_id,
-                    original_amount=formatted_original_amount,
-                )
+            if commit:
+                await db.commit()
+            # Provider submission and both emails belong to the durable worker.
             return True
         else:
             log.info(
@@ -306,9 +313,27 @@ async def refund_advance_payment_to_customer_on_cancellation(
         await db.rollback()
         log.error(f"Error in refund_advance_payment_to_customer: {e}")
         # Log the exception or handle it as needed
-        if not silently_fail:
+        if not silently_fail or not commit:
             raise e
         return False
+
+
+async def _record_refund_review(trip, db, reason, requestor, commit):
+    """Missing policy is uncertainty, not proof that a paid cancellation owes zero."""
+    saved = await _add_refund_details_for_trip(
+        refund=RefundSchema(id=str(uuid4()), entity_id=trip.id,
+            refund_amount=0.0, refund_status=RefundStatus.unknown,
+            refund_description="Refund eligibility and amount require finance review",
+            refund_provider=PaymentProvider(settings.PAYMENT_PROVIDER),
+            refund_type=RefundType.other, review_required=True, last_error=reason,
+            refund_details={"eligibility_unresolved": True, "payment_amount": trip.advance_payment},
+            refund_initiated_datetime=datetime.now(timezone.utc)),
+        created_by=requestor, db=db, commit=False)
+    if not saved:
+        raise RuntimeError("Could not persist refund eligibility review")
+    if commit:
+        await db.commit()
+    return True
 
 
 async def _update_refund_details_for_trip(
@@ -372,6 +397,10 @@ async def _add_refund_details_for_trip(
             refund_type=refund.refund_type,
             refund_provider=refund.refund_provider,
             created_by=created_by,
+            payment_id=(refund.refund_details or {}).get("payment_id"),
+            idempotency_key=str(uuid5(NAMESPACE_URL, f"cabbo:refund:{refund.entity_id}")),
+            review_required=refund.review_required,
+            last_error=refund.last_error,
         )
         db.add(refund_record)
         await db.flush()
@@ -574,7 +603,7 @@ async def fetch_refund_detail_by_refund_id(
     try:
         result = await db.execute(
             select(RefundORM).where(
-                RefundORM.id == refund_id,
+                (RefundORM.id == refund_id) | (RefundORM.provider_refund_id == refund_id),
                 RefundORM.is_active == True,
             )
         )
@@ -637,7 +666,7 @@ async def initiate_refund_by_booking_id(
     db: AsyncSession,
     cancelation_sub_status: (
         CancellationSubStatusEnum | None
-    ) = CancellationSubStatusEnum.other,
+    ) = None,
     silently_fail: bool = False,
 ) -> bool:
     try:
@@ -677,6 +706,14 @@ async def initiate_refund_by_booking_id(
         )
 
         trip_schema = TripDetailSchema.model_validate(trip)
+        # Recovery must use the original cancellation reason, not assume a
+        # Cabbo cancellation and accidentally grant a full refund to a customer.
+        if cancelation_sub_status is None:
+            cancellation = trip_schema.cancellation
+            cancelation_sub_status = cancellation.cancellation_sub_status if cancellation else None
+        if cancelation_sub_status is None:
+            return await _record_refund_review(
+                trip_schema, db, refund_errors.MISSING_CANCELLATION_REASON, requestor, True)
         refund_initiated = await refund_advance_payment_to_customer_on_cancellation(
             trip=trip_schema,
             requestor=requestor,
@@ -697,102 +734,31 @@ async def initiate_refund_by_booking_id(
         return False
 
 
-async def attempt_refund_initiation(
-    payment_id: str,
-    refund: RefundORM,
-    db: AsyncSession,
-):
-    # Only retry if payment has settled — unsettled payments will fail again
-    #payment settled means if payment provider has got the money from customer and has transferred it to cabbo's account, then only we can initiate refund 
-    is_settled = is_payment_settled(payment_id, silently_fail=True)
-    if not is_settled:
-        log.info(
-            f"[process_refund] Cannot retry refund {refund.id} initiation because "
-            f"payment {payment_id} is not settled yet"
-        )
-
-        return
-
-    trip = refund.trip
-    if not trip:
-        log.info(
-            f"[process_refund] Cannot retry refund {refund.id} initiation because no trip found for the refund's entity_id {refund.entity_id}"
-        )
-        return
-
-    stored_notes = (refund.refund_details or {}).get("notes", {})
-    customer = trip.customer
-
-    notes = PaymentNotesSchema(
-        reference_source_id=trip.id,
-        refund_type=stored_notes.get("refund_type"),
-        requestor=stored_notes.get("requestor") or (customer.id if customer else ""),
-        original_amount=trip.advance_payment,
-        refund_amount=refund.refund_amount,
-        customer=CustomerPayment(
-            id=customer.id if customer else stored_notes.get("customer_id", ""),
-            name=customer.name if customer else stored_notes.get("customer_name", ""),
-        ),
-    )
-
-    config_store = settings.get_config_store()
-
-    currency = Currency(
-        code=config_store.geographies.country_server.currency,
-        lowest_unit_conversion_factor=config_store.geographies.country_server.currency_lowest_unit_conversion_factor,
-    )
-
-    log.info(
-        f"[process_refund] Retrying refund initiation for refund {refund.id} (payment {payment_id})"
-    )
-    #Issue refund.
-    refund_response = initiate_refund(
-        payment_id=payment_id,
-        refund_amount=refund.refund_amount,
-        notes=notes,
-        currency=currency,
-        silently_fail=True,
-    )
-
-    if not refund_response:
-        log.info(f"[process_refund] Retry returned no response for refund {refund.id}")
-        return
-
-    new_status_str: str = refund_response.get("status", RefundStatus.failed.value)
-    try:
-        new_status = RefundStatus(new_status_str)
-    except ValueError:
-        new_status = RefundStatus.failed
-
-    refund.id = refund_response.get("id", payment_id)
-    refund.refund_status = new_status
-    refund.refund_details = refund_response
-    refund.refund_retried_datetime = datetime.now(timezone.utc)
-    db.add(refund)
+async def queue_refund_retry(refund_id: str, db: AsyncSession, requestor: str):
+    """An explicit finance/admin request requeues validation, never bypasses it."""
+    result = await db.execute(select(RefundORM).where(
+        RefundORM.id == refund_id, RefundORM.is_active.is_(True)).with_for_update())
+    refund = result.scalars().first()
+    if refund is None:
+        raise CabboException("Refund not found", status_code=404, error_code=TRIP_NOT_FOUND)
+    if (refund.refund_details or {}).get("eligibility_unresolved"):
+        raise CabboException("Refund eligibility requires finance review before retrying",
+                             status_code=409, error_code=GENERIC_EXCEPTION)
+    # Keep payment/provider identity and idempotency intact on manual retries.
+    refund.review_required = False #Means, make it eligible to be picked up by the refund scheduler. Refer @process_refund.py under src/scheduler/tasks
+    refund.next_attempt_at = datetime.now(timezone.utc)
+    details = dict(refund.refund_details or {})
+    details["retry_requested_by"] = requestor
+    refund.refund_details = details
     await db.commit()
-    await db.refresh(refund)
-    # In case the payment provider instantly processes the refund and returns a processed status, we will send the notification to customer about the refund being credited to their account. 
-    # If the payment provider returns a status other than processed, we will not send the notification to customer 
-    # and will wait for the next scheduler cycle to check for the status update and 
-    # send the notification when the status is updated to processed.
-    if refund.refund_status == RefundStatus.processed:
-        trip = refund.trip
-        if trip and trip.customer:
-            await send_refund_credited_notification(
-                refund=refund, trip=trip, provider_refund_id=refund.id
-            )
-
-    log.info(
-        f"[process_refund] Refund attempt complete. New ID: {refund.id}, status: {new_status_str}"
-    )
 
 
 async def send_refund_credited_notification(
     refund: RefundORM, trip: Trip, provider_refund_id: str
 ):
     """
-    Sends the 'Refund Credited' email once Razorpay confirms the refund is processed
-    and the money is on its way to the customer's account.
+    Notify provider-processed status, not independently verified bank credit.
+    Return actual email acceptance so the worker can retry failed delivery.
 
     """
     try:
@@ -807,7 +773,7 @@ async def send_refund_credited_notification(
         formatted_refund_amount = f"{refund.refund_amount:.{decimal_places}f}"
         formatted_original_amount = f"{trip.advance_payment:.{decimal_places}f}"
         customer = CustomerRead.model_validate(trip.customer)
-        await notify_refund_processed_to_customer(
+        sent = await notify_refund_processed_to_customer(
             customer=customer,
             refund_id=provider_refund_id,
             refund_amount=formatted_refund_amount,
@@ -818,10 +784,13 @@ async def send_refund_credited_notification(
         )
 
         
+        if not sent:
+            return False
         log.info(
             f"[process_refund] Sent refund processed notification for refund {refund.id} "
             f"(entity={refund.entity_id}) to customer {customer.id}"
         )
+        return True
 
     except Exception as e:
         
@@ -829,6 +798,7 @@ async def send_refund_credited_notification(
             f"[process_refund] Failed to send refund-credited notification "
             f"for refund {refund.id}: {e}"
         )
+        return False
 
 
 async def inactivate_refund(refund: RefundORM, db: AsyncSession):
