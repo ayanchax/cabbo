@@ -21,6 +21,7 @@ PROVIDER_SUBMISSION_UNAVAILABLE = "provider_submission_unavailable"
 UNSUPPORTED_REFUND_PROVIDER = "unsupported_refund_provider"
 PROVIDER_REFUND_FAILED = "provider_refund_failed"
 PROVIDER_STATUS_UNAVAILABLE = "provider_status_unavailable"
+REFUND_MAX_ATTEMPTS_EXCEEDED = "refund_max_attempts_exceeded"
 
 # Booking eligibility and cancellation-policy review.
 MISSING_OR_NOT_CANCELLED_TRIP = "missing_or_not_cancelled_trip"

@@ -211,7 +211,8 @@ def worker_scope():
               get_payment_id_prefix=lambda **kwargs: "pay_",
               get_refund_id_prefix=lambda **kwargs: "rfnd_",
               task=lambda **kwargs: lambda fn: fn,
-              settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay", get_config_store=lambda:
+              settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay", REFUND_MAX_ATTEMPTS=1000,
+                  REFUND_POLL_INTERVAL_MINUTES=1, get_config_store=lambda:
                   SimpleNamespace(geographies=SimpleNamespace(country_server=config))),
               notify_trip_cancellation_to_customer=AsyncMock(return_value=True),
               send_refund_credited_notification=AsyncMock(return_value=True))
@@ -337,6 +338,70 @@ class AsyncRefundTests(unittest.IsolatedAsyncioTestCase):
         async with self.sessions() as db:
             self.assertEqual(await self.ns["_fetch_actionable_refunds"](db), ["intent"])
         self.assertEqual((await self.read()).attempts, 2)
+
+    async def test_final_allowed_attempt_runs_then_unresolved_work_is_held(self):
+        self.ns["settings"].REFUND_MAX_ATTEMPTS = 3
+        async with self.sessions() as db:
+            row = await db.get(Refund, "intent")
+            row.attempts = 2
+            await db.commit()
+        await self.run_worker()
+        row = await self.read()
+        self.assertEqual(row.attempts, 3)
+        self.assertTrue(row.review_required)
+        self.assertEqual(row.last_error, refund_errors.REFUND_MAX_ATTEMPTS_EXCEEDED)
+        self.assertEqual(row.refund_status, RefundStatus.pending)
+        self.ns["reconcile_or_submit_refund"].assert_called_once()
+        await self.due()
+        await self.run_worker()
+        self.ns["fetch_refund"].assert_not_called()
+
+    async def test_exhausted_existing_record_is_held_without_another_attempt(self):
+        self.ns["settings"].REFUND_MAX_ATTEMPTS = 3
+        async with self.sessions() as db:
+            row = await db.get(Refund, "intent")
+            row.attempts = 4
+            row.last_error = refund_errors.PROVIDER_STATUS_UNAVAILABLE
+            await db.commit()
+        await self.run_worker()
+        row = await self.read()
+        self.assertEqual(row.attempts, 4)
+        self.assertTrue(row.review_required)
+        self.assertEqual(row.refund_details["last_error_before_attempt_limit"],
+                         refund_errors.PROVIDER_STATUS_UNAVAILABLE)
+        self.ns["reconcile_or_submit_refund"].assert_not_called()
+
+    async def test_success_on_last_attempt_is_not_marked_for_review(self):
+        self.ns["settings"].REFUND_MAX_ATTEMPTS = 1
+        self.ns["reconcile_or_submit_refund"].return_value["status"] = "processed"
+        await self.run_worker()
+        row = await self.read()
+        self.assertEqual(row.attempts, 1)
+        self.assertFalse(row.review_required)
+        self.assertIsNotNone(row.processed_notified_at)
+
+    async def test_exhausted_email_retry_is_not_reclaimed(self):
+        self.ns["settings"].REFUND_MAX_ATTEMPTS = 1
+        self.ns["reconcile_or_submit_refund"].return_value["status"] = "processed"
+        self.ns["send_refund_credited_notification"].return_value = False
+        await self.run_worker()
+        row = await self.read()
+        self.assertTrue(row.review_required)
+        self.assertEqual(row.refund_status, RefundStatus.processed)
+        self.assertIsNone(row.processed_notified_at)
+        await self.due()
+        await self.run_worker()
+        self.ns["send_refund_credited_notification"].assert_awaited_once()
+
+    async def test_crash_on_final_attempt_is_held_after_lease_expires(self):
+        self.ns["settings"].REFUND_MAX_ATTEMPTS = 1
+        self.ns["_process_single_refund"] = AsyncMock(side_effect=RuntimeError("worker crash"))
+        await self.run_worker()
+        self.assertFalse((await self.read()).review_required)
+        await self.due()
+        await self.run_worker()
+        self.assertTrue((await self.read()).review_required)
+        self.ns["_process_single_refund"].assert_awaited_once()
 
     async def test_claim_excludes_complete_inactive_and_not_due_rows(self):
         now = datetime.now(timezone.utc)
@@ -525,6 +590,7 @@ class AsyncRefundTests(unittest.IsolatedAsyncioTestCase):
             row.review_required = True
             row.provider_refund_id = "rfnd_1"
             row.idempotency_key = "original-key"
+            row.attempts = 3
             await db.commit()
         queue = load_function("src/services/refund_service.py", "queue_refund_retry",
                               RefundORM=Refund, TRIP_NOT_FOUND="missing")
@@ -533,6 +599,8 @@ class AsyncRefundTests(unittest.IsolatedAsyncioTestCase):
             await queue("intent", db, "admin")
         row = await self.read()
         self.assertFalse(row.review_required)
+        self.assertEqual(row.attempts, 0)
+        self.assertEqual(row.refund_details["retry_previous_attempts"], 3)
         self.assertEqual((row.provider_refund_id, row.idempotency_key), ("rfnd_1", "original-key"))
         self.assertEqual(row.refund_details["retry_requested_by"], "admin")
 
@@ -603,13 +671,13 @@ class AsyncRefundTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(MissingGreenlet):
                 _ = refund.entity_id
         await self.add("second")
-        original = self.ns["process_single_refund"]
+        original = self.ns["_process_single_refund"]
         async def process(db, refund):
             if refund.id == "intent":
                 await db.rollback()
                 raise RuntimeError("simulated failed transaction")
             await original(db, refund)
-        self.ns["process_single_refund"] = process
+        self.ns["_process_single_refund"] = process
         await self.run_worker()
         self.assertEqual((await self.read("second")).refund_status, RefundStatus.pending)
 
@@ -619,6 +687,7 @@ class MigrationTests(unittest.TestCase):
         tree = ast.parse((ROOT / "src/scheduler/tasks/__init__.py").read_text())
         ns = dict(Any=Any, Dict=Dict, List=List, IntervalTrigger=IntervalTrigger,
                   settings=SimpleNamespace(REFUND_POLL_INTERVAL_MINUTES=3,
+                    CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES=60,
                     RECONCILE_BOOKING_INTERVAL_MINUTES=1, RECONCILE_BATCH_SIZE=20),
                   sync_pending_refund_statuses_task=object(), cleanup_temp_trips_task=object(),
                   reconcile_bookings_task=object())

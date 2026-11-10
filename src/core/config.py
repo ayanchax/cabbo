@@ -133,6 +133,9 @@ class Settings(BaseSettings):
     RECONCILE_ACTIVE_WINDOW_HOURS: int = Field(default=48, ge=1)
     # The refund worker submits new intents as well as polling existing refunds.
     REFUND_POLL_INTERVAL_MINUTES: int = Field(default=1, ge=1)
+    # Counts submission, status, and notification attempts. Allow normal refunds
+    # to remain pending for several business days at the capped retry interval.
+    REFUND_MAX_ATTEMPTS: int = Field(default=1000, ge=1)
     
     #Clean up temp trip interval for removing abandoned temp trips without payment references. This is a mandatory setting for all environments, as it is used for cleaning up abandoned temp trips and freeing up resources in the database. The interval is set in minutes and should be a positive integer value.
     CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES:int = Field(default=60, ge=1)

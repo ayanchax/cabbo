@@ -748,6 +748,12 @@ async def queue_refund_retry(refund_id: str, db: AsyncSession, requestor: str):
     refund.review_required = False #Means, make it eligible to be picked up by the refund scheduler. Refer @process_refund.py under src/scheduler/tasks
     refund.next_attempt_at = datetime.now(timezone.utc)
     details = dict(refund.refund_details or {})
+    # An explicit admin retry starts a fresh budget without losing the previous
+    # count/error or changing the provider identity and idempotency key.
+    details["retry_previous_attempts"] = refund.attempts or 0
+    details["retry_previous_error"] = refund.last_error
+    details["retry_requested_at"] = datetime.now(timezone.utc).isoformat()
+    refund.attempts = 0
     details["retry_requested_by"] = requestor
     refund.refund_details = details
     await db.commit()

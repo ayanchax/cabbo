@@ -53,6 +53,11 @@ async def _run_refund_status_sync(session_factory=None):
                     if refund is None or not refund.is_active:
                         continue # to next eligible claim; the refund may have been deleted or deactivated after the claim.
                     await _process_single_refund(db, refund)
+                    # The final allowed attempt still runs. If work remains,
+                    # stop automatically without waiting for another claim.
+                    if (refund.attempts >= settings.REFUND_MAX_ATTEMPTS
+                            and not refund.review_required and not _is_refund_work_complete(refund)):
+                        _mark_refund_attempt_limit(refund)
                     await db.commit()
                 except Exception:
                     await db.rollback()
@@ -75,6 +80,11 @@ async def _fetch_actionable_refunds(db: AsyncSession) -> list[str]:
     now = datetime.now(timezone.utc)
     result = await db.execute(select(RefundORM).where(
         RefundORM.is_active.is_(True),
+        # Unlike other review reasons, exhausted work cannot be reclaimed even
+        # for an outstanding email. Include exhausted non-review rows once so
+        # a crash on the final attempt can be converted into durable review.
+        or_(RefundORM.attempts < settings.REFUND_MAX_ATTEMPTS,
+            RefundORM.review_required.is_(False)),
         # Review holds money operations, not outstanding customer notifications.
         or_(RefundORM.review_required.is_(False),
             and_(RefundORM.cancellation_notified_at.is_(None),
@@ -92,6 +102,9 @@ async def _fetch_actionable_refunds(db: AsyncSession) -> list[str]:
       .limit(REFUND_POLL_BATCH_SIZE).with_for_update(skip_locked=True))
     claimed = []
     for refund in result.scalars().all():
+        if (refund.attempts or 0) >= settings.REFUND_MAX_ATTEMPTS:
+            _mark_refund_attempt_limit(refund)
+            continue
         refund.attempts = (refund.attempts or 0) + 1
         refund.next_attempt_at = now + timedelta(minutes=REFUND_LEASE_MINUTES)
         # Deterministic per obligation, including legacy rows after deployment.
@@ -100,6 +113,26 @@ async def _fetch_actionable_refunds(db: AsyncSession) -> list[str]:
         claimed.append(refund.id)
     await db.commit()
     return claimed
+
+
+def _is_refund_work_complete(refund):
+    return (refund.refund_status in (RefundStatus.processed, RefundStatus.completed)
+            and refund.cancellation_notified_at is not None
+            and (refund.refund_status == RefundStatus.completed
+                 or refund.processed_notified_at is not None))
+
+
+def _mark_refund_attempt_limit(refund):
+    """Retain the obligation and original failure evidence for admin review."""
+    details = dict(refund.refund_details or {})
+    if refund.last_error and refund.last_error != refund_errors.REFUND_MAX_ATTEMPTS_EXCEEDED:
+        details["last_error_before_attempt_limit"] = refund.last_error
+    refund.refund_details = details
+    refund.review_required = True
+    refund.last_error = refund_errors.REFUND_MAX_ATTEMPTS_EXCEEDED
+    refund.next_attempt_at = None
+    log.warning("Refund intent %s reached its %s-attempt limit; admin review required",
+                refund.id, settings.REFUND_MAX_ATTEMPTS)
 
 
 def _subunits(value, factor):
