@@ -1,216 +1,254 @@
-import sys
-from pathlib import Path
-
-parent_dir = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(parent_dir))
+"""Durable refund submission, provider reconciliation, and notification retries."""
+from core import refund_error_codes as refund_errors
 import asyncio
 import logging
-from sqlalchemy import select, and_
-from sqlalchemy.orm import joinedload
-from sqlalchemy.ext.asyncio import AsyncSession
-from db.database import AsyncSessionLocal
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
+from uuid import NAMESPACE_URL, uuid5
+
+from sqlalchemy import and_, or_, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from core.config import settings
+from db.database import ASYNC_DATABASE_URL, ASYNC_CONNECT_ARGS
 from models.policies.refund_orm import Refund as RefundORM
 from models.policies.refund_enum import RefundStatus
 from models.trip.trip_orm import Trip
+from models.trip.trip_enums import TripStatusEnum
 from scheduler.task_registry import task
 from services.payment_service import (
-    get_refund_status,
-    is_eligible_payment_identifier,
-    is_eligible_to_attempt_refund_initiation,
+    RefundReviewRequired, RefundRetryableError, get_payment_id_prefix, get_refund_id_prefix, reconcile_or_submit_refund, fetch_refund,
 )
-from services.refund_service import inactivate_refund, attempt_refund_initiation, send_refund_credited_notification
+from services.refund_service import get_refund_for_processing, send_refund_credited_notification
+from services.notification_service import notify_trip_cancellation_to_customer
+from utils.retry import get_retry_delay_seconds
 
 log = logging.getLogger(__name__)
-
 REFUND_POLL_BATCH_SIZE = 50
+REFUND_LEASE_MINUTES = 15
 
 
-@task(
-    task_id="sync_pending_refund_statuses",
-    description="Polls payment provider for pending/failed/initiated refund statuses, updates DB, and notifies customer on credit",
-)
+@task(task_id="sync_pending_refund_statuses",
+      description="Submits queued refunds, reconciles provider status, and retries notifications")
 def sync_pending_refund_statuses_task():
     asyncio.run(_run_refund_status_sync())
 
 
- 
-async def _run_refund_status_sync():
-    async with AsyncSessionLocal() as db:
-        try:
-            refunds = await _fetch_actionable_refunds(db)
-            if len(refunds) == 0:
-                log.info(
-                    "[process_refund] No pending/failed/initiated refunds to poll, exiting"
-                )
-                return
-            
-            log.info(
-                f"[process_refund] Found {len(refunds)} pending/failed/initiated refunds to poll"
-            )
-
-            for refund in refunds:
+async def _run_refund_status_sync(session_factory=None):
+    # APScheduler creates a new loop each run. Never reuse pooled connections
+    # belonging to the API loop or an earlier scheduler invocation.
+    engine = None
+    if session_factory is None:
+        engine = create_async_engine(ASYNC_DATABASE_URL, connect_args=ASYNC_CONNECT_ARGS)
+        session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with session_factory() as db:
+            claimed = await _fetch_actionable_refunds(db)
+        for identifier in claimed:
+            # Only scalar IDs cross session boundaries. A rollback cannot expire
+            # another refund's loaded relationships or even its logging fields.
+            async with session_factory() as db:
                 try:
-                    await process_single_refund(db, refund)
-                except Exception as e:
-                    
-                    log.error(
-                        f"[process_refund] Error processing refund {refund.id} "
-                        f"(entity={refund.entity_id}): {e}"
-                    )
-        except Exception as e:
-            log.error(
-                f"[process_refund] Unexpected error during refund status sync: {e}"
-            )
+                    refund = await get_refund_for_processing(identifier, db)
+                    if refund is None or not refund.is_active:
+                        continue # to next eligible claim; the refund may have been deleted or deactivated after the claim.
+                    await _process_single_refund(db, refund)
+                    # The final allowed attempt still runs. If work remains,
+                    # stop automatically without waiting for another claim.
+                    if (refund.attempts >= settings.REFUND_MAX_ATTEMPTS
+                            and not refund.review_required and not _is_refund_work_complete(refund)):
+                        _mark_refund_attempt_limit(refund)
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                    log.exception("Refund worker failed for intent %s; lease will expire", identifier)
+        if not claimed:
+            log.info("No due refund work")
+        else:
+            log.info("Processed %d refund intents", len(claimed))
+
+        next_scheduler_run = datetime.now(timezone.utc) + timedelta(minutes=settings.REFUND_POLL_INTERVAL_MINUTES)
+        log.info(f"Next scheduler run: {next_scheduler_run}")
+
+    finally:
+        if engine is not None:
+            await engine.dispose()
 
 
-async def _fetch_actionable_refunds(db: AsyncSession) -> list[RefundORM]:
-    """
-    Queries the refunds table for active pending/failed refunds whose linked trip
-    exists and is not soft-deleted (Trip.is_active == True).
-    """
-    try:
-        stmt = (
-            select(RefundORM)
-            .join(Trip, Trip.id == RefundORM.entity_id)
-            .where(
-                and_(
-                    RefundORM.refund_status.in_(
-                        [RefundStatus.pending, RefundStatus.failed, RefundStatus.initiated]
-                    ),
-                    RefundORM.is_active == True,
-                    Trip.is_active == True,
-                )
-            )
-            .options(joinedload(RefundORM.trip).joinedload(Trip.customer))
-            .limit(REFUND_POLL_BATCH_SIZE)
-        )
-        result = await db.execute(stmt)
-        return result.scalars().unique().all()
-    except Exception as e:
-        log.error(f"[process_refund] Error fetching actionable refunds from DB: {e}")
-        return []
-
-
-async def process_single_refund(db: AsyncSession, refund: RefundORM):
-    
-    """
-    For each refund, we first check if it has a valid provider refund ID in refund_details to determine if we can poll for status updates. 
-    If it doesn't have a valid provider refund ID but has a payment ID (indicating a previous initiation or failed attempt),
-    we can attempt refund initiation. If it has neither, 
-    we inactivate the refund record to prevent future processing attempts until the data is fixed. 
-    If it has a valid provider refund ID, we poll for status updates and if the status is "processed", we update the DB and 
-    notify the customer that the refund is credited, so that the refund is not pickeded up again in the next sync cycle since 
-    it's already processed and we avoid unnecessary polling and processing of already processed refunds, and also ensure timely notification to the customer once the refund is credited.
-
-    """
-    provider_refund_id = (refund.refund_details or {}).get("id")
-    if not provider_refund_id:
-       
-        log.warning(
-            f"[process_refund] Refund {refund.id} has no provider refund ID in "
-            f"refund_details, skipping"
-        )
-        #Inactivate the refund record to prevent it from being picked up again in the next sync cycle since it doesn't have a valid provider refund ID to poll for status updates and it's likely a failed initiation attempt where refund_details contains payment details instead of refund details, so we can set is_active to False to exclude it from future sync attempts and avoid unnecessary polling and processing of invalid refund records.
-        await inactivate_refund(refund, db)
-        return
-    
-    #Neither refund ID nor payment ID in refund_details — can't do anything with this record, skip it and make it inactive for now and let support/finance investigate and fix the data if needed
-    if not is_eligible_payment_identifier(str(provider_refund_id)):
-        
-        log.warning(
-            f"[process_refund] Refund {refund.id} has invalid provider refund or payment ID "
-            f"{provider_refund_id!r} in refund_details, skipping"
-         )
-        await inactivate_refund(refund, db)  # Inactivate the refund record since it has invalid provider refund ID and can't be processed in future sync cycles until the data is fixed, so we can set is_active to False to exclude it from future sync attempts and avoid unnecessary polling and processing of invalid refund records.
-        return
-     
-    # At this point, we have a valid provider refund ID or payment ID in refund_details, so we can proceed with either polling for status updates (if it's a refund ID) or attempting refund initiation (if it's a payment ID indicating a previous initiation or failed attempt that may have failed before settlement).
-    if is_eligible_to_attempt_refund_initiation(str(provider_refund_id)):
-         await attempt_refund_initiation(payment_id=str(provider_refund_id), refund=refund, db=db)
-         return
-    
-    # At this point, we have a valid provider refund ID in refund_details, so we can proceed with polling for status updates and processing accordingly.
-    current_status = get_refund_status(
-        refund_id=str(provider_refund_id), silently_fail=True
-    )
-    if current_status is None:
-        
-        log.warning(
-            f"[process_refund] Could not retrieve status from provider for refund ID "
-            f"{provider_refund_id}, skipping"
-        )
-        return
-
-    current_status_value = current_status.value if current_status else None
-
-    if current_status_value is None:
-        
-        log.warning(
-            f"[process_refund] Provider returned unknown status {current_status} "
-            f"for refund ID {provider_refund_id}, skipping"
-        )
-        return
-
-    existing_status_value = (
-        str(refund.refund_status.value)
-        if refund.refund_status and refund.refund_status.value
-        else None
-    )
-    if current_status_value.lower() == existing_status_value.lower():
-     
-
-        log.debug(
-            f"[process_refund] Refund {refund.id} status unchanged ({current_status_value}), skipping, scheduler will check again in the next cycle"
-        )
-        return
-
-   
-    log.info(
-        f"[process_refund] Refund {refund.id} (entity={refund.entity_id}) "
-        f"status changed: {existing_status_value!r} → {current_status_value!r}"
-    )
-
-    try:
-        new_db_status = RefundStatus(current_status_value)
-    except ValueError:
-       
-        log.warning(
-            f"[process_refund] Unknown provider status {current_status_value!r} "
-            f"for refund {refund.id}, skipping DB update, scheduler will check again in the next cycle"
-        )
-        return
-    if new_db_status != RefundStatus.processed:
-        
-        log.info(
-            f"[process_refund] Refund {refund.id} status is {new_db_status.value}, "
-            f"not processed yet, scheduler will check again in the next cycle, skipping notification"
-        )
-        return
-    if provider_refund_id != refund.id:
-        refund.id = provider_refund_id  # Update the refund record's ID to match the provider refund ID if they differ
-    refund.refund_status = new_db_status
-    db.add(refund)
+async def _fetch_actionable_refunds(db: AsyncSession) -> list[str]:
+    """Commit bounded claims before network I/O; expired leases recover crashes."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(select(RefundORM).where(
+        RefundORM.is_active.is_(True),
+        # Unlike other review reasons, exhausted work cannot be reclaimed even
+        # for an outstanding email. Include exhausted non-review rows once so
+        # a crash on the final attempt can be converted into durable review.
+        or_(RefundORM.attempts < settings.REFUND_MAX_ATTEMPTS,
+            RefundORM.review_required.is_(False)),
+        # Review holds money operations, not outstanding customer notifications.
+        or_(RefundORM.review_required.is_(False),
+            and_(RefundORM.cancellation_notified_at.is_(None),
+                 or_(RefundORM.refund_details["eligibility_unresolved"].as_boolean().is_(None),
+                     RefundORM.refund_details["eligibility_unresolved"].as_boolean().is_(False))),
+            and_(RefundORM.refund_status == RefundStatus.processed,
+                 RefundORM.processed_notified_at.is_(None))),
+        or_(RefundORM.next_attempt_at.is_(None), RefundORM.next_attempt_at <= now),
+        or_(RefundORM.refund_status.in_([
+            RefundStatus.initiated, RefundStatus.pending, RefundStatus.failed, RefundStatus.unknown,
+        ]), RefundORM.refund_status.is_(None), RefundORM.cancellation_notified_at.is_(None),
+            and_(RefundORM.refund_status == RefundStatus.processed,
+                 RefundORM.processed_notified_at.is_(None))),
+    ).order_by(RefundORM.next_attempt_at, RefundORM.created_at, RefundORM.id)
+      .limit(REFUND_POLL_BATCH_SIZE).with_for_update(skip_locked=True))
+    claimed = []
+    for refund in result.scalars().all():
+        if (refund.attempts or 0) >= settings.REFUND_MAX_ATTEMPTS:
+            _mark_refund_attempt_limit(refund)
+            continue
+        refund.attempts = (refund.attempts or 0) + 1
+        refund.next_attempt_at = now + timedelta(minutes=REFUND_LEASE_MINUTES)
+        # Deterministic per obligation, including legacy rows after deployment.
+        if not refund.idempotency_key:
+            refund.idempotency_key = str(uuid5(NAMESPACE_URL, f"cabbo:refund:{refund.entity_id}"))
+        claimed.append(refund.id)
     await db.commit()
-    await db.refresh(refund)
+    return claimed
 
+
+def _is_refund_work_complete(refund):
+    return (refund.refund_status in (RefundStatus.processed, RefundStatus.completed)
+            and refund.cancellation_notified_at is not None
+            and (refund.refund_status == RefundStatus.completed
+                 or refund.processed_notified_at is not None))
+
+
+def _mark_refund_attempt_limit(refund):
+    """Retain the obligation and original failure evidence for admin review."""
+    details = dict(refund.refund_details or {})
+    if refund.last_error and refund.last_error != refund_errors.REFUND_MAX_ATTEMPTS_EXCEEDED:
+        details["last_error_before_attempt_limit"] = refund.last_error
+    refund.refund_details = details
+    refund.review_required = True
+    refund.last_error = refund_errors.REFUND_MAX_ATTEMPTS_EXCEEDED
+    refund.next_attempt_at = None
+    log.warning("Refund intent %s reached its %s-attempt limit; admin review required",
+                refund.id, settings.REFUND_MAX_ATTEMPTS)
+
+
+def _subunits(value, factor):
+    return int((Decimal(str(value)) * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+async def _process_single_refund(db: AsyncSession, refund: RefundORM):
+    """Caller owns the transaction; never refresh/lazy-load after commit here."""
     trip = refund.trip
-    if trip and trip.customer:
-            await send_refund_credited_notification(
-                refund=refund,
-                trip=trip,
-                provider_refund_id=provider_refund_id,
-            )
-    else:
-            log.warning(
-                f"[process_refund] Refund {refund.id} is processed but trip or "
-                f"customer could not be loaded — skipping notification"
-            )
-            
-    log.info(f"[process_refund] Finished processing refund {refund.id}")
+    now = datetime.now(timezone.utc)
+    details = dict(refund.refund_details or {})
+    if refund.review_required:
+        await _send_notifications(refund, trip)
+        refund.next_attempt_at = now + timedelta(seconds=get_retry_delay_seconds(refund.attempts or 1))
+        return
+    try:
+        if trip is None or trip.status != TripStatusEnum.cancelled:
+            raise RefundReviewRequired(refund_errors.MISSING_OR_NOT_CANCELLED_TRIP)
+        if details.get("eligibility_unresolved"):
+            raise RefundReviewRequired(refund_errors.REFUND_ELIGIBILITY_UNRESOLVED)
+        if refund.refund_provider != settings.PAYMENT_PROVIDER:
+            raise RefundReviewRequired(refund_errors.UNSUPPORTED_REFUND_PROVIDER)
+        config = settings.get_config_store().geographies.country_server
+        currency = details.get("_currency_code") or details.get("currency") or config.currency
+        factor = details.get("_currency_factor") or config.currency_lowest_unit_conversion_factor
+        # Snapshot currency so configuration cannot change an idempotent request.
+        details.update(_currency_code=currency, _currency_factor=factor)
+        refund.refund_details = details
+        metadata = trip.payment_provider_metadata or {}
+        provider_id = refund.provider_refund_id
+        legacy_id = str(details.get("id") or refund.id or "")
+        refund_id_prefix = get_refund_id_prefix(provider=refund.refund_provider or settings.PAYMENT_PROVIDER)
+        if not provider_id and legacy_id.startswith(refund_id_prefix):
+            provider_id = legacy_id
+            refund.provider_refund_id = provider_id
+        payment_id_prefix = get_payment_id_prefix(provider=refund.refund_provider or settings.PAYMENT_PROVIDER)
+        payment_id = (refund.payment_id or details.get("payment_id")
+                      or (legacy_id if legacy_id.startswith(payment_id_prefix) else None)
+                      or metadata.get(f"{settings.PAYMENT_PROVIDER}_payment_id"))
+        if not payment_id:
+            raise RefundReviewRequired(refund_errors.MISSING_PAYMENT_ID)
+        refund.payment_id = payment_id
+        amount = _subunits(refund.refund_amount, factor)
+        if refund.refund_status not in (RefundStatus.processed, RefundStatus.completed):
+            # All provider selection and SDK construction go through the payment
+            # service; keep blocking network calls outside this asyncio loop.
+            if provider_id:
+                response = await asyncio.to_thread(fetch_refund,
+                    refund_id=provider_id, payment_id=payment_id, amount=amount, currency=currency,
+                    provider=refund.refund_provider)
+            else:
+                response = await asyncio.to_thread(reconcile_or_submit_refund,
+                    payment_id=payment_id, amount=amount,
+                    original_amount=_subunits(trip.advance_payment, factor),
+                    currency=currency, order_id=metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id"),
+                    idempotency_key=refund.idempotency_key, entity_id=refund.entity_id,
+                    provider=refund.refund_provider)
+            refund.provider_refund_id = response["id"]
+            refund.refund_status = RefundStatus(response["status"])
+            # Public amount remains in standard units, as in the existing API.
+            details.update(response, amount=float(Decimal(response["amount"]) / factor))
+            refund.refund_retried_datetime = now
+        refund.refund_details = details
+        refund.last_error = None
+        if refund.refund_status == RefundStatus.failed:
+            # A known failed provider refund is a financial review case, not
+            # permission to create a second refund with a different key.
+            refund.review_required = True
+            refund.last_error = refund_errors.PROVIDER_REFUND_FAILED
+    except RefundReviewRequired as exc:
+        refund.review_required = True
+        refund.last_error = str(exc)
+        log.warning("Refund intent %s requires review: %s", refund.id, exc)
+    except Exception as exc:
+        # Unknown provider state is not a provider-declared failed refund.
+        refund.last_error = (str(exc) if isinstance(exc, RefundRetryableError)
+                             else refund_errors.PROVIDER_STATUS_UNAVAILABLE)
+        log.warning("Refund intent %s remains retryable: %s", refund.id, refund.last_error)
+    # The caller commits financial state even if email fails. No refresh/lazy
+    # relationship access after commit, avoiding implicit async ORM I/O.
+    await db.flush()
+    await _send_notifications(refund, trip)
+    refund.next_attempt_at = now + timedelta(seconds=get_retry_delay_seconds(refund.attempts or 1))
 
 
+async def _send_notifications(refund, trip):
+    if not trip or not trip.customer or not trip.customer.email:
+        if refund.last_error is None:
+            refund.last_error = refund_errors.MISSING_NOTIFICATION_RECIPIENT
+        return
+    if (refund.refund_details or {}).get("eligibility_unresolved"):
+        # The stored amount is provisional; never email a refund promise before
+        # finance establishes entitlement under the cancellation policy.
+        return
+    try:
+        config = settings.get_config_store().geographies.country_server
+        decimals = config.currency_decimal_places
+        if refund.cancellation_notified_at is None:
+            sent = await notify_trip_cancellation_to_customer(
+                customer=trip.customer, refund_amount=f"{refund.refund_amount:.{decimals}f}",
+                refund_type=refund.refund_type, currency=config.currency_symbol,
+                booking_id=trip.booking_id, original_amount=f"{trip.advance_payment:.{decimals}f}")
+            if not sent:
+                raise RuntimeError(refund_errors.CANCELLATION_NOTIFICATION_NOT_DELIVERED)
+            refund.cancellation_notified_at = datetime.now(timezone.utc)
+        if refund.refund_status == RefundStatus.processed and refund.processed_notified_at is None:
+            if not await send_refund_credited_notification(refund, trip, refund.provider_refund_id):
+                raise RuntimeError(refund_errors.PROCESSED_NOTIFICATION_NOT_DELIVERED)
+            refund.processed_notified_at = datetime.now(timezone.utc)
+    except Exception:
+        # A crash after send but before commit can repeat an email (at-least-once
+        # delivery); notification retries never submit another money refund.
+        if refund.last_error is None:
+            refund.last_error = refund_errors.NOTIFICATION_DELIVERY_FAILED
+        log.exception("Refund notification pending for intent %s", refund.id)
 
 
 if __name__ == "__main__":
-    # For local testing/debugging of the refund status sync task without running the entire scheduler
     asyncio.run(_run_refund_status_sync())

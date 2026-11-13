@@ -221,12 +221,11 @@ async def notify_trip_cancellation_to_customer(
         currency_position=currency_position,
     )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
-    await send_email(
+    return await send_email(
         to_email=customer.email,
         subject=subject,
         html_content=html_content,
     )
-    return True
 
 async def notify_refund_processed_to_customer(
     customer: CustomerRead,
@@ -258,9 +257,8 @@ async def notify_refund_processed_to_customer(
         app_name=APP_NAME.capitalize(),
     )
     # Won't block the main flow for email sending failure. as it is running asynchronously in background
-    await send_email(
+    return await send_email(
             to_email=customer.email,
             subject=subject,
             html_content=html_content,
         )
-    return True

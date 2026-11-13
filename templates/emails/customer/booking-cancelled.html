@@ -267,7 +267,7 @@
         <div class="header">❌ Booking Cancelled</div>
 
         <div class="sub">Hi {{ name }}, your booking <strong>#{{ booking_id }}</strong> has been cancelled and your
-            refund has been initiated to your original payment method.</div>
+            refund request has been queued for processing to your original payment method.</div>
 
         <!-- Refund Amount Card -->
         <div class="refund-amount">
@@ -283,8 +283,8 @@
 
         <!-- Alert Box -->
         <div class="alert-box">
-            <strong>⏱️ Processing Time:</strong> Your refund will be credited to your original payment method within
-            <strong>{{ estimated_days or '5-7' }} business days</strong>. The exact time may vary depending on your
+            <strong>⏱️ Processing Time:</strong> After our payment partner accepts the refund, normal refunds typically take
+              <strong>{{ estimated_days or '5-7' }} business days</strong>. The exact time may vary depending on your
             bank or payment provider.
         </div>
 
@@ -328,7 +328,7 @@
             <strong>📌 Important Notes:</strong>
             <ul style="margin: 8px 0 0 0; padding-left: 20px; line-height: 1.8;">
                 <li>The refund will be credited to the original payment method used during booking.</li>
-                <li>You'll receive a notification once the refund is credited to your account.</li>
+                <li>You'll receive a notification once our payment partner has processed the refund.</li>
                 <li>If you don't receive the refund within {{ estimated_days or '5-7' }} business days, please contact
                     your bank.</li>
                 <li>Check your spam/junk folder for refund confirmation emails from your bank.</li>
