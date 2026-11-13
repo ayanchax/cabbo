@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     String,
     Float,
+    Integer,
     DateTime,
     Enum as SAEnum,
     Text,
@@ -23,6 +24,7 @@ class Refund(Base):
     __tablename__ = "refunds"
     __table_args__ = (
         Index("ix_refunds_active_status_created", "is_active", "refund_status", "created_at"),
+        Index("ix_refunds_due", "is_active", "review_required", "next_attempt_at"),
     )
 
     id = Column(
@@ -74,6 +76,17 @@ class Refund(Base):
     
     # Flag to indicate if the refund record is active or has been soft-deleted
     is_active = Column(Boolean, nullable=False, default=True)
+
+    # Internal ID stays stable; provider identity and retry state are independent.
+    provider_refund_id = Column(String(64), nullable=True, unique=True)
+    payment_id = Column(String(64), nullable=True)
+    idempotency_key = Column(String(64), nullable=True, unique=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    next_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    review_required = Column(Boolean, nullable=False, default=False, server_default="0")
+    last_error = Column(String(255), nullable=True)
+    cancellation_notified_at = Column(DateTime(timezone=True), nullable=True)
+    processed_notified_at = Column(DateTime(timezone=True), nullable=True)
 
     trip = relationship(
         "Trip",

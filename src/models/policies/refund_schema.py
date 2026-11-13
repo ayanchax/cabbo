@@ -5,7 +5,16 @@ from models.policies.refund_enum import PaymentProvider, RefundStatus, RefundTyp
 
 
 class RefundSchema(BaseModel):
-    id: Optional[str] = Field(None, description="Unique identifier for the refund transaction from the payment provider")
+    # Operational evidence is returned to authenticated admin refund views.
+    provider_refund_id: Optional[str] = None
+    payment_id: Optional[str] = None
+    attempts: int = 0
+    next_attempt_at: Optional[datetime] = None
+    review_required: bool = False
+    last_error: Optional[str] = None
+    cancellation_notified_at: Optional[datetime] = None
+    processed_notified_at: Optional[datetime] = None
+    id: Optional[str] = Field(None, description="Stable local refund intent identifier; use provider_refund_id for the Razorpay identifier")
     entity_id: Optional[str] = Field(None, description="ID of the entity for which the refund is being processed, e.g., trip ID, booking ID, etc.")
     policy_id: Optional[str] = Field(None, description="ID of the refund policy that was applied for this refund, if applicable, for example, cancellation policy ID, adjustment policy ID, dispute policy ID etc. This can help us track which kind of policy was applied for this refund and also can be used for reporting and analytics purposes to see which policies are being used more frequently for refunds and also to analyze the effectiveness of different refund policies in terms of customer satisfaction, financial impact, etc.")
     refund_status: Optional[RefundStatus] = Field(RefundStatus.unknown, description="Status of the refund transaction from the payment provider, e.g., pending, completed, failed, etc.")

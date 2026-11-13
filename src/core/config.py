@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Optional
 from pydantic_settings import BaseSettings
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from rich.console import Console
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.environment_service import load_env
@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     PAYMENT_PROVIDER: str
     RAZOR_PAY_KEY_ID: str
     RAZOR_PAY_KEY_SECRET: str
+    RAZOR_PAY_WEBHOOK_SECRET: Optional[str] = None
     
     # Cabbo specific settings for internal application functionality, such as trip booking, super admin access, default user password, timezone settings, etc. These settings are mandatory for all environments, as they are core to the application's functionality and user experience.
     CABBO_TRIP_BOOKING_SECRET_KEY: str
@@ -125,7 +126,20 @@ class Settings(BaseSettings):
     #Optional logging directory for storing application logs. This setting is optional and can be left empty if logs are not required to be stored in a specific directory within container. If provided, it should point to the directory where application logs will be saved.
     # Generally this is turned off in dev and prod environments, but can be turned on in local environment for debugging and troubleshooting purposes. In production, logs are generally sent to a centralized logging system or service Sentry for better monitoring and analysis.
     LOG_DIR: Optional[str]=None
+
+    RECONCILE_BOOKING_INTERVAL_MINUTES:int
+    RECONCILE_BATCH_SIZE:int
+    # Retain unresolved bookings for review after automatic polling ends.
+    RECONCILE_ACTIVE_WINDOW_HOURS: int = Field(default=48, ge=1)
+    # The refund worker submits new intents as well as polling existing refunds.
+    REFUND_POLL_INTERVAL_MINUTES: int = Field(default=1, ge=1)
+    # Counts submission, status, and notification attempts. Allow normal refunds
+    # to remain pending for several business days at the capped retry interval.
+    REFUND_MAX_ATTEMPTS: int = Field(default=1000, ge=1)
     
+    #Clean up temp trip interval for removing abandoned temp trips without payment references. This is a mandatory setting for all environments, as it is used for cleaning up abandoned temp trips and freeing up resources in the database. The interval is set in minutes and should be a positive integer value.
+    CLEANUP_TEMP_TRIPS_INTERVAL_MINUTES:int = Field(default=60, ge=1)
+
     class Config:
         env_file = load_env() #Get environment file path from the environment service, which will load the appropriate .env file based on the current environment (local, dev, prod). This allows for dynamic loading of environment variables based on the deployment environment.
                               # Here we just load the env file path and let pydantic do the rest of the work of loading the env vars into the settings object. This is a cleaner approach than loading the env vars directly in this file, as it allows for better separation of concerns and easier testing.

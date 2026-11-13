@@ -1,0 +1,13 @@
+drivers:
+  - name: Shab Uddin
+    phone: "+918837273925"
+    avg_rating: 4.4
+    cab_registration_number: KA01AN9260
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: White
+
+
+  
