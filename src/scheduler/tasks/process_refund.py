@@ -202,6 +202,12 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
             # permission to create a second refund with a different key.
             refund.review_required = True
             refund.last_error = refund_errors.PROVIDER_REFUND_FAILED
+        elif _is_refund_work_complete(refund):
+            refund.next_attempt_at = None
+            refund.last_error = None
+            refund.review_required = False
+
+         
     except RefundReviewRequired as exc:
         refund.review_required = True
         refund.last_error = str(exc)
