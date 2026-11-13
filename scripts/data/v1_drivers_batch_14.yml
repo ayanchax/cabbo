@@ -1,0 +1,13 @@
+drivers:
+  - name: Abdul Kadir
+    phone: "+918296220170"
+    avg_rating: 4.4
+    cab_registration_number: KA01AM4572
+    cab_model_and_make: Maruti Suzuki Dzire
+    cab_type: Sedan
+    fuel_type: petrol
+    capacity: "4+1"
+    color: Grey
+
+
+  
