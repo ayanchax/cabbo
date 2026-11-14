@@ -1,9 +1,12 @@
 """Persist verified collections without provider calls or transaction ownership."""
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
+from decimal import Decimal, ROUND_HALF_UP
 from models.financial.payments_enum import ReconciliationStateEnum
-from models.financial.platform_fee_ledger_orm import PlatformFeeCollection
+from models.financial.platform_fee_ledger_orm import PlatformFeeCollection, PlatformFeeRefundAdjustment
+from models.policies.refund_enum import RefundStatus
+from models.policies.refund_orm import Refund
 from models.trip.trip_orm import Trip
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,3 +78,86 @@ async def a_ensure_platform_fee_collection(trip:Trip, db:AsyncSession, source:st
     db.add(collection)
     await db.flush()
     return collection
+
+
+async def a_record_platform_fee_refund(refund:Refund, trip:Trip, db:AsyncSession, source:str = "refund_worker") -> PlatformFeeRefundAdjustment | None:
+    """Append a successful cash refund and update totals in the caller's transaction.
+
+    Lock the original collection to serialize different refunds of one payment.
+    GST reporting remains on review; cash allocation does not issue a credit note.
+    """
+    if refund.refund_status not in (RefundStatus.processed, RefundStatus.completed):
+        return None
+    provider = getattr(refund.refund_provider, "value", refund.refund_provider)
+    if trip is None or trip.id != refund.entity_id or not refund.provider_refund_id or not refund.payment_id:
+        raise ValueError("Successful refund is missing ledger identity evidence")
+    collection = await a_ensure_platform_fee_collection(trip, db, source=source)
+    if collection is None:
+        raise ValueError("Successful refund has no verified collection snapshot")
+    result = await db.execute(select(PlatformFeeCollection).where(
+        PlatformFeeCollection.id == collection.id,
+    ).with_for_update().execution_options(populate_existing=True))
+    collection = result.scalars().one()
+    details = refund.refund_details or {}
+    currency = details.get("_currency_code") or details.get("currency")
+    amount = to_decimal(refund.refund_amount)
+    if (collection.provider != provider or collection.payment_id != refund.payment_id
+            or currency != collection.currency or amount is None or amount <= 0
+            or amount != amount.quantize(MONEY_PRECISION)):
+        raise ValueError("Refund does not match the original collection")
+    result = await db.execute(select(PlatformFeeRefundAdjustment).where(or_(
+        PlatformFeeRefundAdjustment.refund_id == refund.id,
+        (PlatformFeeRefundAdjustment.provider == provider)
+        & (PlatformFeeRefundAdjustment.provider_refund_id == refund.provider_refund_id),
+    )))
+    existing = result.scalars().first()
+    if existing:
+        if (existing.collection_id != collection.id or existing.refund_id != refund.id
+                or existing.provider_refund_id != refund.provider_refund_id
+                or existing.refunded_gross != amount or existing.currency != currency):
+            raise ValueError("Existing refund adjustment conflicts with provider evidence")
+        return existing
+    result = await db.execute(select(PlatformFeeRefundAdjustment).where(
+        PlatformFeeRefundAdjustment.collection_id == collection.id,
+    ))
+    previous = result.scalars().all()
+    previous_gross = sum((row.refunded_gross for row in previous), Decimal(0))
+    total_gross = previous_gross + amount
+    if total_gross > collection.platform_fee_gross:
+        raise ValueError("Refund adjustments exceed the original platform fee")
+    reasons = ["tax_jurisdiction_unconfirmed", "reporting_period_unconfirmed", "refund_document_unconfirmed",
+               "refund_processed_timestamp_unavailable"]
+    base = tax = None
+    known_breakdown = (collection.platform_fee_base is not None and collection.platform_fee_tax is not None
+                       and collection.platform_fee_base + collection.platform_fee_tax == collection.platform_fee_gross
+                       and all(row.refunded_base is not None and row.refunded_tax is not None for row in previous))
+    if known_breakdown:
+        previous_base = sum((row.refunded_base for row in previous), Decimal(0))
+        previous_tax = sum((row.refunded_tax for row in previous), Decimal(0))
+        # Allocate against the original charged amounts. The final refund takes
+        # the remainder, preventing accumulated paise rounding discrepancies.
+        target_base = (collection.platform_fee_base if total_gross == collection.platform_fee_gross else
+                       (total_gross * collection.platform_fee_base / collection.platform_fee_gross)
+                       .quantize(MONEY_PRECISION, rounding=ROUND_HALF_UP))
+        base = target_base - previous_base
+        tax = total_gross - target_base - previous_tax
+        if base < 0 or tax < 0:
+            raise ValueError("Historical refund allocation requires review")
+    else:
+        reasons.append("tax_breakdown_unresolved")
+    adjustment = PlatformFeeRefundAdjustment(
+        collection_id=collection.id, entity_id=trip.id, refund_id=refund.id,
+        provider=provider, provider_refund_id=refund.provider_refund_id, currency=currency,
+        refunded_gross=amount, refunded_base=base, refunded_tax=tax,
+        # Razorpay refund created_at is submission time, not completion time.
+        # Retain unknown completion time rather than inventing a provider date.
+        processed_at=None, source=source, review_required=True,
+        review_reason=",".join(reasons),
+    )
+    db.add(adjustment)
+    collection.refunded_gross = total_gross
+    collection.refunded_base = (previous_base + base) if known_breakdown else None
+    collection.refunded_tax = (previous_tax + tax) if known_breakdown else None
+    collection.refund_status = ("fully_refunded" if total_gross == collection.platform_fee_gross else "partially_refunded")
+    await db.flush()
+    return adjustment

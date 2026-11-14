@@ -20,6 +20,7 @@ from services.payment_service import (
     RefundReviewRequired, RefundRetryableError, get_payment_id_prefix, get_refund_id_prefix, reconcile_or_submit_refund, fetch_refund,
 )
 from services.refund_service import get_refund_for_processing, send_refund_credited_notification
+from services.platform_fee_ledger_service import a_record_platform_fee_refund
 from services.notification_service import notify_trip_cancellation_to_customer
 from utils.money import subunits
 from utils.retry import get_retry_delay_seconds
@@ -143,6 +144,7 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     now = datetime.now(timezone.utc)
     details = dict(refund.refund_details or {})
     if refund.review_required:
+        await a_record_platform_fee_refund(refund, trip, db)
         await _send_notifications(refund, trip)
         refund.next_attempt_at = now + timedelta(seconds=get_retry_delay_seconds(refund.attempts or 1))
         return
@@ -212,6 +214,9 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     # The caller commits financial state even if email fails. No refresh/lazy
     # relationship access after commit, avoiding implicit async ORM I/O.
     await db.flush()
+    # Persist the refund and its ledger adjustment atomically. Failures roll
+    # back for retry; provider idempotency/reconciliation prevents another payout.
+    await a_record_platform_fee_refund(refund, trip, db)
     await _send_notifications(refund, trip)
     refund.next_attempt_at = now + timedelta(seconds=get_retry_delay_seconds(refund.attempts or 1))
 

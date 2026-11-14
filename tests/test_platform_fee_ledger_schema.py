@@ -43,6 +43,13 @@ class PlatformFeeLedgerSchemaTests(unittest.TestCase):
         self.customer_migration = runpy.run_path(str(ROOT / "alembic/versions/a0b1c2d3e4f5_ledger_customer_foreign_key.py"))
         self.customer_migration["upgrade"].__globals__["op"] = self.operations
         self.customer_migration["upgrade"]()
+        self.refund_migration = runpy.run_path(str(ROOT / "alembic/versions/b1c2d3e4f5a6_refund_ledger_unknown_values.py"))
+        self.refund_migration["upgrade"].__globals__["op"] = self.operations
+        self.refund_migration["upgrade"]()
+        self.creator_migration = runpy.run_path(str(ROOT / "alembic/versions/c2d3e4f5a6b7_ledger_created_by.py"))
+        self.creator_migration["upgrade"].__globals__["op"] = self.operations
+        self.creator_migration["upgrade"]()
+        self.connection.commit()
 
     def tearDown(self):
         self.connection.close()
@@ -89,6 +96,10 @@ class PlatformFeeLedgerSchemaTests(unittest.TestCase):
             self.connection.execute(table.update().values(customer_id="missing-customer"))
 
     def test_downgrade_preserves_existing_tables(self):
+        self.creator_migration["downgrade"].__globals__["op"] = self.operations
+        self.creator_migration["downgrade"]()
+        self.refund_migration["downgrade"].__globals__["op"] = self.operations
+        self.refund_migration["downgrade"]()
         self.customer_migration["downgrade"].__globals__["op"] = self.operations
         self.customer_migration["downgrade"]()
         self.migration["downgrade"].__globals__["op"] = self.operations
@@ -126,6 +137,7 @@ class PlatformFeeLedgerSchemaTests(unittest.TestCase):
             first = await ensure(trip, Adapter())
             self.assertEqual(first.platform_fee_base, 100)
             self.assertEqual(first.platform_fee_tax, 18)
+            self.assertEqual(first.created_by, "system")
             self.assertIsNone(first.captured_at)
             self.assertTrue(first.review_required)
             # A later changed trip/config cannot rewrite the original snapshot.
@@ -140,6 +152,82 @@ class PlatformFeeLedgerSchemaTests(unittest.TestCase):
             trip.payment_provider_metadata["payment_verified"] = False
             self.assertIsNone(await ensure(trip, Adapter()))
             self.assertEqual(session.query(self.models["PlatformFeeCollection"]).count(), 2)
+
+        try:
+            asyncio.run(exercise())
+        finally:
+            session.close()
+
+    def test_refund_adjustments_are_idempotent_and_preserve_original_amounts(self):
+        from decimal import Decimal
+        tree = ast.parse((ROOT / "src/services/platform_fee_ledger_service.py").read_text())
+        tree.body = [node for node in tree.body if not (
+            isinstance(node, ast.ImportFrom) and node.module.startswith("models.")
+        )]
+        statuses = SimpleNamespace(processed="processed", completed="completed")
+        scope = dict(self.models, Trip=object, RefundStatus=statuses,
+                     ReconciliationStateEnum=SimpleNamespace(captured=SimpleNamespace(value="captured")))
+        exec(compile(tree, "ledger_service", "exec"), scope)
+        trip = SimpleNamespace(id="trip-1", payment_provider="razorpay", payment_order_id="order-1",
+            advance_payment=118, creator_id="customer-1", payment_provider_metadata={
+                "razorpay_payment_id": "pay-1", "payment_verified": True, "currency": "INR"},
+            price_breakdown={"platform_fee_base": 100, "platform_fee_tax": 18})
+        session = Session(bind=self.connection)
+
+        class Adapter:
+            async def execute(self, query):
+                return session.execute(query)
+
+            def add(self, row):
+                session.add(row)
+
+            async def flush(self):
+                session.flush()
+
+        def refund(identifier, amount, status="processed"):
+            session.execute(self.base.metadata.tables["refunds"].insert(), {"id": identifier})
+            return SimpleNamespace(id=identifier, entity_id=trip.id, refund_provider="razorpay",
+                payment_id="pay-1", provider_refund_id="rfnd-" + identifier,
+                refund_amount=Decimal(amount), refund_status=status, refund_details={"currency": "INR"})
+
+        async def exercise():
+            record = scope["a_record_platform_fee_refund"]
+            pending = refund("pending", "10", "pending")
+            self.assertIsNone(await record(pending, trip, Adapter()))
+            first_refund = refund("first", "39.33")
+            first = await record(first_refund, trip, Adapter())
+            self.assertEqual(first.refunded_base + first.refunded_tax, Decimal("39.33"))
+            self.assertIsNone(first.processed_at)
+            self.assertTrue(first.review_required)
+            self.assertIs(await record(first_refund, trip, Adapter()), first)
+            collection = session.query(self.models["PlatformFeeCollection"]).one()
+            self.assertEqual(collection.refund_status, "partially_refunded")
+            await record(refund("second", "78.67"), trip, Adapter())
+            self.assertEqual(collection.refund_status, "fully_refunded")
+            self.assertEqual(collection.refunded_gross, Decimal("118"))
+            self.assertEqual(collection.refunded_base, Decimal("100"))
+            self.assertEqual(collection.refunded_tax, Decimal("18"))
+            self.assertEqual(collection.platform_fee_gross, Decimal("118"))
+            self.assertEqual(collection.platform_fee_base, Decimal("100"))
+            self.assertEqual(session.query(self.models["PlatformFeeRefundAdjustment"]).count(), 2)
+            with self.assertRaises(ValueError):
+                await record(refund("excess", "0.01"), trip, Adapter())
+            mismatch = refund("mismatch", "1")
+            mismatch.payment_id = "different-payment"
+            with self.assertRaises(ValueError):
+                await record(mismatch, trip, Adapter())
+            # Rollback removes both adjustments and their collection summary.
+            session.rollback()
+            self.assertEqual(session.query(self.models["PlatformFeeRefundAdjustment"]).count(), 0)
+            trip.price_breakdown = {}
+            unknown = await record(refund("unknown", "118"), trip, Adapter())
+            self.assertIsNone(unknown.refunded_base)
+            self.assertIsNone(unknown.refunded_tax)
+            collection = session.query(self.models["PlatformFeeCollection"]).one()
+            self.assertIsNone(collection.refunded_base)
+            self.assertIsNone(collection.refunded_tax)
+            self.assertEqual(collection.refunded_gross, Decimal("118"))
+            self.assertIn("tax_breakdown_unresolved", unknown.review_reason)
 
         try:
             asyncio.run(exercise())

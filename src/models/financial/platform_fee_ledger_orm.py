@@ -51,10 +51,11 @@ class PlatformFeeCollection(Base):
     invoice_id = Column(CHAR(36), ForeignKey("invoices.id"), nullable=True, comment='Final invoice foreign key; null until an invoice is issued.')
     receipt_reference = Column(String(64), nullable=True, comment='Advance receipt document reference, where applicable.')
     refund_status = Column(String(32), nullable=False, default="unrefunded", server_default="unrefunded", comment='Derived collection summary: unrefunded, partially_refunded or fully_refunded.')
-    refunded_base = Column(Numeric(18, 2), nullable=False, default=0, server_default="0", comment='Cumulative successfully refunded taxable fee base; adjustment rows store individual refunds.')
-    refunded_tax = Column(Numeric(18, 2), nullable=False, default=0, server_default="0", comment='Cumulative successfully refunded GST; adjustment rows store individual refunds.')
+    refunded_base = Column(Numeric(18, 2), nullable=True, default=0, server_default="0", comment='Cumulative refunded taxable fee base; null if any refund allocation is unresolved.')
+    refunded_tax = Column(Numeric(18, 2), nullable=True, default=0, server_default="0", comment='Cumulative refunded GST; null if any refund allocation is unresolved.')
     refunded_gross = Column(Numeric(18, 2), nullable=False, default=0, server_default="0", comment='Cumulative successfully refunded gross platform fee.')
     source = Column(String(32), nullable=False, comment='Record provenance, such as reconciliation or historical backfill.')
+    created_by = Column(CHAR(36), nullable=False, default="system", server_default="system", comment='Creator user ID for manual/backfill entries; system for automated entries.')
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), comment='UTC timestamp when the ledger record was created.')
 
 
@@ -82,7 +83,7 @@ class PlatformFeeRefundAdjustment(Base):
     cgst_amount = Column(Numeric(18, 2), nullable=True, comment='Central GST amount; null when allocation is unresolved.')
     sgst_amount = Column(Numeric(18, 2), nullable=True, comment='State GST amount; null when allocation is unresolved.')
     igst_amount = Column(Numeric(18, 2), nullable=True, comment='Integrated GST amount; null when allocation is unresolved.')
-    processed_at = Column(DateTime(timezone=True), nullable=False, comment='UTC provider refund completion timestamp; does not determine GST reporting date.')
+    processed_at = Column(DateTime(timezone=True), nullable=True, comment='UTC provider completion timestamp, null if unavailable; distinct from GST reporting date.')
     reporting_date = Column(Date, nullable=True, comment='Applicable tax reporting date; independent of cash movement and nullable pending review.')
     document_type = Column(String(32), nullable=True, comment='Adjustment document kind, such as credit_note or refund_voucher.')
     document_number = Column(String(64), nullable=True, comment='Adjustment document number, when issued.')
@@ -90,4 +91,5 @@ class PlatformFeeRefundAdjustment(Base):
     review_required = Column(Boolean, nullable=False, default=True, server_default="1", comment='Whether unresolved data or tax treatment requires review before filing.')
     review_reason = Column(String(255), nullable=True, comment='Reason this record requires reporting review.')
     source = Column(String(32), nullable=False, comment='Record provenance, such as reconciliation or historical backfill.')
+    created_by = Column(CHAR(36), nullable=False, default="system", server_default="system", comment='Creator user ID for manual/backfill entries; system for automated entries.')
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), comment='UTC timestamp when the ledger record was created.')

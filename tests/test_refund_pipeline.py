@@ -29,6 +29,7 @@ from models.trip.trip_enums import CancellationSubStatusEnum, TripTypeEnum
 from models.policies.refund_schema import RefundSchema
 from apscheduler.triggers.interval import IntervalTrigger
 from utils.retry import get_retry_delay_seconds
+from utils.money import subunits
 
 
 def load_function(*args, **kwargs):
@@ -202,7 +203,7 @@ def worker_scope():
     config = SimpleNamespace(currency="INR", currency_lowest_unit_conversion_factor=100,
                              currency_decimal_places=2, currency_symbol="INR")
     ns = dict(refund_errors=refund_errors, asyncio=asyncio, datetime=datetime, timedelta=timedelta, timezone=timezone,
-              Decimal=Decimal, ROUND_HALF_UP=ROUND_HALF_UP, NAMESPACE_URL=uuid.NAMESPACE_URL,
+              Decimal=Decimal, ROUND_HALF_UP=ROUND_HALF_UP, subunits=subunits, NAMESPACE_URL=uuid.NAMESPACE_URL,
               uuid5=uuid.uuid5, select=select, or_=or_, and_=and_, joinedload=joinedload,
               RefundORM=Refund, Trip=Trip, RefundStatus=RefundStatus, TripStatusEnum=TripStatusEnum,
               AsyncSession=AsyncSession, REFUND_POLL_BATCH_SIZE=50, REFUND_LEASE_MINUTES=15,
@@ -215,6 +216,7 @@ def worker_scope():
                   REFUND_POLL_INTERVAL_MINUTES=1, get_config_store=lambda:
                   SimpleNamespace(geographies=SimpleNamespace(country_server=config))),
               notify_trip_cancellation_to_customer=AsyncMock(return_value=True),
+              a_record_platform_fee_refund=AsyncMock(),
               send_refund_credited_notification=AsyncMock(return_value=True))
     tree = ast.parse((ROOT / "src/scheduler/tasks/process_refund.py").read_text())
     nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
@@ -328,6 +330,22 @@ class AsyncRefundTests(unittest.IsolatedAsyncioTestCase):
         self.ns["reconcile_or_submit_refund"].assert_called_once()
         self.ns["fetch_refund"].assert_called_once()
         self.ns["send_refund_credited_notification"].assert_awaited_once()
+
+    async def test_ledger_failure_rolls_back_before_notifications(self):
+        self.ns["reconcile_or_submit_refund"].return_value["status"] = "processed"
+        self.ns["a_record_platform_fee_refund"].side_effect = RuntimeError("ledger unavailable")
+        await self.run_worker()
+        row = await self.read()
+        self.assertEqual(row.refund_status, RefundStatus.initiated)
+        self.assertIsNone(row.provider_refund_id)
+        self.ns["notify_trip_cancellation_to_customer"].assert_not_awaited()
+        self.ns["send_refund_credited_notification"].assert_not_awaited()
+        key = self.ns["reconcile_or_submit_refund"].call_args.kwargs["idempotency_key"]
+        self.ns["a_record_platform_fee_refund"].side_effect = None
+        await self.due()
+        await self.run_worker()
+        self.assertEqual((await self.read()).refund_status, RefundStatus.processed)
+        self.assertEqual(self.ns["reconcile_or_submit_refund"].call_args.kwargs["idempotency_key"], key)
 
     async def test_claim_lease_and_expiry(self):
         async with self.sessions() as db:
@@ -714,7 +732,7 @@ class MigrationTests(unittest.TestCase):
                 revisions.add(values["revision"])
                 parent = values.get("down_revision")
                 parents.update(parent if isinstance(parent, tuple) else [parent])
-        self.assertEqual(revisions - parents, {"d7e8f9a0b1c2"})
+        self.assertEqual(revisions - parents, {"c2d3e4f5a6b7"})
         output = io.StringIO()
         context = MigrationContext.configure(dialect=mysql.dialect(), opts={"as_sql": True, "output_buffer": output})
         module = runpy.run_path(str(ROOT / "alembic/versions/d7e8f9a0b1c2_durable_refund_processing.py"))
