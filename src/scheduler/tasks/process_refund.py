@@ -21,6 +21,7 @@ from services.payment_service import (
 )
 from services.refund_service import get_refund_for_processing, send_refund_credited_notification
 from services.notification_service import notify_trip_cancellation_to_customer
+from utils.money import subunits
 from utils.retry import get_retry_delay_seconds
 
 log = logging.getLogger(__name__)
@@ -135,10 +136,7 @@ def _mark_refund_attempt_limit(refund):
                 refund.id, settings.REFUND_MAX_ATTEMPTS)
 
 
-def _subunits(value, factor):
-    return int((Decimal(str(value)) * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-
-
+ 
 async def _process_single_refund(db: AsyncSession, refund: RefundORM):
     """Caller owns the transaction; never refresh/lazy-load after commit here."""
     trip = refund.trip
@@ -175,7 +173,7 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
         if not payment_id:
             raise RefundReviewRequired(refund_errors.MISSING_PAYMENT_ID)
         refund.payment_id = payment_id
-        amount = _subunits(refund.refund_amount, factor)
+        amount = subunits(refund.refund_amount, factor)
         if refund.refund_status not in (RefundStatus.processed, RefundStatus.completed):
             # All provider selection and SDK construction go through the payment
             # service; keep blocking network calls outside this asyncio loop.
@@ -186,7 +184,7 @@ async def _process_single_refund(db: AsyncSession, refund: RefundORM):
             else:
                 response = await asyncio.to_thread(reconcile_or_submit_refund,
                     payment_id=payment_id, amount=amount,
-                    original_amount=_subunits(trip.advance_payment, factor),
+                    original_amount=subunits(trip.advance_payment, factor),
                     currency=currency, order_id=metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id"),
                     idempotency_key=refund.idempotency_key, entity_id=refund.entity_id,
                     provider=refund.refund_provider)

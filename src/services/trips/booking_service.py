@@ -30,6 +30,7 @@ from core.exceptions import (
 from services.audit_trail_service import a_log_trip_audit
 from services.configuration_service import get_currency
 from services.payment_service import get_booking_payment_order, verify_payment
+from services.platform_fee_ledger_service import a_ensure_platform_fee_collection
 from services.trips.trip_service import (
     a_create_temporary_trip,
     a_delete_temp_trip,
@@ -63,6 +64,8 @@ async def a_existing_booking(temp_trip_id:str, requestor:str, db:AsyncSession, o
 
 
 async def a_existing_booking_response(trip:Trip, db):
+    await a_ensure_platform_fee_collection(trip, db)
+    await db.commit()
     return await a_booking_confirmation_response(trip, None, db)
 
 
@@ -304,6 +307,8 @@ async def a_create_confirmed_trip_from_temp_trip(
     try:
         db.add(trip)
         await db.flush()
+        # The verified collection and booking must succeed or roll back together.
+        await a_ensure_platform_fee_collection(trip, db)
         # Here we will perform a trip status audit log entry
         audit = await a_log_trip_audit(
             trip_id=trip.id,
@@ -598,6 +603,8 @@ async def a_recover_payment_verified_temp_trip(
     )
     existing_trip = result.scalars().first()
     if existing_trip:
+        await a_ensure_platform_fee_collection(existing_trip, db)
+        await db.commit()
         payment_info = None
         if existing_trip.payment_provider_metadata:
             try:

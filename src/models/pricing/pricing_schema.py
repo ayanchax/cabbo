@@ -74,6 +74,7 @@ class PricingBreakdownBaseSchema(BaseModel):
     platform_fee_tax: Optional[float] = None
     platform_fee_tax_rate_percent: Optional[float] = None
     platform_fee_tax_type: Optional[str] = None
+    platform_fee_tax_configuration_id: Optional[str] = None
 
     class Config:
         from_attributes = True

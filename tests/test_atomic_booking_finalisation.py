@@ -105,6 +105,7 @@ class AtomicFinalisationTests(unittest.IsolatedAsyncioTestCase):
                            settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay", CABBO_DEFAULT_TIMEZONE="UTC", CABBO_DEFAULT_UTC_OFFSET=0),
                            TripStatusEnum=TripStatusEnum, TripStatusAudit=Audit, Optional=Optional,
                            a_populate_trip_schema=self.populate,
+                           a_ensure_platform_fee_collection=AsyncMock(),
                            PAYMENT_VERIFIED_WITH_PENDING_CONFIRMATION="pending", TRIP_NOT_FOUND="missing",
                            TRIP_TYPE_ID_NOT_FOUND="invalid_type", **dependencies)
         fn.__globals__.update(Trip=FinalTrip, TempTrip=TemporaryTrip, select=select,
@@ -138,6 +139,14 @@ class AtomicFinalisationTests(unittest.IsolatedAsyncioTestCase):
             await fn(self.temp, "admin", None, self.db)
         self.assertEqual(self.counts(), [0, 0, 1])
         self.assertTrue(self.session.get(TemporaryTrip, "temp_1").payment_provider_metadata["payment_verified"])
+
+    async def test_ledger_failure_rolls_back_booking_and_preserves_temp(self):
+        fn = self.finalise()
+        fn.__globals__["a_ensure_platform_fee_collection"] = AsyncMock(side_effect=RuntimeError("ledger failed"))
+        with self.assertRaises(BookingError):
+            await fn(self.temp, "admin", None, self.db)
+        self.assertEqual(self.counts(), [0, 0, 1])
+        self.db.commit.assert_not_awaited()
 
     async def test_temp_deletion_failure_rolls_back_trip_and_audit(self):
         self.db.delete.side_effect = RuntimeError("delete failed")

@@ -16,6 +16,7 @@ from models.trip.trip_orm import Trip
 from models.trip.trip_schema import BookingPaymentStatus
 from services.configuration_service import get_currency
 from services.payment_service import fetch_payment_order_status
+from services.platform_fee_ledger_service import a_ensure_platform_fee_collection
 from services.trips.booking_service import (
     a_create_confirmed_trip_from_temp_trip,
     a_existing_booking,
@@ -93,6 +94,7 @@ async def a_request_booking_reconciliation(temp_trip_id: str, requestor: str, db
     order_id = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
     existing = await a_existing_booking(temp_trip_id, requestor, db, order_id)
     if existing:
+        await a_ensure_platform_fee_collection(existing, db)
         response = _status_response(temp_trip_id, trip=existing)
         await db.commit()
         return response
@@ -153,6 +155,7 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
     order_id:str = metadata.get(f"{settings.PAYMENT_PROVIDER}_order_id")
     existing = await a_existing_booking(temp_trip_id, requestor, db, order_id)
     if existing:
+        await a_ensure_platform_fee_collection(existing, db)
         response = _status_response(temp_trip_id, trip=existing)
         await db.commit()
         return response
@@ -259,6 +262,7 @@ async def a_reconcile_booking(temp_trip_id: str, requestor: str, db: AsyncSessio
         # A response/read error can follow an already committed booking.
         existing = await a_existing_booking(temp_trip_id, requestor, db, order_id)
         if existing:
+            await a_ensure_platform_fee_collection(existing, db)
             response = _status_response(temp_trip_id, trip=existing)
             await db.commit()
             return response

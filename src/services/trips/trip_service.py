@@ -108,6 +108,7 @@ PLATFORM_FEE_BREAKDOWN_KEYS = {
     "platform_fee_tax",
     "platform_fee_tax_rate_percent",
     "platform_fee_tax_type",
+    "platform_fee_tax_configuration_id",
 }
 
 

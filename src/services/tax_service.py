@@ -96,4 +96,5 @@ def compute_tax_on_base_platform_fee(
         "platform_fee_tax": tax_amount,
         "platform_fee_tax_rate_percent": tax_config.rate_percent if tax_config else None,
         "platform_fee_tax_type": tax_config.tax_type if tax_config else None,
+        "platform_fee_tax_configuration_id": tax_config.id if tax_config else None,
     }

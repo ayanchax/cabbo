@@ -100,6 +100,7 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
             "src/services/trips/reconciliation_service.py", "a_reconcile_booking",
             asyncio=asyncio, settings=SimpleNamespace(PAYMENT_PROVIDER="razorpay", RECONCILE_ACTIVE_WINDOW_HOURS=48),
             a_existing_booking=self.existing, _status_response=self.response,
+            a_ensure_platform_fee_collection=AsyncMock(),
             get_currency=lambda: SimpleNamespace(code="INR", lowest_unit_conversion_factor=100),
             convert_based_on_currency=lambda value, factor: value * factor,
             fetch_payment_order_status=self.provider,
